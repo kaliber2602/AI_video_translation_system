@@ -1,0 +1,85 @@
+AI VIDEO TRANSLATION & VIDEO UNDERSTANDING PLATFORM
+
+1. MỤC TIÊU
+Xây dựng hệ thống AI tự động dịch video, tạo phụ đề, lồng tiếng, hiểu nội dung video(cho phép chuyển âm thành video thành văn bản) và sinh tài liệu có cấu trúc.
+
+2. CHỨC NĂNG
+- Upload video (MP4/MKV/MOV/AVI)
+- Tách audio bằng FFmpeg
+- Speech-to-Text (WhisperX)
+- Speaker Diarization (Pyannote)
+- Dịch đa ngôn ngữ (NLLB-200 hoặc GPT)
+- Xuất TXT, SRT, VTT, JSON
+- Text-to-Speech (XTTS v2 hoặc Qwen3-TTS)
+- Voice Cloning
+- Ghép video bằng FFmpeg
+- Sinh Markdown theo timeline
+- Chia Chapter theo chủ đề
+- Chuyển TXT sang DOCX có cấu trúc
+- Sinh PDF, HTML.
+
+3. PIPELINE
+
+Upload Video
+    |
+Validate
+    |
+FFmpeg Extract Audio
+    |
+WhisperX
+    |
+Transcript + Timeline
+    |
++--> TXT/SRT/JSON
+|
++--> Translation (NLLB/GPT)
+        |
+        +--> Subtitle
+        +--> TTS
+                |
+          Voice Clone
+                |
+          Audio Sync
+                |
+         FFmpeg Merge
+                |
+          Final Video
+
+Song song:
+Transcript
+   |
+LLM Understanding
+   |
+Topic Detection
+   |
+Timeline Chapters
+   |
+Markdown Generator
+   |
+DOCX/PDF/HTML
+
+4. KIẾN TRÚC
+Frontend: React
+Backend: FastAPI
+DB: PostgreSQL
+Queue: Redis + Celery
+Storage: MinIO
+Container: Docker
+Dùng Docker để chạy thử
+
+5. MODEL ĐỀ XUẤT
+STT: WhisperX
+Diarization: Pyannote Audio
+Translation: NLLB-200 (local)
+TTS: Qwen3-TTS
+Voice Clone: Qwen3-TTS 
+Source Separation: Demucs
+Video: FFmpeg
+
+6. ĐIỂM KHÁC BIỆT
+- Dịch phụ đề và lồng tiếng.
+- Clone giọng người nói.
+- Hiểu nội dung video.
+- Chia chương theo ngữ nghĩa.
+- Sinh Markdown theo timeline.
+- Chuyển transcript thành DOCX có cấu trúc.
