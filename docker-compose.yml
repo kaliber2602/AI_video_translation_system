@@ -2,8 +2,8 @@ services:
   backend:
     build:
       context: ./backend
-    # command: sh -c "python app/prefetch_models.py all && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: sh -c "python app/prefetch_models.py all && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    # command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
       # A real folder on your machine, NOT a hidden Docker volume — so you
@@ -21,7 +21,8 @@ services:
       # Required for diarization: pyannote/speaker-diarization-3.1 is gated on
       # Hugging Face — accept the license at huggingface.co/pyannote/speaker-diarization-3.1
       # then create a free access token and put it in a .env file next to this file:
-      HF_TOKEN: your_hf_token
+      HF_TOKEN: 
+      TTS_API_URL: "http://tts-service:8001/generate_tts"
     depends_on:
       - db
       - redis
@@ -62,6 +63,18 @@ services:
       - "9001:9001"
     volumes:
       - minio_data:/data
+
+  tts-service:
+    build:
+      context: ./tts_service
+      dockerfile: Dockerfile.tts
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./tts-model-cache:/root/.local/share/tts
+
+    environment:
+      PYTHONUNBUFFERED: "1"
+      COQUI_TOS_AGREED: "1"
 
 volumes:
   postgres_data:

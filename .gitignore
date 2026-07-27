@@ -1,4 +1,6 @@
 backend/uploads/
+backend/outputs/
+.pytest_cache/
 model-cache
 .venv/
 __pycache__/
@@ -6,3 +8,4 @@ __pycache__/
 node_modules/
 dist/
 .env
+tts-model-cache

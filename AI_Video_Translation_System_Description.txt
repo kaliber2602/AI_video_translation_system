@@ -1,7 +1,7 @@
 AI VIDEO TRANSLATION & VIDEO UNDERSTANDING PLATFORM
 
 1. MỤC TIÊU
-Xây dựng hệ thống AI tự động dịch video, tạo phụ đề, lồng tiếng, hiểu nội dung video(cho phép chuyển âm thành video thành văn bản) và sinh tài liệu có cấu trúc.
+Xây dựng hệ thống AI tự động dịch video, tạo phụ đề, lồng tiếng, hiểu nội dung video (cho phép chuyển âm thanh video thành văn bản), sinh tài liệu có cấu trúc và hỗ trợ tìm kiếm nội dung theo ngữ nghĩa.
 
 2. CHỨC NĂNG
 - Upload video (MP4/MKV/MOV/AVI)
@@ -17,6 +17,7 @@ Xây dựng hệ thống AI tự động dịch video, tạo phụ đề, lồng
 - Chia Chapter theo chủ đề
 - Chuyển TXT sang DOCX có cấu trúc
 - Sinh PDF, HTML.
+- Semantic Search: Xây dựng chỉ mục ngữ nghĩa (Semantic Index) từ transcript, hỗ trợ tìm kiếm nội dung bằng ngôn ngữ tự nhiên và tự động điều hướng người dùng đến đúng mốc thời gian (timestamp) trên video.
 
 3. PIPELINE
 
@@ -33,30 +34,37 @@ Transcript + Timeline
 +--> TXT/SRT/JSON
 |
 +--> Translation (NLLB/GPT)
+|       |
+|       +--> Subtitle
+|       +--> TTS
+|               |
+|         Voice Clone
+|               |
+|         Audio Sync
+|               |
+|        FFmpeg Merge
+|               |
+|         Final Video
+|
++--> [Song song 1]: AI Intelligence Sync
+|       |
+|     LLM Understanding
+|       |
+|     Topic Detection
+|       |
+|     Timeline Chapters
+|       |
+|     Markdown Generator
+|       |
+|     DOCX/PDF/HTML
+|
++--> [Song song 2]: Semantic Search
         |
-        +--> Subtitle
-        +--> TTS
-                |
-          Voice Clone
-                |
-          Audio Sync
-                |
-         FFmpeg Merge
-                |
-          Final Video
-
-Song song:
-Transcript
-   |
-LLM Understanding
-   |
-Topic Detection
-   |
-Timeline Chapters
-   |
-Markdown Generator
-   |
-DOCX/PDF/HTML
+      Qwen3-Embedding (Lấy Text + Metadata)
+        |
+      FAISS Vector DB
+        |
+      Semantic Search API (Trả về Timestamp)
 
 4. KIẾN TRÚC
 Frontend: React
@@ -75,6 +83,9 @@ TTS: Qwen3-TTS
 Voice Clone: Qwen3-TTS 
 Source Separation: Demucs
 Video: FFmpeg
+Embedding Model: Qwen3 Embedding 
+Vector Database: FAISS 
+Semantic Search: LangChain / LlamaIndex 
 
 6. ĐIỂM KHÁC BIỆT
 - Dịch phụ đề và lồng tiếng.
@@ -83,3 +94,4 @@ Video: FFmpeg
 - Chia chương theo ngữ nghĩa.
 - Sinh Markdown theo timeline.
 - Chuyển transcript thành DOCX có cấu trúc.
+- Tìm kiếm ngữ nghĩa (Semantic Search): Khả năng truy vấn nội dung video bằng ngôn ngữ tự nhiên và tự động nhảy đến đúng phân cảnh (timestamp) tương ứng thay vì chỉ tìm theo từ khóa chính xác.

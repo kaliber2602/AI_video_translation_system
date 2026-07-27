@@ -1,228 +1,82 @@
-"""Core AI pipeline stages: audio extraction, STT, diarization, chaptering.
-
-All stages here call real models/tools (ffmpeg, faster-whisper, pyannote.audio).
-There is no synthetic/placeholder output: if a required tool or model is
-missing, the corresponding function raises a clear RuntimeError instead of
-silently faking data, so failures are visible instead of hidden.
-"""
-
 import os
-import shutil
-import subprocess
-from functools import lru_cache
-from pathlib import Path
-from typing import Optional, TypedDict
+import tempfile
+from .services import AudioService, TranslationService, STTService, TTSAlignerService
 
-from app.services import UPLOAD_DIR
+# --- BỘ MAPPER NGÔN NGỮ ĐA NĂNG ---
+TARGET_LANGUAGE_MAP = {
+    "en": {"nllb": "eng_Latn", "xtts": "en"},
+    "vi": {"nllb": "vie_Latn", "xtts": "vi"},
+    "fr": {"nllb": "fra_Latn", "xtts": "fr"},
+    "ja": {"nllb": "jpn_Jpan", "xtts": "ja"},
+    "es": {"nllb": "spa_Latn", "xtts": "es"},
+    "zh": {"nllb": "zho_Hans", "xtts": "zh-cn"}
+}
 
-try:
-    from faster_whisper import WhisperModel  # type: ignore
-except Exception:  # pragma: no cover - optional dependency
-    WhisperModel = None
+SOURCE_LANGUAGE_MAP = {
+    "en": "eng_Latn",
+    "vi": "vie_Latn",
+    "fr": "fra_Latn",
+    "ja": "jpn_Jpan",
+    "zh": "zho_Hans",
+    "ko": "kor_Hang",
+    "es": "spa_Latn",
+}
 
-try:
-    from pyannote.audio import Pipeline as PyannotePipeline  # type: ignore
-except Exception:  # pragma: no cover - optional dependency
-    PyannotePipeline = None
+# Load mô hình 1 lần duy nhất khi ứng dụng khởi chạy
+audio_service = AudioService()
+stt_service = STTService()
+translation_service = TranslationService()
+tts_url = os.getenv("TTS_API_URL", "http://127.0.0.1:8002/generate_tts")
+tts_aligner = TTSAlignerService(tts_api_url=tts_url)
 
-
-class Segment(TypedDict):
-    start: float
-    end: float
-    text: str
-    speaker: Optional[str]
-
-
-# ---------------------------------------------------------------------------
-# Audio extraction
-# ---------------------------------------------------------------------------
-
-def extract_audio(video_path: str) -> str:
-    """Extract mono 16kHz WAV audio from a video using ffmpeg (required)."""
-    output_path = UPLOAD_DIR / f"{Path(video_path).stem}.wav"
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        raise RuntimeError(
-            "ffmpeg not found on PATH. Install ffmpeg (already included in the "
-            "provided Dockerfile) to extract audio."
+def process_video_translation(video_input_path: str, final_output_path: str, target_language: str, glossary: dict = None):
+    if glossary is None: 
+        glossary = {}
+        
+    lang_config = TARGET_LANGUAGE_MAP.get(target_language, TARGET_LANGUAGE_MAP["vi"])
+    nllb_tgt_lang = lang_config["nllb"]
+    xtts_tgt_lang = lang_config["xtts"]
+    
+    print(f"[Pipeline] Khởi động tiến trình dịch sang: {target_language.upper()}", flush=True)
+    
+    # Tạo Sandbox dọn rác tự động bằng tempfile
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_raw_audio = os.path.join(temp_dir, "raw_audio.wav")
+        temp_final_tts = os.path.join(temp_dir, "final_tts_track.wav")
+        
+        # BƯỚC 1: Tiền xử lý & Tách âm thanh
+        print("[1/5] Trích xuất và bóc tách Vocal / Nhạc nền (Demucs)...", flush=True)
+        audio_service.extract_audio(video_input_path, temp_raw_audio)
+        vocal_path, bgm_path = audio_service.separate_vocal_bgm(temp_raw_audio, temp_dir)
+        
+        # BƯỚC 2: STT & Nhận diện ngôn ngữ tự động
+        print("[2/5] Nhận diện giọng nói và phát hiện ngôn ngữ (Whisper)...", flush=True)
+        segments, detected_iso_lang = stt_service.transcribe_audio(vocal_path)
+        print(f"[*] Ngôn ngữ gốc phát hiện: {detected_iso_lang.upper()}", flush=True)
+        nllb_src_lang = SOURCE_LANGUAGE_MAP.get(detected_iso_lang, "eng_Latn")
+        
+        # BƯỚC 3: Dịch thuật bối cảnh (Document Context) & Bảo vệ từ khóa
+        print(f"[3/5] Dịch thuật văn bản ({nllb_src_lang} -> {nllb_tgt_lang}) bằng NLLB-3.3B...", flush=True)
+        translated_segments = translation_service.translate_document(
+            segments=segments,
+            glossary=glossary,
+            src_lang=nllb_src_lang,
+            tgt_lang=nllb_tgt_lang
         )
-
-    result = subprocess.run(
-        [
-            ffmpeg,
-            "-y",
-            "-i",
-            video_path,
-            "-vn",
-            "-ac",
-            "1",
-            "-ar",
-            "16000",
-            "-acodec",
-            "pcm_s16le",
-            str(output_path),
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0 or not output_path.exists():
-        raise RuntimeError(f"ffmpeg failed to extract audio: {result.stderr.strip()}")
-    return str(output_path)
-
-
-# ---------------------------------------------------------------------------
-# Speech-to-text (faster-whisper)
-# ---------------------------------------------------------------------------
-
-@lru_cache(maxsize=1)
-def _get_whisper_model() -> "WhisperModel":
-    if WhisperModel is None:
-        raise RuntimeError(
-            "faster-whisper is not installed. Run: "
-            "pip install -r requirements.txt"
+        
+        # BƯỚC 4: Lồng tiếng Voice Cloning & Ép Timeline
+        print(f"[4/5] Trích xuất Voice Profile VAD và sinh giọng lồng tiếng ({xtts_tgt_lang})...", flush=True)
+        tts_aligner.generate_tts_with_alignment(
+            segments=translated_segments, 
+            output_path=temp_final_tts, 
+            temp_dir=temp_dir,
+            vocal_path=vocal_path,
+            tgt_lang=xtts_tgt_lang 
         )
-    model_size = os.getenv("WHISPER_MODEL", "small")
-    device = os.getenv("WHISPER_DEVICE", "cpu")
-    compute_type = os.getenv("WHISPER_COMPUTE_TYPE", "int8" if device == "cpu" else "float16")
-    return WhisperModel(model_size, device=device, compute_type=compute_type)
-
-
-def transcribe_segments(audio_path: str, language: Optional[str] = None) -> list[Segment]:
-    """Run real speech-to-text and return timestamped segments."""
-    model = _get_whisper_model()
-    raw_segments, info = model.transcribe(
-        audio_path,
-        beam_size=5,
-        language=language,
-        vad_filter=True,
-    )
-    segments: list[Segment] = []
-    for seg in raw_segments:
-        text = seg.text.strip()
-        if not text:
-            continue
-        segments.append({"start": seg.start, "end": seg.end, "text": text, "speaker": None})
-
-    if not segments:
-        raise RuntimeError(
-            "Whisper produced no speech segments for this audio. The file may be "
-            "silent, corrupted, or in an unsupported format."
-        )
-    return segments
-
-
-def create_transcript_from_audio(audio_path: str, language: Optional[str] = None) -> str:
-    """Convenience wrapper returning a flat, human-readable transcript string."""
-    segments = transcribe_segments(audio_path, language=language)
-    return "\n".join(f"[{_format_ts(s['start'])}] {s['text']}" for s in segments)
-
-
-def _format_ts(seconds: float) -> str:
-    h = int(seconds // 3600)
-    m = int((seconds % 3600) // 60)
-    s = int(seconds % 60)
-    return f"{h:02d}:{m:02d}:{s:02d}"
-
-
-# ---------------------------------------------------------------------------
-# Speaker diarization (pyannote.audio) — optional, gated model on Hugging Face
-# ---------------------------------------------------------------------------
-
-@lru_cache(maxsize=1)
-def _get_diarization_pipeline():
-    if PyannotePipeline is None:
-        return None
-    token = os.getenv("HF_TOKEN")
-    if not token:
-        return None
-    try:
-        return PyannotePipeline.from_pretrained(
-            "pyannote/speaker-diarization-3.1", use_auth_token=token
-        )
-    except Exception:
-        return None
-
-
-def diarize(audio_path: str) -> Optional[list[dict]]:
-    """Return [{start, end, speaker}, ...] or None if diarization unavailable.
-
-    Requires: pip install pyannote.audio, an accepted license + HF_TOKEN env
-    var for the gated pyannote/speaker-diarization-3.1 model.
-    """
-    pipeline = _get_diarization_pipeline()
-    if pipeline is None:
-        return None
-    diarization = pipeline(audio_path)
-    turns = []
-    for turn, _, speaker in diarization.itertracks(yield_label=True):
-        turns.append({"start": turn.start, "end": turn.end, "speaker": speaker})
-    return turns
-
-
-def assign_speakers(segments: list[Segment], diarization_turns: Optional[list[dict]]) -> list[Segment]:
-    """Label each transcript segment with the diarized speaker with the most overlap."""
-    if not diarization_turns:
-        return segments
-    for seg in segments:
-        best_speaker, best_overlap = None, 0.0
-        for turn in diarization_turns:
-            overlap = min(seg["end"], turn["end"]) - max(seg["start"], turn["start"])
-            if overlap > best_overlap:
-                best_overlap, best_speaker = overlap, turn["speaker"]
-        seg["speaker"] = best_speaker
-    return segments
-
-
-# ---------------------------------------------------------------------------
-# Chaptering — grouped dynamically from real segment timing/content, not fixed
-# ---------------------------------------------------------------------------
-
-def create_chapters(
-    segments: list[Segment],
-    gap_seconds: float = 6.0,
-    min_chapter_seconds: float = 30.0,
-) -> list[dict]:
-    """Group segments into chapters based on pauses and a minimum duration.
-
-    A new chapter starts when there is a silence gap >= gap_seconds between
-    two segments AND the current chapter already spans >= min_chapter_seconds.
-    This adapts to the actual content instead of returning a fixed count.
-    """
-    if not segments:
-        return []
-
-    chapters: list[dict] = []
-    current = {
-        "title": None,
-        "start": segments[0]["start"],
-        "end": segments[0]["end"],
-        "texts": [segments[0]["text"]],
-    }
-
-    for prev, seg in zip(segments, segments[1:]):
-        gap = seg["start"] - prev["end"]
-        chapter_span = prev["end"] - current["start"]
-        if gap >= gap_seconds and chapter_span >= min_chapter_seconds:
-            chapters.append(current)
-            current = {"title": None, "start": seg["start"], "end": seg["end"], "texts": [seg["text"]]}
-        else:
-            current["end"] = seg["end"]
-            current["texts"].append(seg["text"])
-
-    chapters.append(current)
-
-    result = []
-    for idx, chap in enumerate(chapters, start=1):
-        full_text = " ".join(chap["texts"])
-        title_source = chap["texts"][0]
-        title = title_source[:60] + ("..." if len(title_source) > 60 else "")
-        result.append(
-            {
-                "title": f"Chapter {idx}: {title}",
-                "start": _format_ts(chap["start"]),
-                "end": _format_ts(chap["end"]),
-                "text": full_text,
-            }
-        )
-    return result
+        
+        # BƯỚC 5: Mix Audio & Xuất Video
+        print("[5/5] Trộn âm thanh lồng tiếng + Nhạc nền gốc và đóng gói Video...", flush=True)
+        audio_service.mix_and_mux(video_input_path, temp_final_tts, bgm_path, final_output_path, temp_dir)
+        
+    print("[Pipeline] Xử lý hoàn tất! Đã tự động dọn dẹp các tệp tạm.", flush=True)
+    return final_output_path, detected_iso_lang, translated_segments

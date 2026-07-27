@@ -1,9 +1,3 @@
-# ---------------------------------------------------------------------------
-# Single requirements file — one `pip install -r requirements.txt` (or one
-# `docker compose up --build`) installs EVERYTHING needed to run the real
-# pipeline: web server + STT + translation + docx + diarization + TTS.
-# ---------------------------------------------------------------------------
-
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.5.1
 torchaudio==2.5.1+cpu
@@ -29,28 +23,10 @@ langdetect==1.0.9
 python-docx==1.1.2
 
 # --- Translation (NLLB-200, local) ---
-# IMPORTANT: the default PyPI `torch` wheel pulls ~2-3GB of NVIDIA CUDA
-# packages even if you don't have a GPU. If installing manually (not via the
-# Dockerfile, which already handles this), install the CPU-only build first:
-#   pip install --index-url https://download.pytorch.org/whl/cpu torch==2.5.1
-#   pip install -r requirements.txt
-# If you DO have an NVIDIA GPU and want CUDA acceleration, skip that and let
-# this line install the regular CUDA-enabled torch instead:
+transformers==4.46.2
 
-
-transformers==4.46.3
-sentencepiece==0.2.0
-sacremoses==0.1.1
-
-# --- Speaker diarization ---
-# Gated model on Hugging Face: accept the license for
-# pyannote/speaker-diarization-3.1 (and its dependencies, pyannote/segmentation-3.0)
-# then set HF_TOKEN in your .env file.
-pyannote.audio==3.3.2
-matplotlib
-
-# NOTE: TTS / voice cloning (Coqui XTTS v2) is intentionally NOT in this file.
-# It requires Python <3.12 which conflicts with the base image here, and it
-# is not called by /api/uploads yet (only the standalone helper function
-# services.synthesize_speech exists). See requirements-tts.txt if you want
-# to add it later in a separate service/image.
+# --- NEW: Audio Processing & VAD (Luồng tái cấu trúc) ---
+pydub==0.25.1
+demucs==4.0.1
+librosa==0.10.2.post1
+soundfile==0.12.1

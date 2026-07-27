@@ -1,11 +1,13 @@
 from pydantic import BaseModel
+from typing import Optional, List
 
 
 class SegmentOut(BaseModel):
     start: float
     end: float
     text: str
-    speaker: str | None = None
+    translated_text: Optional[str] = None
+    speaker: Optional[str] = None
 
 
 class ChapterOut(BaseModel):
@@ -17,31 +19,31 @@ class ChapterOut(BaseModel):
 
 class UploadResponse(BaseModel):
     filename: str
-    content_type: str | None = None
+    content_type: Optional[str] = None
     message: str
-    stored_name: str | None = None
-    transcript: str | None = None
-    segments: list[SegmentOut] | None = None
-    markdown: str | None = None
-    subtitle_path: str | None = None
-    translated_subtitle_path: str | None = None
-    detected_language: str | None = None
-    target_language: str | None = None
-    docx_path: str | None = None
-    html_path: str | None = None
-    txt_path: str | None = None
-    vtt_path: str | None = None
-    json_path: str | None = None
-    faq_path: str | None = None
-    quiz_path: str | None = None
-    mindmap_path: str | None = None
-    audio_path: str | None = None
-    output_video_path: str | None = None
-    dubbed_video_path: str | None = None
+    stored_name: Optional[str] = None
+    transcript: Optional[str] = None
+    segments: Optional[List[SegmentOut]] = None
+    markdown: Optional[str] = None
+    subtitle_path: Optional[str] = None
+    translated_subtitle_path: Optional[str] = None
+    detected_language: Optional[str] = None
+    target_language: Optional[str] = None
+    docx_path: Optional[str] = None
+    html_path: Optional[str] = None
+    txt_path: Optional[str] = None
+    vtt_path: Optional[str] = None
+    json_path: Optional[str] = None
+    faq_path: Optional[str] = None
+    quiz_path: Optional[str] = None
+    mindmap_path: Optional[str] = None
+    audio_path: Optional[str] = None
+    output_video_path: Optional[str] = None
+    dubbed_video_path: Optional[str] = None
     diarization_available: bool = False
-    chapters: list[ChapterOut] | None = None
+    chapters: Optional[List[ChapterOut]] = None
     status: str = "completed"
-    warnings: list[str] = []
+    warnings: List[str] = []
 
 
 class ProcessingStatusResponse(BaseModel):
