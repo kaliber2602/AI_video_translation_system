@@ -12,6 +12,7 @@ TARGET_LANGUAGE_MAP = {
     "zh": {"nllb": "zho_Hans", "xtts": "zh-cn"}
 }
 
+# CHỈ CẦN WHISPER MAP THẲNG SANG NLLB
 SOURCE_LANGUAGE_MAP = {
     "en": "eng_Latn",
     "vi": "vie_Latn",
@@ -26,7 +27,9 @@ SOURCE_LANGUAGE_MAP = {
 audio_service = AudioService()
 stt_service = STTService()
 translation_service = TranslationService()
-tts_url = os.getenv("TTS_API_URL", "http://127.0.0.1:8002/generate_tts")
+
+# Lấy URL của TTS từ biến môi trường của Docker
+tts_url = os.getenv("TTS_API_URL", "http://tts-service:8001/generate_tts")
 tts_aligner = TTSAlignerService(tts_api_url=tts_url)
 
 def process_video_translation(video_input_path: str, final_output_path: str, target_language: str, glossary: dict = None):
@@ -39,24 +42,25 @@ def process_video_translation(video_input_path: str, final_output_path: str, tar
     
     print(f"[Pipeline] Khởi động tiến trình dịch sang: {target_language.upper()}", flush=True)
     
-    # Tạo Sandbox dọn rác tự động bằng tempfile
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_raw_audio = os.path.join(temp_dir, "raw_audio.wav")
         temp_final_tts = os.path.join(temp_dir, "final_tts_track.wav")
         
-        # BƯỚC 1: Tiền xử lý & Tách âm thanh
+        # --- BƯỚC 1: Tiền xử lý & Tách âm thanh ---
         print("[1/5] Trích xuất và bóc tách Vocal / Nhạc nền (Demucs)...", flush=True)
         audio_service.extract_audio(video_input_path, temp_raw_audio)
         vocal_path, bgm_path = audio_service.separate_vocal_bgm(temp_raw_audio, temp_dir)
         
-        # BƯỚC 2: STT & Nhận diện ngôn ngữ tự động
+        # --- BƯỚC 2: STT & TIN TƯỞNG TUYỆT ĐỐI VÀO WHISPER ---
         print("[2/5] Nhận diện giọng nói và phát hiện ngôn ngữ (Whisper)...", flush=True)
         segments, detected_iso_lang = stt_service.transcribe_audio(vocal_path)
-        print(f"[*] Ngôn ngữ gốc phát hiện: {detected_iso_lang.upper()}", flush=True)
-        nllb_src_lang = SOURCE_LANGUAGE_MAP.get(detected_iso_lang, "eng_Latn")
         
-        # BƯỚC 3: Dịch thuật bối cảnh (Document Context) & Bảo vệ từ khóa
-        print(f"[3/5] Dịch thuật văn bản ({nllb_src_lang} -> {nllb_tgt_lang}) bằng NLLB-3.3B...", flush=True)
+        print(f"[*] Whisper phát hiện ngôn ngữ gốc là: {detected_iso_lang.upper()}", flush=True)
+        nllb_src_lang = SOURCE_LANGUAGE_MAP.get(detected_iso_lang, "eng_Latn")
+        print(f"[*] CHỐT NGÔN NGỮ ĐƯA VÀO NLLB: {nllb_src_lang}", flush=True)
+        
+        # --- BƯỚC 3: Dịch thuật bối cảnh (Document Context) & Bảo vệ từ khóa ---
+        print(f"[3/5] Dịch thuật văn bản ({nllb_src_lang} -> {nllb_tgt_lang}) bằng NLLB-1.3B...", flush=True)
         translated_segments = translation_service.translate_document(
             segments=segments,
             glossary=glossary,
@@ -64,7 +68,7 @@ def process_video_translation(video_input_path: str, final_output_path: str, tar
             tgt_lang=nllb_tgt_lang
         )
         
-        # BƯỚC 4: Lồng tiếng Voice Cloning & Ép Timeline
+        # --- BƯỚC 4: Lồng tiếng Voice Cloning & Ép Timeline ---
         print(f"[4/5] Trích xuất Voice Profile VAD và sinh giọng lồng tiếng ({xtts_tgt_lang})...", flush=True)
         tts_aligner.generate_tts_with_alignment(
             segments=translated_segments, 
@@ -74,7 +78,7 @@ def process_video_translation(video_input_path: str, final_output_path: str, tar
             tgt_lang=xtts_tgt_lang 
         )
         
-        # BƯỚC 5: Mix Audio & Xuất Video
+        # --- BƯỚC 5: Mix Audio & Xuất Video ---
         print("[5/5] Trộn âm thanh lồng tiếng + Nhạc nền gốc và đóng gói Video...", flush=True)
         audio_service.mix_and_mux(video_input_path, temp_final_tts, bgm_path, final_output_path, temp_dir)
         

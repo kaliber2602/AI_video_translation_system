@@ -8,3 +8,6 @@ python-multipart==0.0.20
 transformers==4.38.2
 edge-tts
 gTTS
+cutlet
+fugashi
+unidic-lite

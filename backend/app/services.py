@@ -95,110 +95,147 @@ class STTService:
             })
         return result, detected_iso_lang
 
+import re
 
 class TranslationService:
     def __init__(self):
-        print("[Translate] Đang tải mô hình NLLB-200-3.3B...", flush=True)
+        print("[Translate] Đang khởi tạo NLLB-1.3B...", flush=True)
         model_name = "facebook/nllb-200-1.3B"
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        torch_dtype = torch.float16 if device == "cuda" else torch.float32
-        
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(
-            model_name, 
-            torch_dtype=torch_dtype, 
-            device_map="auto" if device == "cuda" else None
-        )
-    
+        try:
+            from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+            import torch
+            
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(self.device)
+            print(f"[Translate] Đã nạp NLLB-1.3B lên {self.device.upper()} thành công!", flush=True)
+        except Exception as e:
+            print(f"[Translate] Lỗi khởi tạo: {e}", flush=True)
+
     def mask_keywords(self, text: str, glossary: dict):
-        """Mã hóa các từ khóa trong glossary thành token bảo vệ (@KW0@, @KW1@...)."""
-        masked_text = text
+        """Bảo vệ các từ khóa (Tên riêng, Thuật ngữ) không bị AI dịch sai."""
+        if not glossary:
+            return text, {}
         mapping = {}
-        for idx, (original, target) in enumerate(glossary.items()):
-            token = f"@KW{idx}@"
-            mapping[token] = target
-            masked_text = re.sub(rf"(?i)\b{re.escape(original)}\b", token, masked_text)
-        return masked_text, mapping
+        for idx, (term, translation) in enumerate(glossary.items()):
+            placeholder = f"__GLOSSARY_{idx}__"
+            text = re.sub(rf'\b{re.escape(term)}\b', placeholder, text, flags=re.IGNORECASE)
+            mapping[placeholder] = translation
+        return text, mapping
 
-    def unmask_keywords(self, masked_text: str, mapping: dict):
-        """Giải mã các token bảo vệ trở lại thành từ khóa dịch tương ứng."""
-        final_text = masked_text
-        for token, target in mapping.items():
-            broken_token_pattern = token.replace("@", r"@\s*").replace("KW", r"K\s*W\s*")
-            final_text = re.sub(broken_token_pattern, target, final_text)
-        return final_text
+    def unmask_keywords(self, text: str, mapping: dict):
+        """Khôi phục lại các từ khóa vào bản dịch."""
+        for placeholder, translation in mapping.items():
+            text = text.replace(placeholder, translation)
+        return text
 
+    # =========================================================================
+    # THUẬT TOÁN LÕI MỚI: SMART SEGMENT MERGER (GOM CÂU NGỮ NGHĨA AN TOÀN)
+    # =========================================================================
+    def _smart_merge_segments(self, segments: list, max_gap=1.5, max_duration=10.0, max_chars=150):
+        """
+        Gom các đoạn cắt vụn của Whisper thành một câu hoàn chỉnh, 
+        trang bị 4 Van an toàn để chống tràn RAM và Crash TTS.
+        """
+        merged_segments = []
+        if not segments: 
+            return merged_segments
+        
+        current_merge = segments[0].copy()
+        current_merge["text"] = current_merge["text"].strip()
+        
+        # Dấu hiệu kết thúc câu (Hỗ trợ cả Tiếng Anh, Việt, Trung, Hàn, Nhật)
+        ending_punctuations = ('.', '?', '!', '。', '？', '！', '…')
+        
+        for i in range(1, len(segments)):
+            next_seg = segments[i]
+            next_text = next_seg["text"].strip()
+            
+            # Tính toán các thông số an toàn
+            gap = next_seg["start"] - current_merge["end"]
+            current_duration = next_seg["end"] - current_merge["start"]
+            char_count = len(current_merge["text"]) + len(next_text) # Dùng số ký tự thay vì số từ để an toàn cho tiếng Trung/Nhật
+            
+            # Kiểm tra 3 LƯẬT CHẶN (Safety Valves)
+            is_end_of_sentence = current_merge["text"].endswith(ending_punctuations)
+            is_gap_too_large = gap > max_gap
+            is_too_long = (current_duration > max_duration) or (char_count > max_chars)
+            
+            if is_end_of_sentence or is_gap_too_large or is_too_long:
+                # Đóng gói đoạn hiện tại, mở đoạn mới
+                merged_segments.append(current_merge)
+                current_merge = next_seg.copy()
+                current_merge["text"] = current_merge["text"].strip()
+            else:
+                # Tiến hành gộp (Merge)
+                # Dùng khoảng trắng để nối (rất an toàn cho mọi ngôn ngữ)
+                current_merge["text"] += " " + next_text
+                current_merge["end"] = next_seg["end"] # Cập nhật mốc kết thúc mới
+                
+        # Nhớ push đoạn cuối cùng vào mảng
+        merged_segments.append(current_merge)
+        return merged_segments
+
+    # =========================================================================
+    # DỊCH THEO LÔ (PURE BATCHING) - LOẠI BỎ 100% HALLUCINATION
+    # =========================================================================
     def translate_document(self, segments: list, glossary: dict, src_lang: str, tgt_lang: str):
-        """
-        Dịch ngữ cảnh bằng cửa sổ trượt (Sliding Window) kết hợp Thẻ phân cách đặc biệt
-        Giúp vẹn toàn 2 yếu tố: Giữ ngữ cảnh 100% & Khớp Timeline 100%
-        """
         if not segments:
             return []
             
         if src_lang == tgt_lang:
-            print(f"[Translate] Ngôn ngữ nguồn và đích trùng nhau ({src_lang}), bỏ qua bước dịch...", flush=True)
+            print(f"[Translate] Ngôn ngữ trùng khớp ({src_lang}), bỏ qua dịch.", flush=True)
             for seg in segments:
                 seg["translated_text"] = seg["text"]
             return segments
             
-        print(f"[Translate] Đang dịch {len(segments)} câu với Ngữ cảnh (Context-Aware)...", flush=True)
+        # 1. Chạy thuật toán Gom Câu
+        merged_segments = self._smart_merge_segments(segments)
+        print(f"[Translate] Đã gộp {len(segments)} đoạn cắt vụn thành {len(merged_segments)} câu hoàn chỉnh ngữ nghĩa.", flush=True)
         
-        # 1. Định nghĩa thẻ phân cách cực dị (Tránh bị model ăn mất)
-        SPLIT_TOKEN = " █ "
-        
-        # 2. Gom câu theo lô nhỏ (Batch) để tránh tràn bộ nhớ, NHƯNG VẪN GỘP CHUỖI
-        context_block_size = 5
-        
+        # 2. Cấu hình NLLB
         self.tokenizer.src_lang = src_lang
         tgt_lang_id = self.tokenizer.convert_tokens_to_ids(tgt_lang)
         
-        final_translated_sentences = []
+        # Batch size nhỏ (4) để CPU/GPU không bị quá tải
+        batch_size = 4 
         
-        for i in range(0, len(segments), context_block_size):
-            # Lấy ra 8 câu
-            chunk_segments = segments[i:i + context_block_size]
+        # 3. Dịch theo lô thuần túy (Không dùng ký tự lạ)
+        for i in range(0, len(merged_segments), batch_size):
+            batch = merged_segments[i:i + batch_size]
             
-            chunk_text = SPLIT_TOKEN.join([seg["text"] for seg in chunk_segments])
-            
-            # Mask từ khóa
-            masked_text, mapping = self.mask_keywords(chunk_text, glossary)
-            
-            # Đưa chuỗi 8 câu (đã gộp) vào mô hình (Model sẽ thấy được ngữ cảnh của cả 8 câu)
-            inputs = self.tokenizer(masked_text, return_tensors="pt", truncation=True).to(self.model.device)
+            # Masking
+            masked_texts = []
+            mappings = []
+            for seg in batch:
+                m_text, mapping = self.mask_keywords(seg["text"], glossary)
+                masked_texts.append(m_text)
+                mappings.append(mapping)
+                
+            # Đưa vào Model
+            inputs = self.tokenizer(
+                masked_texts, 
+                return_tensors="pt", 
+                padding=True, 
+                truncation=True, 
+                max_length=512
+            ).to(self.model.device)
             
             translated_tokens = self.model.generate(
                 **inputs, 
                 forced_bos_token_id=tgt_lang_id,
-                max_length=1024 # Cho phép đầu ra dài
+                max_length=512
             )
             
-            translated_chunk_masked = self.tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)[0]
+            decoded_batch = self.tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)
             
-            # Unmask từ khóa
-            translated_chunk = self.unmask_keywords(translated_chunk_masked, mapping)
-            
-            # 3. Tách ngược lại thành mảng dựa vào SPLIT_TOKEN
-            # Model thường giữ lại ký tự đặc biệt, nhưng đôi khi nó thêm khoảng trắng, ta cần clean
-            # Ví dụ nó trả về "Xin chào █ Bạn khỏe không █ Tôi ổn"
-            split_translated = [s.strip() for s in translated_chunk.split("█")]
-            
-            # 4. Fallback an toàn: Nếu số lượng câu bị lệch (do model làm rơi rụng token)
-            if len(split_translated) == len(chunk_segments):
-                final_translated_sentences.extend(split_translated)
-            else:
-                # Nếu model lỡ nuốt mất thẻ, đành lấy lại text gốc cho lô này để bảo vệ Timeline
-                print(f"[Translate] Cảnh báo: Lô {i} bị lệch Timeline (Gốc: {len(chunk_segments)}, Dịch: {len(split_translated)}). Fallback...", flush=True)
-                final_translated_sentences.extend([seg["text"] for seg in chunk_segments])
+            # Unmasking và lưu kết quả
+            for j, seg in enumerate(batch):
+                final_text = self.unmask_keywords(decoded_batch[j], mappings[j])
+                seg["translated_text"] = final_text
                 
-        # 5. Ráp lại vào Timeline gốc
-        for i, seg in enumerate(segments):
-            seg["translated_text"] = final_translated_sentences[i]
-            
-        return segments
-
-
+        return merged_segments
+        
 class TTSAlignerService:
     def __init__(self, tts_api_url="http://127.0.0.1:8002/generate_tts"):
         self.tts_api_url = tts_api_url

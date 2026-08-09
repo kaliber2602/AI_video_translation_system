@@ -46,7 +46,8 @@ async def generate_tts(
         if language == "vi":
             voice = "vi-VN-HoaiMyNeural"
             try:
-                asyncio.run(_edge_tts_save(text, voice, output_path))
+                # SỬA DÒNG NÀY: Bỏ asyncio.run() và thay bằng await
+                await _edge_tts_save(text, voice, output_path)
             except Exception as e:
                 print(f"[TTS Server] Edge-TTS từ chối ({e}), fallback sang Google TTS...", flush=True)
                 tts_google = gTTS(text=text, lang='vi')
