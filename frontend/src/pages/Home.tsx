@@ -1,0 +1,23 @@
+import HomeNavbar from "../components/home/HomeNavbar";
+import HomeHero from "../components/home/HomeHero";
+import HomeFeatures from "../components/home/HomeFeatures";
+import HomeStats from "../components/home/HomeStats";
+import HomeCTA from "../components/home/HomeCTA";
+
+export default function Home() {
+  return (
+    <div className="min-h-screen bg-white text-[#152238]">
+      <HomeNavbar />
+
+      <main>
+        <HomeHero />
+
+        <HomeFeatures />
+
+        <HomeStats />
+
+        <HomeCTA />
+      </main>
+    </div>
+  );
+}
