@@ -2,7 +2,7 @@ services:
   backend:
     build:
       context: ./backend
-    command: sh -c "python app/prefetch_models.py all && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    command: sh -c "python scripts/prefetch_models.py all && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     # command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
@@ -21,7 +21,7 @@ services:
       # Required for diarization: pyannote/speaker-diarization-3.1 is gated on
       # Hugging Face — accept the license at huggingface.co/pyannote/speaker-diarization-3.1
       # then create a free access token and put it in a .env file next to this file:
-      HF_TOKEN: 
+      HF_TOKEN:
       TTS_API_URL: "http://tts-service:8001/generate_tts"
     depends_on:
       - db

@@ -1,27 +1,8 @@
 import os
 import tempfile
-from .services import AudioService, TranslationService, STTService, TTSAlignerService
+from app.services import AudioService, TranslationService, STTService, TTSAlignerService
 
-# --- BỘ MAPPER NGÔN NGỮ ĐA NĂNG ---
-TARGET_LANGUAGE_MAP = {
-    "en": {"nllb": "eng_Latn", "xtts": "en"},
-    "vi": {"nllb": "vie_Latn", "xtts": "vi"},
-    "fr": {"nllb": "fra_Latn", "xtts": "fr"},
-    "ja": {"nllb": "jpn_Jpan", "xtts": "ja"},
-    "es": {"nllb": "spa_Latn", "xtts": "es"},
-    "zh": {"nllb": "zho_Hans", "xtts": "zh-cn"}
-}
-
-# CHỈ CẦN WHISPER MAP THẲNG SANG NLLB
-SOURCE_LANGUAGE_MAP = {
-    "en": "eng_Latn",
-    "vi": "vie_Latn",
-    "fr": "fra_Latn",
-    "ja": "jpn_Jpan",
-    "zh": "zho_Hans",
-    "ko": "kor_Hang",
-    "es": "spa_Latn",
-}
+from app.core.languages import TARGET_LANGUAGE_MAP, SOURCE_LANGUAGE_MAP
 
 # Load mô hình 1 lần duy nhất khi ứng dụng khởi chạy
 audio_service = AudioService()

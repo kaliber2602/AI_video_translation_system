@@ -1,36 +1,68 @@
-from app.services import (
-    build_json_content,
-    build_txt_content,
-    build_vtt_content,
-    create_burned_subtitle_video,
-    translate_text,
-)
+from app.services.translation_service import TranslationService
 
 
-def test_translate_text_prefixes_marker():
-    result = translate_text("hello")
-    assert result.startswith("[translated]")
+def make_service():
+    return TranslationService.__new__(TranslationService)
 
 
-def test_create_burned_subtitle_video_returns_output_path(tmp_path):
-    video_path = tmp_path / "sample.mp4"
-    video_path.write_bytes(b"fake-video")
-    subtitle_path = tmp_path / "sample.srt"
-    subtitle_path.write_text("1\n00:00:00,000 --> 00:00:05,000\nhello\n", encoding="utf-8")
+def test_mask_and_unmask_keywords():
+    service = make_service()
+    text, mapping = service.mask_keywords(
+        "I use FastAPI and PostgreSQL.",
+        {"FastAPI": "FastAPI", "PostgreSQL": "PostgreSQL"},
+    )
+    assert "__GLOSSARY_0__" in text
+    assert "__GLOSSARY_1__" in text
+    assert service.unmask_keywords(text, mapping) == "I use FastAPI and PostgreSQL."
 
-    output_path = create_burned_subtitle_video(str(video_path), str(subtitle_path))
-    assert output_path.endswith(".subtitled.mp4")
+
+def test_mask_keywords_without_glossary():
+    service = make_service()
+    text, mapping = service.mask_keywords("Hello world", {})
+    assert text == "Hello world"
+    assert mapping == {}
 
 
-def test_build_export_contents_include_transcript_and_metadata():
-    transcript = "Hello world\nThis is a test"
-    chapters = [{"title": "Intro", "start": "00:00:00", "text": "Hello world"}]
+def test_smart_merge_segments():
+    service = make_service()
+    segments = [
+        {"start": 0.0, "end": 1.0, "text": "Hello"},
+        {"start": 1.1, "end": 2.0, "text": "world"},
+    ]
+    result = service._smart_merge_segments(segments)
+    assert len(result) == 1
+    assert result[0]["text"] == "Hello world"
+    assert result[0]["end"] == 2.0
 
-    txt_content = build_txt_content(transcript)
-    vtt_content = build_vtt_content(transcript)
-    json_content = build_json_content(transcript, chapters)
 
-    assert "Hello world" in txt_content
-    assert "WEBVTT" in vtt_content
-    assert '"transcript"' in json_content
-    assert '"chapters"' in json_content
+def test_smart_merge_stops_at_sentence():
+    service = make_service()
+    segments = [
+        {"start": 0.0, "end": 1.0, "text": "Hello."},
+        {"start": 1.1, "end": 2.0, "text": "How are you?"},
+    ]
+    result = service._smart_merge_segments(segments)
+    assert len(result) == 2
+
+
+def test_smart_merge_respects_duration():
+    service = make_service()
+    segments = [
+        {"start": 0.0, "end": 5.0, "text": "One"},
+        {"start": 5.1, "end": 11.0, "text": "Two"},
+    ]
+    result = service._smart_merge_segments(segments, max_duration=10.0)
+    assert len(result) == 2
+
+
+def test_translate_document_skips_same_language():
+    service = make_service()
+    segments = [
+        {"start": 0.0, "end": 1.0, "text": "Xin chao"},
+        {"start": 1.0, "end": 2.0, "text": "The gioi"},
+    ]
+    result = service.translate_document(
+        segments, {}, "vie_Latn", "vie_Latn"
+    )
+    assert result[0]["translated_text"] == "Xin chao"
+    assert result[1]["translated_text"] == "The gioi"
