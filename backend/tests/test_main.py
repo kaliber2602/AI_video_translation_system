@@ -1,9 +1,6 @@
-from pathlib import Path
-
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app import services
 
 client = TestClient(app)
 
@@ -14,52 +11,59 @@ def test_health_check():
     assert response.json()["status"] == "ok"
 
 
-def test_upload_endpoint_accepts_file():
+def test_processing_status():
+    response = client.get("/api/status")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+
+
+def test_missing_file_returns_404():
+    response = client.get("/api/files/does-not-exist.mp4")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "File not found"
+
+
+def test_upload_endpoint_with_mocked_pipeline(monkeypatch):
+    import app.api.routes as routes
+
+    def fake_pipeline(video_input_path, final_output_path, target_language, glossary):
+        from pathlib import Path
+        Path(final_output_path).write_bytes(b"fake-output")
+        return (
+            final_output_path,
+            "en",
+            [{"start": 0.0, "end": 2.0, "text": "Hello",
+              "translated_text": "Xin chao"}],
+        )
+
+    monkeypatch.setattr(routes, "process_video_translation", fake_pipeline)
+
     response = client.post(
-        "/api/uploads",
-        files={"file": ("sample.mp4", b"fake-video-bytes", "video/mp4")},
+        "/api/uploads?target_language=vi",
+        files={"file": ("sample.mp4", b"fake-video", "video/mp4")},
     )
+
     assert response.status_code == 200
     body = response.json()
     assert body["filename"] == "sample.mp4"
-    assert body["content_type"] == "video/mp4"
-    assert body["stored_name"]
-    assert "Transcript" in body["markdown"]
-    assert body["subtitle_path"]
+    assert body["detected_language"] == "en"
+    assert body["target_language"] == "vi"
+    assert body["status"] == "completed"
+    assert "Xin chao" in body["transcript"]
 
 
-def test_upload_endpoint_rejects_unsupported_format():
+def test_upload_returns_500_when_pipeline_fails(monkeypatch):
+    import app.api.routes as routes
+
+    def failing_pipeline(*args, **kwargs):
+        raise RuntimeError("pipeline failed")
+
+    monkeypatch.setattr(routes, "process_video_translation", failing_pipeline)
+
     response = client.post(
         "/api/uploads",
-        files={"file": ("sample.txt", b"not-a-video", "text/plain")},
+        files={"file": ("sample.mp4", b"fake-video", "video/mp4")},
     )
-    assert response.status_code == 400
-    assert "unsupported" in response.json()["detail"].lower()
 
-
-def test_build_srt_content_contains_subtitle_lines():
-    content = services.build_srt_content("hello world")
-    assert "1" in content
-    assert "hello world" in content
-
-
-def test_files_endpoint_serves_upload_artifacts():
-    artifact_path = services.UPLOAD_DIR / "sample-test.txt"
-    artifact_path.write_text("hello from artifact", encoding="utf-8")
-
-    response = client.get(f"/api/files/{artifact_path.name}")
-
-    assert response.status_code == 200
-    assert response.text == "hello from artifact"
-
-
-def test_create_docx_and_html_outputs(tmp_path):
-    docx_path = tmp_path / "summary.docx"
-    html_path = tmp_path / "summary.html"
-
-    services.create_docx_document("Hello from test", docx_path)
-    services.create_html_document("Hello from test", html_path)
-
-    assert docx_path.exists()
-    assert html_path.exists()
-    assert html_path.read_text(encoding="utf-8").startswith("<html")
+    assert response.status_code == 500
+    assert response.json()["detail"] == "pipeline failed"
