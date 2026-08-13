@@ -17,8 +17,7 @@ services:
     command:
       - sh
       - -c
-      - python app/prefetch_models.py all && uvicorn app.main:app --host 0.0.0.0 --port 8000
-
+      - python scripts/prefetch_models.py all && python scripts/seed_users.py && uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
 
@@ -31,9 +30,11 @@ services:
     environment:
       PYTHONUNBUFFERED: "1"
       TRANSLATION_BACKEND: nllb
+      HF_TOKEN:
       TTS_API_URL: http://tts-service:8001/generate_tts
       WHISPER_DEVICE: cpu
       WHISPER_MODEL: small
+      DATABASE_URL: "postgresql://ai_video:ai_video@db:5432/ai_video"
 
   tts-service:
     build:
@@ -60,6 +61,7 @@ services:
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
   redis:
     image: redis:7-alpine

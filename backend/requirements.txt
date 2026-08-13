@@ -2,6 +2,13 @@
 torch==2.5.1
 torchaudio==2.5.1+cpu
 
+# --- Database ---
+psycopg2-binary==2.9.10
+
+# --- Hash ---
+passlib==1.7.4
+bcrypt==4.0.1
+
 # --- Web server ---
 fastapi==0.115.0
 uvicorn[standard]==0.30.0
@@ -25,7 +32,7 @@ python-docx==1.1.2
 # --- Translation (NLLB-200, local) ---
 transformers==4.46.2
 
-# --- NEW: Audio Processing & VAD (Luồng tái cấu trúc) ---
+# --- Audio Processing & VAD ---
 pydub==0.25.1
 demucs==4.0.1
 librosa==0.10.2.post1

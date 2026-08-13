@@ -27,3 +27,14 @@ If you want to run real Whisper/diarization models locally, install the optional
 ```bash
 pip install -r backend/requirements.txt -r backend/requirements-local.txt
 ```
+
+## Demo Account
+Admin
+email:    admin@vidnova.com
+password: Admin@123456
+role:     admin
+
+User
+email:    user@vidnova.com
+password: User@123456
+role:     user
