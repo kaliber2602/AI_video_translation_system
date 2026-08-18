@@ -13,7 +13,7 @@ logging.basicConfig(
     force=True,
 )
 
-app = FastAPI(title="AI Video Translation Platform")
+app = FastAPI(title="VIDNOVA API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,

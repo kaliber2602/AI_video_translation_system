@@ -35,6 +35,13 @@ services:
       WHISPER_DEVICE: cpu
       WHISPER_MODEL: small
       DATABASE_URL: "postgresql://ai_video:ai_video@db:5432/ai_video"
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      MAIL_FROM: ${MAIL_FROM}
+
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REFRESH_TOKEN: ${GOOGLE_REFRESH_TOKEN}
 
   tts-service:
     build:
