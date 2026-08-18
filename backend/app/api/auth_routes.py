@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-
 from app.services.auth_service import (
     register_user,
     login_user,
@@ -12,7 +11,7 @@ from app.services.auth_service import (
 )
 from app.core.security import get_user_id_from_token
 
-from app.schemas.auth_schema import (
+from app.schemas.auth import (
     RegisterRequest,
     RegisterResponse,
     LoginRequest,
@@ -76,11 +75,7 @@ def get_current_user_id(
 # POST /auth/register
 # =========================================================
 
-@router.post(
-    "/register",
-    response_model=RegisterResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/register",response_model=RegisterResponse,status_code=status.HTTP_201_CREATED,)
 def register(
     request: RegisterRequest,
 ):
@@ -122,10 +117,7 @@ def register(
 # POST /auth/login
 # =========================================================
 
-@router.post(
-    "/login",
-    response_model=LoginResponse,
-)
+@router.post("/login",response_model=LoginResponse,)
 def login(
     request: LoginRequest,
 ):
@@ -160,10 +152,7 @@ def login(
 # POST /auth/refresh
 # =========================================================
 
-@router.post(
-    "/refresh",
-    response_model=RefreshTokenResponse,
-)
+@router.post("/refresh",response_model=RefreshTokenResponse,)
 def refresh(
     request: RefreshTokenRequest,
 ):
@@ -303,15 +292,19 @@ def forgot_password(
             )
         }
 
-    except Exception:
+    except Exception as exc:
+    import logging
 
-        # Vẫn không tiết lộ thông tin user.
-        return {
-            "message": (
-                "If the email is registered, "
-                "a password reset OTP has been sent."
-            )
-        }
+    logging.getLogger("app.api.auth").exception(
+        "Password reset email failed"
+    )
+
+    return {
+        "message": (
+            "If the email is registered, "
+            "a password reset OTP has been sent."
+        )
+    }
 
 
 # =========================================================

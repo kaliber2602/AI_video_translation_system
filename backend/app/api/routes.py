@@ -6,11 +6,12 @@ from fastapi.responses import FileResponse
 from app.core.config import OUTPUT_DIR, UPLOAD_DIR
 from app.pipeline import process_video_translation
 from app.schemas import ProcessingStatusResponse, UploadResponse
+from app.api.auth_routes import router as auth_router
 
 logger = logging.getLogger("app.api.routes")
 
 router = APIRouter(prefix="/api")
-
+router.include_router(auth_router)
 
 @router.get("/health")
 def health_check():

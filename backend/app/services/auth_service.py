@@ -13,7 +13,7 @@ from app.core.security import (
     verify_password,
 )
 
-from app.services.send_email import send_email
+from app.services.email_service import send_email
 
 
 DATABASE_URL = os.getenv(
