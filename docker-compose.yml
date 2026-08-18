@@ -16,6 +16,7 @@ services:
 
     volumes:
       - ./backend:/app
+      - ./model-cache:/opt/model-cache
 
     command:
       - sh

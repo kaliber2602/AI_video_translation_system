@@ -293,18 +293,18 @@ def forgot_password(
         }
 
     except Exception as exc:
-    import logging
+        import logging
 
-    logging.getLogger("app.api.auth").exception(
-        "Password reset email failed"
-    )
-
-    return {
-        "message": (
-            "If the email is registered, "
-            "a password reset OTP has been sent."
+        logging.getLogger("app.api.auth").exception(
+            "Password reset email failed"
         )
-    }
+
+        return {
+            "message": (
+                "If the email is registered, "
+                "a password reset OTP has been sent."
+            )
+        }
 
 
 # =========================================================

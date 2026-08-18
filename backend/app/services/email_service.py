@@ -1,3 +1,4 @@
+import base64
 import os
 import smtplib
 
@@ -7,10 +8,6 @@ from email.mime.text import MIMEText
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
-
-# =========================================================
-# SMTP / Gmail configuration
-# =========================================================
 
 SMTP_HOST = os.getenv(
     "SMTP_HOST",
@@ -23,21 +20,11 @@ SMTP_PORT = int(
 
 MAIL_FROM = os.getenv("MAIL_FROM")
 
-GOOGLE_CLIENT_ID = os.getenv(
-    "GOOGLE_CLIENT_ID"
-)
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_REFRESH_TOKEN = os.getenv("GOOGLE_REFRESH_TOKEN")
 
-GOOGLE_CLIENT_SECRET = os.getenv(
-    "GOOGLE_CLIENT_SECRET"
-)
-
-GOOGLE_REFRESH_TOKEN = os.getenv(
-    "GOOGLE_REFRESH_TOKEN"
-)
-
-GOOGLE_TOKEN_URI = (
-    "https://oauth2.googleapis.com/token"
-)
+GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 
 # =========================================================
@@ -88,11 +75,15 @@ def build_xoauth2_string(
     access_token: str,
 ) -> str:
 
-    return (
+    auth_string = (
         f"user={email}"
         f"\x01auth=Bearer {access_token}"
         f"\x01\x01"
     )
+
+    return base64.b64encode(
+        auth_string.encode("utf-8")
+    ).decode("ascii")
 
 
 # =========================================================
@@ -146,13 +137,18 @@ def send_email(
         SMTP_PORT,
     ) as smtp:
 
-        smtp.docmd(
+        smtp.ehlo()
+
+        code, response = smtp.docmd(
             "AUTH",
-            "XOAUTH2",
-            xoauth2_string
-            .encode("utf-8")
-            .decode("ascii"),
+            f"XOAUTH2 {xoauth2_string}",
         )
+
+        if code != 235:
+            raise RuntimeError(
+                "Gmail SMTP authentication failed: "
+                f"{code} {response!r}"
+            )
 
         smtp.sendmail(
             MAIL_FROM,
