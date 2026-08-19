@@ -4,9 +4,9 @@ import secrets
 import uuid
 
 from datetime import datetime, timezone
-
 import psycopg2
 
+from app.core.database import get_connection
 from app.core.security import (
     REFRESH_TOKEN_EXPIRE_DAYS,
     create_access_token,
@@ -20,41 +20,6 @@ from app.core.security import (
 )
 
 from app.services.email_service import send_email
-
-
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://ai_video:ai_video@db:5432/ai_video",
-)
-
-
-# =========================================================
-# Database
-# =========================================================
-
-def get_connection():
-
-    database_url = DATABASE_URL
-
-    if database_url.startswith(
-        "postgresql+psycopg://"
-    ):
-        database_url = database_url.replace(
-            "postgresql+psycopg://",
-            "postgresql://",
-            1,
-        )
-
-    if database_url.startswith(
-        "postgresql+psycopg2://"
-    ):
-        database_url = database_url.replace(
-            "postgresql+psycopg2://",
-            "postgresql://",
-            1,
-        )
-
-    return psycopg2.connect(database_url)
 
 
 # =========================================================

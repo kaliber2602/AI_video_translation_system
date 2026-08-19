@@ -42,6 +42,39 @@ CREATE TABLE user_settings (
         ON DELETE CASCADE
 );
 
+-- =========================================================
+-- DEFAULT USER SETTINGS TRIGGER
+-- =========================================================
+
+CREATE OR REPLACE FUNCTION create_default_user_settings()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO user_settings (
+        user_id,
+        theme,
+        language,
+        default_target_language,
+        default_translation_model,
+        default_tts_model
+    )
+    VALUES (
+        NEW.id,
+        'default_theme',
+        'en',
+        NULL,
+        NULL,
+        NULL
+    );
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE TRIGGER trigger_create_default_user_settings
+AFTER INSERT ON users
+FOR EACH ROW
+EXECUTE FUNCTION create_default_user_settings();
 
 -- =========================================================
 -- Refreshtokens
