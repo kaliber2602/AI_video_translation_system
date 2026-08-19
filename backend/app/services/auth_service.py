@@ -2,7 +2,8 @@ import hashlib
 import os
 import secrets
 import uuid
-from datetime import datetime
+
+from datetime import datetime, timezone
 
 import psycopg2
 
@@ -12,7 +13,7 @@ from app.core.security import (
     create_otp_reset_token,
     create_refresh_token,
     generate_otp,
-    get_refresh_token_data,
+    get_refresh_token_user_id,
     hash_password,
     verify_otp_reset_token,
     verify_password,
@@ -57,7 +58,7 @@ def get_connection():
 
 
 # =========================================================
-# Token helpers
+# Refresh Token Helpers
 # =========================================================
 
 def hash_refresh_token(
@@ -70,15 +71,19 @@ def hash_refresh_token(
 
 
 # =========================================================
-# User queries
+# User Queries
 # =========================================================
 
-def find_user_by_email(email: str):
+def find_user_by_email(
+    email: str,
+):
 
     connection = get_connection()
 
     try:
+
         with connection.cursor() as cursor:
+
             cursor.execute(
                 """
                 SELECT
@@ -100,15 +105,20 @@ def find_user_by_email(email: str):
             return cursor.fetchone()
 
     finally:
+
         connection.close()
 
 
-def find_user_by_id(user_id: int):
+def find_user_by_id(
+    user_id: int,
+):
 
     connection = get_connection()
 
     try:
+
         with connection.cursor() as cursor:
+
             cursor.execute(
                 """
                 SELECT
@@ -130,6 +140,7 @@ def find_user_by_id(user_id: int):
             return cursor.fetchone()
 
     finally:
+
         connection.close()
 
 
@@ -144,16 +155,21 @@ def register_user(
 ):
 
     if find_user_by_email(email):
+
         raise ValueError(
             "Email is already registered."
         )
 
-    password_hash = hash_password(password)
+    password_hash = hash_password(
+        password
+    )
 
     connection = get_connection()
 
     try:
+
         with connection.cursor() as cursor:
+
             cursor.execute(
                 """
                 INSERT INTO users (
@@ -198,15 +214,17 @@ def register_user(
         return user
 
     except Exception:
+
         connection.rollback()
         raise
 
     finally:
+
         connection.close()
 
 
 # =========================================================
-# Login
+# Authentication
 # =========================================================
 
 def authenticate_user(
@@ -214,7 +232,9 @@ def authenticate_user(
     password: str,
 ):
 
-    user = find_user_by_email(email)
+    user = find_user_by_email(
+        email
+    )
 
     if not user:
         return None
@@ -231,11 +251,13 @@ def authenticate_user(
     return user
 
 
+# =========================================================
+# Login
+# =========================================================
+
 def login_user(
     email: str,
     password: str,
-    user_agent: str | None = None,
-    ip_address: str | None = None,
 ):
 
     user = authenticate_user(
@@ -244,59 +266,55 @@ def login_user(
     )
 
     if not user:
+
         raise ValueError(
             "Invalid email or password."
         )
 
     user_id = user[0]
 
-    session_id = str(uuid.uuid4())
-
     access_token = create_access_token(
         user_id
     )
 
     refresh_token = create_refresh_token(
-        user_id=user_id,
-        session_id=session_id,
+        user_id
     )
 
     refresh_token_hash = hash_refresh_token(
         refresh_token
     )
 
+    refresh_token_id = str(uuid.uuid4())
+
     connection = get_connection()
 
     try:
+
         with connection.cursor() as cursor:
+
             cursor.execute(
                 """
-                INSERT INTO user_sessions (
+                INSERT INTO refresh_tokens (
                     id,
                     user_id,
-                    refresh_token_hash,
-                    user_agent,
-                    ip_address,
-                    created_at,
-                    expires_at
+                    token_hash,
+                    expires_at,
+                    created_at
                 )
                 VALUES (
                     %s,
                     %s,
                     %s,
-                    %s,
-                    %s,
-                    CURRENT_TIMESTAMP,
                     CURRENT_TIMESTAMP
-                        + (%s * INTERVAL '1 day')
+                        + (%s * INTERVAL '1 day'),
+                    CURRENT_TIMESTAMP
                 )
                 """,
                 (
-                    session_id,
+                    refresh_token_id,
                     user_id,
                     refresh_token_hash,
-                    user_agent,
-                    ip_address,
                     REFRESH_TOKEN_EXPIRE_DAYS,
                 ),
             )
@@ -304,10 +322,12 @@ def login_user(
         connection.commit()
 
     except Exception:
+
         connection.rollback()
         raise
 
     finally:
+
         connection.close()
 
     return {
@@ -325,7 +345,7 @@ def refresh_access_token(
     refresh_token: str,
 ):
 
-    user_id, session_id = get_refresh_token_data(
+    user_id = get_refresh_token_user_id(
         refresh_token
     )
 
@@ -333,9 +353,11 @@ def refresh_access_token(
         refresh_token
     )
 
+
     connection = get_connection()
 
     try:
+
         with connection.cursor() as cursor:
 
             cursor.execute(
@@ -343,102 +365,147 @@ def refresh_access_token(
                 SELECT
                     id,
                     user_id,
-                    refresh_token_hash,
+                    token_hash,
                     expires_at,
                     revoked_at
-                FROM user_sessions
-                WHERE id = %s
-                  AND user_id = %s
+                FROM refresh_tokens
+                WHERE user_id = %s
+                  AND token_hash = %s
                 FOR UPDATE
                 """,
                 (
-                    session_id,
                     user_id,
+                    old_refresh_token_hash,
                 ),
             )
 
-            session = cursor.fetchone()
+            stored_token = cursor.fetchone()
 
-            if not session:
+            if not stored_token:
+
                 raise ValueError(
-                    "Invalid session."
+                    "Invalid refresh token."
                 )
 
-            stored_hash = session[2]
-            expires_at = session[3]
-            revoked_at = session[4]
+            token_id = stored_token[0]
+            stored_user_id = stored_token[1]
+            stored_hash = stored_token[2]
+            expires_at = stored_token[3]
+            revoked_at = stored_token[4]
+
+            if stored_user_id != user_id:
+
+                raise ValueError(
+                    "Invalid refresh token."
+                )
 
             if revoked_at is not None:
+
                 raise ValueError(
-                    "Session has been revoked."
+                    "Refresh token has been revoked."
                 )
 
             now = datetime.now(
-                expires_at.tzinfo
+                timezone.utc
             )
 
             if expires_at <= now:
+
                 raise ValueError(
-                    "Session has expired."
+                    "Refresh token has expired."
                 )
 
             if not secrets.compare_digest(
                 stored_hash,
                 old_refresh_token_hash,
             ):
+
                 raise ValueError(
                     "Invalid refresh token."
                 )
 
-            user = find_user_by_id(user_id)
+            user = find_user_by_id(
+                user_id
+            )
 
             if not user:
+
                 raise ValueError(
                     "User not found."
                 )
 
             if not user[6]:
+
                 raise ValueError(
                     "User account is inactive."
                 )
 
-            new_refresh_token = create_refresh_token(
-                user_id=user_id,
-                session_id=session_id,
+            new_access_token = create_access_token(
+                user_id
             )
 
-            new_refresh_token_hash = hash_refresh_token(
-                new_refresh_token
+            new_refresh_token = create_refresh_token(
+                user_id
+            )
+
+            new_refresh_token_hash = (
+                hash_refresh_token(
+                    new_refresh_token
+                )
             )
 
             cursor.execute(
                 """
-                UPDATE user_sessions
+                UPDATE refresh_tokens
                 SET
-                    refresh_token_hash = %s
+                    revoked_at = CURRENT_TIMESTAMP
                 WHERE id = %s
-                  AND user_id = %s
+                  AND revoked_at IS NULL
+                """,
+                (token_id,),
+            )
+
+            new_refresh_token_id = str(uuid.uuid4())
+
+            cursor.execute(
+                """
+                INSERT INTO refresh_tokens (
+                    id,
+                    user_id,
+                    token_hash,
+                    expires_at,
+                    created_at
+                )
+                VALUES (
+                    %s,
+                    %s,
+                    %s,
+                    CURRENT_TIMESTAMP
+                        + (%s * INTERVAL '1 day'),
+                    CURRENT_TIMESTAMP
+                )
                 """,
                 (
-                    new_refresh_token_hash,
-                    session_id,
+                    new_refresh_token_id,
                     user_id,
+                    new_refresh_token_hash,
+                    REFRESH_TOKEN_EXPIRE_DAYS,
                 ),
             )
 
         connection.commit()
 
     except Exception:
+
         connection.rollback()
         raise
 
     finally:
+
         connection.close()
 
     return {
-        "access_token": create_access_token(
-            user_id
-        ),
+        "access_token": new_access_token,
         "refresh_token": new_refresh_token,
         "token_type": "bearer",
     }
@@ -452,7 +519,7 @@ def logout_user(
     refresh_token: str,
 ):
 
-    user_id, session_id = get_refresh_token_data(
+    user_id = get_refresh_token_user_id(
         refresh_token
     )
 
@@ -463,83 +530,90 @@ def logout_user(
     connection = get_connection()
 
     try:
+
         with connection.cursor() as cursor:
 
             cursor.execute(
                 """
                 SELECT
-                    refresh_token_hash,
-                    revoked_at
-                FROM user_sessions
-                WHERE id = %s
-                  AND user_id = %s
+                    id,
+                    token_hash,
+                    revoked_at,
+                    expires_at
+                FROM refresh_tokens
+                WHERE user_id = %s
+                  AND token_hash = %s
                 """,
                 (
-                    session_id,
                     user_id,
+                    refresh_token_hash,
                 ),
             )
 
-            session = cursor.fetchone()
+            stored_token = cursor.fetchone()
 
-            if not session:
+            if not stored_token:
+
                 raise ValueError(
-                    "Invalid session."
+                    "Invalid refresh token."
                 )
 
-            stored_hash = session[0]
-            revoked_at = session[1]
+            token_id = stored_token[0]
+            stored_hash = stored_token[1]
+            revoked_at = stored_token[2]
 
             if revoked_at is not None:
+
                 return
 
             if not secrets.compare_digest(
                 stored_hash,
                 refresh_token_hash,
             ):
+
                 raise ValueError(
                     "Invalid refresh token."
                 )
 
             cursor.execute(
                 """
-                UPDATE user_sessions
+                UPDATE refresh_tokens
                 SET revoked_at = CURRENT_TIMESTAMP
                 WHERE id = %s
-                  AND user_id = %s
                   AND revoked_at IS NULL
                 """,
-                (
-                    session_id,
-                    user_id,
-                ),
+                (token_id,),
             )
 
         connection.commit()
 
     except Exception:
+
         connection.rollback()
         raise
 
     finally:
+
         connection.close()
 
 
 # =========================================================
-# Logout All Sessions
+# Logout All
 # =========================================================
 
-def logout_all_user_sessions(
+def logout_all_user_tokens(
     user_id: int,
 ):
 
     connection = get_connection()
 
     try:
+
         with connection.cursor() as cursor:
+
             cursor.execute(
                 """
-                UPDATE user_sessions
+                UPDATE refresh_tokens
                 SET revoked_at = CURRENT_TIMESTAMP
                 WHERE user_id = %s
                   AND revoked_at IS NULL
@@ -550,27 +624,35 @@ def logout_all_user_sessions(
         connection.commit()
 
     except Exception:
+
         connection.rollback()
         raise
 
     finally:
+
         connection.close()
 
 
 # =========================================================
-# Current user
+# Current User
 # =========================================================
 
-def get_current_user(user_id: int):
+def get_current_user(
+    user_id: int,
+):
 
-    user = find_user_by_id(user_id)
+    user = find_user_by_id(
+        user_id
+    )
 
     if not user:
+
         raise ValueError(
             "User not found."
         )
 
     if not user[6]:
+
         raise ValueError(
             "User account is inactive."
         )
@@ -579,7 +661,7 @@ def get_current_user(user_id: int):
 
 
 # =========================================================
-# Change password
+# Change Password
 # =========================================================
 
 def change_password(
@@ -588,9 +670,12 @@ def change_password(
     new_password: str,
 ):
 
-    user = find_user_by_id(user_id)
+    user = find_user_by_id(
+        user_id
+    )
 
     if not user:
+
         raise ValueError(
             "User not found."
         )
@@ -599,6 +684,7 @@ def change_password(
         current_password,
         user[2],
     ):
+
         raise ValueError(
             "Current password is incorrect."
         )
@@ -610,7 +696,9 @@ def change_password(
     connection = get_connection()
 
     try:
+
         with connection.cursor() as cursor:
+
             cursor.execute(
                 """
                 UPDATE users
@@ -625,25 +713,39 @@ def change_password(
                 ),
             )
 
+            cursor.execute(
+                """
+                UPDATE refresh_tokens
+                SET revoked_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s
+                  AND revoked_at IS NULL
+                """,
+                (user_id,),
+            )
+
         connection.commit()
 
     except Exception:
+
         connection.rollback()
         raise
 
     finally:
+
         connection.close()
 
 
 # =========================================================
-# Forgot password
+# Forgot Password
 # =========================================================
 
 def request_password_reset(
     email: str,
 ):
 
-    user = find_user_by_email(email)
+    user = find_user_by_email(
+        email
+    )
 
     if not user:
         return
@@ -698,7 +800,7 @@ def request_password_reset(
 
 
 # =========================================================
-# Reset password
+# Reset Password
 # =========================================================
 
 def reset_password(
@@ -712,14 +814,18 @@ def reset_password(
         otp,
     )
 
-    user = find_user_by_id(user_id)
+    user = find_user_by_id(
+        user_id
+    )
 
     if not user:
+
         raise ValueError(
             "User not found."
         )
 
     if not user[6]:
+
         raise ValueError(
             "User account is inactive."
         )
@@ -731,7 +837,9 @@ def reset_password(
     connection = get_connection()
 
     try:
+
         with connection.cursor() as cursor:
+
             cursor.execute(
                 """
                 UPDATE users
@@ -746,11 +854,23 @@ def reset_password(
                 ),
             )
 
+            cursor.execute(
+                """
+                UPDATE refresh_tokens
+                SET revoked_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s
+                  AND revoked_at IS NULL
+                """,
+                (user_id,),
+            )
+
         connection.commit()
 
     except Exception:
+
         connection.rollback()
         raise
 
     finally:
+
         connection.close()

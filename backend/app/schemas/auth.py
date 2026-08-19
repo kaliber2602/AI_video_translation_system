@@ -50,12 +50,12 @@ class RegisterRequest(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def normalize_email(cls, value: str):
+    def normalize_email(cls, value: str) -> str:
         return value.strip().lower()
 
     @field_validator("full_name")
     @classmethod
-    def validate_full_name(cls, value: str):
+    def validate_full_name(cls, value: str) -> str:
 
         value = value.strip()
 
@@ -68,7 +68,7 @@ class RegisterRequest(BaseModel):
 
     @field_validator("password")
     @classmethod
-    def validate_password(cls, value: str):
+    def validate_password(cls, value: str) -> str:
         return validate_password_strength(value)
 
 
@@ -92,7 +92,7 @@ class LoginRequest(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def normalize_email(cls, value: str):
+    def normalize_email(cls, value: str) -> str:
         return value.strip().lower()
 
 
@@ -154,7 +154,7 @@ class ChangePasswordRequest(BaseModel):
 
     @field_validator("new_password")
     @classmethod
-    def validate_new_password(cls, value: str):
+    def validate_new_password(cls, value: str) -> str:
         return validate_password_strength(value)
 
 
@@ -168,13 +168,14 @@ class ForgotPasswordRequest(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def normalize_email(cls, value: str):
+    def normalize_email(cls, value: str) -> str:
         return value.strip().lower()
 
 
 class ForgotPasswordResponse(BaseModel):
 
     message: str
+    reset_token: str | None = None
 
 
 # =========================================================
@@ -200,7 +201,7 @@ class ResetPasswordRequest(BaseModel):
 
     @field_validator("otp")
     @classmethod
-    def validate_otp(cls, value: str):
+    def validate_otp(cls, value: str) -> str:
 
         if not value.isdigit():
             raise ValueError(
@@ -211,7 +212,7 @@ class ResetPasswordRequest(BaseModel):
 
     @field_validator("new_password")
     @classmethod
-    def validate_new_password(cls, value: str):
+    def validate_new_password(cls, value: str) -> str:
         return validate_password_strength(value)
 
 

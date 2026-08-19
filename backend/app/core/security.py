@@ -21,21 +21,31 @@ if not JWT_SECRET_KEY:
         "JWT_SECRET_KEY is not configured."
     )
 
+
 JWT_ALGORITHM = os.getenv(
     "JWT_ALGORITHM",
     "HS256",
 )
 
 ACCESS_TOKEN_EXPIRE_MINUTES = int(
-    os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
+    os.getenv(
+        "ACCESS_TOKEN_EXPIRE_MINUTES",
+        "30",
+    )
 )
 
 REFRESH_TOKEN_EXPIRE_DAYS = int(
-    os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7")
+    os.getenv(
+        "REFRESH_TOKEN_EXPIRE_DAYS",
+        "7",
+    )
 )
 
 OTP_EXPIRE_MINUTES = int(
-    os.getenv("OTP_EXPIRE_MINUTES", "10")
+    os.getenv(
+        "OTP_EXPIRE_MINUTES",
+        "10",
+    )
 )
 
 
@@ -50,6 +60,7 @@ pwd_context = CryptContext(
 
 
 def hash_password(password: str) -> str:
+
     return pwd_context.hash(password)
 
 
@@ -57,6 +68,7 @@ def verify_password(
     plain_password: str,
     password_hash: str,
 ) -> bool:
+
     return pwd_context.verify(
         plain_password,
         password_hash,
@@ -69,7 +81,7 @@ def verify_password(
 
 def generate_otp() -> str:
     """
-    Generate a 6-digit OTP.
+    Generate a cryptographically secure 6-digit OTP.
     """
 
     return f"{secrets.randbelow(1_000_000):06d}"
@@ -77,7 +89,7 @@ def generate_otp() -> str:
 
 def hash_otp(otp: str) -> str:
     """
-    Hash OTP before putting it into the JWT.
+    Hash OTP before putting it into the password-reset JWT.
     """
 
     return hashlib.sha256(
@@ -99,12 +111,9 @@ def verify_otp(
     )
 
 
-
-
 # =========================================================
 # JWT
 # =========================================================
-
 
 def create_token(
     user_id: int,
@@ -113,11 +122,15 @@ def create_token(
     extra_payload: dict | None = None,
 ) -> str:
 
-    expire = datetime.now(timezone.utc) + expires_delta
+    expire = (
+        datetime.now(timezone.utc)
+        + expires_delta
+    )
 
     payload = {
         "sub": str(user_id),
         "type": token_type,
+        "iat": datetime.now(timezone.utc),
         "exp": expire,
     }
 
@@ -131,33 +144,43 @@ def create_token(
     )
 
 
-def create_access_token(user_id: int) -> str:
+# =========================================================
+# Access Token
+# =========================================================
+
+def create_access_token(
+    user_id: int,
+) -> str:
 
     return create_token(
         user_id=user_id,
         token_type="access",
         expires_delta=timedelta(
-            minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+            minutes=ACCESS_TOKEN_EXPIRE_MINUTES,
         ),
     )
 
 
+# =========================================================
+# Refresh Token
+# =========================================================
+
 def create_refresh_token(
     user_id: int,
-    session_id: str,
 ) -> str:
 
     return create_token(
         user_id=user_id,
         token_type="refresh",
         expires_delta=timedelta(
-            days=REFRESH_TOKEN_EXPIRE_DAYS
+            days=REFRESH_TOKEN_EXPIRE_DAYS,
         ),
-        extra_payload={
-            "sid": session_id,
-        },
     )
 
+
+# =========================================================
+# Password Reset Token
+# =========================================================
 
 def create_otp_reset_token(
     user_id: int,
@@ -168,31 +191,59 @@ def create_otp_reset_token(
         user_id=user_id,
         token_type="password_reset",
         expires_delta=timedelta(
-            minutes=OTP_EXPIRE_MINUTES
+            minutes=OTP_EXPIRE_MINUTES,
         ),
         extra_payload={
             "otp_hash": hash_otp(otp),
         },
     )
 
-def verify_otp_reset_token(token: str, otp: str) -> int:
+
+def verify_otp_reset_token(
+    token: str,
+    otp: str,
+) -> int:
+
     payload = decode_token(token)
+
     if payload.get("type") != "password_reset":
-        raise ValueError("Invalid token type.")
+        raise ValueError(
+            "Invalid token type."
+        )
 
     user_id = payload.get("sub")
     otp_hash = payload.get("otp_hash")
 
     if not user_id or not otp_hash:
-        raise ValueError("Invalid token payload.")
+        raise ValueError(
+            "Invalid token payload."
+        )
 
-    if not verify_otp(otp, otp_hash):
-        raise ValueError("Invalid OTP.")
+    if not verify_otp(
+        otp,
+        otp_hash,
+    ):
+        raise ValueError(
+            "Invalid OTP."
+        )
 
-    return int(user_id)
+    try:
+        return int(user_id)
+
+    except (TypeError, ValueError) as error:
+
+        raise ValueError(
+            "Invalid user ID in token."
+        ) from error
 
 
-def decode_token(token: str) -> dict:
+# =========================================================
+# JWT Decode
+# =========================================================
+
+def decode_token(
+    token: str,
+) -> dict:
 
     try:
 
@@ -200,6 +251,14 @@ def decode_token(token: str) -> dict:
             token,
             JWT_SECRET_KEY,
             algorithms=[JWT_ALGORITHM],
+            options={
+                "require": [
+                    "sub",
+                    "type",
+                    "iat",
+                    "exp",
+                ],
+            },
         )
 
     except InvalidTokenError as error:
@@ -208,6 +267,10 @@ def decode_token(token: str) -> dict:
             "Invalid or expired token."
         ) from error
 
+
+# =========================================================
+# Access / Generic Token User ID
+# =========================================================
 
 def get_user_id_from_token(
     token: str,
@@ -239,38 +302,15 @@ def get_user_id_from_token(
         ) from error
 
 
-def get_refresh_token_data(
+# =========================================================
+# Refresh Token User ID
+# =========================================================
+
+def get_refresh_token_user_id(
     token: str,
-) -> tuple[int, str]:
+) -> int:
 
-    payload = decode_token(token)
-
-    if payload.get("type") != "refresh":
-        raise ValueError(
-            "Invalid token type."
-        )
-
-    user_id = payload.get("sub")
-    session_id = payload.get("sid")
-
-    if not user_id:
-        raise ValueError(
-            "Token does not contain user ID."
-        )
-
-    if not session_id:
-        raise ValueError(
-            "Token does not contain session ID."
-        )
-
-    try:
-
-        user_id = int(user_id)
-
-    except (TypeError, ValueError) as error:
-
-        raise ValueError(
-            "Invalid user ID in token."
-        ) from error
-
-    return user_id, session_id
+    return get_user_id_from_token(
+        token,
+        "refresh",
+    )

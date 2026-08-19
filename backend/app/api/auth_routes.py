@@ -2,7 +2,6 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
-    Request,
     status,
 )
 
@@ -20,7 +19,7 @@ from app.services.auth_service import (
     request_password_reset,
     reset_password,
     logout_user,
-    logout_all_user_sessions,
+    logout_all_user_tokens,
 )
 
 from app.core.security import (
@@ -78,7 +77,7 @@ def get_current_user_id(
             "access",
         )
 
-    except Exception as exc:
+    except ValueError as exc:
 
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -138,14 +137,12 @@ def register(
 # Login
 # POST /auth/login
 # =========================================================
-
 @router.post(
     "/login",
     response_model=LoginResponse,
 )
 def login(
     request: LoginRequest,
-    http_request: Request,
 ):
 
     try:
@@ -153,14 +150,6 @@ def login(
         return login_user(
             email=request.email,
             password=request.password,
-            user_agent=http_request.headers.get(
-                "user-agent"
-            ),
-            ip_address=(
-                http_request.client.host
-                if http_request.client
-                else None
-            ),
         )
 
     except ValueError as exc:
@@ -306,7 +295,6 @@ def update_password(
 # Forgot Password
 # POST /auth/forgot-password
 # =========================================================
-
 @router.post(
     "/forgot-password",
     response_model=ForgotPasswordResponse,
@@ -317,9 +305,17 @@ def forgot_password(
 
     try:
 
-        request_password_reset(
+        reset_token = request_password_reset(
             email=request.email,
         )
+
+        return {
+            "message": (
+                "If the email is registered, "
+                "a password reset OTP has been sent."
+            ),
+            "reset_token": reset_token,
+        }
 
     except Exception:
 
@@ -331,12 +327,13 @@ def forgot_password(
             "Password reset email failed"
         )
 
-    return {
-        "message": (
-            "If the email is registered, "
-            "a password reset OTP has been sent."
-        )
-    }
+        return {
+            "message": (
+                "If the email is registered, "
+                "a password reset OTP has been sent."
+            ),
+            "reset_token": None,
+        }
 
 
 # =========================================================
@@ -353,7 +350,6 @@ def reset_password_endpoint(
 ):
 
     try:
-
         reset_password(
             reset_token=request.reset_token,
             otp=request.otp,
@@ -435,17 +431,29 @@ def logout_all(
 
     try:
 
-        logout_all_user_sessions(
+        logout_all_user_tokens(
             user_id=user_id,
         )
 
         return {
-            "message": "All sessions have been logged out."
+            "message": (
+                "All refresh tokens have been revoked."
+            )
         }
+
+    except ValueError as exc:
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+            headers={
+                "WWW-Authenticate": "Bearer",
+            },
+        ) from exc
 
     except Exception as exc:
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to logout all sessions.",
+            detail="Failed to logout all refresh tokens.",
         ) from exc
