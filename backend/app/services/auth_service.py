@@ -1,13 +1,18 @@
+import hashlib
 import os
+import secrets
+import uuid
+from datetime import datetime
 
 import psycopg2
 
 from app.core.security import (
+    REFRESH_TOKEN_EXPIRE_DAYS,
     create_access_token,
     create_otp_reset_token,
     create_refresh_token,
     generate_otp,
-    get_user_id_from_token,
+    get_refresh_token_data,
     hash_password,
     verify_otp_reset_token,
     verify_password,
@@ -27,6 +32,7 @@ DATABASE_URL = os.getenv(
 # =========================================================
 
 def get_connection():
+
     database_url = DATABASE_URL
 
     if database_url.startswith(
@@ -48,6 +54,19 @@ def get_connection():
         )
 
     return psycopg2.connect(database_url)
+
+
+# =========================================================
+# Token helpers
+# =========================================================
+
+def hash_refresh_token(
+    refresh_token: str,
+) -> str:
+
+    return hashlib.sha256(
+        refresh_token.encode("utf-8")
+    ).hexdigest()
 
 
 # =========================================================
@@ -215,6 +234,8 @@ def authenticate_user(
 def login_user(
     email: str,
     password: str,
+    user_agent: str | None = None,
+    ip_address: str | None = None,
 ):
 
     user = authenticate_user(
@@ -229,48 +250,311 @@ def login_user(
 
     user_id = user[0]
 
+    session_id = str(uuid.uuid4())
+
+    access_token = create_access_token(
+        user_id
+    )
+
+    refresh_token = create_refresh_token(
+        user_id=user_id,
+        session_id=session_id,
+    )
+
+    refresh_token_hash = hash_refresh_token(
+        refresh_token
+    )
+
+    connection = get_connection()
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO user_sessions (
+                    id,
+                    user_id,
+                    refresh_token_hash,
+                    user_agent,
+                    ip_address,
+                    created_at,
+                    expires_at
+                )
+                VALUES (
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP
+                        + (%s * INTERVAL '1 day')
+                )
+                """,
+                (
+                    session_id,
+                    user_id,
+                    refresh_token_hash,
+                    user_agent,
+                    ip_address,
+                    REFRESH_TOKEN_EXPIRE_DAYS,
+                ),
+            )
+
+        connection.commit()
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+
     return {
-        "access_token": create_access_token(
-            user_id
-        ),
-        "refresh_token": create_refresh_token(
-            user_id
-        ),
+        "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
     }
 
 
 # =========================================================
-# Refresh
+# Refresh Token
 # =========================================================
 
 def refresh_access_token(
     refresh_token: str,
 ):
 
-    user_id = get_user_id_from_token(
-        refresh_token,
-        "refresh",
+    user_id, session_id = get_refresh_token_data(
+        refresh_token
     )
 
-    user = find_user_by_id(user_id)
+    old_refresh_token_hash = hash_refresh_token(
+        refresh_token
+    )
 
-    if not user:
-        raise ValueError(
-            "User not found."
-        )
+    connection = get_connection()
 
-    if not user[6]:
-        raise ValueError(
-            "User account is inactive."
-        )
+    try:
+        with connection.cursor() as cursor:
+
+            cursor.execute(
+                """
+                SELECT
+                    id,
+                    user_id,
+                    refresh_token_hash,
+                    expires_at,
+                    revoked_at
+                FROM user_sessions
+                WHERE id = %s
+                  AND user_id = %s
+                FOR UPDATE
+                """,
+                (
+                    session_id,
+                    user_id,
+                ),
+            )
+
+            session = cursor.fetchone()
+
+            if not session:
+                raise ValueError(
+                    "Invalid session."
+                )
+
+            stored_hash = session[2]
+            expires_at = session[3]
+            revoked_at = session[4]
+
+            if revoked_at is not None:
+                raise ValueError(
+                    "Session has been revoked."
+                )
+
+            now = datetime.now(
+                expires_at.tzinfo
+            )
+
+            if expires_at <= now:
+                raise ValueError(
+                    "Session has expired."
+                )
+
+            if not secrets.compare_digest(
+                stored_hash,
+                old_refresh_token_hash,
+            ):
+                raise ValueError(
+                    "Invalid refresh token."
+                )
+
+            user = find_user_by_id(user_id)
+
+            if not user:
+                raise ValueError(
+                    "User not found."
+                )
+
+            if not user[6]:
+                raise ValueError(
+                    "User account is inactive."
+                )
+
+            new_refresh_token = create_refresh_token(
+                user_id=user_id,
+                session_id=session_id,
+            )
+
+            new_refresh_token_hash = hash_refresh_token(
+                new_refresh_token
+            )
+
+            cursor.execute(
+                """
+                UPDATE user_sessions
+                SET
+                    refresh_token_hash = %s
+                WHERE id = %s
+                  AND user_id = %s
+                """,
+                (
+                    new_refresh_token_hash,
+                    session_id,
+                    user_id,
+                ),
+            )
+
+        connection.commit()
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
 
     return {
         "access_token": create_access_token(
             user_id
         ),
+        "refresh_token": new_refresh_token,
         "token_type": "bearer",
     }
+
+
+# =========================================================
+# Logout
+# =========================================================
+
+def logout_user(
+    refresh_token: str,
+):
+
+    user_id, session_id = get_refresh_token_data(
+        refresh_token
+    )
+
+    refresh_token_hash = hash_refresh_token(
+        refresh_token
+    )
+
+    connection = get_connection()
+
+    try:
+        with connection.cursor() as cursor:
+
+            cursor.execute(
+                """
+                SELECT
+                    refresh_token_hash,
+                    revoked_at
+                FROM user_sessions
+                WHERE id = %s
+                  AND user_id = %s
+                """,
+                (
+                    session_id,
+                    user_id,
+                ),
+            )
+
+            session = cursor.fetchone()
+
+            if not session:
+                raise ValueError(
+                    "Invalid session."
+                )
+
+            stored_hash = session[0]
+            revoked_at = session[1]
+
+            if revoked_at is not None:
+                return
+
+            if not secrets.compare_digest(
+                stored_hash,
+                refresh_token_hash,
+            ):
+                raise ValueError(
+                    "Invalid refresh token."
+                )
+
+            cursor.execute(
+                """
+                UPDATE user_sessions
+                SET revoked_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                  AND user_id = %s
+                  AND revoked_at IS NULL
+                """,
+                (
+                    session_id,
+                    user_id,
+                ),
+            )
+
+        connection.commit()
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+
+
+# =========================================================
+# Logout All Sessions
+# =========================================================
+
+def logout_all_user_sessions(
+    user_id: int,
+):
+
+    connection = get_connection()
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE user_sessions
+                SET revoked_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s
+                  AND revoked_at IS NULL
+                """,
+                (user_id,),
+            )
+
+        connection.commit()
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
 
 
 # =========================================================
@@ -361,7 +645,6 @@ def request_password_reset(
 
     user = find_user_by_email(email)
 
-    # Không tiết lộ email có tồn tại hay không.
     if not user:
         return
 

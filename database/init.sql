@@ -22,6 +22,40 @@ CREATE TABLE users (
 );
 
 -- =========================================================
+-- USER SESSIONS
+-- =========================================================
+
+CREATE TABLE user_sessions (
+    id UUID PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+
+    refresh_token_hash TEXT NOT NULL,
+
+    user_agent TEXT,
+    ip_address INET,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+
+    revoked_at TIMESTAMP NULL,
+
+    CONSTRAINT fk_user_sessions_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX idx_user_sessions_user_id
+    ON user_sessions(user_id);
+
+CREATE INDEX idx_user_sessions_expires_at
+    ON user_sessions(expires_at);
+
+CREATE INDEX idx_user_sessions_active
+    ON user_sessions(user_id, revoked_at);
+
+
+-- =========================================================
 -- USER SETTINGS
 -- =========================================================
 

@@ -1,5 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Request,
+    status,
+)
+
+from fastapi.security import (
+    HTTPAuthorizationCredentials,
+    HTTPBearer,
+)
+
 from app.services.auth_service import (
     register_user,
     login_user,
@@ -8,8 +19,13 @@ from app.services.auth_service import (
     change_password,
     request_password_reset,
     reset_password,
+    logout_user,
+    logout_all_user_sessions,
 )
-from app.core.security import get_user_id_from_token
+
+from app.core.security import (
+    get_user_id_from_token,
+)
 
 from app.schemas.auth import (
     RegisterRequest,
@@ -24,6 +40,9 @@ from app.schemas.auth import (
     ForgotPasswordResponse,
     ResetPasswordRequest,
     ResetPasswordResponse,
+    LogoutRequest,
+    LogoutResponse,
+    LogoutAllResponse,
 )
 
 
@@ -53,21 +72,21 @@ def get_current_user_id(
     token = credentials.credentials
 
     try:
-        user_id = get_user_id_from_token(
+
+        return get_user_id_from_token(
             token,
             "access",
         )
 
-        return user_id
+    except Exception as exc:
 
-    except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired access token.",
             headers={
                 "WWW-Authenticate": "Bearer",
             },
-        )
+        ) from exc
 
 
 # =========================================================
@@ -75,7 +94,11 @@ def get_current_user_id(
 # POST /auth/register
 # =========================================================
 
-@router.post("/register",response_model=RegisterResponse,status_code=status.HTTP_201_CREATED,)
+@router.post(
+    "/register",
+    response_model=RegisterResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def register(
     request: RegisterRequest,
 ):
@@ -92,7 +115,6 @@ def register(
             "id": user[0],
             "email": user[1],
             "full_name": user[2],
-            "avatar_url": user[3],
             "role": user[4],
             "is_active": user[5],
         }
@@ -102,14 +124,14 @@ def register(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
-        )
+        ) from exc
 
-    except Exception:
+    except Exception as exc:
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to register user.",
-        )
+        ) from exc
 
 
 # =========================================================
@@ -117,9 +139,13 @@ def register(
 # POST /auth/login
 # =========================================================
 
-@router.post("/login",response_model=LoginResponse,)
+@router.post(
+    "/login",
+    response_model=LoginResponse,
+)
 def login(
     request: LoginRequest,
+    http_request: Request,
 ):
 
     try:
@@ -127,6 +153,14 @@ def login(
         return login_user(
             email=request.email,
             password=request.password,
+            user_agent=http_request.headers.get(
+                "user-agent"
+            ),
+            ip_address=(
+                http_request.client.host
+                if http_request.client
+                else None
+            ),
         )
 
     except ValueError as exc:
@@ -137,22 +171,25 @@ def login(
             headers={
                 "WWW-Authenticate": "Bearer",
             },
-        )
+        ) from exc
 
-    except Exception:
+    except Exception as exc:
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to login.",
-        )
+        ) from exc
 
 
 # =========================================================
-# Refresh Access Token
+# Refresh
 # POST /auth/refresh
 # =========================================================
 
-@router.post("/refresh",response_model=RefreshTokenResponse,)
+@router.post(
+    "/refresh",
+    response_model=RefreshTokenResponse,
+)
 def refresh(
     request: RefreshTokenRequest,
 ):
@@ -171,14 +208,14 @@ def refresh(
             headers={
                 "WWW-Authenticate": "Bearer",
             },
-        )
+        ) from exc
 
-    except Exception:
+    except Exception as exc:
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to refresh access token.",
-        )
+        ) from exc
 
 
 # =========================================================
@@ -214,14 +251,14 @@ def me(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
-        )
+        ) from exc
 
-    except Exception:
+    except Exception as exc:
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get current user.",
-        )
+        ) from exc
 
 
 # =========================================================
@@ -255,14 +292,14 @@ def update_password(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
-        )
+        ) from exc
 
-    except Exception:
+    except Exception as exc:
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to change password.",
-        )
+        ) from exc
 
 
 # =========================================================
@@ -284,27 +321,22 @@ def forgot_password(
             email=request.email,
         )
 
-        # Không tiết lộ email có tồn tại hay không.
-        return {
-            "message": (
-                "If the email is registered, "
-                "a password reset OTP has been sent."
-            )
-        }
+    except Exception:
 
-    except Exception as exc:
         import logging
 
-        logging.getLogger("app.api.auth").exception(
+        logging.getLogger(
+            "app.api.auth"
+        ).exception(
             "Password reset email failed"
         )
 
-        return {
-            "message": (
-                "If the email is registered, "
-                "a password reset OTP has been sent."
-            )
-        }
+    return {
+        "message": (
+            "If the email is registered, "
+            "a password reset OTP has been sent."
+        )
+    }
 
 
 # =========================================================
@@ -337,14 +369,14 @@ def reset_password_endpoint(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
-        )
+        ) from exc
 
-    except Exception:
+    except Exception as exc:
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to reset password.",
-        )
+        ) from exc
 
 
 # =========================================================
@@ -354,12 +386,66 @@ def reset_password_endpoint(
 
 @router.post(
     "/logout",
-    status_code=status.HTTP_200_OK,
+    response_model=LogoutResponse,
 )
 def logout(
+    request: LogoutRequest,
+):
+
+    try:
+
+        logout_user(
+            refresh_token=request.refresh_token,
+        )
+
+        return {
+            "message": "Logged out successfully."
+        }
+
+    except ValueError as exc:
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+            headers={
+                "WWW-Authenticate": "Bearer",
+            },
+        ) from exc
+
+    except Exception as exc:
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to logout.",
+        ) from exc
+
+
+# =========================================================
+# Logout All
+# POST /auth/logout-all
+# =========================================================
+
+@router.post(
+    "/logout-all",
+    response_model=LogoutAllResponse,
+)
+def logout_all(
     user_id: int = Depends(get_current_user_id),
 ):
 
-    return {
-        "message": "Logged out successfully."
-    }
+    try:
+
+        logout_all_user_sessions(
+            user_id=user_id,
+        )
+
+        return {
+            "message": "All sessions have been logged out."
+        }
+
+    except Exception as exc:
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to logout all sessions.",
+        ) from exc

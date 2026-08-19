@@ -18,8 +18,9 @@ APP_TITLE = "AI Video Translation Platform"
 
 JWT_SECRET_KEY = os.getenv(
     "JWT_SECRET_KEY",
-    "change-this-secret-key",
 )
+if not JWT_SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY is not configured.")
 
 JWT_ALGORITHM = os.getenv(
     "JWT_ALGORITHM",
