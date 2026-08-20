@@ -1,4 +1,9 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+} from "react-router-dom";
 
 import Home from "../../pages/Home";
 import Login from "../../pages/Login";
@@ -8,43 +13,86 @@ import ProjectDetail from "../../pages/ProjectDetail";
 import VideoPipeline from "../../pages/VideoPipeline";
 import Setting from "../../pages/Settings";
 
+import ProtectedRoute from "./ProtectedRoute";
+
 export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
 
+        {/* ================================================== */}
+        {/* PUBLIC ROUTES */}
+        {/* ================================================== */}
+
         {/* Landing Page */}
-        <Route path="/" element={<Home />} />
+
+        <Route
+          path="/"
+          element={<Home />}
+        />
 
         {/* Authentication */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
 
-        {/* Workspace */}
-        <Route path="/workspace" element={<Workspace />} />
-
-        {/* Project */}
         <Route
-          path="/workspace/project/:projectId"
-          element={<ProjectDetail />}
+          path="/login"
+          element={<Login />}
         />
 
-        {/* Video Pipeline */}
         <Route
-          path="/workspace/project/:projectId/video/:videoId"
-          element={<VideoPipeline />}
+          path="/register"
+          element={<Register />}
         />
 
-        {/* Settings */}
-        <Route 
-          path="/workspace/settings"
-          element={<Setting />}
-        />
 
-        {/* Fallback */}
+        {/* ================================================== */}
+        {/* PROTECTED ROUTES */}
+        {/* ================================================== */}
+
+        <Route element={<ProtectedRoute />}>
+
+          {/* Workspace */}
+
+          <Route
+            path="/workspace"
+            element={<Workspace />}
+          />
+
+          {/* Project */}
+
+          <Route
+            path="/workspace/project/:projectId"
+            element={<ProjectDetail />}
+          />
+
+          {/* Video Pipeline */}
+
+          <Route
+            path="/workspace/project/:projectId/video/:videoId"
+            element={<VideoPipeline />}
+          />
+
+          {/* Settings */}
+
+          <Route
+            path="/workspace/settings"
+            element={<Setting />}
+          />
+
+        </Route>
+
+
+        {/* ================================================== */}
+        {/* FALLBACK */}
+        {/* ================================================== */}
+
         <Route
           path="*"
-          element={<Navigate to="/" replace />}
+          element={
+            <Navigate
+              to="/"
+              replace
+            />
+          }
         />
 
       </Routes>

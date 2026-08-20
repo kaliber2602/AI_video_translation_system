@@ -7,13 +7,18 @@ import {
   Settings,
   User,
 } from "lucide-react";
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+
+import { logout } from "../../services/auth.service";
+import { clearTokens } from "../../services/api/token";
 
 export default function WorkspaceTopbar() {
   const navigate = useNavigate();
 
   const [profileOpen, setProfileOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const handleSettings = () => {
     setProfileOpen(false);
@@ -23,6 +28,74 @@ export default function WorkspaceTopbar() {
   const handleWorkspace = () => {
     setProfileOpen(false);
     navigate("/workspace");
+  };
+
+  const handleLogout = async () => {
+    if (loggingOut) {
+      return;
+    }
+
+    console.log(
+      "%c========== LOGOUT START ==========",
+      "color: orange; font-weight: bold;"
+    );
+
+    try {
+      setLoggingOut(true);
+      setProfileOpen(false);
+
+      console.log("[LOGOUT] Calling logout API...");
+
+      /*
+       * Gọi backend logout.
+       *
+       * Nếu backend yêu cầu access token / refresh token,
+       * interceptor sẽ tự xử lý Authorization.
+       */
+      await logout();
+
+      console.log("[LOGOUT] Logout API success.");
+    } catch (error) {
+      /*
+       * Logout phía server fail không được phép
+       * ngăn logout phía client.
+       */
+      console.error(
+        "[LOGOUT] Logout API failed:",
+        error
+      );
+    } finally {
+      /*
+       * QUAN TRỌNG:
+       *
+       * Dù API logout thành công hay thất bại,
+       * luôn xóa cả access token và refresh token.
+       */
+      console.log(
+        "[LOGOUT] Clearing access token and refresh token..."
+      );
+
+      clearTokens();
+
+      console.log(
+        "[LOGOUT] Tokens cleared."
+      );
+
+      console.log(
+        "[LOGOUT] Redirecting to /login..."
+      );
+
+      navigate("/login", {
+        replace: true,
+      });
+
+      setLoggingOut(false);
+
+      console.log(
+        "%c========== LOGOUT END ==========",
+        "color: orange; font-weight: bold;"
+      );
+    }
   };
 
   return (
@@ -40,9 +113,26 @@ export default function WorkspaceTopbar() {
             viewBox="0 0 32 32"
             fill="none"
           >
-            <circle cx="7" cy="16" r="3" fill="currentColor" />
-            <circle cx="24" cy="8" r="3" fill="currentColor" />
-            <circle cx="24" cy="24" r="3" fill="currentColor" />
+            <circle
+              cx="7"
+              cy="16"
+              r="3"
+              fill="currentColor"
+            />
+
+            <circle
+              cx="24"
+              cy="8"
+              r="3"
+              fill="currentColor"
+            />
+
+            <circle
+              cx="24"
+              cy="24"
+              r="3"
+              fill="currentColor"
+            />
 
             <path
               d="M9.5 15L21.5 9"
@@ -71,7 +161,10 @@ export default function WorkspaceTopbar() {
 
       {/* GLOBAL SEARCH */}
       <div className="mx-auto flex w-full max-w-[540px] items-center rounded-full border border-[#E3ECEB] bg-[#F8FBFB] px-4 py-2.5 shadow-sm">
-        <Search size={19} className="text-[#81919B]" />
+        <Search
+          size={19}
+          className="text-[#81919B]"
+        />
 
         <input
           type="text"
@@ -79,7 +172,10 @@ export default function WorkspaceTopbar() {
           className="flex-1 bg-transparent px-3 text-sm text-[#344454] outline-none placeholder:text-[#8D9AA3]"
         />
 
-        <Search size={18} className="text-[#7D8C97]" />
+        <Search
+          size={18}
+          className="text-[#7D8C97]"
+        />
       </div>
 
       {/* ACTIONS */}
@@ -98,7 +194,10 @@ export default function WorkspaceTopbar() {
           type="button"
           className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-[#E8EFEE] bg-white shadow-sm transition hover:bg-[#F4FAF9]"
         >
-          <Bell size={19} className="text-[#52626F]" />
+          <Bell
+            size={19}
+            className="text-[#52626F]"
+          />
 
           <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#18C3AA]" />
         </button>
@@ -107,8 +206,11 @@ export default function WorkspaceTopbar() {
         <div className="relative">
           <button
             type="button"
-            onClick={() => setProfileOpen(!profileOpen)}
-            className="flex items-center gap-3 rounded-xl px-2 py-1.5 transition hover:bg-[#F5FAF9]"
+            disabled={loggingOut}
+            onClick={() =>
+              setProfileOpen((prev) => !prev)
+            }
+            className="flex items-center gap-3 rounded-xl px-2 py-1.5 transition hover:bg-[#F5FAF9] disabled:opacity-60"
           >
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#D8F3EE] text-sm font-bold text-[#159C8B]">
               U
@@ -117,7 +219,9 @@ export default function WorkspaceTopbar() {
             <ChevronDown
               size={17}
               className={`text-[#687780] transition ${
-                profileOpen ? "rotate-180" : ""
+                profileOpen
+                  ? "rotate-180"
+                  : ""
               }`}
             />
           </button>
@@ -128,7 +232,9 @@ export default function WorkspaceTopbar() {
               <button
                 type="button"
                 aria-label="Close profile menu"
-                onClick={() => setProfileOpen(false)}
+                onClick={() =>
+                  setProfileOpen(false)
+                }
                 className="fixed inset-0 z-40 cursor-default"
               />
 
@@ -157,7 +263,8 @@ export default function WorkspaceTopbar() {
                   <button
                     type="button"
                     onClick={handleWorkspace}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[#53666B] transition hover:bg-[#F4FAF9] hover:text-[#18BFA7]"
+                    disabled={loggingOut}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[#53666B] transition hover:bg-[#F4FAF9] hover:text-[#18BFA7] disabled:opacity-50"
                   >
                     <User size={17} />
                     My Workspace
@@ -166,21 +273,27 @@ export default function WorkspaceTopbar() {
                   <button
                     type="button"
                     onClick={handleSettings}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[#53666B] transition hover:bg-[#F4FAF9] hover:text-[#18BFA7]"
+                    disabled={loggingOut}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[#53666B] transition hover:bg-[#F4FAF9] hover:text-[#18BFA7] disabled:opacity-50"
                   >
                     <Settings size={17} />
                     Settings
                   </button>
                 </div>
 
+                {/* LOGOUT */}
                 <div className="border-t border-[#EDF2F1] p-2">
                   <button
                     type="button"
-                    onClick={() => navigate("/login")}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[#D06464] transition hover:bg-[#FFF5F5]"
+                    onClick={handleLogout}
+                    disabled={loggingOut}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[#D06464] transition hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <LogOut size={17} />
-                    Log out
+
+                    {loggingOut
+                      ? "Logging out..."
+                      : "Log out"}
                   </button>
                 </div>
               </div>

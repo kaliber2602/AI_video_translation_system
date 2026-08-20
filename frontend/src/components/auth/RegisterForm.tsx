@@ -9,11 +9,16 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+import { register } from "../../services/auth.service";
+
 export default function RegisterForm() {
   const navigate = useNavigate();
 
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showPassword, setShowPassword] =
+    useState(false);
+
+  const [showConfirmPassword, setShowConfirmPassword] =
+    useState(false);
 
   const [form, setForm] = useState({
     fullName: "",
@@ -24,7 +29,13 @@ export default function RegisterForm() {
 
   const [error, setError] = useState("");
 
-  const handleChange = (field: string, value: string) => {
+  const [loading, setLoading] =
+    useState(false);
+
+  const handleChange = (
+    field: keyof typeof form,
+    value: string
+  ) => {
     setForm((prev) => ({
       ...prev,
       [field]: value,
@@ -33,51 +44,172 @@ export default function RegisterForm() {
     setError("");
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
     event.preventDefault();
 
+    setError("");
+
+    // -----------------------------
+    // Client validation
+    // -----------------------------
+
     if (!form.fullName.trim()) {
-      setError("Please enter your full name.");
+      setError(
+        "Please enter your full name."
+      );
+      return;
+    }
+
+    if (form.fullName.trim().length < 2) {
+      setError(
+        "Full name must contain at least 2 characters."
+      );
       return;
     }
 
     if (!form.email.trim()) {
-      setError("Please enter your email.");
+      setError(
+        "Please enter your email."
+      );
       return;
     }
 
     if (!form.password) {
-      setError("Please enter a password.");
+      setError(
+        "Please enter a password."
+      );
       return;
     }
 
     if (form.password.length < 8) {
-      setError("Password must contain at least 8 characters.");
+      setError(
+        "Password must contain at least 8 characters."
+      );
       return;
     }
 
-    if (form.password !== form.confirmPassword) {
-      setError("Passwords do not match.");
+    if (!/[A-Z]/.test(form.password)) {
+      setError(
+        "Password must contain an uppercase letter."
+      );
       return;
     }
 
-    /*
-     * TODO:
-     * Sau này thay đoạn này bằng:
-     *
-     * await registerUser({
-     *   fullName: form.fullName,
-     *   email: form.email,
-     *   password: form.password,
-     * });
-     */
+    if (!/[a-z]/.test(form.password)) {
+      setError(
+        "Password must contain a lowercase letter."
+      );
+      return;
+    }
 
-    navigate("/login");
+    if (!/[0-9]/.test(form.password)) {
+      setError(
+        "Password must contain a number."
+      );
+      return;
+    }
+
+    if (!/[^A-Za-z0-9]/.test(form.password)) {
+      setError(
+        "Password must contain a special character."
+      );
+      return;
+    }
+
+    if (
+      form.password !==
+      form.confirmPassword
+    ) {
+      setError(
+        "Passwords do not match."
+      );
+      return;
+    }
+
+    // -----------------------------
+    // API
+    // -----------------------------
+
+    try {
+      setLoading(true);
+
+      await register({
+        full_name:
+          form.fullName.trim(),
+
+        email:
+          form.email.trim().toLowerCase(),
+
+        password:
+          form.password,
+      });
+
+      // Register thành công
+      navigate("/login");
+
+    } catch (error: any) {
+      console.error(
+        "Register error:",
+        error
+      );
+
+      const detail =
+        error?.response?.data?.detail;
+
+      // FastAPI validation error
+      if (Array.isArray(detail)) {
+        const messages = detail
+          .map(
+            (item: any) =>
+              item?.msg
+          )
+          .filter(Boolean);
+
+        setError(
+          messages.length > 0
+            ? messages.join(", ")
+            : "Registration failed."
+        );
+
+        return;
+      }
+
+      // FastAPI custom error
+      if (typeof detail === "string") {
+        setError(detail);
+        return;
+      }
+
+      // Network error
+      if (
+        error?.code ===
+        "ERR_NETWORK"
+      ) {
+        setError(
+          "Unable to connect to the server."
+        );
+
+        return;
+      }
+
+      setError(
+        "Registration failed. Please try again."
+      );
+
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mt-8">
+    <form
+      onSubmit={handleSubmit}
+      className="mt-8"
+    >
       {/* Full Name */}
+
       <div>
         <label className="mb-2 block text-xs font-semibold text-[#344454]">
           Full Name
@@ -93,15 +225,20 @@ export default function RegisterForm() {
             type="text"
             value={form.fullName}
             onChange={(e) =>
-              handleChange("fullName", e.target.value)
+              handleChange(
+                "fullName",
+                e.target.value
+              )
             }
             placeholder="Nguyen Anh Tuan"
-            className="h-12 w-full rounded-xl border border-[#DDE6EC] bg-white pl-11 pr-4 text-sm text-[#344454] outline-none transition placeholder:text-[#9AA6B5] focus:border-[#20C5AE] focus:ring-4 focus:ring-[#20C5AE]/10"
+            disabled={loading}
+            className="h-12 w-full rounded-xl border border-[#DDE6EC] bg-white pl-11 pr-4 text-sm text-[#344454] outline-none transition placeholder:text-[#9AA6B5] focus:border-[#20C5AE] focus:ring-4 focus:ring-[#20C5AE]/10 disabled:bg-slate-50"
           />
         </div>
       </div>
 
       {/* Email */}
+
       <div className="mt-5">
         <label className="mb-2 block text-xs font-semibold text-[#344454]">
           Email
@@ -117,15 +254,20 @@ export default function RegisterForm() {
             type="email"
             value={form.email}
             onChange={(e) =>
-              handleChange("email", e.target.value)
+              handleChange(
+                "email",
+                e.target.value
+              )
             }
             placeholder="name@example.com"
-            className="h-12 w-full rounded-xl border border-[#DDE6EC] bg-white pl-11 pr-4 text-sm text-[#344454] outline-none transition placeholder:text-[#9AA6B5] focus:border-[#20C5AE] focus:ring-4 focus:ring-[#20C5AE]/10"
+            disabled={loading}
+            className="h-12 w-full rounded-xl border border-[#DDE6EC] bg-white pl-11 pr-4 text-sm text-[#344454] outline-none transition placeholder:text-[#9AA6B5] focus:border-[#20C5AE] focus:ring-4 focus:ring-[#20C5AE]/10 disabled:bg-slate-50"
           />
         </div>
       </div>
 
       {/* Password */}
+
       <div className="mt-5">
         <label className="mb-2 block text-xs font-semibold text-[#344454]">
           Password
@@ -138,18 +280,31 @@ export default function RegisterForm() {
           />
 
           <input
-            type={showPassword ? "text" : "password"}
+            type={
+              showPassword
+                ? "text"
+                : "password"
+            }
             value={form.password}
             onChange={(e) =>
-              handleChange("password", e.target.value)
+              handleChange(
+                "password",
+                e.target.value
+              )
             }
             placeholder="At least 8 characters"
-            className="h-12 w-full rounded-xl border border-[#DDE6EC] bg-white pl-11 pr-12 text-sm text-[#344454] outline-none transition placeholder:text-[#9AA6B5] focus:border-[#20C5AE] focus:ring-4 focus:ring-[#20C5AE]/10"
+            disabled={loading}
+            className="h-12 w-full rounded-xl border border-[#DDE6EC] bg-white pl-11 pr-12 text-sm text-[#344454] outline-none transition placeholder:text-[#9AA6B5] focus:border-[#20C5AE] focus:ring-4 focus:ring-[#20C5AE]/10 disabled:bg-slate-50"
           />
 
           <button
             type="button"
-            onClick={() => setShowPassword((prev) => !prev)}
+            disabled={loading}
+            onClick={() =>
+              setShowPassword(
+                (prev) => !prev
+              )
+            }
             className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8FA0B0] transition hover:text-[#18BFA7]"
           >
             {showPassword ? (
@@ -162,6 +317,7 @@ export default function RegisterForm() {
       </div>
 
       {/* Confirm Password */}
+
       <div className="mt-5">
         <label className="mb-2 block text-xs font-semibold text-[#344454]">
           Confirm Password
@@ -174,19 +330,32 @@ export default function RegisterForm() {
           />
 
           <input
-            type={showConfirmPassword ? "text" : "password"}
-            value={form.confirmPassword}
+            type={
+              showConfirmPassword
+                ? "text"
+                : "password"
+            }
+            value={
+              form.confirmPassword
+            }
             onChange={(e) =>
-              handleChange("confirmPassword", e.target.value)
+              handleChange(
+                "confirmPassword",
+                e.target.value
+              )
             }
             placeholder="Re-enter your password"
-            className="h-12 w-full rounded-xl border border-[#DDE6EC] bg-white pl-11 pr-12 text-sm text-[#344454] outline-none transition placeholder:text-[#9AA6B5] focus:border-[#20C5AE] focus:ring-4 focus:ring-[#20C5AE]/10"
+            disabled={loading}
+            className="h-12 w-full rounded-xl border border-[#DDE6EC] bg-white pl-11 pr-12 text-sm text-[#344454] outline-none transition placeholder:text-[#9AA6B5] focus:border-[#20C5AE] focus:ring-4 focus:ring-[#20C5AE]/10 disabled:bg-slate-50"
           />
 
           <button
             type="button"
+            disabled={loading}
             onClick={() =>
-              setShowConfirmPassword((prev) => !prev)
+              setShowConfirmPassword(
+                (prev) => !prev
+              )
             }
             className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8FA0B0] transition hover:text-[#18BFA7]"
           >
@@ -200,11 +369,13 @@ export default function RegisterForm() {
       </div>
 
       {/* Terms */}
+
       <div className="mt-5 flex items-start gap-2">
         <input
           id="terms"
           type="checkbox"
           required
+          disabled={loading}
           className="mt-0.5 h-4 w-4 rounded border-[#CBD8E1] accent-[#18C3AA]"
         />
 
@@ -231,6 +402,7 @@ export default function RegisterForm() {
       </div>
 
       {/* Error */}
+
       {error && (
         <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-medium text-red-600">
           {error}
@@ -238,14 +410,19 @@ export default function RegisterForm() {
       )}
 
       {/* Register */}
+
       <button
         type="submit"
-        className="mt-6 h-12 w-full rounded-xl bg-[#20C5AE] text-sm font-bold text-white shadow-[0_8px_22px_rgba(32,197,174,0.24)] transition hover:-translate-y-0.5 hover:bg-[#12B49D]"
+        disabled={loading}
+        className="mt-6 h-12 w-full rounded-xl bg-[#20C5AE] text-sm font-bold text-white shadow-[0_8px_22px_rgba(32,197,174,0.24)] transition hover:-translate-y-0.5 hover:bg-[#12B49D] disabled:cursor-not-allowed disabled:opacity-60"
       >
-        Create Account
+        {loading
+          ? "Creating Account..."
+          : "Create Account"}
       </button>
 
       {/* Divider */}
+
       <div className="my-7 flex items-center gap-4">
         <div className="h-px flex-1 bg-[#E2E8EC]" />
 
@@ -257,9 +434,11 @@ export default function RegisterForm() {
       </div>
 
       {/* Social */}
+
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
+          disabled={loading}
           className="flex h-11 items-center justify-center rounded-xl border border-[#DDE6EC] bg-white text-sm font-medium text-[#536475] transition hover:border-[#20C5AE] hover:bg-[#F7FCFB]"
         >
           Microsoft
@@ -267,6 +446,7 @@ export default function RegisterForm() {
 
         <button
           type="button"
+          disabled={loading}
           className="flex h-11 items-center justify-center rounded-xl border border-[#DDE6EC] bg-white text-[#263344] transition hover:border-[#20C5AE] hover:bg-[#F7FCFB]"
         >
           <Apple size={19} />
@@ -274,11 +454,16 @@ export default function RegisterForm() {
       </div>
 
       {/* Login */}
+
       <div className="mt-7 text-center text-xs text-[#718398]">
         Already have an account?{" "}
+
         <button
           type="button"
-          onClick={() => navigate("/login")}
+          disabled={loading}
+          onClick={() =>
+            navigate("/login")
+          }
           className="font-semibold text-[#18BFA7] hover:underline"
         >
           Sign in

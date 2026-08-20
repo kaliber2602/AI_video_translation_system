@@ -1,0 +1,106 @@
+:root {
+  /* =========================
+     LIGHT THEME
+     ========================= */
+
+  --color-background: #f7fbfa;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f8fbfb;
+
+  --color-text-primary: #152238;
+  --color-text-secondary: #53636b;
+  --color-text-muted: #819095;
+
+  --color-primary: #15c2a8;
+  --color-primary-hover: #0fb39b;
+  --color-primary-soft: #e5f8f4;
+
+  --color-border: #e3ebe9;
+  --color-border-muted: #e7efee;
+
+  --color-success: #16c3a8;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-info: #4c94e8;
+
+  --color-avatar-bg: #d8f3ee;
+  --color-avatar-text: #159c8b;
+
+  --color-input-background: #ffffff;
+  --color-disabled-background: #f8fafa;
+
+  --color-overlay: rgba(0, 0, 0, 0.4);
+
+  --shadow-card: 0 8px 30px rgba(30, 70, 80, 0.035);
+}
+
+[data-theme="dark"] {
+  /* =========================
+     DARK THEME
+     ========================= */
+
+  --color-background: #0f1718;
+  --color-surface: #162122;
+  --color-surface-muted: #1b292a;
+
+  --color-text-primary: #edf7f5;
+  --color-text-secondary: #b7c9c6;
+  --color-text-muted: #829592;
+
+  --color-primary: #19c9ad;
+  --color-primary-hover: #14b89f;
+  --color-primary-soft: #163b35;
+
+  --color-border: #293938;
+  --color-border-muted: #243332;
+
+  --color-success: #20c9a9;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+  --color-info: #60a5fa;
+
+  --color-avatar-bg: #193c37;
+  --color-avatar-text: #5eead4;
+
+  --color-input-background: #162122;
+  --color-disabled-background: #202d2d;
+
+  --color-overlay: rgba(0, 0, 0, 0.65);
+
+  --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.18);
+}
+
+
+@media (prefers-color-scheme: dark) {
+  [data-theme="system"] {
+    --color-background: #0f1718;
+    --color-surface: #162122;
+    --color-surface-muted: #1b292a;
+
+    --color-text-primary: #edf7f5;
+    --color-text-secondary: #b7c9c6;
+    --color-text-muted: #829592;
+
+    --color-primary: #19c9ad;
+    --color-primary-hover: #14b89f;
+    --color-primary-soft: #163b35;
+
+    --color-border: #293938;
+    --color-border-muted: #243332;
+
+    --color-success: #20c9a9;
+    --color-warning: #fbbf24;
+    --color-danger: #f87171;
+    --color-info: #60a5fa;
+
+    --color-avatar-bg: #193c37;
+    --color-avatar-text: #5eead4;
+
+    --color-input-background: #162122;
+    --color-disabled-background: #202d2d;
+
+    --color-overlay: rgba(0, 0, 0, 0.65);
+
+    --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.18);
+  }
+}

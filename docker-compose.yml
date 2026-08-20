@@ -4,6 +4,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+
+    volumes:
+      - ./frontend:/app
+
     ports:
       - "5173:80"
     depends_on:

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTheme } from "../app/providers/ThemeProvider";
 import {
   ArrowLeft,
   Bell,
@@ -14,7 +15,7 @@ import {
   User,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
+import type { Theme } from "../config/theme";
 type SettingsSection =
   | "account"
   | "general"
@@ -43,7 +44,7 @@ function Toggle({
       }`}
     >
       <span
-        className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition ${
+        className={`absolute top-1 h-4 w-4 rounded-full bg-[var(--color-surface)] shadow-sm transition ${
           checked ? "left-6" : "left-1"
         }`}
       />
@@ -53,29 +54,30 @@ function Toggle({
 
 function SelectBox({
   value,
+  onChange,
   children,
 }: {
   value: string;
+  onChange?: (value: string) => void;
   children?: React.ReactNode;
 }) {
   return (
     <div className="relative">
       <select
         value={value}
-        onChange={() => {}}
-        className="h-11 w-full appearance-none rounded-lg border border-[#DFE8E6] bg-white px-4 pr-10 text-sm text-[#53636B] outline-none transition focus:border-[#19C3A9] focus:ring-4 focus:ring-[#19C3A9]/10"
+        onChange={(event) => onChange?.(event.target.value)}
+        className="h-11 w-full appearance-none rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-4 pr-10 text-sm text-[var(--color-text-secondary)] outline-none transition focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10"
       >
-        {children || <option>{value}</option>}
+        {children}
       </select>
 
       <ChevronDown
         size={16}
-        className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#819095]"
+        className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
       />
     </div>
   );
 }
-
 function SettingItem({
   icon,
   title,
@@ -113,7 +115,7 @@ function SettingCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-[#E3EBE9] bg-white p-5 shadow-[0_8px_30px_rgba(30,70,80,0.035)]">
+    <section className="rounded-xl border border-[#E3EBE9] bg-[var(--color-surface)] p-5 shadow-[0_8px_30px_rgba(30,70,80,0.035)]">
       <div className="mb-5">
         <h2 className="text-base font-bold text-[#263641]">{title}</h2>
         <p className="mt-1 text-xs text-[#87969A]">{description}</p>
@@ -150,6 +152,8 @@ function ToggleRow({
 export default function Setting() {
   const navigate = useNavigate();
 
+  const { theme, setTheme } = useTheme();
+
   const [activeSection, setActiveSection] =
     useState<SettingsSection>("account");
 
@@ -182,9 +186,9 @@ export default function Setting() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7FBFA] text-[#152238]">
+    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)]">
       {/* TOPBAR */}
-      <header className="sticky top-0 z-50 flex h-[84px] items-center border-b border-[#E7EFEE] bg-white/90 px-6 backdrop-blur-xl lg:px-8">
+      <header className="sticky top-0 z-50 flex h-[84px] items-center border-b border-[#E7EFEE] bg-[var(--color-surface)]/90 px-6 backdrop-blur-xl lg:px-8">
         <div className="flex min-w-0 items-center gap-4">
           <button
             type="button"
@@ -195,7 +199,7 @@ export default function Setting() {
           </button>
 
           <div>
-            <h1 className="text-lg font-bold text-[#152238]">Settings</h1>
+            <h1 className="text-lg font-bold text-[var(--color-text-primary)]">Settings</h1>
 
             <p className="text-xs text-[#8A999D]">
               Manage your account and preferences
@@ -220,7 +224,7 @@ export default function Setting() {
 
           <button
             type="button"
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#E8EFEE] bg-white"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#E8EFEE] bg-[var(--color-surface)]"
           >
             <Bell size={18} className="text-[#52626F]" />
           </button>
@@ -237,7 +241,7 @@ export default function Setting() {
 
       <div className="mx-auto flex w-full max-w-[1600px]">
         {/* SETTINGS SIDEBAR */}
-        <aside className="hidden w-[215px] shrink-0 border-r border-[#E5ECEB] bg-white px-4 py-5 lg:block">
+        <aside className="hidden w-[215px] shrink-0 border-r border-[#E5ECEB] bg-[var(--color-surface)] px-4 py-5 lg:block">
           <nav className="space-y-1">
             <SettingItem
               icon={<User size={17} />}
@@ -318,7 +322,7 @@ export default function Setting() {
             <>
               <div className="mb-6 flex items-center justify-between">
                 <div>
-                  <h2 className="text-2xl font-bold text-[#152238]">
+                  <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">
                     Account Settings
                   </h2>
 
@@ -332,7 +336,7 @@ export default function Setting() {
                   onClick={handleSave}
                   className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
                     isSaved
-                      ? "border border-[#DCE9E6] bg-white text-[#53666B]"
+                      ? "border border-[#DCE9E6] bg-[var(--color-surface)] text-[#53666B]"
                       : "bg-[#15C2A8] text-white"
                   }`}
                 >
@@ -416,7 +420,7 @@ export default function Setting() {
 
                 {/* LANGUAGE */}
                 <SettingCard
-                  title="Language & Region"
+                  title="Language & Theme"
                   description="Set your language and regional preferences"
                 >
                   <div className="space-y-4">
@@ -428,20 +432,24 @@ export default function Setting() {
                       <SelectBox value="🇺🇸  English">
                         <option>🇺🇸 English</option>
                         <option>🇻🇳 Vietnamese</option>
-                        <option>🇯🇵 Japanese</option>
-                        <option>🇰🇷 Korean</option>
                       </SelectBox>
                     </div>
 
                     <div>
                       <label className="mb-1.5 block text-xs font-medium text-[#69797E]">
-                        Time Zone
+                        Theme
                       </label>
 
-                      <SelectBox value="(UTC+07:00) Asia/Ho_Chi_Minh">
-                        <option>(UTC+07:00) Asia/Ho_Chi_Minh</option>
-                        <option>(UTC+08:00) Asia/Singapore</option>
-                        <option>(UTC+09:00) Asia/Tokyo</option>
+                      <SelectBox
+                        value={theme}
+                        onChange={(value) => {
+                          setTheme(value as Theme);
+                          markChanged();
+                        }}
+                      >
+                        <option value="system">System</option>
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
                       </SelectBox>
                     </div>
 
@@ -649,7 +657,7 @@ export default function Setting() {
 
           {/* OTHER SECTIONS */}
           {activeSection !== "account" && (
-            <section className="rounded-xl border border-[#E3EBE9] bg-white p-8 shadow-[0_8px_30px_rgba(30,70,80,0.035)]">
+            <section className="rounded-xl border border-[#E3EBE9] bg-[var(--color-surface)] p-8 shadow-[0_8px_30px_rgba(30,70,80,0.035)]">
               <div className="flex h-[420px] flex-col items-center justify-center text-center">
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#E8F9F5] text-[#18BFA7]">
                   <SlidersHorizontal size={28} />
