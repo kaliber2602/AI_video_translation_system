@@ -8,17 +8,57 @@ import {
   User,
 } from "lucide-react";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { logout } from "../../services/auth.service";
+import {
+  getMe,
+  logout,
+} from "../../services/auth.service";
+
 import { clearTokens } from "../../services/api/token";
+
+import type { UserResponse } from "../../types/auth";
 
 export default function WorkspaceTopbar() {
   const navigate = useNavigate();
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  const [currentUser, setCurrentUser] =
+    useState<UserResponse | null>(null);
+
+  const [loadingUser, setLoadingUser] =
+    useState(true);
+
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        console.log(
+          "[TOPBAR] Loading current user..."
+        );
+
+        const user = await getMe();
+
+        console.log(
+          "[TOPBAR] Current user:",
+          user
+        );
+
+        setCurrentUser(user);
+      } catch (error) {
+        console.error(
+          "[TOPBAR] Failed to load current user:",
+          error
+        );
+      } finally {
+        setLoadingUser(false);
+      }
+    };
+
+    loadCurrentUser();
+  }, []);
 
   const handleSettings = () => {
     setProfileOpen(false);
@@ -44,33 +84,21 @@ export default function WorkspaceTopbar() {
       setLoggingOut(true);
       setProfileOpen(false);
 
-      console.log("[LOGOUT] Calling logout API...");
+      console.log(
+        "[LOGOUT] Calling logout API..."
+      );
 
-      /*
-       * Gọi backend logout.
-       *
-       * Nếu backend yêu cầu access token / refresh token,
-       * interceptor sẽ tự xử lý Authorization.
-       */
       await logout();
 
-      console.log("[LOGOUT] Logout API success.");
+      console.log(
+        "[LOGOUT] Logout API success."
+      );
     } catch (error) {
-      /*
-       * Logout phía server fail không được phép
-       * ngăn logout phía client.
-       */
       console.error(
         "[LOGOUT] Logout API failed:",
         error
       );
     } finally {
-      /*
-       * QUAN TRỌNG:
-       *
-       * Dù API logout thành công hay thất bại,
-       * luôn xóa cả access token và refresh token.
-       */
       console.log(
         "[LOGOUT] Clearing access token and refresh token..."
       );
@@ -79,10 +107,6 @@ export default function WorkspaceTopbar() {
 
       console.log(
         "[LOGOUT] Tokens cleared."
-      );
-
-      console.log(
-        "[LOGOUT] Redirecting to /login..."
       );
 
       navigate("/login", {
@@ -97,6 +121,15 @@ export default function WorkspaceTopbar() {
       );
     }
   };
+
+  const displayName =
+    currentUser?.full_name || "User";
+
+  const displayEmail =
+    currentUser?.email || "";
+
+  const avatarLetter =
+    displayName.charAt(0).toUpperCase();
 
   return (
     <header className="sticky top-0 z-50 flex h-[84px] items-center border-b border-[#E7EFEE] bg-white/90 px-6 backdrop-blur-xl lg:px-8">
@@ -206,14 +239,18 @@ export default function WorkspaceTopbar() {
         <div className="relative">
           <button
             type="button"
-            disabled={loggingOut}
+            disabled={
+              loggingOut || loadingUser
+            }
             onClick={() =>
               setProfileOpen((prev) => !prev)
             }
             className="flex items-center gap-3 rounded-xl px-2 py-1.5 transition hover:bg-[#F5FAF9] disabled:opacity-60"
           >
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#D8F3EE] text-sm font-bold text-[#159C8B]">
-              U
+              {loadingUser
+                ? "..."
+                : avatarLetter}
             </div>
 
             <ChevronDown
@@ -243,16 +280,16 @@ export default function WorkspaceTopbar() {
                 <div className="border-b border-[#EDF2F1] p-4">
                   <div className="flex items-center gap-3">
                     <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#D8F3EE] text-sm font-bold text-[#159C8B]">
-                      U
+                      {avatarLetter}
                     </div>
 
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold text-[#263641]">
-                        Nguyen Anh Tuan
+                        {displayName}
                       </p>
 
                       <p className="truncate text-xs text-[#8A999D]">
-                        tuan.nguyen@example.com
+                        {displayEmail}
                       </p>
                     </div>
                   </div>

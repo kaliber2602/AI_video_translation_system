@@ -703,6 +703,7 @@ export default function LoginForm() {
                 console.log(
                   "[LoginForm] Forgot password clicked"
                 );
+                navigate("/forgot-password");
               }}
               className="font-medium text-[#22C7A9] hover:underline"
             >

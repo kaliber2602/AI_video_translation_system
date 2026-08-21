@@ -1,5 +1,7 @@
 import axios from "axios";
 
+import { getAccessToken } from "./token";
+
 console.log(
   "%c[AXIOS] Initializing Axios",
   "color: purple; font-weight: bold;"
@@ -24,6 +26,13 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
+    const accessToken = getAccessToken();
+
+    if (accessToken) {
+      config.headers.Authorization =
+        `Bearer ${accessToken}`;
+    }
+
     console.log(
       "%c========== AXIOS REQUEST ==========",
       "color: blue; font-weight: bold;"
@@ -47,6 +56,11 @@ api.interceptors.request.use(
     console.log(
       "[AXIOS] Full URL:",
       `${config.baseURL}${config.url}`
+    );
+
+    console.log(
+      "[AXIOS] Has access token:",
+      Boolean(accessToken)
     );
 
     console.log(

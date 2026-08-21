@@ -12,6 +12,9 @@ import Workspace from "../../pages/Workspace";
 import ProjectDetail from "../../pages/ProjectDetail";
 import VideoPipeline from "../../pages/VideoPipeline";
 import Setting from "../../pages/Settings";
+import ResetPasswordPage from "../../pages/ResetPasswordPage";
+import VerifyOtpPage from "../../pages/VerifyOtpPage";
+import ForgotPasswordPage from "../../pages/ForgotPasswordPage";
 
 import ProtectedRoute from "./ProtectedRoute";
 
@@ -41,6 +44,21 @@ export default function AppRouter() {
         <Route
           path="/register"
           element={<Register />}
+        />
+
+        <Route
+          path="/forgot-password"
+          element={<ForgotPasswordPage />}
+        />
+
+        <Route
+          path="/verify-otp"
+          element={<VerifyOtpPage />}
+        />
+
+        <Route
+          path="/reset-password"
+          element={<ResetPasswordPage />}
         />
 
 

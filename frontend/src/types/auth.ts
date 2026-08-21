@@ -78,3 +78,9 @@ export interface LogoutResponse {
 export interface LogoutAllResponse {
   message: string;
 }
+
+export interface PasswordResetRouteState {
+  email: string;
+  resetToken: string;
+  otp?: string;
+}

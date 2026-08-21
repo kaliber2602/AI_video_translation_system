@@ -40,7 +40,7 @@ export const refreshToken = async (
 
 
 export async function logout() {
-  return api.post("/auth/logout");
+  return api.post("api/auth/logout");
 }
 
 export const getMe =
