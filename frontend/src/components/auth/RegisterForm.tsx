@@ -10,6 +10,7 @@ import {
 import { useNavigate } from "react-router-dom";
 
 import { register } from "../../services/auth.service";
+import {toast} from "../../lib/toast";
 
 export default function RegisterForm() {
   const navigate = useNavigate();
@@ -147,30 +148,44 @@ export default function RegisterForm() {
       });
 
       // Register thành công
+      toast.success(
+        "Registration successful",
+        "Your account has been created successfully."
+      );
       navigate("/login");
 
     } catch (error: any) {
-      console.error(
-        "Register error:",
-        error
+      console.error("Register error:", error);
+
+      console.log(
+        "[REGISTER] response:",
+        error?.response
       );
 
-      const detail =
-        error?.response?.data?.detail;
+      console.log(
+        "[REGISTER] response.data:",
+        error?.response?.data
+      );
+
+      console.log(
+        "[REGISTER] detail:",
+        error?.response?.data?.detail
+      );
+
+
+      const detail = error?.response?.data?.detail;
 
       // FastAPI validation error
       if (Array.isArray(detail)) {
         const messages = detail
-          .map(
-            (item: any) =>
-              item?.msg
-          )
+          .map((item: any) => item?.msg)
           .filter(Boolean);
 
-        setError(
+        toast.error(
+          "Registration failed",
           messages.length > 0
             ? messages.join(", ")
-            : "Registration failed."
+            : "Please check your information and try again."
         );
 
         return;
@@ -178,24 +193,27 @@ export default function RegisterForm() {
 
       // FastAPI custom error
       if (typeof detail === "string") {
-        setError(detail);
+        toast.error(
+          "Registration failed",
+          detail
+        );
+
         return;
       }
 
       // Network error
-      if (
-        error?.code ===
-        "ERR_NETWORK"
-      ) {
-        setError(
+      if (error?.code === "ERR_NETWORK") {
+        toast.error(
+          "Connection error",
           "Unable to connect to the server."
         );
 
         return;
       }
 
-      setError(
-        "Registration failed. Please try again."
+      toast.error(
+        "Registration failed",
+        "Please try again."
       );
 
     } finally {
