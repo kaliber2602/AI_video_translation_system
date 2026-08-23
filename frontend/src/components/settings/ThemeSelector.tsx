@@ -24,10 +24,10 @@ export default function ThemeSelector({
               key={option.value}
               type="button"
               onClick={() => onThemeSelect(option.value)}
-              className={`group relative flex flex-col justify-between rounded-xl border p-3.5 text-left transition-all duration-200 ${
+              className={`group relative flex flex-col justify-between rounded-2xl border p-4 text-left transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
                 isSelected
-                  ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)]/40 shadow-sm ring-2 ring-[var(--color-primary)]/20"
-                  : "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-primary)]/50 hover:bg-[var(--color-surface-muted)]"
+                  ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)]/40 shadow-sm ring-2 ring-[var(--color-primary)]/25"
+                  : "border-[var(--color-border)] bg-[var(--color-surface)] hover:-translate-y-0.5 hover:border-[var(--color-primary)]/50 hover:bg-[var(--color-surface-muted)]"
               }`}
             >
               {/* Header: Title and Active Badge */}
@@ -44,9 +44,9 @@ export default function ThemeSelector({
                 </div>
 
                 <div
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition ${
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-all duration-200 ease-out ${
                     isSelected
-                      ? "bg-[var(--color-primary)] text-white"
+                      ? "scale-105 bg-[var(--color-primary)] text-white shadow-xs"
                       : "border border-[var(--color-border)] bg-[var(--color-surface)] group-hover:border-[var(--color-primary)]"
                   }`}
                 >
@@ -55,24 +55,24 @@ export default function ThemeSelector({
               </div>
 
               {/* Color Swatch Preview Bar */}
-              <div className="mt-3.5 flex items-center justify-between rounded-lg border border-[var(--color-border-muted)] bg-[var(--color-surface)] p-2">
+              <div className="mt-3.5 flex items-center justify-between rounded-xl border border-[var(--color-border-muted)] bg-[var(--color-surface)] p-2 transition-colors duration-200">
                 <div className="flex items-center gap-1.5">
                   {/* Primary dot */}
                   <span
-                    className="h-4 w-4 rounded-full shadow-xs ring-1 ring-black/10"
+                    className="h-4 w-4 rounded-full shadow-xs ring-1 ring-black/10 transition-transform duration-150 group-hover:scale-110"
                     style={{ backgroundColor: option.colors.primary }}
                     title="Primary"
                   />
                   {/* Secondary dot */}
                   <span
-                    className="h-4 w-4 rounded-full shadow-xs ring-1 ring-black/10"
+                    className="h-4 w-4 rounded-full shadow-xs ring-1 ring-black/10 transition-transform duration-150 group-hover:scale-110"
                     style={{ backgroundColor: option.colors.secondary }}
                     title="Secondary"
                   />
                   {/* Accent dot if available */}
                   {option.colors.accent && (
                     <span
-                      className="h-4 w-4 rounded-full shadow-xs ring-1 ring-black/10"
+                      className="h-4 w-4 rounded-full shadow-xs ring-1 ring-black/10 transition-transform duration-150 group-hover:scale-110"
                       style={{ backgroundColor: option.colors.accent }}
                       title="Accent"
                     />
@@ -81,7 +81,7 @@ export default function ThemeSelector({
 
                 {/* Mode Tag */}
                 <span
-                  className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]"
+                  className="rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]"
                   style={{
                     backgroundColor: option.colors.background,
                     color: option.mode === "dark" ? "#CBD5E1" : "#475569",

@@ -29,7 +29,10 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f7fcfc] px-4 py-8 sm:px-6 lg:flex lg:items-center lg:justify-center lg:py-12">
+    <main
+      data-theme="default_theme"
+      className="min-h-screen bg-[#f7fcfc] px-4 py-8 sm:px-6 lg:flex lg:items-center lg:justify-center lg:py-12 page-enter"
+    >
       <div className="flex w-full max-w-[920px] overflow-hidden rounded-3xl bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
         <ForgotPasswordHero />
 

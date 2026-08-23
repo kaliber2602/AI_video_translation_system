@@ -73,5 +73,43 @@
     "title": "Need more storage?",
     "description": "Upgrade your plan for unlimited projects and AI processing.",
     "button": "Upgrade Now"
+  },
+  "views": {
+    "grid": "Grid View",
+    "freedom": "Freedom View",
+    "list": "List View",
+    "card": "Card View",
+    "switcherAria": "Choose display mode"
+  },
+  "sort": {
+    "sortBy": "Sort by",
+    "nameAsc": "Name (A → Z)",
+    "nameDesc": "Name (Z → A)",
+    "newest": "Newest Created",
+    "oldest": "Oldest Created",
+    "recentlyUpdated": "Recently Updated",
+    "mostVideos": "Most Videos"
+  },
+  "filters": {
+    "filter": "Filter",
+    "allTags": "All Tags",
+    "clearAll": "Clear filters",
+    "filteredResults": "{{count}} matching",
+    "activeFilter": "Active filter:"
+  },
+  "states": {
+    "noProjects": "No projects yet",
+    "noProjectsDesc": "Create your first project to start translating and dubbing videos with AI.",
+    "noResults": "No matching projects found",
+    "noResultsDesc": "Try adjusting your search query or filter tags to find what you're looking for.",
+    "clearSearch": "Clear Search & Filters",
+    "errorTitle": "Unable to load projects",
+    "errorDesc": "An error occurred while fetching your workspace data.",
+    "retry": "Try Again"
+  },
+  "freedom": {
+    "badge": "Freedom Canvas",
+    "tagGroup": "Group by Tags",
+    "allUnsorted": "All Projects"
   }
 }

@@ -3,6 +3,7 @@ import { ArrowLeft, MoreHorizontal, Plus, Search, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import VideoCard from "../components/project/VideoCard";
+import FolderIcon from "../components/common/FolderIcon";
 import { getProject } from "../services/project.service";
 import type { Project } from "../types/project";
 
@@ -110,7 +111,7 @@ export default function ProjectDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200">
+    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200 page-enter">
       <main className="mx-auto w-full max-w-[1600px] px-8 py-8">
         {/* Back to Workspace */}
         <button
@@ -126,9 +127,7 @@ export default function ProjectDetail() {
         <section className="mb-8 flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
           <div>
             <div className="mb-3 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FFF3D1] text-[#E5A52C] dark:bg-[#2F291B] dark:text-[#F3C158]">
-                <span className="text-2xl">📁</span>
-              </div>
+              <FolderIcon size="lg" />
 
               <div>
                 <h1 className="text-[28px] font-bold tracking-[-0.6px] text-[var(--color-text-primary)]">

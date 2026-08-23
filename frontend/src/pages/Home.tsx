@@ -6,7 +6,10 @@ import HomeCTA from "../components/home/HomeCTA";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200">
+    <div
+      data-theme="default_theme"
+      className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200 page-enter"
+    >
       <HomeNavbar />
 
       <main>

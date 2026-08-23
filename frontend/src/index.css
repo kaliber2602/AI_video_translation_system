@@ -1,6 +1,19 @@
 @import "tailwindcss";
 @import "./styles/themes.css";
 
+/* =========================================================
+   GLOBAL EASING VARIABLES & SPRING MOTION TIMING
+   ========================================================= */
+:root {
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in-quad: cubic-bezier(0.55, 0.085, 0.68, 0.53);
+  --duration-fast: 150ms;
+  --duration-normal: 240ms;
+  --duration-moderate: 380ms;
+}
+
 html,
 body,
 #root {
@@ -26,8 +39,8 @@ body {
   background: var(--color-background);
   color: var(--color-text-primary);
   transition:
-    background-color 200ms ease,
-    color 200ms ease;
+    background-color 240ms cubic-bezier(0.16, 1, 0.3, 1),
+    color 240ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * {
@@ -37,6 +50,272 @@ body {
 button,
 a {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* =========================================================
+   KEYFRAME ANIMATIONS
+   ========================================================= */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fadeDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes dropdownReveal {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* =========================================================
+   MOTION & UI UTILITY CLASSES
+   ========================================================= */
+.page-enter {
+  animation: fadeUp 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-fade-in {
+  animation: fadeIn 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-fade-up {
+  animation: fadeUp 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-fade-down {
+  animation: fadeDown 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-slide-down {
+  animation: slideDown 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-scale-in {
+  animation: scaleIn 260ms cubic-bezier(0.34, 1.4, 0.5, 1) both;
+}
+
+.animate-dropdown-reveal {
+  transform-origin: top right;
+  animation: dropdownReveal 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Relaxed, Elegant Stagger Animation Delays */
+.stagger-1 {
+  animation-delay: 45ms;
+}
+
+.stagger-2 {
+  animation-delay: 90ms;
+}
+
+.stagger-3 {
+  animation-delay: 135ms;
+}
+
+.stagger-4 {
+  animation-delay: 180ms;
+}
+
+.stagger-5 {
+  animation-delay: 225ms;
+}
+
+.stagger-6 {
+  animation-delay: 270ms;
+}
+
+.interactive-lift {
+  transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 240ms cubic-bezier(0.16, 1, 0.3, 1), border-color 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.interactive-lift:hover {
+  transform: translateY(-2px);
+}
+
+.btn-press {
+  transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1), background-color 180ms cubic-bezier(0.16, 1, 0.3, 1), opacity 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-press:active {
+  transform: scale(0.985);
+}
+
+/* =========================================================
+   THEME-TINTED LIQUID GLASS SURFACE (NAVBAR / TOPBAR)
+   ========================================================= */
+.liquid-glass {
+  isolation: isolate;
+  background-color: color-mix(in srgb, var(--color-primary) 4.5%, var(--color-surface) 82%) !important;
+  background-image: 
+    radial-gradient(130% 120% at 50% 0%, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.05) 50%, transparent 100%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-primary-soft) 25%, transparent) 0%, transparent 100%) !important;
+  backdrop-filter: blur(26px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(26px) saturate(190%) !important;
+  border-bottom: 1.5px solid color-mix(in srgb, var(--color-primary) 32%, var(--color-border)) !important;
+  box-shadow: 
+    inset 0 1.5px 0 0 rgba(255, 255, 255, 0.65),
+    inset 0 -1px 2px 0 color-mix(in srgb, var(--color-primary) 15%, transparent),
+    0 12px 36px -12px rgba(0, 0, 0, 0.06),
+    0 4px 18px -2px color-mix(in srgb, var(--color-primary) 12%, transparent) !important;
+}
+
+[data-theme="dark"] .liquid-glass,
+[data-theme="dark_rose"] .liquid-glass,
+[data-theme="obsidian"] .liquid-glass,
+[data-theme="midnight_blue"] .liquid-glass {
+  background-color: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface) 78%) !important;
+  background-image: 
+    radial-gradient(130% 120% at 50% 0%, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.02) 50%, transparent 100%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 10%, transparent) 0%, transparent 100%) !important;
+  border-bottom: 1.5px solid color-mix(in srgb, var(--color-primary) 42%, var(--color-border)) !important;
+  box-shadow: 
+    inset 0 1.5px 0 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 2px 0 color-mix(in srgb, var(--color-primary) 22%, transparent),
+    0 18px 44px -10px rgba(0, 0, 0, 0.5),
+    0 4px 22px -2px color-mix(in srgb, var(--color-primary) 18%, transparent) !important;
+}
+
+/* =========================================================
+   THEME-TINTED SIDEBAR GLASS CONTAINER
+   ========================================================= */
+.sidebar-glass {
+  isolation: isolate;
+  background-color: color-mix(in srgb, var(--color-primary) 3%, var(--color-surface) 88%) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border-right: 1.5px solid color-mix(in srgb, var(--color-primary) 22%, var(--color-border)) !important;
+  box-shadow: 
+    inset 1px 0 0 0 rgba(255, 255, 255, 0.45),
+    0 16px 36px -16px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] .sidebar-glass,
+[data-theme="dark_rose"] .sidebar-glass,
+[data-theme="obsidian"] .sidebar-glass,
+[data-theme="midnight_blue"] .sidebar-glass {
+  background-color: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface) 82%) !important;
+  border-right: 1.5px solid color-mix(in srgb, var(--color-primary) 30%, var(--color-border)) !important;
+  box-shadow: 
+    inset 1px 0 0 0 rgba(255, 255, 255, 0.1),
+    0 20px 40px -16px rgba(0, 0, 0, 0.45);
+}
+
+/* =========================================================
+   SPRING CAPSULE PILL (SIDEBAR & TAB INTERACTIONS)
+   ========================================================= */
+.spring-pill {
+  transition: 
+    background-color 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.22s cubic-bezier(0.34, 1.4, 0.5, 1),
+    box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.spring-pill:active {
+  transform: scale(0.96) !important;
+}
+
+.focus-ring {
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* =========================================================

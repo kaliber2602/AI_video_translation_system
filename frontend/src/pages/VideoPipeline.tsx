@@ -105,14 +105,14 @@ export default function VideoPipeline() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200">
-      <header className="flex min-h-[76px] items-center justify-between gap-4 border-b border-[var(--color-border)] bg-[var(--color-surface)]/90 px-4 py-4 backdrop-blur-xl transition-colors duration-200 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200 page-enter">
+      <header className="flex min-h-[76px] items-center justify-between gap-4 border-b border-[var(--color-border)] liquid-glass px-4 py-4 backdrop-blur-xl transition-colors duration-200 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <button
             type="button"
             onClick={() => navigate("/workspace")}
             aria-label={t("common:back")}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] transition-all duration-200 ease-out hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
           >
             <ArrowLeft size={18} />
           </button>
@@ -123,19 +123,19 @@ export default function VideoPipeline() {
                 NLP Introduction
               </h1>
 
-              <span className="rounded-full bg-[#FFF2D8] px-3 py-1 text-xs font-semibold text-[#C68A1C]">
+              <span className="rounded-full bg-[#FFF2D8] px-3 py-0.5 text-xs font-bold text-[#C68A1C] dark:bg-amber-950/50 dark:text-amber-300">
                 {t("pipeline:header.inProgress")}
               </span>
             </div>
 
-            <p className="mt-1 truncate text-xs text-[var(--color-text-muted)]">
+            <p className="mt-0.5 truncate text-xs text-[var(--color-text-muted)]">
               NLP Tutorials / nlp-introduction.mp4
             </p>
           </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-4">
-          <div className="hidden items-center gap-2 text-xs text-[var(--color-text-muted)] xl:flex">
+          <div className="hidden items-center gap-2 text-xs font-medium text-[var(--color-text-muted)] xl:flex">
             <Clock3 size={15} />
 
             <span>
@@ -146,13 +146,13 @@ export default function VideoPipeline() {
           <button
             type="button"
             onClick={handleSave}
-            className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold transition sm:px-4 ${
+            className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-all duration-200 ease-out active:scale-95 sm:px-4 ${
               isSaved
-                ? "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)]"
-                : "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-primary)]"
+                ? "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-muted)]"
+                : "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white"
             }`}
           >
-            <Save size={16} />
+            <Save size={15} />
 
             <span className="hidden sm:inline">
               {isSaved ? t("common:saved") : t("common:save")}
@@ -173,14 +173,14 @@ export default function VideoPipeline() {
                   key={step.id}
                   type="button"
                   onClick={() => handleStepChange(step.id)}
-                  className={`flex min-w-[130px] items-center gap-2 rounded-xl px-3 py-3 text-left transition ${
+                  className={`flex min-w-[130px] items-center gap-2 rounded-xl px-3 py-2.5 text-left transition-all duration-200 ease-out ${
                     isActive
-                      ? "bg-[var(--color-primary-soft)]"
+                      ? "bg-[var(--color-primary-soft)] shadow-2xs"
                       : "hover:bg-[var(--color-surface-muted)]"
                   }`}
                 >
                   <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-all duration-200 ease-out ${
                       isCompleted
                         ? "bg-[var(--color-primary)] text-white"
                         : isActive
@@ -189,9 +189,9 @@ export default function VideoPipeline() {
                     }`}
                   >
                     {isCompleted ? (
-                      <Check size={15} />
+                      <Check size={14} />
                     ) : isActive ? (
-                      <Circle size={13} fill="currentColor" />
+                      <Circle size={12} fill="currentColor" />
                     ) : (
                       <span className="text-[10px] font-bold">
                         {step.number}
@@ -201,7 +201,7 @@ export default function VideoPipeline() {
 
                   <div className="min-w-0">
                     <p
-                      className={`truncate text-xs font-semibold ${
+                      className={`truncate text-xs font-bold ${
                         isActive
                           ? "text-[var(--color-primary)]"
                           : "text-[var(--color-text-secondary)]"
@@ -222,16 +222,16 @@ export default function VideoPipeline() {
 
         <aside className="hidden w-[280px] shrink-0 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)] lg:block">
           <div className="mb-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-text-muted)]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
               Video Pipeline
             </p>
 
-            <h2 className="mt-2 text-lg font-bold text-[var(--color-text-primary)]">
+            <h2 className="mt-1 text-base font-black text-[var(--color-text-primary)]">
               Processing Steps
             </h2>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {pipelineSteps.map((step, index) => {
               const isActive = activeStep === step.id;
               const isCompleted = index < activeStepIndex;
@@ -241,25 +241,25 @@ export default function VideoPipeline() {
                   key={step.id}
                   type="button"
                   onClick={() => handleStepChange(step.id)}
-                  className={`relative flex w-full items-center gap-3 rounded-xl p-3 text-left transition ${
+                  className={`group relative flex w-full items-center gap-3 rounded-xl p-3 text-left transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
                     isActive
-                      ? "bg-[var(--color-primary-soft)]"
+                      ? "bg-[var(--color-primary-soft)] shadow-2xs"
                       : "hover:bg-[var(--color-surface-muted)]"
                   }`}
                 >
                   <div
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-200 ease-out ${
                       isCompleted
                         ? "bg-[var(--color-primary)] text-white"
                         : isActive
-                          ? "bg-[var(--color-primary-soft)] text-[var(--color-primary)]"
+                          ? "bg-[var(--color-primary-soft)] text-[var(--color-primary)] ring-2 ring-[var(--color-primary)]"
                           : "bg-[var(--color-border)] text-[var(--color-text-muted)]"
                     }`}
                   >
                     {isCompleted ? (
-                      <Check size={17} />
+                      <Check size={16} />
                     ) : isActive ? (
-                      <Circle size={15} fill="currentColor" />
+                      <Circle size={13} fill="currentColor" />
                     ) : (
                       <span className="text-xs font-bold">
                         {step.number}
@@ -269,7 +269,7 @@ export default function VideoPipeline() {
 
                   <div className="min-w-0">
                     <p
-                      className={`text-sm font-semibold ${
+                      className={`text-xs font-bold ${
                         isActive
                           ? "text-[var(--color-primary)]"
                           : "text-[var(--color-text-secondary)]"
@@ -278,14 +278,14 @@ export default function VideoPipeline() {
                       {step.title}
                     </p>
 
-                    <p className="mt-0.5 truncate text-xs text-[var(--color-text-muted)]">
+                    <p className="mt-0.5 truncate text-[11px] text-[var(--color-text-muted)]">
                       {step.description}
                     </p>
                   </div>
 
                   {isActive && (
                     <ChevronRight
-                      size={16}
+                      size={15}
                       className="ml-auto text-[var(--color-primary)]"
                     />
                   )}
@@ -294,32 +294,34 @@ export default function VideoPipeline() {
             })}
           </div>
 
-          <div className="mt-8 rounded-xl bg-[var(--color-surface-muted)] p-4">
-            <div className="mb-3 flex items-center justify-between">
+          <div className="mt-6 rounded-xl border border-[var(--color-border-muted)] bg-[var(--color-surface-muted)] p-4">
+            <div className="mb-2.5 flex items-center justify-between">
               <span className="text-xs font-semibold text-[var(--color-text-secondary)]">
                 {t("pipeline:header.overallProgress")}
               </span>
 
-              <span className="text-xs font-bold text-[var(--color-primary)]">
+              <span className="text-xs font-black text-[var(--color-primary)]">
                 {progress}%
               </span>
             </div>
 
             <div className="h-2 overflow-hidden rounded-full bg-[var(--color-border)]">
               <div
-                className="h-full rounded-full bg-[var(--color-primary)] transition-all duration-500"
+                className="h-full rounded-full bg-[var(--color-primary)] transition-all duration-500 ease-out"
                 style={{ width: `${progress}%` }}
               />
             </div>
 
-            <p className="mt-3 text-xs leading-5 text-[var(--color-text-muted)]">
+            <p className="mt-2.5 text-[11px] leading-4 text-[var(--color-text-muted)]">
               {t("pipeline:header.autoSaveNotice")}
             </p>
           </div>
         </aside>
 
         <section className="min-w-0 flex-1">
-          {renderStep(activeStep)}
+          <div key={activeStep} className="animate-fade-in">
+            {renderStep(activeStep)}
+          </div>
         </section>
       </main>
     </div>

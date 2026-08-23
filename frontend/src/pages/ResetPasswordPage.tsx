@@ -72,7 +72,10 @@ export default function ResetPasswordPage() {
 
   if (isSuccess) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7fcfc] px-4 py-8">
+      <main
+      data-theme="default_theme"
+      className="flex min-h-screen items-center justify-center bg-[#f7fcfc] px-4 py-8 page-enter"
+    >
         <div className="w-full max-w-[520px] rounded-3xl bg-white px-6 py-12 text-center shadow-[0_24px_80px_rgba(15,23,42,0.08)] sm:px-10">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#22c7a9]/10">
             <CheckCircle2
@@ -105,7 +108,10 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f7fcfc] px-4 py-8">
+    <main
+      data-theme="default_theme"
+      className="flex min-h-screen items-center justify-center bg-[#f7fcfc] px-4 py-8 page-enter"
+    >
       <div className="w-full max-w-[520px] rounded-3xl bg-white px-6 py-10 shadow-[0_24px_80px_rgba(15,23,42,0.08)] sm:px-10">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#22c7a9]/10">
           <Lock

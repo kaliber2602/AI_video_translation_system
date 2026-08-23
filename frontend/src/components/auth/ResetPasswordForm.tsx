@@ -15,18 +15,13 @@ export default function ResetPasswordForm({
   onSubmit,
 }: ResetPasswordFormProps) {
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] =
-    useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [showPassword, setShowPassword] =
-    useState(false);
-
-  const [showConfirmPassword, setShowConfirmPassword] =
-    useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [error, setError] = useState("");
-  const [isSubmitting, setIsSubmitting] =
-    useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (
     event: FormEvent<HTMLFormElement>,
@@ -50,10 +45,10 @@ export default function ResetPasswordForm({
     try {
       setIsSubmitting(true);
       await onSubmit(password);
-    } catch (error) {
+    } catch (err) {
       setError(
-        error instanceof Error
-          ? error.message
+        err instanceof Error
+          ? err.message
           : "Unable to reset your password.",
       );
     } finally {
@@ -64,12 +59,13 @@ export default function ResetPasswordForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-8 space-y-5"
+      className="mt-6 space-y-4"
     >
+      {/* New Password */}
       <div>
         <label
           htmlFor="new-password"
-          className="mb-2 block text-sm font-medium text-slate-700"
+          className="mb-1.5 block text-xs font-semibold text-[var(--color-text-secondary)]"
         >
           New password
         </label>
@@ -77,7 +73,7 @@ export default function ResetPasswordForm({
         <div className="relative">
           <Lock
             size={18}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
           />
 
           <input
@@ -93,7 +89,7 @@ export default function ResetPasswordForm({
               setPassword(event.target.value)
             }
             disabled={isSubmitting}
-            className="h-12 w-full rounded-xl border border-slate-200 bg-white px-11 pr-12 text-sm text-slate-900 outline-none transition-all focus:border-[#22c7a9] focus:ring-4 focus:ring-[#22c7a9]/10"
+            className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-10 pr-11 text-xs text-[var(--color-text-primary)] outline-none transition-all duration-200 ease-out placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10 disabled:bg-slate-50"
           />
 
           <button
@@ -101,21 +97,23 @@ export default function ResetPasswordForm({
             onClick={() =>
               setShowPassword(!showPassword)
             }
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] transition-colors duration-150 ease-out hover:text-[var(--color-text-primary)]"
+            aria-label="Toggle password visibility"
           >
             {showPassword ? (
-              <EyeOff size={18} />
+              <EyeOff size={17} />
             ) : (
-              <Eye size={18} />
+              <Eye size={17} />
             )}
           </button>
         </div>
       </div>
 
+      {/* Confirm New Password */}
       <div>
         <label
           htmlFor="confirm-password"
-          className="mb-2 block text-sm font-medium text-slate-700"
+          className="mb-1.5 block text-xs font-semibold text-[var(--color-text-secondary)]"
         >
           Confirm new password
         </label>
@@ -123,7 +121,7 @@ export default function ResetPasswordForm({
         <div className="relative">
           <Lock
             size={18}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
           />
 
           <input
@@ -141,7 +139,7 @@ export default function ResetPasswordForm({
               )
             }
             disabled={isSubmitting}
-            className="h-12 w-full rounded-xl border border-slate-200 bg-white px-11 pr-12 text-sm text-slate-900 outline-none transition-all focus:border-[#22c7a9] focus:ring-4 focus:ring-[#22c7a9]/10"
+            className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-10 pr-11 text-xs text-[var(--color-text-primary)] outline-none transition-all duration-200 ease-out placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10 disabled:bg-slate-50"
           />
 
           <button
@@ -151,19 +149,20 @@ export default function ResetPasswordForm({
                 !showConfirmPassword,
               )
             }
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] transition-colors duration-150 ease-out hover:text-[var(--color-text-primary)]"
+            aria-label="Toggle confirm password visibility"
           >
             {showConfirmPassword ? (
-              <EyeOff size={18} />
+              <EyeOff size={17} />
             ) : (
-              <Eye size={18} />
+              <Eye size={17} />
             )}
           </button>
         </div>
       </div>
 
       {error && (
-        <p className="text-sm text-red-500">
+        <p className="text-xs font-semibold text-red-500">
           {error}
         </p>
       )}
@@ -171,18 +170,18 @@ export default function ResetPasswordForm({
       <button
         type="submit"
         disabled={isSubmitting}
-        className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#22c7a9] px-5 text-sm font-semibold text-white shadow-lg shadow-[#22c7a9]/20 transition-all hover:bg-[#1fb397] disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 text-xs font-bold text-white shadow-[0_8px_20px_rgba(21,194,168,0.25)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-[var(--color-primary-hover)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSubmitting ? (
           <>
             <Loader2
-              size={18}
+              size={16}
               className="animate-spin"
             />
-            Resetting...
+            <span>Resetting...</span>
           </>
         ) : (
-          "Reset password"
+          <span>Reset password</span>
         )}
       </button>
     </form>

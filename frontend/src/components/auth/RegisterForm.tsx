@@ -3,6 +3,7 @@ import {
   Apple,
   Eye,
   EyeOff,
+  Loader2,
   LockKeyhole,
   Mail,
   User,
@@ -125,18 +126,18 @@ export default function RegisterForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-8"
+      className="mt-6 space-y-4"
     >
       {/* Full Name */}
       <div>
-        <label className="mb-2 block text-xs font-semibold text-[#344454]">
+        <label className="mb-1.5 block text-xs font-semibold text-[var(--color-text-secondary)]">
           {t("auth:fullName")}
         </label>
 
         <div className="relative">
           <User
             size={18}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-[#9AAABD]"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
           />
 
           <input
@@ -147,21 +148,21 @@ export default function RegisterForm() {
             }
             placeholder={t("auth:fullNamePlaceholder")}
             disabled={loading}
-            className="h-12 w-full rounded-xl border border-[#DDE6EC] bg-white pl-11 pr-4 text-sm text-[#344454] outline-none transition placeholder:text-[#9AA6B5] focus:border-[#20C5AE] focus:ring-4 focus:ring-[#20C5AE]/10 disabled:bg-slate-50"
+            className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-10 pr-4 text-xs text-[var(--color-text-primary)] outline-none transition-all duration-200 ease-out placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10 disabled:bg-slate-50"
           />
         </div>
       </div>
 
       {/* Email */}
-      <div className="mt-5">
-        <label className="mb-2 block text-xs font-semibold text-[#344454]">
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold text-[var(--color-text-secondary)]">
           {t("auth:email")}
         </label>
 
         <div className="relative">
           <Mail
             size={18}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-[#9AAABD]"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
           />
 
           <input
@@ -172,21 +173,21 @@ export default function RegisterForm() {
             }
             placeholder={t("auth:emailPlaceholder")}
             disabled={loading}
-            className="h-12 w-full rounded-xl border border-[#DDE6EC] bg-white pl-11 pr-4 text-sm text-[#344454] outline-none transition placeholder:text-[#9AA6B5] focus:border-[#20C5AE] focus:ring-4 focus:ring-[#20C5AE]/10 disabled:bg-slate-50"
+            className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-10 pr-4 text-xs text-[var(--color-text-primary)] outline-none transition-all duration-200 ease-out placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10 disabled:bg-slate-50"
           />
         </div>
       </div>
 
       {/* Password */}
-      <div className="mt-5">
-        <label className="mb-2 block text-xs font-semibold text-[#344454]">
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold text-[var(--color-text-secondary)]">
           {t("auth:password")}
         </label>
 
         <div className="relative">
           <LockKeyhole
             size={18}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-[#9AAABD]"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
           />
 
           <input
@@ -201,7 +202,7 @@ export default function RegisterForm() {
             }
             placeholder={t("auth:passwordPlaceholder")}
             disabled={loading}
-            className="h-12 w-full rounded-xl border border-[#DDE6EC] bg-white pl-11 pr-12 text-sm text-[#344454] outline-none transition placeholder:text-[#9AA6B5] focus:border-[#20C5AE] focus:ring-4 focus:ring-[#20C5AE]/10 disabled:bg-slate-50"
+            className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-10 pr-11 text-xs text-[var(--color-text-primary)] outline-none transition-all duration-200 ease-out placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10 disabled:bg-slate-50"
           />
 
           <button
@@ -210,28 +211,28 @@ export default function RegisterForm() {
             onClick={() =>
               setShowPassword((prev) => !prev)
             }
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8FA0B0] transition hover:text-[#18BFA7]"
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] transition-colors duration-150 ease-out hover:text-[var(--color-text-primary)]"
             aria-label="Toggle password visibility"
           >
             {showPassword ? (
-              <EyeOff size={18} />
+              <EyeOff size={17} />
             ) : (
-              <Eye size={18} />
+              <Eye size={17} />
             )}
           </button>
         </div>
       </div>
 
       {/* Confirm Password */}
-      <div className="mt-5">
-        <label className="mb-2 block text-xs font-semibold text-[#344454]">
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold text-[var(--color-text-secondary)]">
           {t("auth:confirmPassword")}
         </label>
 
         <div className="relative">
           <LockKeyhole
             size={18}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-[#9AAABD]"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
           />
 
           <input
@@ -246,7 +247,7 @@ export default function RegisterForm() {
             }
             placeholder={t("auth:passwordPlaceholder")}
             disabled={loading}
-            className="h-12 w-full rounded-xl border border-[#DDE6EC] bg-white pl-11 pr-12 text-sm text-[#344454] outline-none transition placeholder:text-[#9AA6B5] focus:border-[#20C5AE] focus:ring-4 focus:ring-[#20C5AE]/10 disabled:bg-slate-50"
+            className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-10 pr-11 text-xs text-[var(--color-text-primary)] outline-none transition-all duration-200 ease-out placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10 disabled:bg-slate-50"
           />
 
           <button
@@ -255,43 +256,43 @@ export default function RegisterForm() {
             onClick={() =>
               setShowConfirmPassword((prev) => !prev)
             }
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8FA0B0] transition hover:text-[#18BFA7]"
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] transition-colors duration-150 ease-out hover:text-[var(--color-text-primary)]"
             aria-label="Toggle confirm password visibility"
           >
             {showConfirmPassword ? (
-              <EyeOff size={18} />
+              <EyeOff size={17} />
             ) : (
-              <Eye size={18} />
+              <Eye size={17} />
             )}
           </button>
         </div>
       </div>
 
       {/* Terms */}
-      <div className="mt-5 flex items-start gap-2">
+      <div className="flex items-start gap-2 pt-1">
         <input
           id="terms"
           type="checkbox"
           required
           disabled={loading}
-          className="mt-0.5 h-4 w-4 rounded border-[#CBD8E1] accent-[#18C3AA]"
+          className="mt-0.5 h-4 w-4 rounded border-[var(--color-border)] accent-[var(--color-primary)]"
         />
 
         <label
           htmlFor="terms"
-          className="text-xs leading-5 text-[#718398]"
+          className="text-xs leading-5 text-[var(--color-text-muted)]"
         >
           I agree to the{" "}
           <button
             type="button"
-            className="font-semibold text-[#18BFA7] hover:underline"
+            className="font-semibold text-[var(--color-primary)] hover:underline"
           >
             Terms of Service
           </button>{" "}
           and{" "}
           <button
             type="button"
-            className="font-semibold text-[#18BFA7] hover:underline"
+            className="font-semibold text-[var(--color-primary)] hover:underline"
           >
             Privacy Policy
           </button>
@@ -301,7 +302,7 @@ export default function RegisterForm() {
 
       {/* Error */}
       {error && (
-        <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-medium text-red-600">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
           {error}
         </div>
       )}
@@ -310,20 +311,25 @@ export default function RegisterForm() {
       <button
         type="submit"
         disabled={loading}
-        className="mt-6 h-12 w-full rounded-xl bg-[#20C5AE] text-sm font-bold text-white shadow-[0_8px_22px_rgba(32,197,174,0.24)] transition hover:-translate-y-0.5 hover:bg-[#12B49D] disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] text-xs font-bold text-white shadow-[0_8px_20px_rgba(21,194,168,0.25)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-[var(--color-primary-hover)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {loading
-          ? t("auth:creatingAccount")
-          : t("auth:createAccount")}
+        {loading ? (
+          <>
+            <Loader2 size={16} className="animate-spin" />
+            <span>{t("auth:creatingAccount")}</span>
+          </>
+        ) : (
+          <span>{t("auth:createAccount")}</span>
+        )}
       </button>
 
       {/* Divider */}
-      <div className="my-7 flex items-center gap-4">
-        <div className="h-px flex-1 bg-[#E2E8EC]" />
-        <span className="text-xs text-[#8B9AAA]">
+      <div className="my-5 flex items-center gap-4">
+        <div className="h-px flex-1 bg-[var(--color-border)]" />
+        <span className="text-[11px] font-medium text-[var(--color-text-muted)]">
           {t("auth:orContinueWith")}
         </span>
-        <div className="h-px flex-1 bg-[#E2E8EC]" />
+        <div className="h-px flex-1 bg-[var(--color-border)]" />
       </div>
 
       {/* Social */}
@@ -331,7 +337,7 @@ export default function RegisterForm() {
         <button
           type="button"
           disabled={loading}
-          className="flex h-11 items-center justify-center rounded-xl border border-[#DDE6EC] bg-white text-sm font-medium text-[#536475] transition hover:border-[#20C5AE] hover:bg-[#F7FCFB]"
+          className="flex h-10 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-xs font-semibold text-[var(--color-text-secondary)] transition-all duration-200 ease-out hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)]"
         >
           Microsoft
         </button>
@@ -340,14 +346,14 @@ export default function RegisterForm() {
           type="button"
           disabled={loading}
           aria-label="Sign up with Apple"
-          className="flex h-11 items-center justify-center rounded-xl border border-[#DDE6EC] bg-white text-[#263344] transition hover:border-[#20C5AE] hover:bg-[#F7FCFB]"
+          className="flex h-10 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] transition-all duration-200 ease-out hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)]"
         >
-          <Apple size={19} />
+          <Apple size={17} />
         </button>
       </div>
 
       {/* Login */}
-      <div className="mt-7 text-center text-xs text-[#718398]">
+      <div className="pt-2 text-center text-xs text-[var(--color-text-muted)]">
         {t("auth:alreadyHaveAccount")}{" "}
         <button
           type="button"
@@ -355,7 +361,7 @@ export default function RegisterForm() {
           onClick={() =>
             navigate("/login")
           }
-          className="font-semibold text-[#18BFA7] hover:underline"
+          className="font-bold text-[var(--color-primary)] hover:underline"
         >
           {t("auth:signInLink")}
         </button>

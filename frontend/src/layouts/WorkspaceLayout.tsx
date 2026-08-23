@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -20,11 +21,28 @@ import type { TagResponse } from "../types/tag";
 import WorkspaceTopbar from "../components/workspace/WorkspaceTopbar";
 import WorkspaceSidebar from "../components/workspace/WorkspaceSidebar";
 import WorkspaceHeader from "../components/workspace/WorkspaceHeader";
-import ProjectToolbar from "../components/workspace/ProjectToolbar";
+import ProjectToolbar, { type SortOption } from "../components/workspace/ProjectToolbar";
+import type { ViewMode } from "../components/workspace/ViewSwitcher";
+import ProjectGridView from "../components/workspace/ProjectGridView";
+import ProjectFreedomView from "../components/workspace/ProjectFreedomView";
 import ProjectTable from "../components/workspace/ProjectTable";
+import ProjectCardView from "../components/workspace/ProjectCardView";
+import ProjectSkeletonLoader from "../components/workspace/ProjectSkeletonLoader";
+import ProjectEmptyState from "../components/workspace/ProjectEmptyState";
+import ProjectErrorState from "../components/workspace/ProjectErrorState";
 import ProjectPagination from "../components/workspace/ProjectPagination";
 import ProjectModal from "../components/workspace/ProjectModal";
 import DeleteProjectModal from "../components/workspace/DeleteProjectModal";
+
+const VIEW_MODE_STORAGE_KEY = "vidnova_workspace_view_mode";
+
+function getInitialViewMode(): ViewMode {
+  const savedMode = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+  if (savedMode === "grid" || savedMode === "freedom" || savedMode === "list" || savedMode === "card") {
+    return savedMode as ViewMode;
+  }
+  return "grid";
+}
 
 export default function WorkspaceLayout() {
   const { t } = useTranslation(["workspace", "common"]);
@@ -35,15 +53,40 @@ export default function WorkspaceLayout() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [tags, setTags] = useState<TagResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Filters
+  // Search & Filter & Sort State
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTagId, setSelectedTagId] = useState<number | null>(null);
+  const [sortOption, setSortOption] = useState<SortOption>("updated-recent");
+  const [viewMode, setViewModeState] = useState<ViewMode>(getInitialViewMode);
+  const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
 
   // Modals
   const [projectModalMode, setProjectModalMode] = useState<"create" | "edit" | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
+
+  // Change and persist View Mode
+  const handleViewModeChange = (newMode: ViewMode) => {
+    setViewModeState(newMode);
+    localStorage.setItem(VIEW_MODE_STORAGE_KEY, newMode);
+  };
+
+  // Listen for Drag-and-Drop Project to Trash
+  useEffect(() => {
+    const handleDropToTrash = (e: Event) => {
+      const customEvent = e as CustomEvent<{ project: Project }>;
+      if (customEvent.detail?.project) {
+        setDeletingProject(customEvent.detail.project);
+      }
+    };
+
+    window.addEventListener("project-dropped-to-trash", handleDropToTrash);
+    return () => {
+      window.removeEventListener("project-dropped-to-trash", handleDropToTrash);
+    };
+  }, []);
 
   // Welcome Toast Check
   useEffect(() => {
@@ -56,8 +99,8 @@ export default function WorkspaceLayout() {
           `Welcome back, ${user.full_name}!`,
           "Glad to see you again."
         );
-      } catch (error) {
-        console.error("[WorkspaceLayout] Failed to get current user:", error);
+      } catch (err) {
+        console.error("[WorkspaceLayout] Failed to get current user:", err);
       } finally {
         navigate(location.pathname, {
           replace: true,
@@ -83,33 +126,36 @@ export default function WorkspaceLayout() {
   const loadProjects = useCallback(async () => {
     try {
       setIsLoading(true);
-      const data = await getProjects({
-        tag_id: selectedTagId ?? undefined,
-        search: searchQuery.trim() || undefined,
-      });
+      setError(null);
+      const data = await getProjects();
       setProjects(data);
     } catch (err) {
       console.error("[WorkspaceLayout] Failed to load projects:", err);
+      setError(t("workspace:loadError"));
       toast.error(t("workspace:loadError"), t("common:tryAgain"));
     } finally {
       setIsLoading(false);
     }
-  }, [selectedTagId, searchQuery, t]);
+  }, [t]);
 
   useEffect(() => {
     let ignore = false;
     const fetchInitialData = async () => {
       try {
-        const tagsData = await getTags();
-        if (!ignore) setTags(tagsData);
-
-        const projectsData = await getProjects({
-          tag_id: selectedTagId ?? undefined,
-          search: searchQuery.trim() || undefined,
-        });
-        if (!ignore) setProjects(projectsData);
+        const [tagsData, projectsData] = await Promise.all([
+          getTags().catch(() => []),
+          getProjects().catch((err) => {
+            throw err;
+          }),
+        ]);
+        if (!ignore) {
+          setTags(tagsData);
+          setProjects(projectsData);
+          setError(null);
+        }
       } catch (err) {
         console.error("[WorkspaceLayout] Fetch error:", err);
+        if (!ignore) setError(t("workspace:loadError"));
       } finally {
         if (!ignore) setIsLoading(false);
       }
@@ -119,7 +165,67 @@ export default function WorkspaceLayout() {
     return () => {
       ignore = true;
     };
-  }, [selectedTagId, searchQuery]);
+  }, [t]);
+
+  // Combined Search + Tag Filter + Sort Pipeline
+  const processedProjects = useMemo(() => {
+    let result = [...projects];
+
+    // 1. Tag filter
+    if (selectedTagId !== null) {
+      result = result.filter((p) =>
+        p.tags?.some((tg) => tg.id === selectedTagId)
+      );
+    }
+
+    // 2. Search query (matches project name or description)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      result = result.filter(
+        (p) =>
+          p.name?.toLowerCase().includes(query) ||
+          p.description?.toLowerCase().includes(query) ||
+          p.recent_project?.toLowerCase().includes(query)
+      );
+    }
+
+    // 3. Sort
+    result.sort((a, b) => {
+      switch (sortOption) {
+        case "name-asc":
+          return (a.name || "").localeCompare(b.name || "");
+        case "name-desc":
+          return (b.name || "").localeCompare(a.name || "");
+        case "date-newest":
+          return (
+            new Date(b.created_at || 0).getTime() -
+            new Date(a.created_at || 0).getTime()
+          );
+        case "date-oldest":
+          return (
+            new Date(a.created_at || 0).getTime() -
+            new Date(b.created_at || 0).getTime()
+          );
+        case "videos-desc":
+          return (b.video_count || 0) - (a.video_count || 0);
+        case "updated-recent":
+        default:
+          return (
+            new Date(b.updated_at || 0).getTime() -
+            new Date(a.updated_at || 0).getTime()
+          );
+      }
+    });
+
+    return result;
+  }, [projects, selectedTagId, searchQuery, sortOption]);
+
+  const isFilteringActive = Boolean(searchQuery.trim() || selectedTagId !== null);
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setSelectedTagId(null);
+  };
 
   // Project Modal Actions
   const handleOpenCreateModal = () => {
@@ -197,17 +303,48 @@ export default function WorkspaceLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200">
-      <WorkspaceTopbar />
+    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200 relative">
+      {/* Collapsible Topbar */}
+      <div
+        className={`transition-all duration-350 ease-out overflow-visible relative z-30 ${
+          isNavbarCollapsed ? "-mt-[84px] opacity-0 pointer-events-none" : "mt-0 opacity-100"
+        }`}
+      >
+        <WorkspaceTopbar
+          isCollapsed={isNavbarCollapsed}
+          onToggleCollapse={() => setIsNavbarCollapsed(!isNavbarCollapsed)}
+        />
+      </div>
+
+      {/* Floating Pull-Down Button when Navbar is Collapsed */}
+      {isNavbarCollapsed && (
+        <div className="fixed top-0 left-1/2 -translate-x-1/2 z-[9999] animate-fade-down">
+          <button
+            type="button"
+            onClick={() => setIsNavbarCollapsed(false)}
+            aria-label={t("workspace:expandNavbar", "Hiện thanh điều hướng")}
+            title={t("workspace:expandNavbar", "Hiện thanh điều hướng")}
+            className="flex h-7 items-center gap-1.5 rounded-b-xl border-x border-b border-[var(--color-primary)]/40 bg-[var(--color-surface)] px-4 text-xs font-bold text-[var(--color-primary)] shadow-[0_6px_20px_rgba(0,0,0,0.18)] backdrop-blur-xl transition-all duration-200 hover:bg-[var(--color-primary)] hover:text-white hover:h-8 group cursor-pointer"
+          >
+            <ChevronDown size={15} className="transition-transform duration-200 group-hover:translate-y-0.5" />
+            <span className="text-[11px] font-bold">Navbar</span>
+          </button>
+        </div>
+      )}
 
       <div className="flex">
         <WorkspaceSidebar
           selectedTagId={selectedTagId}
           onTagSelect={setSelectedTagId}
+          isNavbarCollapsed={isNavbarCollapsed}
         />
 
-        <main className="min-w-0 flex-1 px-8 py-10">
-          <WorkspaceHeader />
+        <main className="min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-8 transition-all duration-300 page-enter">
+          <WorkspaceHeader
+            totalProjects={projects.length}
+            matchingCount={processedProjects.length}
+            isFiltered={isFilteringActive}
+          />
 
           <ProjectToolbar
             search={searchQuery}
@@ -215,19 +352,65 @@ export default function WorkspaceLayout() {
             tags={tags}
             selectedTagId={selectedTagId}
             onTagSelect={setSelectedTagId}
+            sortOption={sortOption}
+            onSortChange={setSortOption}
+            viewMode={viewMode}
+            onViewModeChange={handleViewModeChange}
             onNewProject={handleOpenCreateModal}
           />
 
-          <ProjectTable
-            projects={projects}
-            isLoading={isLoading}
-            onProjectClick={handleProjectClick}
-            onEditProject={handleOpenEditModal}
-            onDeleteProject={handleOpenDeleteModal}
-            onNewProject={handleOpenCreateModal}
-          />
+          {/* View Content States */}
+          {isLoading ? (
+            <ProjectSkeletonLoader viewMode={viewMode} />
+          ) : error ? (
+            <ProjectErrorState onRetry={loadProjects} />
+          ) : processedProjects.length === 0 ? (
+            <ProjectEmptyState
+              isFiltered={isFilteringActive || projects.length > 0}
+              onNewProject={handleOpenCreateModal}
+              onClearFilters={handleClearFilters}
+            />
+          ) : (
+            <>
+              {viewMode === "grid" && (
+                <ProjectGridView
+                  projects={processedProjects}
+                  onProjectClick={handleProjectClick}
+                  onEditProject={handleOpenEditModal}
+                  onDeleteProject={handleOpenDeleteModal}
+                />
+              )}
 
-          <ProjectPagination totalItems={projects.length} />
+              {viewMode === "freedom" && (
+                <ProjectFreedomView
+                  projects={processedProjects}
+                  onProjectClick={handleProjectClick}
+                  onEditProject={handleOpenEditModal}
+                  onDeleteProject={handleOpenDeleteModal}
+                />
+              )}
+
+              {viewMode === "list" && (
+                <ProjectTable
+                  projects={processedProjects}
+                  onProjectClick={handleProjectClick}
+                  onEditProject={handleOpenEditModal}
+                  onDeleteProject={handleOpenDeleteModal}
+                />
+              )}
+
+              {viewMode === "card" && (
+                <ProjectCardView
+                  projects={processedProjects}
+                  onProjectClick={handleProjectClick}
+                  onEditProject={handleOpenEditModal}
+                  onDeleteProject={handleOpenDeleteModal}
+                />
+              )}
+
+              <ProjectPagination totalItems={processedProjects.length} />
+            </>
+          )}
         </main>
       </div>
 

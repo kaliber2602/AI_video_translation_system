@@ -8,6 +8,7 @@ import { toast } from "../../lib/toast";
 interface WorkspaceSidebarProps {
   selectedTagId?: number | null;
   onTagSelect?: (tagId: number | null) => void;
+  isNavbarCollapsed?: boolean;
 }
 
 type TagModalMode = "create" | "edit" | null;
@@ -15,24 +16,48 @@ type TagModalMode = "create" | "edit" | null;
 export default function WorkspaceSidebar({
   selectedTagId = null,
   onTagSelect,
+  isNavbarCollapsed = false,
 }: WorkspaceSidebarProps) {
   const { t } = useTranslation(["workspace", "navigation", "common"]);
 
+  const [trashHoverState, setTrashHoverState] = useState<{
+    isNear: boolean;
+    isOver: boolean;
+    intensity: number;
+  }>({ isNear: false, isOver: false, intensity: 0 });
+
+  useEffect(() => {
+    const handleNearTrash = (
+      e: CustomEvent<{ isNear: boolean; isOver: boolean; intensity: number }>
+    ) => {
+      setTrashHoverState(e.detail || { isNear: false, isOver: false, intensity: 0 });
+    };
+
+    window.addEventListener("project-near-trash", handleNearTrash as EventListener);
+    return () => {
+      window.removeEventListener("project-near-trash", handleNearTrash as EventListener);
+    };
+  }, []);
+
   const navigationItems = [
     {
+      id: "allProjects",
       label: t("navigation:allProjects"),
       icon: Folder,
       active: true,
     },
     {
+      id: "sharedWithMe",
       label: t("navigation:sharedWithMe"),
       icon: Users,
     },
     {
+      id: "favorites",
       label: t("navigation:favorites"),
       icon: Star,
     },
     {
+      id: "trash",
       label: t("navigation:trash"),
       icon: Trash2,
     },
@@ -225,44 +250,76 @@ export default function WorkspaceSidebar({
 
   return (
     <>
-      <aside className="hidden min-h-[calc(100vh-84px)] w-[240px] shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)]/80 px-5 py-9 transition-colors duration-200 lg:block">
+      <aside
+        className={`hidden w-[240px] shrink-0 sidebar-glass px-5 py-8 transition-all duration-300 lg:block ${
+          isNavbarCollapsed ? "min-h-screen" : "min-h-[calc(100vh-84px)]"
+        }`}
+      >
         {/* Navigation */}
-        <nav className="space-y-2">
-          {navigationItems.map((item) => {
+        <nav className="space-y-1.5">
+          {navigationItems.map((item, index) => {
             const Icon = item.icon;
+            const isTrash = item.id === "trash";
+            const isTrashOver = isTrash && trashHoverState.isOver;
+            const isTrashNear = isTrash && trashHoverState.isNear;
+
+            let buttonClass = `flex w-full items-center gap-3.5 rounded-2xl px-4 py-3 text-left text-sm spring-pill `;
+            if (isTrashOver) {
+              buttonClass += `bg-red-500 text-white font-bold scale-[1.08] shadow-[0_0_24px_rgba(239,68,68,0.6)] ring-2 ring-red-400 ring-offset-2 animate-pulse`;
+            } else if (isTrashNear) {
+              buttonClass += `bg-red-500/20 text-red-500 font-bold scale-[1.04] border border-red-500/50 shadow-[0_0_18px_rgba(239,68,68,0.3)]`;
+            } else if (item.active) {
+              buttonClass += `bg-[var(--color-primary)] text-white font-bold shadow-[0_6px_18px_-6px_color-mix(in_srgb,var(--color-primary)_70%,transparent)]`;
+            } else {
+              buttonClass += `text-[var(--color-text-secondary)] hover:bg-[color-mix(in_srgb,var(--color-primary-soft)_60%,var(--color-surface-muted))] hover:text-[var(--color-text-primary)] hover:translate-x-0.5`;
+            }
 
             return (
-              <button
+              <div
                 key={item.label}
-                type="button"
-                className={`flex w-full items-center gap-4 rounded-xl px-4 py-3 text-left text-sm transition ${
-                  item.active
-                    ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary)]"
-                    : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-muted)]"
-                }`}
+                className={`animate-scale-in stagger-${index + 1}`}
               >
-                <Icon size={20} />
-                {item.label}
-              </button>
+                <button
+                  id={isTrash ? "sidebar-trash-dropzone" : undefined}
+                  type="button"
+                  className={buttonClass}
+                >
+                  <Icon
+                    size={isTrashOver ? 21 : 19}
+                    className={`transition-transform duration-200 ${
+                      isTrashOver
+                        ? "text-white animate-bounce"
+                        : isTrashNear
+                        ? "text-red-500 scale-125 animate-pulse"
+                        : item.active
+                        ? "text-white scale-105"
+                        : "text-[var(--color-text-muted)] group-hover:scale-105"
+                    }`}
+                  />
+                  <span className="font-medium tracking-tight">
+                    {isTrashOver ? t("workspace:dropToDelete", "Thả để xóa") : item.label}
+                  </span>
+                </button>
+              </div>
             );
           })}
         </nav>
 
         {/* Tags */}
-        <div className="mt-10">
-          <div className="mb-5 flex items-center justify-between px-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+        <div className="mt-9">
+          <div className="mb-4 flex items-center justify-between px-3">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
               {t("workspace:tags.title")}
             </p>
           </div>
 
           {/* Loading */}
           {isLoadingTags && (
-            <div className="space-y-4 px-3">
+            <div className="space-y-3.5 px-3">
               {[1, 2, 3].map((item) => (
                 <div key={item} className="flex items-center gap-3">
                   <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[var(--color-border)]" />
-                  <span className="h-3 w-24 animate-pulse rounded bg-[var(--color-border-muted)]" />
+                  <span className="h-3 w-24 animate-pulse rounded-full bg-[var(--color-border-muted)]" />
                 </div>
               ))}
             </div>
@@ -283,57 +340,66 @@ export default function WorkspaceSidebar({
           {/* Tags List */}
           {!isLoadingTags && !tagsError && tags.length > 0 && (
             <div className="space-y-1">
-              {tags.map((tag) => {
+              {tags.map((tag, index) => {
                 const isSelected = selectedTagId === tag.id;
 
                 return (
                   <div
                     key={tag.id}
-                    className={`group relative flex items-center rounded-xl transition ${
+                    className={`group relative flex items-center rounded-2xl transition-all duration-200 ease-out animate-scale-in stagger-${((index + 2) % 6) + 1} spring-pill ${
                       isSelected
-                        ? "bg-[var(--color-primary-soft)]"
-                        : "hover:bg-[var(--color-surface-muted)]"
+                        ? "bg-[var(--color-primary)] text-white shadow-[0_6px_18px_-6px_color-mix(in_srgb,var(--color-primary)_70%,transparent)]"
+                        : "hover:bg-[color-mix(in_srgb,var(--color-primary-soft)_60%,var(--color-surface-muted))] hover:translate-x-0.5"
                     }`}
                   >
                     {/* Tag Button */}
                     <button
                       type="button"
                       onClick={() => handleTagSelect(tag.id)}
-                      className={`flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-sm ${
+                      className={`flex min-w-0 flex-1 items-center gap-3 px-3.5 py-2.5 text-sm spring-pill ${
                         isSelected
-                          ? "font-semibold text-[var(--color-primary)]"
+                          ? "font-bold text-white"
                           : "text-[var(--color-text-secondary)]"
                       }`}
                     >
                       <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        className="h-2.5 w-2.5 shrink-0 rounded-full transition-transform duration-200 group-hover:scale-125"
                         style={{
-                          backgroundColor: tag.color || "var(--color-primary)",
+                          backgroundColor: isSelected ? "white" : (tag.color || "var(--color-primary)"),
+                          boxShadow: isSelected ? "0 0 8px rgba(255,255,255,0.8)" : undefined,
                         }}
                       />
                       <span className="truncate text-left">{tag.name}</span>
                     </button>
 
                     {/* Tag Actions */}
-                    <div className="flex items-center gap-1 pr-1">
+                    <div className="flex items-center gap-1 pr-1.5">
                       {/* Edit */}
                       <button
                         type="button"
                         onClick={() => openEditTagModal(tag)}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--color-text-muted)] opacity-0 transition hover:bg-[var(--color-surface)] hover:text-[var(--color-text-primary)] group-hover:opacity-100"
+                        className={`flex h-7 w-7 items-center justify-center rounded-lg opacity-0 transition group-hover:opacity-100 ${
+                          isSelected
+                            ? "text-white/80 hover:bg-white/20 hover:text-white"
+                            : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text-primary)]"
+                        }`}
                         title={t("common:edit")}
                       >
-                        <Pencil size={15} />
+                        <Pencil size={14} />
                       </button>
 
                       {/* Delete */}
                       <button
                         type="button"
                         onClick={() => setDeletingTag(tag)}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--color-text-muted)] opacity-0 transition hover:bg-red-500/10 hover:text-red-500 group-hover:opacity-100"
+                        className={`flex h-7 w-7 items-center justify-center rounded-lg opacity-0 transition group-hover:opacity-100 ${
+                          isSelected
+                            ? "text-white/80 hover:bg-red-500/80 hover:text-white"
+                            : "text-[var(--color-text-muted)] hover:bg-red-500/10 hover:text-red-500"
+                        }`}
                         title={t("common:delete")}
                       >
-                        <Trash2 size={15} />
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </div>
@@ -346,17 +412,17 @@ export default function WorkspaceSidebar({
           <button
             type="button"
             onClick={openCreateTagModal}
-            className="mt-3 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
+            className="mt-3 flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)] active:scale-[0.98]"
           >
-            <Plus size={17} />
+            <Plus size={16} />
             {t("workspace:tags.addTag")}
           </button>
         </div>
 
         {/* Upgrade Card */}
-        <div className="mt-36 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-4 shadow-sm">
-          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--color-surface)] text-[var(--color-primary)] shadow-sm">
-            <Sparkles size={19} />
+        <div className="mt-32 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/80 p-4 shadow-sm backdrop-blur-md animate-fade-up">
+          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)] shadow-sm">
+            <Sparkles size={18} />
           </div>
 
           <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
@@ -378,8 +444,8 @@ export default function WorkspaceSidebar({
 
       {/* Create / Edit Tag Modal */}
       {tagModalMode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay)] px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay)] px-4 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)] animate-scale-in">
             {/* Header */}
             <div className="flex items-center justify-between">
               <div>
@@ -486,8 +552,8 @@ export default function WorkspaceSidebar({
 
       {/* Delete Confirmation */}
       {deletingTag && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay)] px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay)] px-4 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)] animate-scale-in">
             <div className="flex items-start gap-4">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-[var(--color-danger)]">
                 <Trash2 size={19} />

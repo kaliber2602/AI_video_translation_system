@@ -75,7 +75,7 @@ export default function SettingsLayout({
   onTipsNewsChange,
 }: SettingsLayoutProps) {
   return (
-    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)]">
+    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200 page-enter">
       <SettingsHeader
         user={user}
         isLoadingUser={isLoadingUser}
@@ -88,40 +88,42 @@ export default function SettingsLayout({
         />
 
         <main className="min-w-0 flex-1 p-5 sm:p-7 lg:p-8">
-          {activeSection === "account" ? (
-            <AccountSettingsSection
-              user={user}
-              profileEditing={profileEditing}
-              isUploadingAvatar={isUploadingAvatar}
-              isSaved={isSaved}
-              theme={theme}
-              autoSave={autoSave}
-              showTranscripts={showTranscripts}
-              aiSuggestions={aiSuggestions}
-              compactView={compactView}
-              autoTranslation={autoTranslation}
-              autoSummary={autoSummary}
-              emailNotifications={emailNotifications}
-              processingUpdates={processingUpdates}
-              tipsNews={tipsNews}
-              onAvatarChange={onAvatarChange}
-              onToggleProfileEditing={onToggleProfileEditing}
-              onInputChange={onInputChange}
-              onThemeChange={onThemeChange}
-              onSave={onSave}
-              onAutoSaveChange={onAutoSaveChange}
-              onShowTranscriptsChange={onShowTranscriptsChange}
-              onAiSuggestionsChange={onAiSuggestionsChange}
-              onCompactViewChange={onCompactViewChange}
-              onAutoTranslationChange={onAutoTranslationChange}
-              onAutoSummaryChange={onAutoSummaryChange}
-              onEmailNotificationsChange={onEmailNotificationsChange}
-              onProcessingUpdatesChange={onProcessingUpdatesChange}
-              onTipsNewsChange={onTipsNewsChange}
-            />
-          ) : (
-            <SettingsPlaceholderSection activeSection={activeSection} />
-          )}
+          <div key={activeSection} className="animate-fade-up">
+            {activeSection === "account" ? (
+              <AccountSettingsSection
+                user={user}
+                profileEditing={profileEditing}
+                isUploadingAvatar={isUploadingAvatar}
+                isSaved={isSaved}
+                theme={theme}
+                autoSave={autoSave}
+                showTranscripts={showTranscripts}
+                aiSuggestions={aiSuggestions}
+                compactView={compactView}
+                autoTranslation={autoTranslation}
+                autoSummary={autoSummary}
+                emailNotifications={emailNotifications}
+                processingUpdates={processingUpdates}
+                tipsNews={tipsNews}
+                onAvatarChange={onAvatarChange}
+                onToggleProfileEditing={onToggleProfileEditing}
+                onInputChange={onInputChange}
+                onThemeChange={onThemeChange}
+                onSave={onSave}
+                onAutoSaveChange={onAutoSaveChange}
+                onShowTranscriptsChange={onShowTranscriptsChange}
+                onAiSuggestionsChange={onAiSuggestionsChange}
+                onCompactViewChange={onCompactViewChange}
+                onAutoTranslationChange={onAutoTranslationChange}
+                onAutoSummaryChange={onAutoSummaryChange}
+                onEmailNotificationsChange={onEmailNotificationsChange}
+                onProcessingUpdatesChange={onProcessingUpdatesChange}
+                onTipsNewsChange={onTipsNewsChange}
+              />
+            ) : (
+              <SettingsPlaceholderSection activeSection={activeSection} />
+            )}
+          </div>
         </main>
       </div>
     </div>

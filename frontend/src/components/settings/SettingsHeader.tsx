@@ -18,7 +18,7 @@ export default function SettingsHeader({
   const avatarSrc = getAvatarSrc(user?.avatar);
 
   return (
-    <header className="sticky top-0 z-2 flex h-[84px] items-center border-b border-[var(--color-border-muted)] bg-[var(--color-surface)]/90 px-6 backdrop-blur-xl transition-colors duration-200 lg:px-8">
+    <header className="sticky top-0 z-20 flex h-[84px] items-center liquid-glass px-6 backdrop-blur-xl transition-colors duration-200 lg:px-8">
       <div className="flex min-w-0 items-center gap-4">
         <button
           type="button"

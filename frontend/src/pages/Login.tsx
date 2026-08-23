@@ -3,7 +3,10 @@ import LoginForm from "../components/auth/LoginForm";
 
 export default function Login() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#F4FAF9]">
+    <div
+      data-theme="default_theme"
+      className="relative min-h-screen overflow-hidden bg-[#F4FAF9] page-enter"
+    >
       {/* ================= Background ================= */}
       <div className="absolute inset-0">
         {/* Top Left Glow */}
@@ -35,12 +38,11 @@ export default function Login() {
 
           {/* Login */}
           <div className="relative flex w-full items-center justify-center bg-transparent px-6 py-10 lg:w-[42%] lg:px-12">
-            <div className=" relative w-full max-w-[560px] rounded-[42px] border border-white/60 bg-gradient-to-br from-white/72 via-white/58 to-white/45 p-12 backdrop-blur-[55px] shadow-[0_35px_120px_rgba(15,40,60,.10)]">
+            <div className="relative w-full max-w-[560px] rounded-[42px] border border-white/60 bg-gradient-to-br from-white/72 via-white/58 to-white/45 p-12 backdrop-blur-[55px] shadow-[0_35px_120px_rgba(15,40,60,.10)]">
               <LoginForm />
             </div>
           </div>
         </div>
-        
       </div>
     </div>
   );

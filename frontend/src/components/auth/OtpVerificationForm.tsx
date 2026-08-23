@@ -47,12 +47,12 @@ export default function OtpVerificationForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-8 space-y-6"
+      className="mt-6 space-y-5"
     >
       <div>
         <label
           htmlFor="reset-otp"
-          className="mb-2 block text-sm font-medium text-slate-700"
+          className="mb-1.5 block text-center text-xs font-semibold text-[var(--color-text-secondary)]"
         >
           Verification code
         </label>
@@ -69,19 +69,19 @@ export default function OtpVerificationForm({
             handleChange(event.target.value)
           }
           disabled={isSubmitting}
-          className="h-14 w-full rounded-xl border border-slate-200 bg-white px-4 text-center text-2xl font-semibold tracking-[0.45em] text-slate-900 outline-none transition-all placeholder:text-slate-300 focus:border-[#22c7a9] focus:ring-4 focus:ring-[#22c7a9]/10 disabled:bg-slate-50"
+          className="h-14 w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-4 text-center text-2xl font-bold tracking-[0.45em] text-[var(--color-text-primary)] outline-none transition-all duration-200 ease-out placeholder:text-[var(--color-text-muted)]/40 focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10 disabled:bg-slate-50"
         />
 
         {error && (
-          <p className="mt-2 text-sm text-red-500">
+          <p className="mt-2 text-center text-xs font-semibold text-red-500">
             {error}
           </p>
         )}
       </div>
 
-      <p className="text-center text-sm text-slate-500">
+      <p className="text-center text-xs text-[var(--color-text-muted)]">
         We sent a verification code to{" "}
-        <span className="font-medium text-slate-700">
+        <span className="font-semibold text-[var(--color-text-primary)]">
           {email}
         </span>
       </p>
@@ -89,18 +89,18 @@ export default function OtpVerificationForm({
       <button
         type="submit"
         disabled={isSubmitting}
-        className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#22c7a9] px-5 text-sm font-semibold text-white shadow-lg shadow-[#22c7a9]/20 transition-all hover:bg-[#1fb397] disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 text-xs font-bold text-white shadow-[0_8px_20px_rgba(21,194,168,0.25)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-[var(--color-primary-hover)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSubmitting ? (
           <>
             <Loader2
-              size={18}
+              size={16}
               className="animate-spin"
             />
-            Continuing...
+            <span>Continuing...</span>
           </>
         ) : (
-          "Verify code"
+          <span>Verify code</span>
         )}
       </button>
     </form>

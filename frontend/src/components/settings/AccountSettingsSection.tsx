@@ -108,49 +108,61 @@ export default function AccountSettingsSection({
       </div>
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <ProfileCard
-          user={user}
-          profileEditing={profileEditing}
-          isUploadingAvatar={isUploadingAvatar}
-          onAvatarChange={onAvatarChange}
-          onToggleProfileEditing={onToggleProfileEditing}
-          onInputChange={onInputChange}
-        />
+        <div className="animate-fade-up stagger-1">
+          <ProfileCard
+            user={user}
+            profileEditing={profileEditing}
+            isUploadingAvatar={isUploadingAvatar}
+            onAvatarChange={onAvatarChange}
+            onToggleProfileEditing={onToggleProfileEditing}
+            onInputChange={onInputChange}
+          />
+        </div>
 
-        <LanguageThemeCard
-          theme={theme}
-          onThemeChange={onThemeChange}
-          onSave={onSave}
-        />
+        <div className="animate-fade-up stagger-2">
+          <LanguageThemeCard
+            theme={theme}
+            onThemeChange={onThemeChange}
+            onSave={onSave}
+          />
+        </div>
 
-        <WorkspacePreferencesCard
-          autoSave={autoSave}
-          showTranscripts={showTranscripts}
-          aiSuggestions={aiSuggestions}
-          compactView={compactView}
-          onAutoSaveChange={onAutoSaveChange}
-          onShowTranscriptsChange={onShowTranscriptsChange}
-          onAiSuggestionsChange={onAiSuggestionsChange}
-          onCompactViewChange={onCompactViewChange}
-        />
+        <div className="animate-fade-up stagger-3">
+          <WorkspacePreferencesCard
+            autoSave={autoSave}
+            showTranscripts={showTranscripts}
+            aiSuggestions={aiSuggestions}
+            compactView={compactView}
+            onAutoSaveChange={onAutoSaveChange}
+            onShowTranscriptsChange={onShowTranscriptsChange}
+            onAiSuggestionsChange={onAiSuggestionsChange}
+            onCompactViewChange={onCompactViewChange}
+          />
+        </div>
 
-        <AISettingsCard
-          autoTranslation={autoTranslation}
-          autoSummary={autoSummary}
-          onAutoTranslationChange={onAutoTranslationChange}
-          onAutoSummaryChange={onAutoSummaryChange}
-        />
+        <div className="animate-fade-up stagger-4">
+          <AISettingsCard
+            autoTranslation={autoTranslation}
+            autoSummary={autoSummary}
+            onAutoTranslationChange={onAutoTranslationChange}
+            onAutoSummaryChange={onAutoSummaryChange}
+          />
+        </div>
 
-        <StorageUsageCard />
+        <div className="animate-fade-up stagger-5">
+          <StorageUsageCard />
+        </div>
 
-        <NotificationsCard
-          emailNotifications={emailNotifications}
-          processingUpdates={processingUpdates}
-          tipsNews={tipsNews}
-          onEmailNotificationsChange={onEmailNotificationsChange}
-          onProcessingUpdatesChange={onProcessingUpdatesChange}
-          onTipsNewsChange={onTipsNewsChange}
-        />
+        <div className="animate-fade-up stagger-6">
+          <NotificationsCard
+            emailNotifications={emailNotifications}
+            processingUpdates={processingUpdates}
+            tipsNews={tipsNews}
+            onEmailNotificationsChange={onEmailNotificationsChange}
+            onProcessingUpdatesChange={onProcessingUpdatesChange}
+            onTipsNewsChange={onTipsNewsChange}
+          />
+        </div>
       </div>
     </>
   );

@@ -1,8 +1,8 @@
 import {
   Bell,
   ChevronDown,
+  ChevronUp,
   LogOut,
-  Plus,
   Search,
   Settings,
   User,
@@ -22,8 +22,16 @@ import { clearTokens } from "../../services/api/token";
 
 import type { UserResponse } from "../../types/auth";
 
-export default function WorkspaceTopbar() {
-  const { t } = useTranslation(["navigation", "common"]);
+interface WorkspaceTopbarProps {
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+}
+
+export default function WorkspaceTopbar({
+  isCollapsed = false,
+  onToggleCollapse,
+}: WorkspaceTopbarProps = {}) {
+  const { t } = useTranslation(["navigation", "common", "workspace"]);
   const navigate = useNavigate();
 
   const [profileOpen, setProfileOpen] = useState(false);
@@ -203,7 +211,7 @@ export default function WorkspaceTopbar() {
   // =========================================================
 
   return (
-    <header className="sticky top-0 z-2 flex h-[84px] items-center border-b border-[var(--color-border-muted)] bg-[var(--color-surface)]/90 px-6 backdrop-blur-xl transition-colors duration-200 lg:px-8">
+    <header className="sticky top-0 z-30 flex h-[84px] items-center border-b border-[var(--color-border-muted)] liquid-glass px-6 backdrop-blur-xl transition-colors duration-200 lg:px-8">
 
       {/* =====================================================
           LOGO
@@ -295,16 +303,6 @@ export default function WorkspaceTopbar() {
 
       <div className="ml-auto flex items-center gap-4">
 
-        {/* NEW PROJECT */}
-
-        <button
-          type="button"
-          onClick={() => navigate("/workspace")}
-          className="flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)]"
-        >
-          <Plus size={18} />
-          {t("navigation:newProject")}
-        </button>
 
         {/* NOTIFICATION */}
 
@@ -388,7 +386,7 @@ export default function WorkspaceTopbar() {
 
               {/* DROPDOWN */}
 
-              <div className="absolute right-0 top-[58px] z-50 w-[250px] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)]">
+              <div className="absolute right-0 top-[58px] z-50 w-[250px] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)] animate-dropdown-reveal">
 
                 {/* =================================================
                     PROFILE HEADER
@@ -492,6 +490,31 @@ export default function WorkspaceTopbar() {
         </div>
 
       </div>
+
+      {/* =====================================================
+          NAVBAR COLLAPSE TOGGLE BUTTON (CENTERED ON BOTTOM LINE)
+      ====================================================== */}
+      {onToggleCollapse && (
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          aria-label={isCollapsed ? "Expand navbar" : "Collapse navbar"}
+          title={isCollapsed ? t("workspace:expandNavbar", "Hiện thanh điều hướng") : t("workspace:collapseNavbar", "Thu gọn thanh điều hướng")}
+          className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex h-6 items-center gap-1 rounded-full border border-color-mix(in srgb, var(--color-primary) 35%, var(--color-border)) bg-[var(--color-surface)] px-2.5 text-[11px] font-bold text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-110 hover:bg-[var(--color-primary)] hover:text-white hover:border-[var(--color-primary)] active:scale-95 z-40 group cursor-pointer"
+        >
+          {isCollapsed ? (
+            <ChevronDown
+              size={14}
+              className="text-[var(--color-primary)] group-hover:text-white transition-transform duration-200 group-hover:translate-y-0.5"
+            />
+          ) : (
+            <ChevronUp
+              size={13}
+              className="transition-transform duration-200 group-hover:-translate-y-0.5"
+            />
+          )}
+        </button>
+      )}
     </header>
   );
 }

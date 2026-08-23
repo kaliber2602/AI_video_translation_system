@@ -50,9 +50,9 @@ export default function HomeFeatures() {
           return (
             <article
               key={feature.title}
-              className="group rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center shadow-[var(--shadow-card)] transition duration-300 hover:-translate-y-1 hover:border-[var(--color-primary)]"
+              className="group rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center shadow-[var(--shadow-card)] transition-all duration-220 ease-out hover:-translate-y-1 hover:border-[var(--color-primary)] hover:shadow-lg"
             >
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary)] transition group-hover:scale-105">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)] transition-transform duration-200 ease-out group-hover:scale-110">
                 <Icon size={22} />
               </div>
 

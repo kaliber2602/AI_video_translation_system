@@ -2,6 +2,7 @@ import {
   Apple,
   Eye,
   EyeOff,
+  Loader2,
   Lock,
   Mail,
 } from "lucide-react";
@@ -11,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 
 import { login } from "../../services/auth.service";
 import { setTokens } from "../../services/api/token";
+import AuthBrand from "./AuthBrand";
 
 export default function LoginForm() {
   const { t } = useTranslation(["auth", "common"]);
@@ -129,23 +131,21 @@ export default function LoginForm() {
   // =====================================================
 
   return (
-    <div className="flex w-full justify-center px-14">
+    <div className="flex w-full justify-center px-4 sm:px-8">
       <div className="w-full max-w-[430px]">
-        {/* Logo */}
-        <div className="mb-10 flex justify-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 text-sm text-slate-400">
-            LOGO
-          </div>
+        {/* Brand Header */}
+        <div className="mb-8 flex justify-center">
+          <AuthBrand />
         </div>
 
         {/* Title */}
-        <h2 className="text-center text-4xl font-bold text-slate-900">
+        <h2 className="text-center text-3xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-4xl">
           {t("auth:welcomeBack")}
         </h2>
 
-        <p className="mt-3 text-center text-slate-500">
+        <p className="mt-2 text-center text-sm text-[var(--color-text-muted)]">
           {t("auth:signInSubtitle")}{" "}
-          <span className="font-semibold">
+          <span className="font-semibold text-[var(--color-primary)]">
             VidNova
           </span>
         </p>
@@ -153,18 +153,18 @@ export default function LoginForm() {
         {/* Form */}
         <form
           onSubmit={handleSubmit}
-          className="mt-12 space-y-6"
+          className="mt-8 space-y-5"
         >
           {/* Email */}
           <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
+            <label className="mb-1.5 block text-xs font-semibold text-[var(--color-text-secondary)]">
               {t("auth:email")}
             </label>
 
-            <div className="flex h-14 items-center rounded-xl border border-slate-200 bg-white px-4 transition-all duration-200 focus-within:border-[#22C7A9] focus-within:ring-2 focus-within:ring-[#22C7A9]/20">
+            <div className="flex h-12 items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-3.5 transition-all duration-200 ease-out focus-within:border-[var(--color-primary)] focus-within:ring-4 focus-within:ring-[var(--color-primary)]/10">
               <Mail
-                size={20}
-                className="text-slate-400"
+                size={18}
+                className="text-[var(--color-text-muted)]"
               />
 
               <input
@@ -176,21 +176,21 @@ export default function LoginForm() {
                 }}
                 placeholder={t("auth:emailPlaceholder")}
                 disabled={loading}
-                className="ml-3 flex-1 bg-transparent text-slate-900 placeholder:text-slate-400 outline-none disabled:opacity-60"
+                className="ml-3 flex-1 bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] outline-none disabled:opacity-60"
               />
             </div>
           </div>
 
           {/* Password */}
           <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
+            <label className="mb-1.5 block text-xs font-semibold text-[var(--color-text-secondary)]">
               {t("auth:password")}
             </label>
 
-            <div className="flex h-14 items-center rounded-xl border border-slate-200 bg-white px-4 transition-all duration-200 focus-within:border-[#22C7A9] focus-within:ring-2 focus-within:ring-[#22C7A9]/20">
+            <div className="flex h-12 items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-3.5 transition-all duration-200 ease-out focus-within:border-[var(--color-primary)] focus-within:ring-4 focus-within:ring-[var(--color-primary)]/10">
               <Lock
-                size={20}
-                className="text-slate-400"
+                size={18}
+                className="text-[var(--color-text-muted)]"
               />
 
               <input
@@ -206,7 +206,7 @@ export default function LoginForm() {
                 }}
                 placeholder={t("auth:passwordPlaceholder")}
                 disabled={loading}
-                className="ml-3 flex-1 bg-transparent text-slate-900 placeholder:text-slate-400 outline-none disabled:opacity-60"
+                className="ml-3 flex-1 bg-transparent text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] outline-none disabled:opacity-60"
               />
 
               <button
@@ -215,7 +215,7 @@ export default function LoginForm() {
                 onClick={() => {
                   setShowPassword((prev) => !prev);
                 }}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-[var(--color-text-muted)] transition-colors duration-150 ease-out hover:text-[var(--color-text-primary)]"
                 aria-label="Toggle password visibility"
               >
                 {showPassword ? (
@@ -228,8 +228,8 @@ export default function LoginForm() {
           </div>
 
           {/* Remember */}
-          <div className="flex items-center justify-between text-sm">
-            <label className="flex cursor-pointer items-center gap-2">
+          <div className="flex items-center justify-between text-xs sm:text-sm">
+            <label className="flex cursor-pointer items-center gap-2 text-[var(--color-text-secondary)]">
               <input
                 type="checkbox"
                 checked={rememberMe}
@@ -237,9 +237,9 @@ export default function LoginForm() {
                   setRememberMe(event.target.checked);
                 }}
                 disabled={loading}
-                className="accent-[#22C7A9]"
+                className="accent-[var(--color-primary)] h-4 w-4 rounded"
               />
-              {t("auth:rememberMe")}
+              <span>{t("auth:rememberMe")}</span>
             </label>
 
             <button
@@ -248,7 +248,7 @@ export default function LoginForm() {
               onClick={() => {
                 navigate("/forgot-password");
               }}
-              className="font-medium text-[#22C7A9] hover:underline"
+              className="font-semibold text-[var(--color-primary)] transition hover:underline"
             >
               {t("auth:forgotPassword")}
             </button>
@@ -256,37 +256,42 @@ export default function LoginForm() {
 
           {/* Error */}
           {error && (
-            <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
               {error}
             </div>
           )}
 
-          {/* Sign In */}
+          {/* Sign In Button */}
           <button
             type="submit"
             disabled={loading}
-            className="h-14 w-full rounded-xl bg-[#22C7A9] font-semibold text-white transition hover:bg-[#19b69a] active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] text-sm font-bold text-white shadow-[0_8px_20px_rgba(21,194,168,0.25)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-[var(--color-primary-hover)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading
-              ? t("auth:signingIn")
-              : t("auth:signIn")}
+            {loading ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                <span>{t("auth:signingIn")}</span>
+              </>
+            ) : (
+              <span>{t("auth:signIn")}</span>
+            )}
           </button>
         </form>
 
         {/* Divider */}
-        <div className="my-10 flex items-center gap-4">
-          <div className="h-px flex-1 bg-slate-200" />
-          <span className="text-sm text-slate-400">
+        <div className="my-7 flex items-center gap-4">
+          <div className="h-px flex-1 bg-[var(--color-border)]" />
+          <span className="text-xs font-medium text-[var(--color-text-muted)]">
             {t("auth:orContinueWith")}
           </span>
-          <div className="h-px flex-1 bg-slate-200" />
+          <div className="h-px flex-1 bg-[var(--color-border)]" />
         </div>
 
         {/* Social */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
-            className="flex h-14 items-center justify-center rounded-xl border border-slate-200 transition hover:border-[#22C7A9] hover:bg-[#F7FFFD]"
+            className="flex h-11 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-xs font-semibold text-[var(--color-text-secondary)] transition-all duration-200 ease-out hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)]"
           >
             Microsoft
           </button>
@@ -294,21 +299,21 @@ export default function LoginForm() {
           <button
             type="button"
             aria-label="Sign in with Apple"
-            className="flex h-14 items-center justify-center rounded-xl border border-slate-200 transition hover:border-[#22C7A9] hover:bg-[#F7FFFD]"
+            className="flex h-11 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] transition-all duration-200 ease-out hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)]"
           >
-            <Apple />
+            <Apple size={18} />
           </button>
         </div>
 
         {/* Footer */}
-        <p className="mt-10 text-center text-sm text-slate-500">
+        <p className="mt-8 text-center text-xs text-[var(--color-text-muted)]">
           {t("auth:dontHaveAccount")}
           <button
             type="button"
             onClick={() => {
               navigate("/register");
             }}
-            className="ml-2 font-semibold text-[#22C7A9] hover:underline"
+            className="ml-1.5 font-bold text-[var(--color-primary)] hover:underline"
           >
             {t("auth:createOne")}
           </button>

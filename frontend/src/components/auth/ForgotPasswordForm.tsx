@@ -34,10 +34,10 @@ export default function ForgotPasswordForm({
     try {
       setIsSubmitting(true);
       await onSubmit(normalizedEmail);
-    } catch (error) {
+    } catch (err) {
       setError(
-        error instanceof Error
-          ? error.message
+        err instanceof Error
+          ? err.message
           : "Unable to process your request.",
       );
     } finally {
@@ -48,12 +48,12 @@ export default function ForgotPasswordForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-8 w-full space-y-6"
+      className="mt-6 w-full space-y-5"
     >
       <div>
         <label
           htmlFor="forgot-password-email"
-          className="mb-2 block text-sm font-medium text-slate-700"
+          className="mb-1.5 block text-xs font-semibold text-[var(--color-text-secondary)]"
         >
           Email address
         </label>
@@ -61,7 +61,7 @@ export default function ForgotPasswordForm({
         <div className="relative">
           <Mail
             size={18}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
           />
 
           <input
@@ -76,24 +76,24 @@ export default function ForgotPasswordForm({
             }
             disabled={isSubmitting}
             required
-            className="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-[#22c7a9] focus:ring-4 focus:ring-[#22c7a9]/10 disabled:cursor-not-allowed disabled:bg-slate-50"
+            className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-10 pr-4 text-xs text-[var(--color-text-primary)] outline-none transition-all duration-200 ease-out placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10 disabled:cursor-not-allowed disabled:bg-slate-50"
           />
         </div>
 
         {error && (
-          <p className="mt-2 text-sm text-red-500">
+          <p className="mt-2 text-xs font-semibold text-red-500">
             {error}
           </p>
         )}
       </div>
 
-      <div className="flex items-start gap-3 rounded-xl bg-[#22c7a9]/5 p-4">
+      <div className="flex items-start gap-3 rounded-xl border border-[var(--color-border-muted)] bg-[var(--color-primary-soft)]/50 p-3.5">
         <ShieldCheck
           size={18}
-          className="mt-0.5 shrink-0 text-[#22c7a9]"
+          className="mt-0.5 shrink-0 text-[var(--color-primary)]"
         />
 
-        <p className="text-sm leading-5 text-slate-500">
+        <p className="text-xs leading-5 text-[var(--color-text-secondary)]">
           A six-digit verification code will be sent to
           your email address.
         </p>
@@ -102,18 +102,18 @@ export default function ForgotPasswordForm({
       <button
         type="submit"
         disabled={isSubmitting}
-        className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#22c7a9] px-5 text-sm font-semibold text-white shadow-lg shadow-[#22c7a9]/20 transition-all hover:bg-[#1fb397] disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 text-xs font-bold text-white shadow-[0_8px_20px_rgba(21,194,168,0.25)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-[var(--color-primary-hover)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSubmitting ? (
           <>
             <Loader2
-              size={18}
+              size={16}
               className="animate-spin"
             />
-            Sending...
+            <span>Sending...</span>
           </>
         ) : (
-          "Send verification code"
+          <span>Send verification code</span>
         )}
       </button>
     </form>

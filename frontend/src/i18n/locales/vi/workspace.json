@@ -73,5 +73,43 @@
     "title": "Cần thêm dung lượng lưu trữ?",
     "description": "Nâng cấp gói tài khoản để không giới hạn dự án và xử lý AI.",
     "button": "Nâng cấp ngay"
+  },
+  "views": {
+    "grid": "Dạng lưới",
+    "freedom": "Tự do",
+    "list": "Danh sách",
+    "card": "Thẻ",
+    "switcherAria": "Chọn chế độ hiển thị"
+  },
+  "sort": {
+    "sortBy": "Sắp xếp theo",
+    "nameAsc": "Tên (A → Z)",
+    "nameDesc": "Tên (Z → A)",
+    "newest": "Mới tạo nhất",
+    "oldest": "Cũ nhất",
+    "recentlyUpdated": "Cập nhật gần đây",
+    "mostVideos": "Nhiều video nhất"
+  },
+  "filters": {
+    "filter": "Bộ lọc",
+    "allTags": "Tất cả thẻ",
+    "clearAll": "Xóa bộ lọc",
+    "filteredResults": "{{count}} kết quả phù hợp",
+    "activeFilter": "Đang lọc:"
+  },
+  "states": {
+    "noProjects": "Chưa có dự án nào",
+    "noProjectsDesc": "Tạo dự án đầu tiên của bạn để bắt đầu dịch thuật và lồng tiếng video với AI.",
+    "noResults": "Không tìm thấy dự án phù hợp",
+    "noResultsDesc": "Hãy thử thay đổi từ khóa tìm kiếm hoặc bỏ chọn các thẻ bộ lọc.",
+    "clearSearch": "Xóa tìm kiếm & Bộ lọc",
+    "errorTitle": "Không thể tải danh sách dự án",
+    "errorDesc": "Đã xảy ra sự cố khi tải dữ liệu không gian làm việc của bạn.",
+    "retry": "Thử lại"
+  },
+  "freedom": {
+    "badge": "Không gian tự do",
+    "tagGroup": "Nhóm theo thẻ",
+    "allUnsorted": "Tất cả dự án"
   }
 }

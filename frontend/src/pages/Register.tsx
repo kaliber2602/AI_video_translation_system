@@ -4,7 +4,10 @@ import RegisterForm from "../components/auth/RegisterForm";
 
 export default function Register() {
   return (
-    <div className="min-h-screen bg-[#EAFBFA] px-3 py-3 sm:px-5 sm:py-5">
+    <div
+      data-theme="default_theme"
+      className="min-h-screen bg-[#EAFBFA] px-3 py-3 sm:px-5 sm:py-5 page-enter"
+    >
       <div className="mx-auto grid min-h-[calc(100vh-24px)] w-full max-w-[1500px] overflow-hidden rounded-[34px] bg-white shadow-[0_25px_80px_rgba(44,110,105,0.14)] lg:grid-cols-[1.02fr_0.98fr]">
         {/* LEFT SIDE */}
         <section className="relative hidden overflow-hidden bg-gradient-to-br from-[#F3FFFE] via-[#E8FAF8] to-[#DDF8F5] px-12 py-12 lg:block xl:px-16">
@@ -167,11 +170,11 @@ export default function Register() {
             </div>
 
             <div className="text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-dashed border-[#C9DCE5] bg-[#FAFCFD] text-xs font-medium text-[#8AA0B2]">
-                LOGO
+              <div className="mb-6 flex justify-center">
+                <AuthBrand />
               </div>
 
-              <h1 className="mt-7 text-[30px] font-bold tracking-[-0.8px] text-[#111B35]">
+              <h1 className="mt-4 text-[28px] font-bold tracking-[-0.8px] text-[#111B35] sm:text-[32px]">
                 Create your account
               </h1>
 

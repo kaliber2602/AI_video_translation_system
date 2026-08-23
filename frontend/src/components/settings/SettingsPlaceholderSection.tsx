@@ -17,7 +17,7 @@ export default function SettingsPlaceholderSection({
       : "";
 
   return (
-    <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-[var(--shadow-card)] transition-colors duration-200">
+    <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-[var(--shadow-card)] transition-colors duration-200 animate-fade-up">
       <div className="flex h-[420px] flex-col items-center justify-center text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
           <SlidersHorizontal size={28} />
