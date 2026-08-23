@@ -37,7 +37,7 @@ export interface UserResponse {
   id: number;
   email: string;
   full_name: string;
-  avatar_url: string | null;
+  avatar: string | null;
   role: string;
   is_active: boolean;
 }
@@ -83,4 +83,8 @@ export interface PasswordResetRouteState {
   email: string;
   resetToken: string;
   otp?: string;
+}
+
+export interface UpdateAvatarResponse {
+  avatar: string;
 }

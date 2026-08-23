@@ -131,7 +131,7 @@ class UserResponse(BaseModel):
     id: int
     email: EmailStr
     full_name: str
-    avatar_url: str | None = None
+    avatar: str | None = None
     role: str
     is_active: bool
 

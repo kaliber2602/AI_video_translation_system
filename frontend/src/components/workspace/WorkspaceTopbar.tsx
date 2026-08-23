@@ -15,6 +15,7 @@ import {
   getMe,
   logout,
 } from "../../services/auth.service";
+import { toast } from "../../lib/toast";
 
 import { clearTokens } from "../../services/api/token";
 
@@ -31,6 +32,10 @@ export default function WorkspaceTopbar() {
 
   const [loadingUser, setLoadingUser] =
     useState(true);
+
+  // =========================================================
+  // Load current user
+  // =========================================================
 
   useEffect(() => {
     const loadCurrentUser = async () => {
@@ -60,6 +65,44 @@ export default function WorkspaceTopbar() {
     loadCurrentUser();
   }, []);
 
+  // =========================================================
+  // Helpers
+  // =========================================================
+
+  const getInitials = (
+    fullName: string
+  ): string => {
+    const initials = fullName
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase();
+
+    return initials || "U";
+  };
+
+  const getAvatarSrc = (
+    avatar: string | null | undefined
+  ): string | null => {
+    if (!avatar) {
+      return null;
+    }
+
+    // Already a complete data URL.
+    if (avatar.startsWith("data:image/")) {
+      return avatar;
+    }
+
+    // Raw Base64 stored by backend.
+    return `data:image/jpeg;base64,${avatar}`;
+  };
+
+  // =========================================================
+  // Navigation
+  // =========================================================
+
   const handleSettings = () => {
     setProfileOpen(false);
     navigate("/workspace/settings");
@@ -70,6 +113,9 @@ export default function WorkspaceTopbar() {
     navigate("/workspace");
   };
 
+  // =========================================================
+  // Logout
+  // =========================================================
   const handleLogout = async () => {
     if (loggingOut) {
       return;
@@ -109,6 +155,16 @@ export default function WorkspaceTopbar() {
         "[LOGOUT] Tokens cleared."
       );
 
+      // =====================================================
+      // GOODBYE TOAST
+      // =====================================================
+
+      toast.info(
+        `Goodbye, ${displayName}!`,
+        "See you next time."
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
       navigate("/login", {
         replace: true,
       });
@@ -122,18 +178,35 @@ export default function WorkspaceTopbar() {
     }
   };
 
+  // =========================================================
+  // User display data
+  // =========================================================
+
   const displayName =
     currentUser?.full_name || "User";
 
   const displayEmail =
     currentUser?.email || "";
+  const displayRole =
+    currentUser?.role || "User";
 
   const avatarLetter =
-    displayName.charAt(0).toUpperCase();
+    getInitials(displayName);
+
+  const avatarSrc =
+    getAvatarSrc(currentUser?.avatar);
+
+  // =========================================================
+  // Render
+  // =========================================================
 
   return (
-    <header className="sticky top-0 z-50 flex h-[84px] items-center border-b border-[#E7EFEE] bg-white/90 px-6 backdrop-blur-xl lg:px-8">
-      {/* LOGO */}
+    <header className="sticky top-0 z-2 flex h-[84px] items-center border-b border-[#E7EFEE] bg-white/90 px-6 backdrop-blur-xl lg:px-8">
+
+      {/* =====================================================
+          LOGO
+      ====================================================== */}
+
       <button
         type="button"
         onClick={handleWorkspace}
@@ -192,7 +265,10 @@ export default function WorkspaceTopbar() {
         </div>
       </button>
 
-      {/* GLOBAL SEARCH */}
+      {/* =====================================================
+          GLOBAL SEARCH
+      ====================================================== */}
+
       <div className="mx-auto flex w-full max-w-[540px] items-center rounded-full border border-[#E3ECEB] bg-[#F8FBFB] px-4 py-2.5 shadow-sm">
         <Search
           size={19}
@@ -211,8 +287,14 @@ export default function WorkspaceTopbar() {
         />
       </div>
 
-      {/* ACTIONS */}
+      {/* =====================================================
+          ACTIONS
+      ====================================================== */}
+
       <div className="ml-auto flex items-center gap-4">
+
+        {/* NEW PROJECT */}
+
         <button
           type="button"
           onClick={() => navigate("/workspace")}
@@ -223,6 +305,7 @@ export default function WorkspaceTopbar() {
         </button>
 
         {/* NOTIFICATION */}
+
         <button
           type="button"
           className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-[#E8EFEE] bg-white shadow-sm transition hover:bg-[#F4FAF9]"
@@ -235,37 +318,62 @@ export default function WorkspaceTopbar() {
           <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#18C3AA]" />
         </button>
 
-        {/* PROFILE */}
+        {/* =================================================
+            PROFILE
+        ================================================== */}
+
         <div className="relative">
+
           <button
             type="button"
             disabled={
               loggingOut || loadingUser
             }
             onClick={() =>
-              setProfileOpen((prev) => !prev)
+              setProfileOpen(
+                (prev) => !prev
+              )
             }
             className="flex items-center gap-3 rounded-xl px-2 py-1.5 transition hover:bg-[#F5FAF9] disabled:opacity-60"
           >
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#D8F3EE] text-sm font-bold text-[#159C8B]">
-              {loadingUser
-                ? "..."
-                : avatarLetter}
+
+            {/* TOPBAR AVATAR */}
+
+            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-[#D8F3EE] text-sm font-bold text-[#159C8B]">
+
+              {loadingUser ? (
+                "..."
+              ) : avatarSrc ? (
+                <img
+                  src={avatarSrc}
+                  alt={`${displayName} avatar`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                avatarLetter
+              )}
+
             </div>
 
             <ChevronDown
               size={17}
-              className={`text-[#687780] transition ${
-                profileOpen
+              className={`text-[#687780] transition ${profileOpen
                   ? "rotate-180"
                   : ""
-              }`}
+                }`}
             />
+
           </button>
 
-          {/* DROPDOWN */}
+          {/* =================================================
+              DROPDOWN
+          ================================================== */}
+
           {profileOpen && (
             <>
+
+              {/* BACKDROP */}
+
               <button
                 type="button"
                 aria-label="Close profile menu"
@@ -275,15 +383,36 @@ export default function WorkspaceTopbar() {
                 className="fixed inset-0 z-40 cursor-default"
               />
 
+              {/* DROPDOWN */}
+
               <div className="absolute right-0 top-[58px] z-50 w-[250px] overflow-hidden rounded-2xl border border-[#E3ECEB] bg-white shadow-[0_18px_50px_rgba(30,70,80,0.14)]">
-                {/* PROFILE HEADER */}
+
+                {/* =================================================
+                    PROFILE HEADER
+                ================================================== */}
+
                 <div className="border-b border-[#EDF2F1] p-4">
+
                   <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#D8F3EE] text-sm font-bold text-[#159C8B]">
-                      {avatarLetter}
+
+                    {/* DROPDOWN AVATAR */}
+
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#D8F3EE] text-sm font-bold text-[#159C8B]">
+
+                      {avatarSrc ? (
+                        <img
+                          src={avatarSrc}
+                          alt={`${displayName} avatar`}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        avatarLetter
+                      )}
+
                     </div>
 
                     <div className="min-w-0">
+
                       <p className="truncate text-sm font-bold text-[#263641]">
                         {displayName}
                       </p>
@@ -291,12 +420,23 @@ export default function WorkspaceTopbar() {
                       <p className="truncate text-xs text-[#8A999D]">
                         {displayEmail}
                       </p>
+
+                      <p className="truncate text-xs text-[#8A999D]">
+                        {displayRole}
+                      </p>
+
                     </div>
+
                   </div>
+
                 </div>
 
-                {/* MENU */}
+                {/* =================================================
+                    MENU
+                ================================================== */}
+
                 <div className="p-2">
+
                   <button
                     type="button"
                     onClick={handleWorkspace}
@@ -316,27 +456,38 @@ export default function WorkspaceTopbar() {
                     <Settings size={17} />
                     Settings
                   </button>
+
                 </div>
 
-                {/* LOGOUT */}
+                {/* =================================================
+                    LOGOUT
+                ================================================== */}
+
                 <div className="border-t border-[#EDF2F1] p-2">
+
                   <button
                     type="button"
                     onClick={handleLogout}
                     disabled={loggingOut}
                     className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[#D06464] transition hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-50"
                   >
+
                     <LogOut size={17} />
 
                     {loggingOut
                       ? "Logging out..."
                       : "Log out"}
+
                   </button>
+
                 </div>
+
               </div>
             </>
           )}
+
         </div>
+
       </div>
     </header>
   );

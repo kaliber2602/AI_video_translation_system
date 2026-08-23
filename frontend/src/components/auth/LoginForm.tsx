@@ -295,8 +295,12 @@ export default function LoginForm() {
         "[LoginForm] Navigating to /workspace..."
       );
 
-      navigate("/workspace");
-
+      navigate("/workspace", {
+        state: {
+          showWelcome: true,
+        },
+      });
+      
       console.log(
         "[LoginForm] navigate('/workspace') called"
       );

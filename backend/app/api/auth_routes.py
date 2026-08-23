@@ -1,7 +1,9 @@
 from fastapi import (
     APIRouter,
     Depends,
+    File,
     HTTPException,
+    UploadFile,
     status,
 )
 
@@ -20,6 +22,7 @@ from app.services.auth_service import (
     reset_password,
     logout_user,
     logout_all_user_tokens,
+    update_user_avatar,
 )
 
 from app.core.security import (
@@ -230,7 +233,7 @@ def me(
             "id": user[0],
             "email": user[1],
             "full_name": user[3],
-            "avatar_url": user[4],
+            "avatar": user[4],
             "role": user[5],
             "is_active": user[6],
         }
@@ -456,4 +459,62 @@ def logout_all(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to logout all refresh tokens.",
+        ) from exc
+
+   
+# =========================================================
+# Update Avatar
+# PUT /auth/me/avatar
+# =========================================================
+
+@router.put(
+    "/me/avatar",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def update_avatar(
+    avatar: UploadFile = File(...),
+    user_id: int = Depends(get_current_user_id),
+):
+
+    try:
+
+        user = await update_user_avatar(
+            user_id=user_id,
+            avatar_file=avatar,
+        )
+
+        return {
+            "id": user[0],
+            "email": user[1],
+            "full_name": user[3],
+            "avatar": user[4],
+            "role": user[5],
+            "is_active": user[6],
+        }
+
+    except ValueError as exc:
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    except RuntimeError as exc:
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
+
+    except Exception as exc:
+
+        logger.exception(
+            "[AVATAR] Unexpected error | user_id=%s",
+            user_id,
+        )
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unexpected avatar upload error: {exc}",
         ) from exc

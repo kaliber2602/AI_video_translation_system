@@ -1,4 +1,6 @@
+import base64
 import hashlib
+import io
 import os
 import secrets
 import uuid
@@ -56,7 +58,7 @@ def find_user_by_email(
                     email,
                     password_hash,
                     full_name,
-                    avatar_url,
+                    avatar,
                     role,
                     is_active,
                     created_at,
@@ -91,7 +93,7 @@ def find_user_by_id(
                     email,
                     password_hash,
                     full_name,
-                    avatar_url,
+                    avatar,
                     role,
                     is_active,
                     created_at,
@@ -159,7 +161,7 @@ def register_user(
                     id,
                     email,
                     full_name,
-                    avatar_url,
+                    avatar,
                     role,
                     is_active,
                     created_at,
@@ -839,3 +841,332 @@ def reset_password(
     finally:
 
         connection.close()
+        
+# =========================================================
+# Update Avatar
+# =========================================================
+
+import base64
+import io
+import logging
+
+from PIL import Image, UnidentifiedImageError
+
+logger = logging.getLogger(__name__)
+
+
+MAX_AVATAR_SIZE = 2 * 1024 * 1024
+MAX_AVATAR_DIMENSION = 512
+MAX_AVATAR_INPUT_DIMENSION = 4096
+AVATAR_QUALITY = 85
+
+
+async def update_user_avatar(
+    user_id: int,
+    avatar_file,
+):
+    # -----------------------------------------------------
+    # Validate file
+    # -----------------------------------------------------
+
+    if not avatar_file:
+        raise ValueError(
+            "Avatar file is required."
+        )
+
+    allowed_content_types = {
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+    }
+
+    if avatar_file.content_type not in allowed_content_types:
+        raise ValueError(
+            "Avatar must be a JPEG, PNG, or WebP image."
+        )
+
+    logger.info(
+        "[AVATAR] Upload started | user_id=%s | filename=%s | content_type=%s",
+        user_id,
+        avatar_file.filename,
+        avatar_file.content_type,
+    )
+
+    # -----------------------------------------------------
+    # Read file
+    # -----------------------------------------------------
+
+    try:
+        image_bytes = await avatar_file.read()
+
+    except Exception as exc:
+        logger.exception(
+            "[AVATAR] Failed to read uploaded file | user_id=%s",
+            user_id,
+        )
+
+        raise ValueError(
+            "Unable to read avatar file."
+        ) from exc
+
+    if not image_bytes:
+        raise ValueError(
+            "Avatar file is empty."
+        )
+
+    if len(image_bytes) > MAX_AVATAR_SIZE:
+        raise ValueError(
+            "Avatar file must not exceed 2 MB."
+        )
+
+    logger.info(
+        "[AVATAR] File read successfully | user_id=%s | size=%d bytes",
+        user_id,
+        len(image_bytes),
+    )
+
+    # -----------------------------------------------------
+    # Verify image
+    # -----------------------------------------------------
+
+    try:
+        image = Image.open(
+            io.BytesIO(image_bytes)
+        )
+
+        image.verify()
+
+    except (
+        UnidentifiedImageError,
+        OSError,
+    ) as exc:
+
+        logger.warning(
+            "[AVATAR] Invalid image | user_id=%s | filename=%s",
+            user_id,
+            avatar_file.filename,
+        )
+
+        raise ValueError(
+            "Invalid image file."
+        ) from exc
+
+    # -----------------------------------------------------
+    # Re-open image after verify()
+    # -----------------------------------------------------
+
+    try:
+        image = Image.open(
+            io.BytesIO(image_bytes)
+        )
+
+        image.load()
+
+    except (
+        UnidentifiedImageError,
+        OSError,
+    ) as exc:
+
+        logger.warning(
+            "[AVATAR] Unable to process image | user_id=%s",
+            user_id,
+        )
+
+        raise ValueError(
+            "Unable to process image file."
+        ) from exc
+
+    # -----------------------------------------------------
+    # Validate dimensions
+    # -----------------------------------------------------
+
+    if image.width <= 0 or image.height <= 0:
+        raise ValueError(
+            "Invalid image dimensions."
+        )
+
+    if (
+        image.width > MAX_AVATAR_INPUT_DIMENSION
+        or image.height > MAX_AVATAR_INPUT_DIMENSION
+    ):
+        raise ValueError(
+            "Avatar dimensions must not exceed 4096x4096 pixels."
+        )
+
+    logger.info(
+        "[AVATAR] Image validated | user_id=%s | size=%sx%s | mode=%s",
+        user_id,
+        image.width,
+        image.height,
+        image.mode,
+    )
+
+    # -----------------------------------------------------
+    # Handle transparency
+    # -----------------------------------------------------
+
+    if image.mode in ("RGBA", "LA"):
+
+        background = Image.new(
+            "RGB",
+            image.size,
+            (255, 255, 255),
+        )
+
+        alpha = image.getchannel("A")
+
+        background.paste(
+            image,
+            mask=alpha,
+        )
+
+        image = background
+
+    elif image.mode != "RGB":
+
+        image = image.convert("RGB")
+
+    # -----------------------------------------------------
+    # Resize
+    # -----------------------------------------------------
+
+    image.thumbnail(
+        (
+            MAX_AVATAR_DIMENSION,
+            MAX_AVATAR_DIMENSION,
+        ),
+        Image.Resampling.LANCZOS,
+    )
+
+    logger.info(
+        "[AVATAR] Image resized | user_id=%s | size=%sx%s",
+        user_id,
+        image.width,
+        image.height,
+    )
+
+    # -----------------------------------------------------
+    # Convert to JPEG
+    # -----------------------------------------------------
+
+    output = io.BytesIO()
+
+    try:
+
+        image.save(
+            output,
+            format="JPEG",
+            quality=AVATAR_QUALITY,
+            optimize=True,
+        )
+
+    except Exception as exc:
+
+        logger.exception(
+            "[AVATAR] Failed to encode image | user_id=%s",
+            user_id,
+        )
+
+        raise ValueError(
+            "Failed to process avatar image."
+        ) from exc
+
+    processed_image = output.getvalue()
+
+    if not processed_image:
+        raise ValueError(
+            "Processed avatar image is empty."
+        )
+
+    # -----------------------------------------------------
+    # Base64
+    # -----------------------------------------------------
+
+    avatar_base64 = base64.b64encode(
+        processed_image
+    ).decode("ascii")
+
+    logger.info(
+        "[AVATAR] Image encoded | user_id=%s | jpeg_size=%d bytes | base64_size=%d chars",
+        user_id,
+        len(processed_image),
+        len(avatar_base64),
+    )
+
+    # -----------------------------------------------------
+    # Update database
+    # -----------------------------------------------------
+
+    connection = None
+
+    try:
+
+        connection = get_connection()
+
+        with connection.cursor() as cursor:
+
+            cursor.execute(
+                """
+                UPDATE users
+                SET
+                    avatar = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                RETURNING
+                    id,
+                    email,
+                    password_hash,
+                    full_name,
+                    avatar,
+                    role,
+                    is_active,
+                    created_at,
+                    updated_at
+                """,
+                (
+                    avatar_base64,
+                    user_id,
+                ),
+            )
+
+            user = cursor.fetchone()
+
+            if not user:
+                raise ValueError(
+                    "User not found."
+                )
+
+        connection.commit()
+
+        logger.info(
+            "[AVATAR] Database updated successfully | user_id=%s",
+            user_id,
+        )
+
+        return user
+
+    except ValueError:
+        if connection:
+            connection.rollback()
+        raise
+
+    except Exception as exc:
+
+        if connection:
+            connection.rollback()
+
+        # QUAN TRỌNG:
+        # In lỗi database thật ra backend console
+        logger.exception(
+            "[AVATAR] Database update failed | user_id=%s",
+            user_id,
+        )
+
+        raise RuntimeError(
+            f"Failed to save avatar to database: {exc}"
+        ) from exc
+
+    finally:
+
+        if connection:
+            connection.close()

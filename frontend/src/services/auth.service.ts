@@ -10,7 +10,7 @@ import type {
   ForgotPasswordRequest,
   ForgotPasswordResponse,
   ResetPasswordRequest,
-  ResetPasswordResponse
+  ResetPasswordResponse,
 } from "../types/auth";
 
 export const register = async (
@@ -129,3 +129,23 @@ export async function login(data: {
 
   return response.data;
 }
+
+export const updateAvatar = async (
+  file: File
+): Promise<UserResponse> => {
+  const formData = new FormData();
+
+  formData.append("avatar", file);
+
+  const response = await api.put<UserResponse>(
+    "/api/auth/me/avatar",
+    formData,
+    {
+      headers: {
+        "Content-Type": undefined,
+      },
+    }
+  );
+
+  return response.data;
+};

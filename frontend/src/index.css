@@ -56,3 +56,8 @@ body {
     background-color 200ms ease,
     color 200ms ease;
 }
+
+
+[data-sileo-toaster] {
+  z-index: 9999 !important;
+}
