@@ -1,9 +1,12 @@
+import { useEffect, useState } from "react";
 import { ArrowLeft, MoreHorizontal, Plus, Search, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import VideoCard from "../components/project/VideoCard";
+import { getProject } from "../services/project.service";
+import type { Project } from "../types/project";
 
-const videos = [
+const fallbackVideos = [
   {
     id: 1,
     title: "NLP Introduction",
@@ -22,30 +25,36 @@ const videos = [
     updated: "May 23, 2024",
     status: "editing" as const,
   },
-  {
-    id: 3,
-    title: "NLP Tokenization Explained",
-    filename: "tokenization.mp4",
-    duration: "09:30",
-    size: "650 MB",
-    updated: "May 20, 2024",
-    status: "processing" as const,
-  },
-  {
-    id: 4,
-    title: "NLP Applications",
-    filename: "nlp-applications.mp4",
-    duration: "14:20",
-    size: "940 MB",
-    updated: "May 18, 2024",
-    status: "draft" as const,
-  },
 ];
 
 export default function ProjectDetail() {
-  const { t } = useTranslation(["project", "navigation", "common"]);
+  const { t, i18n } = useTranslation(["project", "navigation", "common", "workspace"]);
   const navigate = useNavigate();
   const { projectId } = useParams();
+
+  const [project, setProject] = useState<Project | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!projectId) return;
+
+    const loadProject = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await getProject(projectId);
+        setProject(data);
+      } catch (err: any) {
+        console.error("[ProjectDetail] Failed to load project:", err);
+        setError(t("workspace:loadError"));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProject();
+  }, [projectId, t]);
 
   const handleBackToProjects = () => {
     navigate("/workspace");
@@ -54,6 +63,51 @@ export default function ProjectDetail() {
   const handleOpenVideo = (videoId: number) => {
     navigate(`/workspace/project/${projectId}/video/${videoId}`);
   };
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return "";
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString(i18n.language === "vi" ? "vi-VN" : "en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--color-background)] text-[var(--color-text-primary)]">
+        <div className="flex items-center gap-3">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-primary)] border-t-transparent" />
+          <span className="text-sm text-[var(--color-text-muted)]">{t("common:loading")}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !project) {
+    return (
+      <div className="min-h-screen bg-[var(--color-background)] px-8 py-16 text-[var(--color-text-primary)]">
+        <div className="mx-auto max-w-md text-center">
+          <h2 className="text-xl font-bold text-[var(--color-danger)]">
+            {error || t("workspace:loadError")}
+          </h2>
+          <button
+            type="button"
+            onClick={handleBackToProjects}
+            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)]"
+          >
+            <ArrowLeft size={16} />
+            {t("navigation:backToProjects")}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200">
@@ -72,26 +126,43 @@ export default function ProjectDetail() {
         <section className="mb-8 flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
           <div>
             <div className="mb-3 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FFF3D1] text-[#E5A52C]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FFF3D1] text-[#E5A52C] dark:bg-[#2F291B] dark:text-[#F3C158]">
                 <span className="text-2xl">📁</span>
               </div>
 
               <div>
                 <h1 className="text-[28px] font-bold tracking-[-0.6px] text-[var(--color-text-primary)]">
-                  NLP Tutorials
+                  {project.name}
                 </h1>
 
                 <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-                  4 videos · 3.6 GB · Updated May 25, 2024
+                  {t("workspace:videosCount", { count: project.video_count || 0 })} · {t("workspace:columns.updated")} {formatDate(project.updated_at)}
                 </p>
               </div>
             </div>
 
-            <p className="max-w-2xl text-sm leading-6 text-[var(--color-text-secondary)]">
-              A collection of videos about Natural Language Processing,
-              including translated content, subtitles, dubbing, and generated
-              documents.
-            </p>
+            {project.description && (
+              <p className="max-w-2xl text-sm leading-6 text-[var(--color-text-secondary)]">
+                {project.description}
+              </p>
+            )}
+
+            {project.tags && project.tags.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {project.tags.map((tag) => (
+                  <span
+                    key={tag.id}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs font-medium text-[var(--color-text-secondary)]"
+                  >
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: tag.color || "var(--color-primary)" }}
+                    />
+                    <span>{tag.name}</span>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Project Actions */}
@@ -140,7 +211,7 @@ export default function ProjectDetail() {
 
         {/* Video List */}
         <section className="grid gap-5 xl:grid-cols-2">
-          {videos.map((video) => (
+          {fallbackVideos.map((video) => (
             <VideoCard
               key={video.id}
               video={video}

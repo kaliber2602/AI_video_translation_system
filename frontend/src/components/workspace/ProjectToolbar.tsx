@@ -1,12 +1,30 @@
-import { Grid2X2, List, Search, SlidersHorizontal } from "lucide-react";
+import { FolderPlus, Grid2X2, List, Search, SlidersHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { TagResponse } from "../../types/tag";
 
-export default function ProjectToolbar() {
+interface ProjectToolbarProps {
+  search: string;
+  onSearchChange: (value: string) => void;
+  tags?: TagResponse[];
+  selectedTagId?: number | null;
+  onTagSelect?: (tagId: number | null) => void;
+  onNewProject?: () => void;
+}
+
+export default function ProjectToolbar({
+  search,
+  onSearchChange,
+  tags = [],
+  selectedTagId = null,
+  onTagSelect,
+  onNewProject,
+}: ProjectToolbarProps) {
   const { t } = useTranslation(["workspace"]);
 
   return (
-    <section className="mb-5 flex items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-[var(--shadow-card)] transition-colors duration-200">
-      <div className="relative min-w-0 flex-1">
+    <section className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-[var(--shadow-card)] transition-colors duration-200">
+      {/* Search Input */}
+      <div className="relative min-w-[220px] flex-1">
         <Search
           size={18}
           className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
@@ -14,26 +32,45 @@ export default function ProjectToolbar() {
 
         <input
           type="text"
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
           placeholder={t("workspace:searchPlaceholder")}
           className="h-12 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-11 pr-4 text-sm text-[var(--color-text-primary)] outline-none transition placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10"
         />
       </div>
 
-      <button className="hidden h-12 items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 text-sm text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)] md:flex">
-        {t("workspace:filterAllTypes")}
-        <span className="text-[var(--color-text-muted)]">⌄</span>
-      </button>
+      {/* Filter Tag Dropdown */}
+      <div className="hidden lg:block">
+        <select
+          value={selectedTagId ?? ""}
+          onChange={(e) => {
+            const val = e.target.value;
+            onTagSelect?.(val === "" ? null : Number(val));
+          }}
+          className="h-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-sm font-medium text-[var(--color-text-secondary)] outline-none transition hover:border-[var(--color-primary)] focus:border-[var(--color-primary)]"
+        >
+          <option value="">{t("workspace:filterAllTags")}</option>
+          {tags.map((tag) => (
+            <option key={tag.id} value={tag.id}>
+              {tag.name}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      <button className="hidden h-12 items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 text-sm text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)] lg:flex">
-        {t("workspace:filterAllTags")}
-        <span className="text-[var(--color-text-muted)]">⌄</span>
-      </button>
+      {/* New Project Button */}
+      {onNewProject && (
+        <button
+          type="button"
+          onClick={onNewProject}
+          className="flex h-12 items-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)]"
+        >
+          <FolderPlus size={18} />
+          <span>{t("workspace:newProject")}</span>
+        </button>
+      )}
 
-      <button className="hidden h-12 items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 text-sm text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)] xl:flex">
-        {t("workspace:filterDateModified")}
-        <span className="text-[var(--color-text-muted)]">⌄</span>
-      </button>
-
+      {/* Filter Icon */}
       <button
         type="button"
         aria-label="Filter"
@@ -42,6 +79,7 @@ export default function ProjectToolbar() {
         <SlidersHorizontal size={18} />
       </button>
 
+      {/* Grid / List view toggle */}
       <div className="hidden h-12 items-center rounded-xl border border-[var(--color-border)] p-1 sm:flex">
         <button
           type="button"

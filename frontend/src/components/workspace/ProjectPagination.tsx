@@ -1,13 +1,23 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-export default function ProjectPagination() {
+interface ProjectPaginationProps {
+  totalItems?: number;
+}
+
+export default function ProjectPagination({
+  totalItems = 0,
+}: ProjectPaginationProps) {
   const { t } = useTranslation(["common"]);
 
   return (
     <div className="mt-5 flex flex-col gap-4 px-1 text-sm text-[var(--color-text-muted)] sm:flex-row sm:items-center sm:justify-between">
       <span>
-        {t("common:showingItems", { start: 1, end: 7, total: 7 })}
+        {t("common:showingItems", {
+          start: totalItems > 0 ? 1 : 0,
+          end: totalItems,
+          total: totalItems,
+        })}
       </span>
 
       <div className="flex items-center gap-2">
@@ -29,7 +39,8 @@ export default function ProjectPagination() {
 
         <button
           type="button"
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+          disabled
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] opacity-50 transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
           aria-label="Next page"
         >
           <ChevronRight size={16} />
