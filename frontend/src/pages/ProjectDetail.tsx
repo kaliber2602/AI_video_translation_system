@@ -1,4 +1,5 @@
 import { ArrowLeft, MoreHorizontal, Plus, Search, Upload } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import VideoCard from "../components/project/VideoCard";
 
@@ -42,6 +43,7 @@ const videos = [
 ];
 
 export default function ProjectDetail() {
+  const { t } = useTranslation(["project", "navigation", "common"]);
   const navigate = useNavigate();
   const { projectId } = useParams();
 
@@ -63,7 +65,7 @@ export default function ProjectDetail() {
           className="mb-6 flex items-center gap-2 text-sm font-medium text-[var(--color-text-muted)] transition hover:text-[var(--color-primary)]"
         >
           <ArrowLeft size={17} />
-          Back to Projects
+          {t("navigation:backToProjects")}
         </button>
 
         {/* Project Header */}
@@ -99,7 +101,7 @@ export default function ProjectDetail() {
               className="flex h-11 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
             >
               <MoreHorizontal size={18} />
-              More
+              {t("common:more")}
             </button>
 
             <button
@@ -107,7 +109,7 @@ export default function ProjectDetail() {
               className="flex h-11 items-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)]"
             >
               <Upload size={18} />
-              Upload Video
+              {t("project:uploadVideo")}
             </button>
           </div>
         </section>
@@ -122,7 +124,7 @@ export default function ProjectDetail() {
 
             <input
               type="text"
-              placeholder="Search videos in this project..."
+              placeholder={t("project:searchVideosPlaceholder")}
               className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-11 pr-4 text-sm text-[var(--color-text-primary)] outline-none transition placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:bg-[var(--color-surface)] focus:ring-4 focus:ring-[var(--color-primary)]/10"
             />
           </div>
@@ -132,7 +134,7 @@ export default function ProjectDetail() {
             className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] px-5 text-sm text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)]"
           >
             <Plus size={17} />
-            New Folder
+            {t("project:newFolder")}
           </button>
         </section>
 

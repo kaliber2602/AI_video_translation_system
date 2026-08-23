@@ -1,0 +1,48 @@
+{
+  "title": "Dự án của tôi",
+  "subtitle": "Quản lý toàn bộ tri thức video của bạn tại một nơi",
+  "searchPlaceholder": "Tìm kiếm dự án, video hoặc từ khóa...",
+  "filterAllTypes": "Tất cả định dạng",
+  "filterAllTags": "Tất cả thẻ",
+  "filterDateModified": "Ngày chỉnh sửa",
+  "columns": {
+    "name": "Tên dự án",
+    "recentProject": "Video gần đây",
+    "videos": "Số video",
+    "updated": "Cập nhật",
+    "size": "Kích thước",
+    "tags": "Thẻ"
+  },
+  "videosCount": "{{count}} video",
+  "tags": {
+    "title": "Thẻ phân loại",
+    "empty": "Chưa có thẻ nào.",
+    "loadError": "Không thể tải danh sách thẻ.",
+    "addTag": "Thêm thẻ",
+    "createTitle": "Tạo thẻ mới",
+    "createSubtitle": "Tạo thẻ mới để phân loại dự án của bạn.",
+    "editTitle": "Chỉnh sửa thẻ",
+    "editSubtitle": "Cập nhật thông tin thẻ phân loại.",
+    "tagName": "Tên thẻ",
+    "tagNamePlaceholder": "VD: Trí tuệ nhân tạo",
+    "color": "Màu sắc",
+    "deleteTitle": "Xóa thẻ",
+    "deleteConfirm": "Bạn có chắc chắn muốn xóa thẻ \"{{name}}\"?",
+    "deleteCreated": "Thẻ \"{{name}}\" đã được tạo thành công.",
+    "deleteUpdated": "Thẻ \"{{name}}\" đã được cập nhật thành công.",
+    "deleteDeleted": "Thẻ \"{{name}}\" đã được xóa thành công.",
+    "tagCreated": "Đã tạo thẻ",
+    "tagUpdated": "Đã cập nhật thẻ",
+    "tagDeleted": "Đã xóa thẻ",
+    "invalidTag": "Thẻ không hợp lệ",
+    "tagEmptyError": "Tên thẻ không được để trống.",
+    "saveError": "Không thể lưu thẻ",
+    "deleteError": "Không thể xóa thẻ",
+    "tryAgain": "Vui lòng thử lại."
+  },
+  "upgrade": {
+    "title": "Cần thêm dung lượng lưu trữ?",
+    "description": "Nâng cấp gói tài khoản để không giới hạn dự án và xử lý AI.",
+    "button": "Nâng cấp ngay"
+  }
+}

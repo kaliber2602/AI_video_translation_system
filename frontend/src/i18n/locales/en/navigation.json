@@ -1,0 +1,21 @@
+{
+  "allProjects": "All Projects",
+  "sharedWithMe": "Shared With Me",
+  "favorites": "Favorites",
+  "trash": "Trash",
+  "myWorkspace": "My Workspace",
+  "settings": "Settings",
+  "profile": "Profile",
+  "logout": "Log out",
+  "loggingOut": "Logging out...",
+  "newProject": "New Project",
+  "home": "Home",
+  "features": "Features",
+  "solutions": "Solutions",
+  "pricing": "Pricing",
+  "resources": "Resources",
+  "about": "About Us",
+  "login": "Sign In",
+  "register": "Get Started",
+  "backToProjects": "Back to Projects"
+}

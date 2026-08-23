@@ -1,0 +1,79 @@
+{
+  "header": {
+    "stepBadge": "Step {{current}} of {{total}}",
+    "inProgress": "In Progress",
+    "savedJustNow": "Saved just now",
+    "unsavedChanges": "Unsaved changes",
+    "overallProgress": "Overall Progress",
+    "autoSaveNotice": "Your progress is automatically saved while you work."
+  },
+  "steps": {
+    "upload": {
+      "title": "Upload",
+      "description": "Original video",
+      "pageTitle": "Upload Video",
+      "pageDescription": "Upload your video and choose the language you want to translate it into. The original language will be detected automatically.",
+      "dropzoneTitle": "Drop your video here",
+      "dropzoneDescription": "Upload MP4, MOV, MKV, AVI or other supported video formats.",
+      "browseFiles": "Browse Files",
+      "uploadedTag": "Uploaded",
+      "translationLanguage": "Translation Language",
+      "autoDetectionNote": "The original language will be detected automatically.",
+      "translateTo": "Translate To",
+      "translateToHint": "Select the language you want the video content to be translated into.",
+      "autoDetectEnabled": "Automatic language detection enabled",
+      "autoDetectDescription": "The system will automatically identify the spoken language in your video.",
+      "continueButton": "Continue to Processing"
+    },
+    "transcript": {
+      "title": "Transcript",
+      "description": "Speech to text"
+    },
+    "translation": {
+      "title": "Translation",
+      "description": "Review translated text"
+    },
+    "subtitle": {
+      "title": "Subtitle",
+      "description": "Create subtitles",
+      "pageTitle": "Create Subtitles",
+      "pageDescription": "Customize subtitle format and preview the translated subtitles before exporting.",
+      "previewTitle": "Subtitle Preview",
+      "previewSubtitle": "Translated subtitles",
+      "downloadSrt": "Download SRT",
+      "format": "Format",
+      "fontSize": "Font Size",
+      "position": "Position",
+      "settingsSaved": "Subtitle settings saved"
+    },
+    "dubbing": {
+      "title": "Dubbing",
+      "description": "Generate voice"
+    },
+    "reviewExport": {
+      "title": "Review & Export",
+      "description": "Review and generate outputs",
+      "pageTitle": "Review & Export",
+      "pageDescription": "Review your processed video, adjust the timeline, and select the files you want to export.",
+      "backToEditing": "Back to Editing",
+      "exportSelected": "Export Selected Files",
+      "exportOptionsTitle": "Export Options",
+      "exportOptionsSubtitle": "Select the outputs you need.",
+      "finalVideo": "Final Video",
+      "finalVideoDesc": "Processed video with translation",
+      "subtitleFile": "Subtitle File",
+      "subtitleFileDesc": "SRT or VTT subtitle file",
+      "audioFile": "Audio File",
+      "audioFileDesc": "Generated dubbed audio",
+      "transcriptDoc": "Transcript",
+      "transcriptDocDesc": "Original transcript text",
+      "translationDoc": "Translation",
+      "translationDocDesc": "Translated text document",
+      "videoFormat": "Video Format",
+      "quality": "Quality",
+      "timelineTitle": "Timeline Editor",
+      "timelineSubtitle": "Review and adjust your processed content.",
+      "timelineSettings": "Timeline Settings"
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import { useRef, type ChangeEvent } from "react";
 import { Pencil } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { UserResponse } from "../../types/auth";
 import { getAvatarSrc, getInitials } from "./helpers";
 import SettingCard from "./SettingCard";
@@ -21,6 +22,7 @@ export default function ProfileCard({
   onToggleProfileEditing,
   onInputChange,
 }: ProfileCardProps) {
+  const { t } = useTranslation(["settings", "common"]);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const handleOpenAvatarPicker = () => {
@@ -34,8 +36,8 @@ export default function ProfileCard({
 
   return (
     <SettingCard
-      title="Profile"
-      description="Manage your personal information"
+      title={t("settings:profile.title")}
+      description={t("settings:profile.description")}
     >
       <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
         {/* AVATAR */}
@@ -65,7 +67,7 @@ export default function ProfileCard({
             onClick={handleOpenAvatarPicker}
             disabled={isUploadingAvatar}
             className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--color-surface)] bg-[var(--color-primary)] text-white shadow-sm transition hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
-            aria-label="Change avatar"
+            aria-label={t("settings:profile.changeAvatar")}
           >
             <Pencil size={13} />
           </button>
@@ -86,7 +88,7 @@ export default function ProfileCard({
           {/* NAME */}
           <div>
             <label className="mb-1.5 block text-xs font-medium text-[var(--color-text-secondary)]">
-              Name
+              {t("settings:profile.name")}
             </label>
             <input
               value={user?.full_name ?? ""}
@@ -99,7 +101,7 @@ export default function ProfileCard({
           {/* EMAIL */}
           <div>
             <label className="mb-1.5 block text-xs font-medium text-[var(--color-text-secondary)]">
-              Email
+              {t("settings:profile.email")}
             </label>
             <input
               value={user?.email ?? ""}
@@ -112,7 +114,7 @@ export default function ProfileCard({
           {/* ROLE */}
           <div>
             <label className="mb-1.5 block text-xs font-medium text-[var(--color-text-secondary)]">
-              Role
+              {t("settings:profile.role")}
             </label>
             <input
               value={user?.role ?? ""}
@@ -128,7 +130,9 @@ export default function ProfileCard({
             onClick={onToggleProfileEditing}
             className="h-10 w-full rounded-lg border border-[var(--color-primary)] text-sm font-semibold text-[var(--color-primary)] transition hover:bg-[var(--color-primary-soft)]"
           >
-            {profileEditing ? "Done Editing" : "Edit Profile"}
+            {profileEditing
+              ? t("settings:profile.doneEditing")
+              : t("settings:profile.editProfile")}
           </button>
         </div>
       </div>

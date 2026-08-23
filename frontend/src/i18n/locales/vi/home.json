@@ -1,0 +1,58 @@
+{
+  "badge": "AI Video Translator & Knowledge Suite",
+  "heroTitlePrefix": "Biến mọi video thành",
+  "heroTitleHighlight": "tri thức",
+  "heroTitleSuffix": "giá trị",
+  "heroSubtitle": "Dịch video, lồng tiếng, tạo phụ đề và trích xuất kiến thức thông minh. Tất cả trong một nền tảng AI mạnh mẽ.",
+  "startFree": "Bắt đầu miễn phí",
+  "viewDemo": "Xem demo",
+  "trustedBy": "Được tin dùng bởi 10,000+ người dùng và đội nhóm",
+  "stats": {
+    "users": "Người dùng tin tưởng",
+    "videos": "Video đã xử lý",
+    "languages": "Ngôn ngữ hỗ trợ",
+    "accuracy": "Độ chính xác trung bình"
+  },
+  "features": {
+    "translation": {
+      "title": "Dịch & Lồng tiếng AI",
+      "description": "Dịch hơn 100+ ngôn ngữ và lồng tiếng tự nhiên như người thật."
+    },
+    "subtitles": {
+      "title": "Phụ đề thông minh",
+      "description": "Tự động tạo phụ đề chính xác, chuẩn thời gian."
+    },
+    "documents": {
+      "title": "Trích xuất tài liệu",
+      "description": "Xuất TXT, DOCX, PDF, SRT, Markdown chỉ với 1 click."
+    },
+    "timeline": {
+      "title": "Timeline & Chủ đề",
+      "description": "AI phân tích và chia video thành các phần theo chủ đề."
+    },
+    "summary": {
+      "title": "Tóm tắt & Insight",
+      "description": "Tóm tắt nội dung, tạo mindmap, quiz và flashcard."
+    }
+  },
+  "cta": {
+    "titlePrefix": "Sẵn sàng biến video thành",
+    "titleHighlight": "tri thức?",
+    "titleSuffix": "",
+    "subtitle": "Tham gia ngay để trải nghiệm sức mạnh của AI trong dịch thuật, lồng tiếng và khai thác tri thức từ video.",
+    "freeTrial": "Miễn phí 7 ngày",
+    "noCreditCard": "Không cần thẻ tín dụng",
+    "cancelAnytime": "Hủy bất cứ lúc nào"
+  },
+  "preview": {
+    "videoTitle": "Giới thiệu về Trí tuệ nhân tạo",
+    "share": "Chia sẻ",
+    "pipelineTitle": "Quy trình xử lý",
+    "stepUploaded": "Đã tải lên",
+    "stepSpeechToText": "Chuyển giọng nói",
+    "stepTranslate": "Dịch thuật",
+    "stepDubbing": "Lồng tiếng",
+    "stepExtract": "Trích xuất kiến thức",
+    "stepCompleted": "Hoàn tất"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "uploadVideo": "Upload Video",
+  "newFolder": "New Folder",
+  "searchVideosPlaceholder": "Search videos in this project...",
+  "viewDocuments": "View generated documents",
+  "status": {
+    "completed": "Completed",
+    "editing": "Needs Review",
+    "processing": "Processing",
+    "draft": "Draft"
+  },
+  "action": {
+    "reviewVideo": "Review Video",
+    "continueEditing": "Continue Editing",
+    "viewProgress": "View Progress",
+    "openPipeline": "Open Pipeline"
+  }
+}

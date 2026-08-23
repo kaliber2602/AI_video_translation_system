@@ -1,10 +1,13 @@
+import { useTranslation } from "react-i18next";
 import SettingCard from "./SettingCard";
 
 export default function StorageUsageCard() {
+  const { t } = useTranslation(["settings"]);
+
   return (
     <SettingCard
-      title="Storage & Usage"
-      description="Monitor your storage and usage"
+      title={t("settings:storage.title")}
+      description={t("settings:storage.description")}
     >
       <div className="flex items-center justify-between">
         <span className="text-sm font-bold text-[var(--color-text-primary)]">
@@ -25,21 +28,21 @@ export default function StorageUsageCard() {
           <b className="text-[var(--color-primary)]">
             ●
           </b>{" "}
-          Videos 52.1 GB
+          {t("settings:storage.videos")} 52.1 GB
         </span>
 
         <span>
           <b className="text-[var(--color-secondary)]">
             ●
           </b>{" "}
-          Documents 12.3 GB
+          {t("settings:storage.documents")} 12.3 GB
         </span>
 
         <span>
           <b className="text-[#9570D9]">
             ●
           </b>{" "}
-          Cache 8.0 GB
+          {t("settings:storage.cache")} 8.0 GB
         </span>
       </div>
 
@@ -47,7 +50,7 @@ export default function StorageUsageCard() {
         type="button"
         className="mt-5 h-10 w-full rounded-lg border border-[var(--color-primary)] text-sm font-semibold text-[var(--color-primary)] transition hover:bg-[var(--color-primary-soft)]"
       >
-        Manage Storage
+        {t("settings:storage.manageStorage")}
       </button>
     </SettingCard>
   );

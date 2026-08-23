@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import SettingCard from "./SettingCard";
 import ToggleRow from "./ToggleRow";
 
@@ -22,36 +23,38 @@ export default function WorkspacePreferencesCard({
   onAiSuggestionsChange,
   onCompactViewChange,
 }: WorkspacePreferencesCardProps) {
+  const { t } = useTranslation(["settings"]);
+
   return (
     <SettingCard
-      title="Workspace Preferences"
-      description="Customize your workspace experience"
+      title={t("settings:preferences.title")}
+      description={t("settings:preferences.description")}
     >
-      <div className="divide-y divide-[#EEF2F1]">
+      <div className="divide-y divide-[var(--color-border)]">
         <ToggleRow
-          title="Auto Save"
-          description="Automatically save your work"
+          title={t("settings:preferences.autoSave")}
+          description={t("settings:preferences.autoSaveDesc")}
           checked={autoSave}
           onChange={onAutoSaveChange}
         />
 
         <ToggleRow
-          title="Show Transcripts by Default"
-          description="Display transcripts in video workspace"
+          title={t("settings:preferences.showTranscripts")}
+          description={t("settings:preferences.showTranscriptsDesc")}
           checked={showTranscripts}
           onChange={onShowTranscriptsChange}
         />
 
         <ToggleRow
-          title="Enable AI Suggestions"
-          description="Get smart recommendations"
+          title={t("settings:preferences.aiSuggestions")}
+          description={t("settings:preferences.aiSuggestionsDesc")}
           checked={aiSuggestions}
           onChange={onAiSuggestionsChange}
         />
 
         <ToggleRow
-          title="Compact View"
-          description="Use compact layout in lists"
+          title={t("settings:preferences.compactView")}
+          description={t("settings:preferences.compactViewDesc")}
           checked={compactView}
           onChange={onCompactViewChange}
         />

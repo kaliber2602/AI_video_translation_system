@@ -1,0 +1,58 @@
+{
+  "badge": "AI Video Translator & Knowledge Suite",
+  "heroTitlePrefix": "Transform every video into",
+  "heroTitleHighlight": "valuable knowledge",
+  "heroTitleSuffix": "",
+  "heroSubtitle": "Translate videos, dub voices, generate subtitles and extract smart knowledge. All in one powerful AI platform.",
+  "startFree": "Get Started Free",
+  "viewDemo": "Watch Demo",
+  "trustedBy": "Trusted by 10,000+ creators and teams",
+  "stats": {
+    "users": "Trusted users",
+    "videos": "Videos processed",
+    "languages": "Supported languages",
+    "accuracy": "Average accuracy"
+  },
+  "features": {
+    "translation": {
+      "title": "AI Translation & Dubbing",
+      "description": "Translate into 100+ languages with natural human-like voice synthesis."
+    },
+    "subtitles": {
+      "title": "Smart Subtitles",
+      "description": "Automatically generate accurate, time-synchronized subtitles."
+    },
+    "documents": {
+      "title": "Document Extraction",
+      "description": "Export TXT, DOCX, PDF, SRT, and Markdown with a single click."
+    },
+    "timeline": {
+      "title": "Timeline & Chapters",
+      "description": "AI segments video into topical chapters automatically."
+    },
+    "summary": {
+      "title": "Summary & Insights",
+      "description": "Generate summaries, mindmaps, quizzes, and flashcards."
+    }
+  },
+  "cta": {
+    "titlePrefix": "Ready to transform video into",
+    "titleHighlight": "knowledge?",
+    "titleSuffix": "",
+    "subtitle": "Join now to experience the power of AI in video translation, voice dubbing, and knowledge extraction.",
+    "freeTrial": "7-day free trial",
+    "noCreditCard": "No credit card required",
+    "cancelAnytime": "Cancel anytime"
+  },
+  "preview": {
+    "videoTitle": "Introduction to Artificial Intelligence",
+    "share": "Share",
+    "pipelineTitle": "Processing Flow",
+    "stepUploaded": "Uploaded",
+    "stepSpeechToText": "Speech to Text",
+    "stepTranslate": "Translation",
+    "stepDubbing": "Voice Dubbing",
+    "stepExtract": "Knowledge Extraction",
+    "stepCompleted": "Completed"
+  }
+}

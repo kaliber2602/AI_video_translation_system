@@ -1,0 +1,88 @@
+{
+  "headerTitle": "Settings",
+  "headerSubtitle": "Manage your account and preferences",
+  "accountSettingsTitle": "Account Settings",
+  "accountSettingsSubtitle": "Manage your personal information and preferences.",
+  "sidebar": {
+    "account": "Account",
+    "general": "General",
+    "workspace": "Workspace",
+    "ai": "AI & Processing",
+    "translation": "Translation & Voice",
+    "billing": "Billing & Subscription",
+    "notifications": "Notifications",
+    "integrations": "Integrations",
+    "security": "Security",
+    "privacy": "Data & Privacy"
+  },
+  "profile": {
+    "title": "Profile",
+    "description": "Manage your personal information",
+    "name": "Name",
+    "email": "Email",
+    "role": "Role",
+    "editProfile": "Edit Profile",
+    "doneEditing": "Done Editing",
+    "changeAvatar": "Change avatar",
+    "avatarUpdated": "Avatar updated",
+    "avatarUpdatedSuccess": "Your profile picture has been updated successfully.",
+    "updateFailed": "Update failed",
+    "unableToUpdateAvatar": "Unable to update your avatar."
+  },
+  "languageTheme": {
+    "title": "Language & Theme",
+    "description": "Set your language and regional preferences",
+    "paletteLabel": "Color Theme Palette",
+    "themeModeLabel": "Theme Mode Select",
+    "languageLabel": "Language",
+    "dateFormatLabel": "Date Format",
+    "saveChanges": "Save Changes"
+  },
+  "preferences": {
+    "title": "Workspace Preferences",
+    "description": "Customize your workspace experience",
+    "autoSave": "Auto Save",
+    "autoSaveDesc": "Save changes automatically",
+    "showTranscripts": "Show Transcripts",
+    "showTranscriptsDesc": "Display transcript pane by default",
+    "aiSuggestions": "AI Suggestions",
+    "aiSuggestionsDesc": "Show smart recommendations",
+    "compactView": "Compact View",
+    "compactViewDesc": "Use denser layout for project lists"
+  },
+  "ai": {
+    "title": "AI & Processing Settings",
+    "description": "Configure AI features and processing options",
+    "defaultModel": "Default AI Model",
+    "processingPriority": "Processing Priority",
+    "autoTranslation": "Auto Translation",
+    "autoTranslationDesc": "Automatically translate new videos",
+    "autoSummary": "Auto Summary",
+    "autoSummaryDesc": "Generate summary for new videos"
+  },
+  "storage": {
+    "title": "Storage & Usage",
+    "description": "Monitor your storage and usage",
+    "videos": "Videos",
+    "documents": "Documents",
+    "cache": "Cache",
+    "manageStorage": "Manage Storage"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "description": "Choose how you receive updates",
+    "emailNotifications": "Email Notifications",
+    "emailNotificationsDesc": "Get important alerts via email",
+    "processingUpdates": "Processing Updates",
+    "processingUpdatesDesc": "Notify when video processing finishes",
+    "tipsNews": "Tips & News",
+    "tipsNewsDesc": "Receive product updates and tips"
+  },
+  "placeholder": {
+    "description": "This settings section is ready for configuration. The detailed controls can be connected to the backend later."
+  },
+  "toast": {
+    "settingsSaved": "Settings saved",
+    "settingsSavedDesc": "Your preferences have been updated."
+  }
+}

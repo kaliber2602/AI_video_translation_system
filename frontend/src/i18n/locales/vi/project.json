@@ -1,0 +1,18 @@
+{
+  "uploadVideo": "Tải lên video",
+  "newFolder": "Thư mục mới",
+  "searchVideosPlaceholder": "Tìm kiếm video trong dự án này...",
+  "viewDocuments": "Xem tài liệu đã trích xuất",
+  "status": {
+    "completed": "Hoàn tất",
+    "editing": "Cần duyệt",
+    "processing": "Đang xử lý",
+    "draft": "Bản nháp"
+  },
+  "action": {
+    "reviewVideo": "Xem lại video",
+    "continueEditing": "Tiếp tục chỉnh sửa",
+    "viewProgress": "Xem tiến độ",
+    "openPipeline": "Mở quy trình"
+  }
+}

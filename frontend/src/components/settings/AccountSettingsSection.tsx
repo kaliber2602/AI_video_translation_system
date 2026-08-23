@@ -1,5 +1,6 @@
 import { Check, Save } from "lucide-react";
 import type { ChangeEvent } from "react";
+import { useTranslation } from "react-i18next";
 import type { Theme } from "../../config/theme";
 import type { UserResponse } from "../../types/auth";
 import AISettingsCard from "./AISettingsCard";
@@ -70,16 +71,18 @@ export default function AccountSettingsSection({
   onProcessingUpdatesChange,
   onTipsNewsChange,
 }: AccountSettingsSectionProps) {
+  const { t } = useTranslation(["settings", "common"]);
+
   return (
     <>
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">
-            Account Settings
+            {t("settings:accountSettingsTitle")}
           </h2>
 
           <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-            Manage your personal information and preferences.
+            {t("settings:accountSettingsSubtitle")}
           </p>
         </div>
 
@@ -99,8 +102,8 @@ export default function AccountSettingsSection({
           )}
 
           {isSaved
-            ? "Saved"
-            : "Save Changes"}
+            ? t("common:saved")
+            : t("common:saveChanges")}
         </button>
       </div>
 

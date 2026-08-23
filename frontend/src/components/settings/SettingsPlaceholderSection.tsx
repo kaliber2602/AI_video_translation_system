@@ -1,28 +1,19 @@
 import { SlidersHorizontal } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { SettingsSection } from "../../types/settings";
 
 export interface SettingsPlaceholderSectionProps {
   activeSection: SettingsSection;
 }
 
-const SECTION_TITLES: Record<Exclude<SettingsSection, "account">, string> = {
-  ai: "AI & Processing",
-  general: "General Settings",
-  workspace: "Workspace Preferences",
-  translation: "Translation & Voice",
-  billing: "Billing & Subscription",
-  notifications: "Notifications",
-  integrations: "Integrations",
-  security: "Security",
-  privacy: "Data & Privacy",
-};
-
 export default function SettingsPlaceholderSection({
   activeSection,
 }: SettingsPlaceholderSectionProps) {
+  const { t } = useTranslation(["settings"]);
+
   const title =
     activeSection !== "account"
-      ? SECTION_TITLES[activeSection]
+      ? t(`settings:sidebar.${activeSection}` as any)
       : "";
 
   return (
@@ -37,8 +28,7 @@ export default function SettingsPlaceholderSection({
         </h2>
 
         <p className="mt-2 max-w-md text-sm leading-6 text-[var(--color-text-muted)]">
-          This settings section is ready for configuration. The detailed controls
-          can be connected to the backend later.
+          {t("settings:placeholder.description")}
         </p>
       </div>
     </section>

@@ -1,0 +1,79 @@
+{
+  "header": {
+    "stepBadge": "Bước {{current}} / {{total}}",
+    "inProgress": "Đang xử lý",
+    "savedJustNow": "Đã lưu vừa xong",
+    "unsavedChanges": "Chưa lưu thay đổi",
+    "overallProgress": "Tiến độ tổng quan",
+    "autoSaveNotice": "Tiến độ của bạn được tự động lưu trong quá trình làm việc."
+  },
+  "steps": {
+    "upload": {
+      "title": "Tải lên",
+      "description": "Video gốc",
+      "pageTitle": "Tải lên Video",
+      "pageDescription": "Tải video của bạn lên và chọn ngôn ngữ bạn muốn dịch sang. Ngôn ngữ gốc sẽ được tự động nhận diện.",
+      "dropzoneTitle": "Kéo thả video vào đây",
+      "dropzoneDescription": "Hỗ trợ định dạng MP4, MOV, MKV, AVI hoặc các định dạng phổ biến khác.",
+      "browseFiles": "Chọn tệp từ máy tính",
+      "uploadedTag": "Đã tải lên",
+      "translationLanguage": "Ngôn ngữ dịch",
+      "autoDetectionNote": "Ngôn ngữ gốc sẽ được tự động phát hiện.",
+      "translateTo": "Dịch sang",
+      "translateToHint": "Chọn ngôn ngữ bạn muốn dịch nội dung video sang.",
+      "autoDetectEnabled": "Đã bật tự động nhận diện ngôn ngữ",
+      "autoDetectDescription": "Hệ thống sẽ tự động phân tích và nhận diện giọng nói trong video của bạn.",
+      "continueButton": "Tiếp tục xử lý"
+    },
+    "transcript": {
+      "title": "Bản ghi âm",
+      "description": "Chuyển giọng nói thành văn bản"
+    },
+    "translation": {
+      "title": "Dịch thuật",
+      "description": "Xem lại bản dịch"
+    },
+    "subtitle": {
+      "title": "Phụ đề",
+      "description": "Tạo phụ đề",
+      "pageTitle": "Tạo Phụ đề",
+      "pageDescription": "Tùy chỉnh định dạng phụ đề và xem trước phụ đề dịch trước khi xuất.",
+      "previewTitle": "Xem trước Phụ đề",
+      "previewSubtitle": "Phụ đề đã dịch",
+      "downloadSrt": "Tải xuống tệp SRT",
+      "format": "Định dạng",
+      "fontSize": "Kích cỡ chữ",
+      "position": "Vị trí",
+      "settingsSaved": "Đã lưu cài đặt phụ đề"
+    },
+    "dubbing": {
+      "title": "Lồng tiếng",
+      "description": "Tạo giọng nói AI"
+    },
+    "reviewExport": {
+      "title": "Duyệt & Xuất tệp",
+      "description": "Xem lại và xuất kết quả",
+      "pageTitle": "Xem lại & Xuất tệp",
+      "pageDescription": "Xem lại video đã xử lý, điều chỉnh timeline và chọn các tệp bạn muốn xuất.",
+      "backToEditing": "Quay lại chỉnh sửa",
+      "exportSelected": "Xuất các tệp đã chọn",
+      "exportOptionsTitle": "Tùy chọn Xuất tệp",
+      "exportOptionsSubtitle": "Chọn các định dạng đầu ra bạn cần.",
+      "finalVideo": "Video hoàn chỉnh",
+      "finalVideoDesc": "Video đã xử lý kèm dịch thuật và lồng tiếng",
+      "subtitleFile": "Tệp phụ đề",
+      "subtitleFileDesc": "Tệp phụ đề định dạng SRT hoặc VTT",
+      "audioFile": "Tệp âm thanh",
+      "audioFileDesc": "Tệp âm thanh lồng tiếng AI đã tạo",
+      "transcriptDoc": "Bản ghi lời thoại",
+      "transcriptDocDesc": "Tài liệu văn bản ghi âm gốc",
+      "translationDoc": "Tài liệu dịch",
+      "translationDocDesc": "Tài liệu văn bản đã được dịch",
+      "videoFormat": "Định dạng Video",
+      "quality": "Chất lượng",
+      "timelineTitle": "Trình chỉnh sửa Timeline",
+      "timelineSubtitle": "Xem lại và điều chỉnh các đoạn nội dung đã xử lý.",
+      "timelineSettings": "Cài đặt Timeline"
+    }
+  }
+}

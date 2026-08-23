@@ -5,45 +5,43 @@ import {
   ListVideo,
   Sparkles,
 } from "lucide-react";
-
-const features = [
-  {
-    icon: Languages,
-    title: "Dịch & Lồng tiếng AI",
-    description:
-      "Dịch hơn 100+ ngôn ngữ và lồng tiếng tự nhiên như người thật.",
-  },
-  {
-    icon: Captions,
-    title: "Phụ đề thông minh",
-    description:
-      "Tự động tạo phụ đề chính xác, chuẩn thời gian.",
-  },
-  {
-    icon: FileText,
-    title: "Trích xuất tài liệu",
-    description:
-      "Xuất TXT, DOCX, PDF, SRT, Markdown chỉ với 1 click.",
-  },
-  {
-    icon: ListVideo,
-    title: "Timeline & Chủ đề",
-    description:
-      "AI phân tích và chia video thành các phần theo chủ đề.",
-  },
-  {
-    icon: Sparkles,
-    title: "Tóm tắt & Insight",
-    description:
-      "Tóm tắt nội dung, tạo mindmap, quiz và flashcard.",
-  },
-];
+import { useTranslation } from "react-i18next";
 
 export default function HomeFeatures() {
+  const { t } = useTranslation(["home"]);
+
+  const features = [
+    {
+      icon: Languages,
+      title: t("home:features.translation.title"),
+      description: t("home:features.translation.description"),
+    },
+    {
+      icon: Captions,
+      title: t("home:features.subtitles.title"),
+      description: t("home:features.subtitles.description"),
+    },
+    {
+      icon: FileText,
+      title: t("home:features.documents.title"),
+      description: t("home:features.documents.description"),
+    },
+    {
+      icon: ListVideo,
+      title: t("home:features.timeline.title"),
+      description: t("home:features.timeline.description"),
+    },
+    {
+      icon: Sparkles,
+      title: t("home:features.summary.title"),
+      description: t("home:features.summary.description"),
+    },
+  ];
+
   return (
     <section
       id="features"
-      className="bg-white px-5 py-8 lg:px-8"
+      className="bg-[var(--color-background)] px-5 py-8 transition-colors duration-200 lg:px-8"
     >
       <div className="mx-auto grid max-w-[1400px] gap-4 md:grid-cols-2 lg:grid-cols-5">
         {features.map((feature) => {
@@ -52,17 +50,17 @@ export default function HomeFeatures() {
           return (
             <article
               key={feature.title}
-              className="group rounded-2xl border border-[#E7EFED] bg-white p-6 text-center transition duration-300 hover:-translate-y-1 hover:border-[#CDEDE6] hover:shadow-[0_15px_40px_rgba(30,80,75,0.08)]"
+              className="group rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center shadow-[var(--shadow-card)] transition duration-300 hover:-translate-y-1 hover:border-[var(--color-primary)]"
             >
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#E5F9F4] text-[#18BFA7] transition group-hover:scale-105">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary)] transition group-hover:scale-105">
                 <Icon size={22} />
               </div>
 
-              <h3 className="mt-5 text-sm font-bold text-[#263641]">
+              <h3 className="mt-5 text-sm font-bold text-[var(--color-text-primary)]">
                 {feature.title}
               </h3>
 
-              <p className="mt-3 text-xs leading-5 text-[#829196]">
+              <p className="mt-3 text-xs leading-5 text-[var(--color-text-muted)]">
                 {feature.description}
               </p>
             </article>

@@ -11,14 +11,15 @@ import {
   Settings2,
   Volume2,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const timelineTracks = [
   {
     id: "video",
     label: "Video",
     icon: Film,
-    color: "bg-[#DDF5F0]",
-    iconColor: "text-[#18BFA7]",
+    color: "bg-[var(--color-primary-soft)]",
+    iconColor: "text-[var(--color-primary)]",
     blocks: [
       {
         label: "Original Video",
@@ -31,7 +32,7 @@ const timelineTracks = [
     id: "subtitle",
     label: "Subtitle",
     icon: FileText,
-    color: "bg-[#E9F0FF]",
+    color: "bg-[#E9F0FF] dark:bg-[#1E293B]",
     iconColor: "text-[#6688D8]",
     blocks: [
       {
@@ -55,7 +56,7 @@ const timelineTracks = [
     id: "audio",
     label: "Audio",
     icon: Volume2,
-    color: "bg-[#FFF1DE]",
+    color: "bg-[#FFF1DE] dark:bg-[#2A2016]",
     iconColor: "text-[#D99A45]",
     blocks: [
       {
@@ -69,7 +70,7 @@ const timelineTracks = [
     id: "translation",
     label: "Translation",
     icon: FileText,
-    color: "bg-[#F1E8FF]",
+    color: "bg-[#F1E8FF] dark:bg-[#261E35]",
     iconColor: "text-[#9A6DD7]",
     blocks: [
       {
@@ -92,34 +93,38 @@ const timelineTracks = [
 ];
 
 export default function ReviewExportStep() {
+  const { t } = useTranslation(["pipeline", "common"]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
         <div>
-          <p className="text-sm font-semibold text-[#18BFA7]">
-            Step 06 of 06
+          <p className="text-sm font-semibold text-[var(--color-primary)]">
+            {t("pipeline:header.stepBadge", { current: "06", total: "06" })}
           </p>
 
-          <h2 className="mt-2 text-3xl font-bold tracking-[-0.8px] text-[#152238]">
-            Review & Export
+          <h2 className="mt-2 text-3xl font-bold tracking-[-0.8px] text-[var(--color-text-primary)]">
+            {t("pipeline:steps.reviewExport.pageTitle")}
           </h2>
 
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#718387]">
-            Review your processed video, adjust the timeline, and select the
-            files you want to export.
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-text-muted)]">
+            {t("pipeline:steps.reviewExport.pageDescription")}
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-xl border border-[#DCEAE7] bg-white px-4 py-2.5 text-xs font-medium text-[#7E9092]">
-            <Check size={15} className="text-[#18BFA7]" />
-            Saved just now
+          <div className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-xs font-medium text-[var(--color-text-muted)]">
+            <Check size={15} className="text-[var(--color-primary)]" />
+            {t("pipeline:header.savedJustNow")}
           </div>
 
-          <button className="flex items-center gap-2 rounded-xl border border-[#DCEAE7] bg-white px-4 py-2.5 text-sm font-semibold text-[#53666B] transition hover:border-[#18C3AA] hover:text-[#18BFA7]">
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+          >
             <Save size={16} />
-            Save
+            {t("common:save")}
           </button>
         </div>
       </div>
@@ -127,17 +132,21 @@ export default function ReviewExportStep() {
       {/* Main Preview + Export Options */}
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_330px]">
         {/* Video Preview */}
-        <div className="overflow-hidden rounded-2xl border border-[#E3ECEA] bg-[#17252B] shadow-[0_10px_35px_rgba(30,70,80,0.06)]">
+        <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[#17252B] shadow-[var(--shadow-card)]">
           <div className="relative flex aspect-video items-center justify-center bg-[#1D2D33]">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(45,90,95,0.4),transparent_65%)]" />
 
-            <button className="relative flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#18BFA7] shadow-[0_10px_35px_rgba(0,0,0,0.2)] transition hover:scale-105">
+            <button
+              type="button"
+              aria-label="Play video preview"
+              className="relative flex h-16 w-16 items-center justify-center rounded-full bg-white text-[var(--color-primary)] shadow-[0_10px_35px_rgba(0,0,0,0.2)] transition hover:scale-105"
+            >
               <Play size={26} fill="currentColor" />
             </button>
 
             <div className="absolute bottom-5 left-5 right-5">
               <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-white/20">
-                <div className="h-full w-[32%] rounded-full bg-[#18C3AA]" />
+                <div className="h-full w-[32%] rounded-full bg-[var(--color-primary)]" />
               </div>
 
               <div className="flex items-center justify-between text-xs text-white/80">
@@ -149,7 +158,11 @@ export default function ReviewExportStep() {
 
           <div className="flex items-center justify-between border-t border-white/10 px-5 py-4 text-white">
             <div className="flex items-center gap-4">
-              <button className="transition hover:text-[#5DE0C9]">
+              <button
+                type="button"
+                aria-label="Play"
+                className="transition hover:text-[var(--color-primary)]"
+              >
                 <Play size={18} fill="currentColor" />
               </button>
 
@@ -173,15 +186,21 @@ export default function ReviewExportStep() {
       <TimelineEditor />
 
       {/* Bottom Actions */}
-      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-[#E3ECEA] bg-white p-5 sm:flex-row sm:items-center">
-        <button className="flex items-center justify-center gap-2 rounded-xl border border-[#DCEAE7] px-5 py-3 text-sm font-semibold text-[#53666B] transition hover:border-[#18C3AA] hover:text-[#18BFA7]">
+      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 sm:flex-row sm:items-center">
+        <button
+          type="button"
+          className="flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] px-5 py-3 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+        >
           <ChevronLeft size={17} />
-          Back to Editing
+          {t("pipeline:steps.reviewExport.backToEditing")}
         </button>
 
-        <button className="flex items-center justify-center gap-2 rounded-xl bg-[#18C3AA] px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(24,195,170,0.2)] transition hover:bg-[#12B49D]">
+        <button
+          type="button"
+          className="flex items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(24,195,170,0.2)] transition hover:bg-[var(--color-primary-hover)]"
+        >
           <Download size={17} />
-          Export Selected Files
+          {t("pipeline:steps.reviewExport.exportSelected")}
         </button>
       </div>
     </div>
@@ -189,64 +208,66 @@ export default function ReviewExportStep() {
 }
 
 function ExportOptions() {
+  const { t } = useTranslation(["pipeline"]);
+
   return (
-    <div className="rounded-2xl border border-[#E3ECEA] bg-white p-5">
+    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)] transition-colors duration-200">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E8F9F5] text-[#18BFA7]">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
           <Download size={18} />
         </div>
 
         <div>
-          <h3 className="text-base font-bold text-[#263641]">
-            Export Options
+          <h3 className="text-base font-bold text-[var(--color-text-primary)]">
+            {t("pipeline:steps.reviewExport.exportOptionsTitle")}
           </h3>
 
-          <p className="mt-1 text-xs text-[#8A999D]">
-            Select the outputs you need.
+          <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+            {t("pipeline:steps.reviewExport.exportOptionsSubtitle")}
           </p>
         </div>
       </div>
 
       <div className="mt-5 space-y-3">
         <ExportCheckbox
-          label="Final Video"
-          description="Processed video with translation"
+          label={t("pipeline:steps.reviewExport.finalVideo")}
+          description={t("pipeline:steps.reviewExport.finalVideoDesc")}
           checked
           icon={<Film size={16} />}
         />
 
         <ExportCheckbox
-          label="Subtitle File"
-          description="SRT or VTT subtitle file"
+          label={t("pipeline:steps.reviewExport.subtitleFile")}
+          description={t("pipeline:steps.reviewExport.subtitleFileDesc")}
           checked
           icon={<FileText size={16} />}
         />
 
         <ExportCheckbox
-          label="Audio File"
-          description="Generated dubbed audio"
+          label={t("pipeline:steps.reviewExport.audioFile")}
+          description={t("pipeline:steps.reviewExport.audioFileDesc")}
           icon={<FileAudio size={16} />}
         />
 
         <ExportCheckbox
-          label="Transcript"
-          description="Original transcript text"
+          label={t("pipeline:steps.reviewExport.transcriptDoc")}
+          description={t("pipeline:steps.reviewExport.transcriptDocDesc")}
           icon={<FileText size={16} />}
         />
 
         <ExportCheckbox
-          label="Translation"
-          description="Translated text document"
+          label={t("pipeline:steps.reviewExport.translationDoc")}
+          description={t("pipeline:steps.reviewExport.translationDocDesc")}
           icon={<FileText size={16} />}
         />
       </div>
 
-      <div className="mt-5 border-t border-[#EDF2F1] pt-5">
-        <label className="mb-2 block text-xs font-semibold text-[#718387]">
-          Video Format
+      <div className="mt-5 border-t border-[var(--color-border)] pt-5">
+        <label className="mb-2 block text-xs font-semibold text-[var(--color-text-muted)]">
+          {t("pipeline:steps.reviewExport.videoFormat")}
         </label>
 
-        <select className="h-11 w-full rounded-xl border border-[#E3ECEA] bg-[#FBFDFC] px-3 text-sm text-[#53666B] outline-none focus:border-[#18C3AA]">
+        <select className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]">
           <option>MP4</option>
           <option>MKV</option>
           <option>MOV</option>
@@ -254,11 +275,11 @@ function ExportOptions() {
       </div>
 
       <div className="mt-4">
-        <label className="mb-2 block text-xs font-semibold text-[#718387]">
-          Quality
+        <label className="mb-2 block text-xs font-semibold text-[var(--color-text-muted)]">
+          {t("pipeline:steps.reviewExport.quality")}
         </label>
 
-        <select className="h-11 w-full rounded-xl border border-[#E3ECEA] bg-[#FBFDFC] px-3 text-sm text-[#53666B] outline-none focus:border-[#18C3AA]">
+        <select className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]">
           <option>1080p</option>
           <option>720p</option>
           <option>4K</option>
@@ -280,21 +301,21 @@ function ExportCheckbox({
   icon: React.ReactNode;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#EDF2F1] p-3 transition hover:border-[#BFE9E0] hover:bg-[#F8FDFC]">
+    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 transition hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)]">
       <input
         type="checkbox"
         defaultChecked={checked}
-        className="mt-1 h-4 w-4 accent-[#18C3AA]"
+        className="mt-1 h-4 w-4 accent-[var(--color-primary)]"
       />
 
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F1F7F5] text-[#6F8586]">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
         {icon}
       </div>
 
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-[#53666B]">{label}</p>
+        <p className="text-sm font-semibold text-[var(--color-text-primary)]">{label}</p>
 
-        <p className="mt-0.5 text-[11px] leading-4 text-[#9AA7AA]">
+        <p className="mt-0.5 text-[11px] leading-4 text-[var(--color-text-muted)]">
           {description}
         </p>
       </div>
@@ -303,28 +324,33 @@ function ExportCheckbox({
 }
 
 function TimelineEditor() {
+  const { t } = useTranslation(["pipeline"]);
+
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#E3ECEA] bg-white">
-      <div className="flex items-center justify-between border-b border-[#EDF2F1] px-5 py-4">
+    <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)] transition-colors duration-200">
+      <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
         <div>
-          <h3 className="text-base font-bold text-[#263641]">
-            Timeline Editor
+          <h3 className="text-base font-bold text-[var(--color-text-primary)]">
+            {t("pipeline:steps.reviewExport.timelineTitle")}
           </h3>
 
-          <p className="mt-1 text-xs text-[#8A999D]">
-            Review and adjust your processed content.
+          <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+            {t("pipeline:steps.reviewExport.timelineSubtitle")}
           </p>
         </div>
 
-        <button className="flex items-center gap-2 rounded-lg border border-[#E3ECEA] px-3 py-2 text-xs font-semibold text-[#718387] transition hover:border-[#18C3AA] hover:text-[#18BFA7]">
+        <button
+          type="button"
+          className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs font-semibold text-[var(--color-text-muted)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+        >
           <Settings2 size={14} />
-          Timeline Settings
+          {t("pipeline:steps.reviewExport.timelineSettings")}
         </button>
       </div>
 
       <div className="overflow-x-auto">
         <div className="min-w-[900px] p-5">
-          <div className="ml-[150px] mb-4 flex justify-between text-[11px] text-[#9AA7AA]">
+          <div className="ml-[150px] mb-4 flex justify-between text-[11px] text-[var(--color-text-muted)]">
             <span>00:00</span>
             <span>00:30</span>
             <span>01:00</span>
@@ -342,14 +368,14 @@ function TimelineEditor() {
                   <div className="flex w-[130px] shrink-0 items-center gap-2">
                     <Icon size={16} className={track.iconColor} />
 
-                    <span className="text-sm font-semibold text-[#53666B]">
+                    <span className="text-sm font-semibold text-[var(--color-text-primary)]">
                       {track.label}
                     </span>
                   </div>
 
-                  <div className="relative h-14 flex-1 rounded-xl bg-[#F5F8F7]">
-                    <div className="absolute inset-y-0 left-[32%] z-20 w-[2px] bg-[#18C3AA]">
-                      <div className="absolute -left-[5px] -top-1 h-3 w-3 rounded-full bg-[#18C3AA]" />
+                  <div className="relative h-14 flex-1 rounded-xl bg-[var(--color-surface-muted)]">
+                    <div className="absolute inset-y-0 left-[32%] z-20 w-[2px] bg-[var(--color-primary)]">
+                      <div className="absolute -left-[5px] -top-1 h-3 w-3 rounded-full bg-[var(--color-primary)]" />
                     </div>
 
                     {track.blocks.map((block, index) => (
@@ -363,10 +389,10 @@ function TimelineEditor() {
                       >
                         <GripVertical
                           size={14}
-                          className="shrink-0 text-[#7E9092]"
+                          className="shrink-0 text-[var(--color-text-muted)]"
                         />
 
-                        <span className="truncate text-xs font-semibold text-[#53666B]">
+                        <span className="truncate text-xs font-semibold text-[var(--color-text-primary)]">
                           {block.label}
                         </span>
                       </div>

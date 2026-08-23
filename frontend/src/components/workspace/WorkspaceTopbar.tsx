@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -22,6 +23,7 @@ import { clearTokens } from "../../services/api/token";
 import type { UserResponse } from "../../types/auth";
 
 export default function WorkspaceTopbar() {
+  const { t } = useTranslation(["navigation", "common"]);
   const navigate = useNavigate();
 
   const [profileOpen, setProfileOpen] = useState(false);
@@ -277,7 +279,7 @@ export default function WorkspaceTopbar() {
 
         <input
           type="text"
-          placeholder="Search anything..."
+          placeholder={t("common:searchPlaceholder")}
           className="flex-1 bg-transparent px-3 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
         />
 
@@ -301,7 +303,7 @@ export default function WorkspaceTopbar() {
           className="flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)]"
         >
           <Plus size={18} />
-          New Project
+          {t("navigation:newProject")}
         </button>
 
         {/* NOTIFICATION */}
@@ -309,6 +311,7 @@ export default function WorkspaceTopbar() {
         <button
           type="button"
           className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm transition hover:bg-[var(--color-surface-muted)]"
+          aria-label="Notifications"
         >
           <Bell
             size={19}
@@ -444,7 +447,7 @@ export default function WorkspaceTopbar() {
                     className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)] disabled:opacity-50"
                   >
                     <User size={17} />
-                    My Workspace
+                    {t("navigation:myWorkspace")}
                   </button>
 
                   <button
@@ -454,7 +457,7 @@ export default function WorkspaceTopbar() {
                     className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)] disabled:opacity-50"
                   >
                     <Settings size={17} />
-                    Settings
+                    {t("navigation:settings")}
                   </button>
 
                 </div>
@@ -475,8 +478,8 @@ export default function WorkspaceTopbar() {
                     <LogOut size={17} />
 
                     {loggingOut
-                      ? "Logging out..."
-                      : "Log out"}
+                      ? t("navigation:loggingOut")
+                      : t("navigation:logout")}
 
                   </button>
 

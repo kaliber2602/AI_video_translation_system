@@ -1,0 +1,48 @@
+{
+  "title": "My Projects",
+  "subtitle": "Manage all your video knowledge in one place",
+  "searchPlaceholder": "Search projects, videos, or keywords...",
+  "filterAllTypes": "All Types",
+  "filterAllTags": "All Tags",
+  "filterDateModified": "Date Modified",
+  "columns": {
+    "name": "Name",
+    "recentProject": "Recent Project",
+    "videos": "Videos",
+    "updated": "Updated",
+    "size": "Size",
+    "tags": "Tags"
+  },
+  "videosCount": "{{count}} videos",
+  "tags": {
+    "title": "Tags",
+    "empty": "No tags yet.",
+    "loadError": "Failed to load tags.",
+    "addTag": "Add Tag",
+    "createTitle": "Create Tag",
+    "createSubtitle": "Create a new tag for your projects.",
+    "editTitle": "Edit Tag",
+    "editSubtitle": "Update your tag information.",
+    "tagName": "Tag name",
+    "tagNamePlaceholder": "e.g. AI",
+    "color": "Color",
+    "deleteTitle": "Delete Tag",
+    "deleteConfirm": "Are you sure you want to delete \"{{name}}\"?",
+    "deleteCreated": "\"{{name}}\" has been created successfully.",
+    "deleteUpdated": "\"{{name}}\" has been updated successfully.",
+    "deleteDeleted": "\"{{name}}\" has been deleted successfully.",
+    "tagCreated": "Tag created",
+    "tagUpdated": "Tag updated",
+    "tagDeleted": "Tag deleted",
+    "invalidTag": "Invalid tag",
+    "tagEmptyError": "Tag name cannot be empty.",
+    "saveError": "Failed to save tag",
+    "deleteError": "Failed to delete tag",
+    "tryAgain": "Please try again."
+  },
+  "upgrade": {
+    "title": "Need more storage?",
+    "description": "Upgrade your plan for unlimited projects and AI processing.",
+    "button": "Upgrade Now"
+  }
+}

@@ -7,19 +7,18 @@ import {
   Mail,
   User,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { register } from "../../services/auth.service";
-import {toast} from "../../lib/toast";
+import { toast } from "../../lib/toast";
 
 export default function RegisterForm() {
+  const { t } = useTranslation(["auth", "common"]);
   const navigate = useNavigate();
 
-  const [showPassword, setShowPassword] =
-    useState(false);
-
-  const [showConfirmPassword, setShowConfirmPassword] =
-    useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [form, setForm] = useState({
     fullName: "",
@@ -29,9 +28,7 @@ export default function RegisterForm() {
   });
 
   const [error, setError] = useState("");
-
-  const [loading, setLoading] =
-    useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (
     field: keyof typeof form,
@@ -41,7 +38,6 @@ export default function RegisterForm() {
       ...prev,
       [field]: value,
     }));
-
     setError("");
   };
 
@@ -49,173 +45,78 @@ export default function RegisterForm() {
     event: React.FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
-
     setError("");
 
-    // -----------------------------
     // Client validation
-    // -----------------------------
-
     if (!form.fullName.trim()) {
-      setError(
-        "Please enter your full name."
-      );
+      setError(t("auth:validation.fullNameRequired"));
       return;
     }
 
     if (form.fullName.trim().length < 2) {
-      setError(
-        "Full name must contain at least 2 characters."
-      );
+      setError("Full name must contain at least 2 characters.");
       return;
     }
 
     if (!form.email.trim()) {
-      setError(
-        "Please enter your email."
-      );
+      setError(t("auth:validation.emailRequired"));
       return;
     }
 
     if (!form.password) {
-      setError(
-        "Please enter a password."
-      );
+      setError(t("auth:validation.passwordRequired"));
       return;
     }
 
     if (form.password.length < 8) {
-      setError(
-        "Password must contain at least 8 characters."
-      );
+      setError("Password must contain at least 8 characters.");
       return;
     }
 
-    if (!/[A-Z]/.test(form.password)) {
-      setError(
-        "Password must contain an uppercase letter."
-      );
+    if (form.password !== form.confirmPassword) {
+      setError(t("auth:validation.passwordsDoNotMatch"));
       return;
     }
-
-    if (!/[a-z]/.test(form.password)) {
-      setError(
-        "Password must contain a lowercase letter."
-      );
-      return;
-    }
-
-    if (!/[0-9]/.test(form.password)) {
-      setError(
-        "Password must contain a number."
-      );
-      return;
-    }
-
-    if (!/[^A-Za-z0-9]/.test(form.password)) {
-      setError(
-        "Password must contain a special character."
-      );
-      return;
-    }
-
-    if (
-      form.password !==
-      form.confirmPassword
-    ) {
-      setError(
-        "Passwords do not match."
-      );
-      return;
-    }
-
-    // -----------------------------
-    // API
-    // -----------------------------
 
     try {
       setLoading(true);
 
       await register({
-        full_name:
-          form.fullName.trim(),
-
-        email:
-          form.email.trim().toLowerCase(),
-
-        password:
-          form.password,
+        full_name: form.fullName.trim(),
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
       });
 
-      // Register thành công
       toast.success(
-        "Registration successful",
-        "Your account has been created successfully."
+        t("common:success"),
+        "Account created successfully."
       );
       navigate("/login");
-
     } catch (error: any) {
-      console.error("Register error:", error);
-
-      console.log(
-        "[REGISTER] response:",
-        error?.response
-      );
-
-      console.log(
-        "[REGISTER] response.data:",
-        error?.response?.data
-      );
-
-      console.log(
-        "[REGISTER] detail:",
-        error?.response?.data?.detail
-      );
-
-
       const detail = error?.response?.data?.detail;
 
-      // FastAPI validation error
       if (Array.isArray(detail)) {
         const messages = detail
           .map((item: any) => item?.msg)
           .filter(Boolean);
-
         toast.error(
-          "Registration failed",
-          messages.length > 0
-            ? messages.join(", ")
-            : "Please check your information and try again."
+          t("common:error"),
+          messages.length > 0 ? messages.join(", ") : t("common:validationError")
         );
-
         return;
       }
 
-      // FastAPI custom error
       if (typeof detail === "string") {
-        toast.error(
-          "Registration failed",
-          detail
-        );
-
+        toast.error(t("common:error"), detail);
         return;
       }
 
-      // Network error
       if (error?.code === "ERR_NETWORK") {
-        toast.error(
-          "Connection error",
-          "Unable to connect to the server."
-        );
-
+        toast.error(t("common:error"), t("common:networkError"));
         return;
       }
 
-      toast.error(
-        "Registration failed",
-        "Please try again."
-      );
-
+      toast.error(t("common:error"), t("common:serverError"));
     } finally {
       setLoading(false);
     }
@@ -227,10 +128,9 @@ export default function RegisterForm() {
       className="mt-8"
     >
       {/* Full Name */}
-
       <div>
         <label className="mb-2 block text-xs font-semibold text-[#344454]">
-          Full Name
+          {t("auth:fullName")}
         </label>
 
         <div className="relative">
@@ -243,12 +143,9 @@ export default function RegisterForm() {
             type="text"
             value={form.fullName}
             onChange={(e) =>
-              handleChange(
-                "fullName",
-                e.target.value
-              )
+              handleChange("fullName", e.target.value)
             }
-            placeholder="Nguyen Anh Tuan"
+            placeholder={t("auth:fullNamePlaceholder")}
             disabled={loading}
             className="h-12 w-full rounded-xl border border-[#DDE6EC] bg-white pl-11 pr-4 text-sm text-[#344454] outline-none transition placeholder:text-[#9AA6B5] focus:border-[#20C5AE] focus:ring-4 focus:ring-[#20C5AE]/10 disabled:bg-slate-50"
           />
@@ -256,10 +153,9 @@ export default function RegisterForm() {
       </div>
 
       {/* Email */}
-
       <div className="mt-5">
         <label className="mb-2 block text-xs font-semibold text-[#344454]">
-          Email
+          {t("auth:email")}
         </label>
 
         <div className="relative">
@@ -272,12 +168,9 @@ export default function RegisterForm() {
             type="email"
             value={form.email}
             onChange={(e) =>
-              handleChange(
-                "email",
-                e.target.value
-              )
+              handleChange("email", e.target.value)
             }
-            placeholder="name@example.com"
+            placeholder={t("auth:emailPlaceholder")}
             disabled={loading}
             className="h-12 w-full rounded-xl border border-[#DDE6EC] bg-white pl-11 pr-4 text-sm text-[#344454] outline-none transition placeholder:text-[#9AA6B5] focus:border-[#20C5AE] focus:ring-4 focus:ring-[#20C5AE]/10 disabled:bg-slate-50"
           />
@@ -285,10 +178,9 @@ export default function RegisterForm() {
       </div>
 
       {/* Password */}
-
       <div className="mt-5">
         <label className="mb-2 block text-xs font-semibold text-[#344454]">
-          Password
+          {t("auth:password")}
         </label>
 
         <div className="relative">
@@ -305,12 +197,9 @@ export default function RegisterForm() {
             }
             value={form.password}
             onChange={(e) =>
-              handleChange(
-                "password",
-                e.target.value
-              )
+              handleChange("password", e.target.value)
             }
-            placeholder="At least 8 characters"
+            placeholder={t("auth:passwordPlaceholder")}
             disabled={loading}
             className="h-12 w-full rounded-xl border border-[#DDE6EC] bg-white pl-11 pr-12 text-sm text-[#344454] outline-none transition placeholder:text-[#9AA6B5] focus:border-[#20C5AE] focus:ring-4 focus:ring-[#20C5AE]/10 disabled:bg-slate-50"
           />
@@ -319,11 +208,10 @@ export default function RegisterForm() {
             type="button"
             disabled={loading}
             onClick={() =>
-              setShowPassword(
-                (prev) => !prev
-              )
+              setShowPassword((prev) => !prev)
             }
             className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8FA0B0] transition hover:text-[#18BFA7]"
+            aria-label="Toggle password visibility"
           >
             {showPassword ? (
               <EyeOff size={18} />
@@ -335,10 +223,9 @@ export default function RegisterForm() {
       </div>
 
       {/* Confirm Password */}
-
       <div className="mt-5">
         <label className="mb-2 block text-xs font-semibold text-[#344454]">
-          Confirm Password
+          {t("auth:confirmPassword")}
         </label>
 
         <div className="relative">
@@ -353,16 +240,11 @@ export default function RegisterForm() {
                 ? "text"
                 : "password"
             }
-            value={
-              form.confirmPassword
-            }
+            value={form.confirmPassword}
             onChange={(e) =>
-              handleChange(
-                "confirmPassword",
-                e.target.value
-              )
+              handleChange("confirmPassword", e.target.value)
             }
-            placeholder="Re-enter your password"
+            placeholder={t("auth:passwordPlaceholder")}
             disabled={loading}
             className="h-12 w-full rounded-xl border border-[#DDE6EC] bg-white pl-11 pr-12 text-sm text-[#344454] outline-none transition placeholder:text-[#9AA6B5] focus:border-[#20C5AE] focus:ring-4 focus:ring-[#20C5AE]/10 disabled:bg-slate-50"
           />
@@ -371,11 +253,10 @@ export default function RegisterForm() {
             type="button"
             disabled={loading}
             onClick={() =>
-              setShowConfirmPassword(
-                (prev) => !prev
-              )
+              setShowConfirmPassword((prev) => !prev)
             }
             className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8FA0B0] transition hover:text-[#18BFA7]"
+            aria-label="Toggle confirm password visibility"
           >
             {showConfirmPassword ? (
               <EyeOff size={18} />
@@ -387,7 +268,6 @@ export default function RegisterForm() {
       </div>
 
       {/* Terms */}
-
       <div className="mt-5 flex items-start gap-2">
         <input
           id="terms"
@@ -420,7 +300,6 @@ export default function RegisterForm() {
       </div>
 
       {/* Error */}
-
       {error && (
         <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-medium text-red-600">
           {error}
@@ -428,31 +307,26 @@ export default function RegisterForm() {
       )}
 
       {/* Register */}
-
       <button
         type="submit"
         disabled={loading}
         className="mt-6 h-12 w-full rounded-xl bg-[#20C5AE] text-sm font-bold text-white shadow-[0_8px_22px_rgba(32,197,174,0.24)] transition hover:-translate-y-0.5 hover:bg-[#12B49D] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading
-          ? "Creating Account..."
-          : "Create Account"}
+          ? t("auth:creatingAccount")
+          : t("auth:createAccount")}
       </button>
 
       {/* Divider */}
-
       <div className="my-7 flex items-center gap-4">
         <div className="h-px flex-1 bg-[#E2E8EC]" />
-
         <span className="text-xs text-[#8B9AAA]">
-          Or continue with
+          {t("auth:orContinueWith")}
         </span>
-
         <div className="h-px flex-1 bg-[#E2E8EC]" />
       </div>
 
       {/* Social */}
-
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
@@ -465,6 +339,7 @@ export default function RegisterForm() {
         <button
           type="button"
           disabled={loading}
+          aria-label="Sign up with Apple"
           className="flex h-11 items-center justify-center rounded-xl border border-[#DDE6EC] bg-white text-[#263344] transition hover:border-[#20C5AE] hover:bg-[#F7FCFB]"
         >
           <Apple size={19} />
@@ -472,10 +347,8 @@ export default function RegisterForm() {
       </div>
 
       {/* Login */}
-
       <div className="mt-7 text-center text-xs text-[#718398]">
-        Already have an account?{" "}
-
+        {t("auth:alreadyHaveAccount")}{" "}
         <button
           type="button"
           disabled={loading}
@@ -484,7 +357,7 @@ export default function RegisterForm() {
           }
           className="font-semibold text-[#18BFA7] hover:underline"
         >
-          Sign in
+          {t("auth:signInLink")}
         </button>
       </div>
     </form>

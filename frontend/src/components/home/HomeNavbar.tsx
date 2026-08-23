@@ -1,11 +1,16 @@
 import {
+  Globe,
   Moon,
   Sun,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Link, useNavigate } from "react-router-dom";
+import { useLanguage } from "../../app/providers/LanguageContext";
 
 export default function HomeNavbar() {
+  const { t } = useTranslation(["navigation", "common"]);
+  const { language, changeLanguage } = useLanguage();
   const [darkMode, setDarkMode] = useState(false);
   const navigate = useNavigate();
 
@@ -13,10 +18,14 @@ export default function HomeNavbar() {
     setDarkMode((prev) => !prev);
   };
 
-  return (
-    <header className="sticky top-0 z-50 border-b border-[#E7EFED]/80 bg-white/95 backdrop-blur-xl">
-      <div className="mx-auto flex h-[68px] max-w-[1400px] items-center justify-between px-5 lg:px-8">
+  const handleLanguageToggle = () => {
+    const nextLang = language === "en" ? "vi" : "en";
+    changeLanguage(nextLang);
+  };
 
+  return (
+    <header className="sticky top-0 z-50 border-b border-[var(--color-border)] bg-[var(--color-surface)]/95 backdrop-blur-xl transition-colors duration-200">
+      <div className="mx-auto flex h-[68px] max-w-[1400px] items-center justify-between px-5 lg:px-8">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-3">
           <div className="relative flex h-10 w-10 items-center justify-center">
@@ -30,11 +39,11 @@ export default function HomeNavbar() {
           </div>
 
           <div className="leading-none">
-            <div className="text-[18px] font-black tracking-[0.16em] text-[#182238]">
+            <div className="text-[18px] font-black tracking-[0.16em] text-[var(--color-text-primary)]">
               VIDNOVA
             </div>
 
-            <div className="mt-1 text-[8px] font-bold tracking-[0.4em] text-[#18BFA7]">
+            <div className="mt-1 text-[8px] font-bold tracking-[0.4em] text-[var(--color-primary)]">
               SINCE 2026
             </div>
           </div>
@@ -44,54 +53,64 @@ export default function HomeNavbar() {
         <nav className="hidden items-center gap-8 lg:flex">
           <a
             href="#home"
-            className="relative py-2 text-sm font-semibold text-[#18BFA7]"
+            className="relative py-2 text-sm font-semibold text-[var(--color-primary)]"
           >
-            Trang chủ
-            <span className="absolute bottom-0 left-0 h-[2px] w-full rounded-full bg-[#18BFA7]" />
+            {t("navigation:home")}
+            <span className="absolute bottom-0 left-0 h-[2px] w-full rounded-full bg-[var(--color-primary)]" />
           </a>
 
           <a
             href="#features"
-            className="py-2 text-sm font-medium text-[#4D5B62] transition hover:text-[#18BFA7]"
+            className="py-2 text-sm font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-primary)]"
           >
-            Tính năng
+            {t("navigation:features")}
           </a>
 
           <a
             href="#solutions"
-            className="py-2 text-sm font-medium text-[#4D5B62] transition hover:text-[#18BFA7]"
+            className="py-2 text-sm font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-primary)]"
           >
-            Giải pháp
+            {t("navigation:solutions")}
           </a>
 
           <a
             href="#pricing"
-            className="py-2 text-sm font-medium text-[#4D5B62] transition hover:text-[#18BFA7]"
+            className="py-2 text-sm font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-primary)]"
           >
-            Bảng giá
+            {t("navigation:pricing")}
           </a>
 
           <a
             href="#resources"
-            className="py-2 text-sm font-medium text-[#4D5B62] transition hover:text-[#18BFA7]"
+            className="py-2 text-sm font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-primary)]"
           >
-            Tài nguyên
+            {t("navigation:resources")}
           </a>
 
           <a
             href="#about"
-            className="py-2 text-sm font-medium text-[#4D5B62] transition hover:text-[#18BFA7]"
+            className="py-2 text-sm font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-primary)]"
           >
-            Về chúng tôi
+            {t("navigation:about")}
           </a>
         </nav>
 
         {/* Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Quick Language Switcher */}
+          <button
+            type="button"
+            onClick={handleLanguageToggle}
+            className="flex h-10 items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 text-xs font-bold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+            title={`Switch to ${language === "en" ? "Tiếng Việt" : "English"}`}
+          >
+            <Globe size={15} className="text-[var(--color-primary)]" />
+            <span>{language.toUpperCase()}</span>
+          </button>
 
           <button
             onClick={handleThemeToggle}
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-[#66757A] transition hover:bg-[#F1F8F6] hover:text-[#18BFA7]"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-[var(--color-text-muted)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
             aria-label="Toggle theme"
           >
             {darkMode ? <Sun size={17} /> : <Moon size={17} />}
@@ -99,16 +118,17 @@ export default function HomeNavbar() {
 
           <Link
             to="/login"
-            className="hidden h-10 items-center justify-center rounded-xl border border-[#DCE7E5] bg-white px-5 text-sm font-semibold text-[#43535A] transition hover:border-[#18BFA7] hover:text-[#18BFA7] sm:flex"
+            className="hidden h-10 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] sm:flex"
           >
-            Đăng nhập
+            {t("navigation:login")}
           </Link>
 
           <button
+            type="button"
             onClick={() => navigate("/register")}
-            className="flex h-10 items-center gap-2 rounded-xl bg-[#18C3AA] px-4 text-sm font-semibold text-white shadow-[0_7px_20px_rgba(24,195,170,0.22)] transition hover:-translate-y-0.5 hover:bg-[#11B39D]"
+            className="flex h-10 items-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 text-sm font-semibold text-white shadow-[0_7px_20px_rgba(24,195,170,0.22)] transition hover:-translate-y-0.5 hover:bg-[var(--color-primary-hover)]"
           >
-            Bắt đầu ngay
+            {t("navigation:register")}
             <span>→</span>
           </button>
         </div>

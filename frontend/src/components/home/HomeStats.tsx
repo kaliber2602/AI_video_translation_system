@@ -4,34 +4,37 @@ import {
   Play,
   Users,
 } from "lucide-react";
-
-const stats = [
-  {
-    icon: Users,
-    value: "10,000+",
-    label: "Người dùng tin tưởng",
-  },
-  {
-    icon: Play,
-    value: "50,000+",
-    label: "Video đã xử lý",
-  },
-  {
-    icon: Globe2,
-    value: "100+",
-    label: "Ngôn ngữ hỗ trợ",
-  },
-  {
-    icon: Clock3,
-    value: "98%",
-    label: "Độ chính xác trung bình",
-  },
-];
+import { useTranslation } from "react-i18next";
 
 export default function HomeStats() {
+  const { t } = useTranslation(["home"]);
+
+  const stats = [
+    {
+      icon: Users,
+      value: "10,000+",
+      label: t("home:stats.users"),
+    },
+    {
+      icon: Play,
+      value: "50,000+",
+      label: t("home:stats.videos"),
+    },
+    {
+      icon: Globe2,
+      value: "100+",
+      label: t("home:stats.languages"),
+    },
+    {
+      icon: Clock3,
+      value: "98%",
+      label: t("home:stats.accuracy"),
+    },
+  ];
+
   return (
     <section className="px-5 py-6 lg:px-8">
-      <div className="mx-auto grid max-w-[1400px] overflow-hidden rounded-2xl border border-[#DDEFEA] bg-[#F3FBF9] sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mx-auto grid max-w-[1400px] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)] transition-colors duration-200 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
 
@@ -40,7 +43,7 @@ export default function HomeStats() {
               key={stat.label}
               className={`flex items-center gap-4 px-7 py-5 ${
                 index !== 0
-                  ? "border-t border-[#DDEBE7] sm:border-t-0 sm:border-l"
+                  ? "border-t border-[var(--color-border)] sm:border-t-0 sm:border-l"
                   : ""
               } ${
                 index === 2
@@ -48,16 +51,16 @@ export default function HomeStats() {
                   : ""
               }`}
             >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#18BFA7] shadow-sm">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary)] shadow-sm">
                 <Icon size={20} />
               </div>
 
               <div>
-                <p className="text-lg font-black text-[#18A991]">
+                <p className="text-lg font-black text-[var(--color-primary)]">
                   {stat.value}
                 </p>
 
-                <p className="mt-0.5 text-[10px] font-medium text-[#77878B]">
+                <p className="mt-0.5 text-[10px] font-medium text-[var(--color-text-muted)]">
                   {stat.label}
                 </p>
               </div>

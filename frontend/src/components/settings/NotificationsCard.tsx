@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import SettingCard from "./SettingCard";
 import ToggleRow from "./ToggleRow";
 
@@ -18,29 +19,31 @@ export default function NotificationsCard({
   onProcessingUpdatesChange,
   onTipsNewsChange,
 }: NotificationsCardProps) {
+  const { t } = useTranslation(["settings"]);
+
   return (
     <SettingCard
-      title="Notifications"
-      description="Manage how you receive updates"
+      title={t("settings:notifications.title")}
+      description={t("settings:notifications.description")}
     >
-      <div className="divide-y divide-[#EEF2F1]">
+      <div className="divide-y divide-[var(--color-border)]">
         <ToggleRow
-          title="Email Notifications"
-          description="Receive important updates via email"
+          title={t("settings:notifications.emailNotifications")}
+          description={t("settings:notifications.emailNotificationsDesc")}
           checked={emailNotifications}
           onChange={onEmailNotificationsChange}
         />
 
         <ToggleRow
-          title="Processing Updates"
-          description="Get notified when processing is complete"
+          title={t("settings:notifications.processingUpdates")}
+          description={t("settings:notifications.processingUpdatesDesc")}
           checked={processingUpdates}
           onChange={onProcessingUpdatesChange}
         />
 
         <ToggleRow
-          title="Tips & News"
-          description="Receive product tips and new features"
+          title={t("settings:notifications.tipsNews")}
+          description={t("settings:notifications.tipsNewsDesc")}
           checked={tipsNews}
           onChange={onTipsNewsChange}
         />

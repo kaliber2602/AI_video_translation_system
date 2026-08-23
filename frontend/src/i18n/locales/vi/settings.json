@@ -1,0 +1,88 @@
+{
+  "headerTitle": "Cài đặt",
+  "headerSubtitle": "Quản lý tài khoản và tùy chọn cá nhân",
+  "accountSettingsTitle": "Cài đặt tài khoản",
+  "accountSettingsSubtitle": "Quản lý thông tin cá nhân và các tùy chọn của bạn.",
+  "sidebar": {
+    "account": "Tài khoản",
+    "general": "Cài đặt chung",
+    "workspace": "Không gian làm việc",
+    "ai": "AI & Xử lý",
+    "translation": "Dịch & Giọng nói",
+    "billing": "Gói cước & Thanh toán",
+    "notifications": "Thông báo",
+    "integrations": "Tích hợp",
+    "security": "Bảo mật",
+    "privacy": "Dữ liệu & Quyền riêng tư"
+  },
+  "profile": {
+    "title": "Hồ sơ cá nhân",
+    "description": "Quản lý thông tin cá nhân của bạn",
+    "name": "Họ và tên",
+    "email": "Email",
+    "role": "Vai trò",
+    "editProfile": "Chỉnh sửa hồ sơ",
+    "doneEditing": "Hoàn tất chỉnh sửa",
+    "changeAvatar": "Thay đổi ảnh đại diện",
+    "avatarUpdated": "Đã cập nhật ảnh đại diện",
+    "avatarUpdatedSuccess": "Ảnh đại diện của bạn đã được cập nhật thành công.",
+    "updateFailed": "Cập nhật thất bại",
+    "unableToUpdateAvatar": "Không thể cập nhật ảnh đại diện."
+  },
+  "languageTheme": {
+    "title": "Ngôn ngữ & Giao diện",
+    "description": "Thiết lập ngôn ngữ và tùy chọn khu vực của bạn",
+    "paletteLabel": "Bảng màu giao diện",
+    "themeModeLabel": "Chế độ giao diện",
+    "languageLabel": "Ngôn ngữ",
+    "dateFormatLabel": "Định dạng ngày",
+    "saveChanges": "Lưu thay đổi"
+  },
+  "preferences": {
+    "title": "Tùy chọn không gian làm việc",
+    "description": "Tùy biến trải nghiệm trong workspace của bạn",
+    "autoSave": "Tự động lưu",
+    "autoSaveDesc": "Tự động lưu các thay đổi khi chỉnh sửa",
+    "showTranscripts": "Hiển thị bản ghi lời thoại",
+    "showTranscriptsDesc": "Mặc định hiển thị khung bản ghi âm",
+    "aiSuggestions": "Gợi ý AI thông minh",
+    "aiSuggestionsDesc": "Hiển thị các đề xuất tối ưu từ AI",
+    "compactView": "Chế độ xem thu gọn",
+    "compactViewDesc": "Hiển thị danh sách dự án gọn gàng hơn"
+  },
+  "ai": {
+    "title": "Cài đặt AI & Xử lý",
+    "description": "Cấu hình các tính năng và tùy chọn xử lý AI",
+    "defaultModel": "Mô hình AI mặc định",
+    "processingPriority": "Mức độ ưu tiên xử lý",
+    "autoTranslation": "Tự động dịch thuật",
+    "autoTranslationDesc": "Tự động dịch các video mới được tải lên",
+    "autoSummary": "Tự động tóm tắt",
+    "autoSummaryDesc": "Tự động tạo bản tóm tắt nội dung video mới"
+  },
+  "storage": {
+    "title": "Dung lượng & Sử dụng",
+    "description": "Theo dõi dung lượng lưu trữ của tài khoản",
+    "videos": "Video",
+    "documents": "Tài liệu",
+    "cache": "Bộ nhớ đệm",
+    "manageStorage": "Quản lý dung lượng"
+  },
+  "notifications": {
+    "title": "Thông báo",
+    "description": "Chọn cách bạn nhận các thông báo cập nhật",
+    "emailNotifications": "Thông báo qua Email",
+    "emailNotificationsDesc": "Nhận các cảnh báo quan trọng qua email",
+    "processingUpdates": "Tiến độ xử lý video",
+    "processingUpdatesDesc": "Thông báo khi hoàn tất xử lý video",
+    "tipsNews": "Mẹo & Tin tức",
+    "tipsNewsDesc": "Nhận các thông tin cập nhật tính năng và mẹo sử dụng"
+  },
+  "placeholder": {
+    "description": "Mục cài đặt này đã sẵn sàng để cấu hình. Các chức năng chi tiết sẽ được kết nối trong bản cập nhật tới."
+  },
+  "toast": {
+    "settingsSaved": "Đã lưu cài đặt",
+    "settingsSavedDesc": "Các tùy chọn của bạn đã được cập nhật thành công."
+  }
+}

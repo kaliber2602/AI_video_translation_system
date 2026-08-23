@@ -1,4 +1,7 @@
+import { useTranslation } from "react-i18next";
+import { useLanguage } from "../../app/providers/LanguageContext";
 import { THEME_OPTIONS, type Theme } from "../../config/theme";
+import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "../../i18n/types";
 import SelectBox from "./SelectBox";
 import SettingCard from "./SettingCard";
 import ThemeSelector from "./ThemeSelector";
@@ -14,16 +17,19 @@ export default function LanguageThemeCard({
   onThemeChange,
   onSave,
 }: LanguageThemeCardProps) {
+  const { t } = useTranslation(["settings", "common"]);
+  const { language, changeLanguage } = useLanguage();
+
   return (
     <SettingCard
-      title="Language & Theme"
-      description="Set your language and regional preferences"
+      title={t("settings:languageTheme.title")}
+      description={t("settings:languageTheme.description")}
     >
       <div className="space-y-5">
         {/* Visual Theme Selector */}
         <div>
           <label className="mb-2 block text-xs font-semibold text-[var(--color-text-secondary)]">
-            Color Theme Palette
+            {t("settings:languageTheme.paletteLabel")}
           </label>
           <ThemeSelector
             currentTheme={theme}
@@ -34,7 +40,7 @@ export default function LanguageThemeCard({
         {/* Theme Quick Select Dropdown */}
         <div>
           <label className="mb-1.5 block text-xs font-medium text-[var(--color-text-secondary)]">
-            Theme Mode Select
+            {t("settings:languageTheme.themeModeLabel")}
           </label>
 
           <SelectBox
@@ -54,24 +60,27 @@ export default function LanguageThemeCard({
         {/* Language Select */}
         <div>
           <label className="mb-1.5 block text-xs font-medium text-[var(--color-text-secondary)]">
-            Language
+            {t("settings:languageTheme.languageLabel")}
           </label>
 
-          <SelectBox value="🇺🇸  English">
-            <option>
-              🇺🇸 English
-            </option>
-
-            <option>
-              🇻🇳 Vietnamese
-            </option>
+          <SelectBox
+            value={language}
+            onChange={(val) => {
+              changeLanguage(val as SupportedLanguage);
+            }}
+          >
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.flag} {lang.label} ({lang.nativeLabel})
+              </option>
+            ))}
           </SelectBox>
         </div>
 
         {/* Date Format */}
         <div>
           <label className="mb-1.5 block text-xs font-medium text-[var(--color-text-secondary)]">
-            Date Format
+            {t("settings:languageTheme.dateFormatLabel")}
           </label>
 
           <SelectBox value="DD/MM/YYYY">
@@ -95,7 +104,7 @@ export default function LanguageThemeCard({
           onClick={onSave}
           className="h-10 w-full rounded-lg bg-[var(--color-primary)] text-sm font-semibold text-white transition hover:bg-[var(--color-primary-hover)] shadow-sm"
         >
-          Save Changes
+          {t("settings:languageTheme.saveChanges")}
         </button>
       </div>
     </SettingCard>

@@ -3,6 +3,7 @@ import {
   MoreHorizontal,
   PlaySquare,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 const projects = [
@@ -134,6 +135,7 @@ const projects = [
 ];
 
 export default function ProjectTable() {
+  const { t } = useTranslation(["workspace"]);
   const navigate = useNavigate();
 
   const handleProjectClick = (projectId: string) => {
@@ -148,15 +150,16 @@ export default function ProjectTable() {
           <input
             type="checkbox"
             className="h-4 w-4 rounded border-[var(--color-border)] accent-[var(--color-primary)]"
+            aria-label="Select all"
           />
         </div>
 
-        <div>Name</div>
-        <div>Recent Project</div>
-        <div>Videos</div>
-        <div>Updated</div>
-        <div>Size</div>
-        <div>Tags</div>
+        <div>{t("workspace:columns.name")}</div>
+        <div>{t("workspace:columns.recentProject")}</div>
+        <div>{t("workspace:columns.videos")}</div>
+        <div>{t("workspace:columns.updated")}</div>
+        <div>{t("workspace:columns.size")}</div>
+        <div>{t("workspace:columns.tags")}</div>
         <div />
       </div>
 
@@ -180,6 +183,7 @@ export default function ProjectTable() {
               type="checkbox"
               onClick={(event) => event.stopPropagation()}
               className="h-4 w-4 rounded border-[var(--color-border)] accent-[var(--color-primary)]"
+              aria-label={`Select ${project.name}`}
             />
           </div>
 
@@ -195,7 +199,7 @@ export default function ProjectTable() {
               </div>
 
               <div className="mt-1 text-xs text-[var(--color-text-muted)]">
-                {project.videos} videos
+                {t("workspace:videosCount", { count: project.videos })}
               </div>
             </div>
           </div>
@@ -252,6 +256,7 @@ export default function ProjectTable() {
                 event.stopPropagation();
               }}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--color-text-muted)] transition hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)]"
+              aria-label="More options"
             >
               <MoreHorizontal size={19} />
             </button>

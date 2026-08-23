@@ -39,6 +39,38 @@ a {
   -webkit-tap-highlight-color: transparent;
 }
 
-[data-sileo-toaster] {
-  z-index: 9999 !important;
+/* =========================================================
+   SILEO TOAST CONTRAST & VISIBILITY FIXES
+   ========================================================= */
+
+[data-sileo-toaster],
+[data-sileo-viewport] {
+  z-index: 99999 !important;
+}
+
+[data-sileo-toast] {
+  font-family: inherit !important;
+  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.16)) !important;
+}
+
+[data-sileo-title] {
+  font-weight: 700 !important;
+  font-size: 0.875rem !important;
+}
+
+/* Ensure the description message is always high-contrast, dark and readable on white toast */
+[data-sileo-description] {
+  color: #1e293b !important;
+  font-size: 0.8125rem !important;
+  line-height: 1.4 !important;
+  font-weight: 500 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+/* Target all themes and viewports to prevent description from fading or inheriting body text color */
+[data-sileo-viewport] [data-sileo-description],
+[data-sileo-viewport][data-theme="light"] [data-sileo-description],
+[data-sileo-viewport][data-theme="dark"] [data-sileo-description] {
+  color: #1e293b !important;
 }

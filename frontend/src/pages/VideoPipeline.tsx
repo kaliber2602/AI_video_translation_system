@@ -7,7 +7,8 @@ import {
   Clock3,
   Save,
 } from "lucide-react";
-
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 
 import UploadStep from "../components/pipeline/UploadStep";
 import TranscriptStep from "../components/pipeline/TranscriptStep";
@@ -15,45 +16,6 @@ import TranslationStep from "../components/pipeline/TranslationStep";
 import SubtitleStep from "../components/pipeline/SubtitleStep";
 import DubbingStep from "../components/pipeline/DubbingStep";
 import ReviewExportStep from "../components/pipeline/ReviewExportStep";
-
-const pipelineSteps = [
-  {
-    id: "upload",
-    number: "01",
-    title: "Upload",
-    description: "Original video",
-  },
-  {
-    id: "transcript",
-    number: "02",
-    title: "Transcript",
-    description: "Speech to text",
-  },
-  {
-    id: "translation",
-    number: "03",
-    title: "Translation",
-    description: "Review translated text",
-  },
-  {
-    id: "subtitle",
-    number: "04",
-    title: "Subtitle",
-    description: "Create subtitles",
-  },
-  {
-    id: "dubbing",
-    number: "05",
-    title: "Dubbing",
-    description: "Generate voice",
-  },
-  {
-    id: "review-export",
-    number: "06",
-    title: "Review & Export",
-    description: "Review and generate outputs",
-  },
-];
 
 function renderStep(step: string) {
   switch (step) {
@@ -81,8 +43,49 @@ function renderStep(step: string) {
 }
 
 export default function VideoPipeline() {
+  const { t } = useTranslation(["pipeline", "common"]);
+  const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState("translation");
   const [isSaved, setIsSaved] = useState(true);
+
+  const pipelineSteps = [
+    {
+      id: "upload",
+      number: "01",
+      title: t("pipeline:steps.upload.title"),
+      description: t("pipeline:steps.upload.description"),
+    },
+    {
+      id: "transcript",
+      number: "02",
+      title: t("pipeline:steps.transcript.title"),
+      description: t("pipeline:steps.transcript.description"),
+    },
+    {
+      id: "translation",
+      number: "03",
+      title: t("pipeline:steps.translation.title"),
+      description: t("pipeline:steps.translation.description"),
+    },
+    {
+      id: "subtitle",
+      number: "04",
+      title: t("pipeline:steps.subtitle.title"),
+      description: t("pipeline:steps.subtitle.description"),
+    },
+    {
+      id: "dubbing",
+      number: "05",
+      title: t("pipeline:steps.dubbing.title"),
+      description: t("pipeline:steps.dubbing.description"),
+    },
+    {
+      id: "review-export",
+      number: "06",
+      title: t("pipeline:steps.reviewExport.title"),
+      description: t("pipeline:steps.reviewExport.description"),
+    },
+  ];
 
   const activeStepIndex = pipelineSteps.findIndex(
     (step) => step.id === activeStep,
@@ -105,7 +108,12 @@ export default function VideoPipeline() {
     <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200">
       <header className="flex min-h-[76px] items-center justify-between gap-4 border-b border-[var(--color-border)] bg-[var(--color-surface)]/90 px-4 py-4 backdrop-blur-xl transition-colors duration-200 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <button className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]">
+          <button
+            type="button"
+            onClick={() => navigate("/workspace")}
+            aria-label={t("common:back")}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+          >
             <ArrowLeft size={18} />
           </button>
 
@@ -116,7 +124,7 @@ export default function VideoPipeline() {
               </h1>
 
               <span className="rounded-full bg-[#FFF2D8] px-3 py-1 text-xs font-semibold text-[#C68A1C]">
-                In Progress
+                {t("pipeline:header.inProgress")}
               </span>
             </div>
 
@@ -131,11 +139,12 @@ export default function VideoPipeline() {
             <Clock3 size={15} />
 
             <span>
-              {isSaved ? "Saved just now" : "Unsaved changes"}
+              {isSaved ? t("pipeline:header.savedJustNow") : t("pipeline:header.unsavedChanges")}
             </span>
           </div>
 
           <button
+            type="button"
             onClick={handleSave}
             className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold transition sm:px-4 ${
               isSaved
@@ -146,7 +155,7 @@ export default function VideoPipeline() {
             <Save size={16} />
 
             <span className="hidden sm:inline">
-              {isSaved ? "Saved" : "Save"}
+              {isSaved ? t("common:saved") : t("common:save")}
             </span>
           </button>
         </div>
@@ -162,6 +171,7 @@ export default function VideoPipeline() {
               return (
                 <button
                   key={step.id}
+                  type="button"
                   onClick={() => handleStepChange(step.id)}
                   className={`flex min-w-[130px] items-center gap-2 rounded-xl px-3 py-3 text-left transition ${
                     isActive
@@ -229,6 +239,7 @@ export default function VideoPipeline() {
               return (
                 <button
                   key={step.id}
+                  type="button"
                   onClick={() => handleStepChange(step.id)}
                   className={`relative flex w-full items-center gap-3 rounded-xl p-3 text-left transition ${
                     isActive
@@ -286,7 +297,7 @@ export default function VideoPipeline() {
           <div className="mt-8 rounded-xl bg-[var(--color-surface-muted)] p-4">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-xs font-semibold text-[var(--color-text-secondary)]">
-                Overall Progress
+                {t("pipeline:header.overallProgress")}
               </span>
 
               <span className="text-xs font-bold text-[var(--color-primary)]">
@@ -302,7 +313,7 @@ export default function VideoPipeline() {
             </div>
 
             <p className="mt-3 text-xs leading-5 text-[var(--color-text-muted)]">
-              Your progress is automatically saved while you work.
+              {t("pipeline:header.autoSaveNotice")}
             </p>
           </div>
         </aside>

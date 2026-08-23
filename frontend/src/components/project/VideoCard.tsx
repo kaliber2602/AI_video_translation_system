@@ -4,6 +4,7 @@ import {
   Play,
   Settings2,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 type VideoStatus =
   | "completed"
@@ -26,39 +27,45 @@ type VideoCardProps = {
   onOpen: () => void;
 };
 
-const statusConfig: Record<
-  VideoStatus,
-  {
-    label: string;
-    className: string;
-  }
-> = {
-  completed: {
-    label: "Completed",
-    className: "bg-[#E4F8F2] text-[#16A88F]",
-  },
-
-  editing: {
-    label: "Needs Review",
-    className: "bg-[#FFF2D8] text-[#C68A1C]",
-  },
-
-  processing: {
-    label: "Processing",
-    className: "bg-[#EAF1FF] text-[#5783D4]",
-  },
-
-  draft: {
-    label: "Draft",
-    className: "bg-[#F0F2F3] text-[#738187]",
-  },
+const statusClasses: Record<VideoStatus, string> = {
+  completed: "bg-[#E4F8F2] text-[#16A88F]",
+  editing: "bg-[#FFF2D8] text-[#C68A1C]",
+  processing: "bg-[#EAF1FF] text-[#5783D4]",
+  draft: "bg-[#F0F2F3] text-[#738187]",
 };
 
 export default function VideoCard({
   video,
   onOpen,
 }: VideoCardProps) {
-  const status = statusConfig[video.status];
+  const { t } = useTranslation(["project"]);
+  const statusClassName = statusClasses[video.status];
+
+  const getStatusLabel = (status: VideoStatus) => {
+    switch (status) {
+      case "completed":
+        return t("project:status.completed");
+      case "editing":
+        return t("project:status.editing");
+      case "processing":
+        return t("project:status.processing");
+      case "draft":
+        return t("project:status.draft");
+    }
+  };
+
+  const getActionLabel = (status: VideoStatus) => {
+    switch (status) {
+      case "completed":
+        return t("project:action.reviewVideo");
+      case "editing":
+        return t("project:action.continueEditing");
+      case "processing":
+        return t("project:action.viewProgress");
+      case "draft":
+        return t("project:action.openPipeline");
+    }
+  };
 
   return (
     <article className="group overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)] transition hover:-translate-y-1 hover:shadow-lg">
@@ -120,9 +127,9 @@ export default function VideoCard({
 
           {/* Status */}
           <span
-            className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${status.className}`}
+            className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${statusClassName}`}
           >
-            {status.label}
+            {getStatusLabel(video.status)}
           </span>
         </div>
 
@@ -142,14 +149,7 @@ export default function VideoCard({
             className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--color-primary-soft)] py-2.5 text-xs font-semibold text-[var(--color-primary)] transition hover:opacity-90"
           >
             <Settings2 size={15} />
-
-            {video.status === "completed"
-              ? "Review Video"
-              : video.status === "editing"
-                ? "Continue Editing"
-                : video.status === "processing"
-                  ? "View Progress"
-                  : "Open Pipeline"}
+            {getActionLabel(video.status)}
           </button>
 
           {/* Documents */}
@@ -158,7 +158,7 @@ export default function VideoCard({
             onClick={(event) => {
               event.stopPropagation();
             }}
-            aria-label="View generated documents"
+            aria-label={t("project:viewDocuments")}
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
           >
             <FileText size={16} />

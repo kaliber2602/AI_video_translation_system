@@ -3,6 +3,7 @@ import {
   useState,
   type ChangeEvent,
 } from "react";
+import { useTranslation } from "react-i18next";
 
 import { useTheme } from "../app/providers/ThemeContext";
 import { toast } from "../lib/toast";
@@ -15,6 +16,7 @@ import type { SettingsSection } from "../types/settings";
 import SettingsLayout from "../layouts/SettingsLayout";
 
 export default function Setting() {
+  const { t } = useTranslation(["settings", "auth", "common"]);
   const { theme, setTheme } = useTheme();
 
   // =========================================================
@@ -106,7 +108,10 @@ export default function Setting() {
 
   const handleSave = () => {
     setIsSaved(true);
-    toast.success("Settings saved", "Your preferences have been updated.");
+    toast.success(
+      t("settings:toast.settingsSaved"),
+      t("settings:toast.settingsSavedDesc")
+    );
   };
 
   const handleSectionChange = (
@@ -145,8 +150,8 @@ export default function Setting() {
 
     if (!allowedTypes.includes(file.type)) {
       toast.error(
-        "Invalid image",
-        "Please select a JPG, PNG, or WebP image."
+        t("common:error"),
+        t("auth:validation.invalidImage")
       );
 
       event.target.value = "";
@@ -162,8 +167,8 @@ export default function Setting() {
 
     if (file.size > maxSize) {
       toast.error(
-        "Image too large",
-        "Avatar image must be smaller than 5 MB."
+        t("common:error"),
+        t("auth:validation.imageTooLarge")
       );
 
       event.target.value = "";
@@ -202,8 +207,8 @@ export default function Setting() {
       });
 
       toast.success(
-        "Avatar updated",
-        "Your profile picture has been updated successfully."
+        t("settings:profile.avatarUpdated"),
+        t("settings:profile.avatarUpdatedSuccess")
       );
 
     } catch (error: any) {
@@ -216,9 +221,9 @@ export default function Setting() {
         error?.response?.data?.detail;
 
       toast.error(
-        "Update failed",
+        t("settings:profile.updateFailed"),
         backendMessage ||
-          "Unable to update your avatar."
+          t("settings:profile.unableToUpdateAvatar")
       );
 
     } finally {

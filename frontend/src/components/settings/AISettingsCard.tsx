@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import SelectBox from "./SelectBox";
 import SettingCard from "./SettingCard";
 import ToggleRow from "./ToggleRow";
@@ -15,15 +16,17 @@ export default function AISettingsCard({
   onAutoTranslationChange,
   onAutoSummaryChange,
 }: AISettingsCardProps) {
+  const { t } = useTranslation(["settings"]);
+
   return (
     <SettingCard
-      title="AI & Processing Settings"
-      description="Configure AI features and processing options"
+      title={t("settings:ai.title")}
+      description={t("settings:ai.description")}
     >
       <div className="space-y-4">
         <div>
           <label className="mb-1.5 block text-xs font-medium text-[var(--color-text-secondary)]">
-            Default AI Model
+            {t("settings:ai.defaultModel")}
           </label>
 
           <SelectBox value="VidNova Smart (Recommended)">
@@ -43,7 +46,7 @@ export default function AISettingsCard({
 
         <div>
           <label className="mb-1.5 block text-xs font-medium text-[var(--color-text-secondary)]">
-            Processing Priority
+            {t("settings:ai.processingPriority")}
           </label>
 
           <SelectBox value="Balanced">
@@ -62,15 +65,15 @@ export default function AISettingsCard({
         </div>
 
         <ToggleRow
-          title="Auto Translation"
-          description="Automatically translate new videos"
+          title={t("settings:ai.autoTranslation")}
+          description={t("settings:ai.autoTranslationDesc")}
           checked={autoTranslation}
           onChange={onAutoTranslationChange}
         />
 
         <ToggleRow
-          title="Auto Summary"
-          description="Generate summary for new videos"
+          title={t("settings:ai.autoSummary")}
+          description={t("settings:ai.autoSummaryDesc")}
           checked={autoSummary}
           onChange={onAutoSummaryChange}
         />
