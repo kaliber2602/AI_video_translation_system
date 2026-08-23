@@ -1,8 +1,14 @@
-:root {
-  /* =========================
-     LIGHT THEME
-     ========================= */
+/* =========================================================
+   VIDNOVA THEME SYSTEM
+   ========================================================= */
 
+/* ---------------------------------------------------------
+   1. DEFAULT MINT THEME (Light)
+   --------------------------------------------------------- */
+:root,
+[data-theme="default_theme"],
+[data-theme="light"],
+[data-theme="default"] {
   --color-background: #f7fbfa;
   --color-surface: #ffffff;
   --color-surface-muted: #f8fbfb;
@@ -14,6 +20,9 @@
   --color-primary: #15c2a8;
   --color-primary-hover: #0fb39b;
   --color-primary-soft: #e5f8f4;
+
+  --color-secondary: #4c94e8;
+  --color-accent: #16c3a8;
 
   --color-border: #e3ebe9;
   --color-border-muted: #e7efee;
@@ -30,77 +39,227 @@
   --color-disabled-background: #f8fafa;
 
   --color-overlay: rgba(0, 0, 0, 0.4);
-
   --shadow-card: 0 8px 30px rgba(30, 70, 80, 0.035);
 }
 
-[data-theme="dark"] {
-  /* =========================
-     DARK THEME
-     ========================= */
+/* ---------------------------------------------------------
+   2. VIOLET LIGHT THEME (Palette Image 1)
+   --------------------------------------------------------- */
+[data-theme="violet_light"] {
+  --color-background: #ffffff;
+  --color-surface: #f3f4fa;
+  --color-surface-muted: #f8f9fd;
 
-  --color-background: #0f1718;
-  --color-surface: #162122;
-  --color-surface-muted: #1b292a;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #334155;
+  --color-text-muted: #64748b;
 
-  --color-text-primary: #edf7f5;
-  --color-text-secondary: #b7c9c6;
-  --color-text-muted: #829592;
+  --color-primary: #8b5cf6;
+  --color-primary-hover: #7c3aed;
+  --color-primary-soft: #ede9fe;
 
-  --color-primary: #19c9ad;
-  --color-primary-hover: #14b89f;
-  --color-primary-soft: #163b35;
+  --color-secondary: #3b82f6;
+  --color-accent: #3b82f6;
 
-  --color-border: #293938;
-  --color-border-muted: #243332;
+  --color-border: #e2e8f0;
+  --color-border-muted: #ede9fe;
 
-  --color-success: #20c9a9;
-  --color-warning: #fbbf24;
-  --color-danger: #f87171;
-  --color-info: #60a5fa;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-info: #3b82f6;
 
-  --color-avatar-bg: #193c37;
-  --color-avatar-text: #5eead4;
+  --color-avatar-bg: #ede9fe;
+  --color-avatar-text: #7c3aed;
 
-  --color-input-background: #162122;
-  --color-disabled-background: #202d2d;
+  --color-input-background: #ffffff;
+  --color-disabled-background: #f1f5f9;
 
-  --color-overlay: rgba(0, 0, 0, 0.65);
-
-  --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.18);
+  --color-overlay: rgba(15, 23, 42, 0.4);
+  --shadow-card: 0 8px 30px rgba(139, 92, 246, 0.06);
 }
 
+/* ---------------------------------------------------------
+   3. INDIGO PINK THEME (Palette Image 2)
+   --------------------------------------------------------- */
+[data-theme="indigo_pink"] {
+  --color-background: #ffffff;
+  --color-surface: #f8f9fe;
+  --color-surface-muted: #f1f3f9;
+
+  --color-text-primary: #0f1221;
+  --color-text-secondary: #374151;
+  --color-text-muted: #6b7280;
+
+  --color-primary: #7c3aed;
+  --color-primary-hover: #6d28d9;
+  --color-primary-soft: #f3e8ff;
+
+  --color-secondary: #4f46e5;
+  --color-accent: #ec18a6;
+
+  --color-border: #e5e7eb;
+  --color-border-muted: #f3f4f6;
+
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-info: #4f46e5;
+
+  --color-avatar-bg: #fce7f3;
+  --color-avatar-text: #db2777;
+
+  --color-input-background: #ffffff;
+  --color-disabled-background: #f3f4f6;
+
+  --color-overlay: rgba(15, 18, 33, 0.4);
+  --shadow-card: 0 8px 30px rgba(124, 58, 237, 0.07);
+}
+
+/* ---------------------------------------------------------
+   4. MIDNIGHT CRIMSON / DARK ROSE THEME (Palette Image 3)
+   --------------------------------------------------------- */
+[data-theme="dark_rose"],
+[data-theme="dark"] {
+  --color-background: #0a0a0e;
+  --color-surface: #14141c;
+  --color-surface-muted: #1b1b24;
+
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #cbd5e1;
+  --color-text-muted: #64748b;
+
+  --color-primary: #e11d48;
+  --color-primary-hover: #be123c;
+  --color-primary-soft: #2e121e;
+
+  --color-secondary: #ec4899;
+  --color-accent: #fb7185;
+
+  --color-border: #232333;
+  --color-border-muted: #1c1c28;
+
+  --color-success: #22c55e;
+  --color-warning: #fbbf24;
+  --color-danger: #f43f5e;
+  --color-info: #60a5fa;
+
+  --color-avatar-bg: #331422;
+  --color-avatar-text: #fb7185;
+
+  --color-input-background: #14141c;
+  --color-disabled-background: #1c1c28;
+
+  --color-overlay: rgba(0, 0, 0, 0.75);
+  --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+
+/* ---------------------------------------------------------
+   5. CYBER LIME / DARK GREEN & AMBER THEME (Palette Image 4)
+   --------------------------------------------------------- */
+[data-theme="dark_lime"] {
+  --color-background: #0a0d08;
+  --color-surface: #131710;
+  --color-surface-muted: #1a2016;
+
+  --color-text-primary: #f7f8f0;
+  --color-text-secondary: #c4c8b8;
+  --color-text-muted: #7c8370;
+
+  --color-primary: #84cc16;
+  --color-primary-hover: #65a30d;
+  --color-primary-soft: #1e2b14;
+
+  --color-secondary: #f59e0b;
+  --color-accent: #d97706;
+
+  --color-border: #242d20;
+  --color-border-muted: #1c2419;
+
+  --color-success: #84cc16;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-info: #38bdf8;
+
+  --color-avatar-bg: #212e18;
+  --color-avatar-text: #a3e635;
+
+  --color-input-background: #131710;
+  --color-disabled-background: #1d2419;
+
+  --color-overlay: rgba(0, 0, 0, 0.75);
+  --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+
+/* ---------------------------------------------------------
+   6. SYSTEM PREFERENCE MODE
+   --------------------------------------------------------- */
+[data-theme="system"] {
+  --color-background: #f7fbfa;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f8fbfb;
+
+  --color-text-primary: #152238;
+  --color-text-secondary: #53636b;
+  --color-text-muted: #819095;
+
+  --color-primary: #15c2a8;
+  --color-primary-hover: #0fb39b;
+  --color-primary-soft: #e5f8f4;
+
+  --color-secondary: #4c94e8;
+  --color-accent: #16c3a8;
+
+  --color-border: #e3ebe9;
+  --color-border-muted: #e7efee;
+
+  --color-success: #16c3a8;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-info: #4c94e8;
+
+  --color-avatar-bg: #d8f3ee;
+  --color-avatar-text: #159c8b;
+
+  --color-input-background: #ffffff;
+  --color-disabled-background: #f8fafa;
+
+  --color-overlay: rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 8px 30px rgba(30, 70, 80, 0.035);
+}
 
 @media (prefers-color-scheme: dark) {
   [data-theme="system"] {
-    --color-background: #0f1718;
-    --color-surface: #162122;
-    --color-surface-muted: #1b292a;
+    --color-background: #0a0a0e;
+    --color-surface: #14141c;
+    --color-surface-muted: #1b1b24;
 
-    --color-text-primary: #edf7f5;
-    --color-text-secondary: #b7c9c6;
-    --color-text-muted: #829592;
+    --color-text-primary: #f8fafc;
+    --color-text-secondary: #cbd5e1;
+    --color-text-muted: #64748b;
 
-    --color-primary: #19c9ad;
-    --color-primary-hover: #14b89f;
-    --color-primary-soft: #163b35;
+    --color-primary: #e11d48;
+    --color-primary-hover: #be123c;
+    --color-primary-soft: #2e121e;
 
-    --color-border: #293938;
-    --color-border-muted: #243332;
+    --color-secondary: #ec4899;
+    --color-accent: #fb7185;
 
-    --color-success: #20c9a9;
+    --color-border: #232333;
+    --color-border-muted: #1c1c28;
+
+    --color-success: #22c55e;
     --color-warning: #fbbf24;
-    --color-danger: #f87171;
+    --color-danger: #f43f5e;
     --color-info: #60a5fa;
 
-    --color-avatar-bg: #193c37;
-    --color-avatar-text: #5eead4;
+    --color-avatar-bg: #331422;
+    --color-avatar-text: #fb7185;
 
-    --color-input-background: #162122;
-    --color-disabled-background: #202d2d;
+    --color-input-background: #14141c;
+    --color-disabled-background: #1c1c28;
 
-    --color-overlay: rgba(0, 0, 0, 0.65);
-
-    --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.18);
+    --color-overlay: rgba(0, 0, 0, 0.75);
+    --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.35);
   }
 }

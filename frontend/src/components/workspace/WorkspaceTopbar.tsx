@@ -201,7 +201,7 @@ export default function WorkspaceTopbar() {
   // =========================================================
 
   return (
-    <header className="sticky top-0 z-2 flex h-[84px] items-center border-b border-[#E7EFEE] bg-white/90 px-6 backdrop-blur-xl lg:px-8">
+    <header className="sticky top-0 z-2 flex h-[84px] items-center border-b border-[var(--color-border-muted)] bg-[var(--color-surface)]/90 px-6 backdrop-blur-xl transition-colors duration-200 lg:px-8">
 
       {/* =====================================================
           LOGO
@@ -212,7 +212,7 @@ export default function WorkspaceTopbar() {
         onClick={handleWorkspace}
         className="flex w-[220px] shrink-0 items-center gap-3 text-left"
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#E8F9F5] text-[#16BFA7]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
           <svg
             width="28"
             height="28"
@@ -255,11 +255,11 @@ export default function WorkspaceTopbar() {
         </div>
 
         <div>
-          <h1 className="text-[22px] font-bold tracking-tight text-[#142238]">
+          <h1 className="text-[22px] font-bold tracking-tight text-[var(--color-text-primary)]">
             VIDNOVA
           </h1>
 
-          <p className="text-[10px] font-semibold tracking-[5px] text-[#16BFA9]">
+          <p className="text-[10px] font-semibold tracking-[5px] text-[var(--color-primary)]">
             SINCE 2026
           </p>
         </div>
@@ -269,21 +269,21 @@ export default function WorkspaceTopbar() {
           GLOBAL SEARCH
       ====================================================== */}
 
-      <div className="mx-auto flex w-full max-w-[540px] items-center rounded-full border border-[#E3ECEB] bg-[#F8FBFB] px-4 py-2.5 shadow-sm">
+      <div className="mx-auto flex w-full max-w-[540px] items-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-4 py-2.5 shadow-sm">
         <Search
           size={19}
-          className="text-[#81919B]"
+          className="text-[var(--color-text-muted)]"
         />
 
         <input
           type="text"
           placeholder="Search anything..."
-          className="flex-1 bg-transparent px-3 text-sm text-[#344454] outline-none placeholder:text-[#8D9AA3]"
+          className="flex-1 bg-transparent px-3 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
         />
 
         <Search
           size={18}
-          className="text-[#7D8C97]"
+          className="text-[var(--color-text-muted)]"
         />
       </div>
 
@@ -298,7 +298,7 @@ export default function WorkspaceTopbar() {
         <button
           type="button"
           onClick={() => navigate("/workspace")}
-          className="flex items-center gap-2 rounded-xl bg-[#15C2A8] px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(21,194,168,.25)] transition hover:bg-[#0FB39B]"
+          className="flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)]"
         >
           <Plus size={18} />
           New Project
@@ -308,14 +308,14 @@ export default function WorkspaceTopbar() {
 
         <button
           type="button"
-          className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-[#E8EFEE] bg-white shadow-sm transition hover:bg-[#F4FAF9]"
+          className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm transition hover:bg-[var(--color-surface-muted)]"
         >
           <Bell
             size={19}
-            className="text-[#52626F]"
+            className="text-[var(--color-text-secondary)]"
           />
 
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#18C3AA]" />
+          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[var(--color-primary)]" />
         </button>
 
         {/* =================================================
@@ -334,12 +334,12 @@ export default function WorkspaceTopbar() {
                 (prev) => !prev
               )
             }
-            className="flex items-center gap-3 rounded-xl px-2 py-1.5 transition hover:bg-[#F5FAF9] disabled:opacity-60"
+            className="flex items-center gap-3 rounded-xl px-2 py-1.5 transition hover:bg-[var(--color-surface-muted)] disabled:opacity-60"
           >
 
             {/* TOPBAR AVATAR */}
 
-            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-[#D8F3EE] text-sm font-bold text-[#159C8B]">
+            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-[var(--color-avatar-bg)] text-sm font-bold text-[var(--color-avatar-text)]">
 
               {loadingUser ? (
                 "..."
@@ -357,7 +357,7 @@ export default function WorkspaceTopbar() {
 
             <ChevronDown
               size={17}
-              className={`text-[#687780] transition ${profileOpen
+              className={`text-[var(--color-text-muted)] transition ${profileOpen
                   ? "rotate-180"
                   : ""
                 }`}
@@ -385,19 +385,19 @@ export default function WorkspaceTopbar() {
 
               {/* DROPDOWN */}
 
-              <div className="absolute right-0 top-[58px] z-50 w-[250px] overflow-hidden rounded-2xl border border-[#E3ECEB] bg-white shadow-[0_18px_50px_rgba(30,70,80,0.14)]">
+              <div className="absolute right-0 top-[58px] z-50 w-[250px] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)]">
 
                 {/* =================================================
                     PROFILE HEADER
                 ================================================== */}
 
-                <div className="border-b border-[#EDF2F1] p-4">
+                <div className="border-b border-[var(--color-border)] p-4">
 
                   <div className="flex items-center gap-3">
 
                     {/* DROPDOWN AVATAR */}
 
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#D8F3EE] text-sm font-bold text-[#159C8B]">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--color-avatar-bg)] text-sm font-bold text-[var(--color-avatar-text)]">
 
                       {avatarSrc ? (
                         <img
@@ -413,15 +413,15 @@ export default function WorkspaceTopbar() {
 
                     <div className="min-w-0">
 
-                      <p className="truncate text-sm font-bold text-[#263641]">
+                      <p className="truncate text-sm font-bold text-[var(--color-text-primary)]">
                         {displayName}
                       </p>
 
-                      <p className="truncate text-xs text-[#8A999D]">
+                      <p className="truncate text-xs text-[var(--color-text-muted)]">
                         {displayEmail}
                       </p>
 
-                      <p className="truncate text-xs text-[#8A999D]">
+                      <p className="truncate text-xs text-[var(--color-text-muted)]">
                         {displayRole}
                       </p>
 
@@ -441,7 +441,7 @@ export default function WorkspaceTopbar() {
                     type="button"
                     onClick={handleWorkspace}
                     disabled={loggingOut}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[#53666B] transition hover:bg-[#F4FAF9] hover:text-[#18BFA7] disabled:opacity-50"
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)] disabled:opacity-50"
                   >
                     <User size={17} />
                     My Workspace
@@ -451,7 +451,7 @@ export default function WorkspaceTopbar() {
                     type="button"
                     onClick={handleSettings}
                     disabled={loggingOut}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[#53666B] transition hover:bg-[#F4FAF9] hover:text-[#18BFA7] disabled:opacity-50"
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)] disabled:opacity-50"
                   >
                     <Settings size={17} />
                     Settings
@@ -463,13 +463,13 @@ export default function WorkspaceTopbar() {
                     LOGOUT
                 ================================================== */}
 
-                <div className="border-t border-[#EDF2F1] p-2">
+                <div className="border-t border-[var(--color-border)] p-2">
 
                   <button
                     type="button"
                     onClick={handleLogout}
                     disabled={loggingOut}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[#D06464] transition hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[var(--color-danger)] transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                   >
 
                     <LogOut size={17} />

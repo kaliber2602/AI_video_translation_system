@@ -350,7 +350,7 @@ export default function WorkspaceSidebar({
 
   return (
     <>
-      <aside className="hidden min-h-[calc(100vh-84px)] w-[240px] shrink-0 border-r border-[#E5EFED] bg-white/65 px-5 py-9 lg:block">
+      <aside className="hidden min-h-[calc(100vh-84px)] w-[240px] shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)]/80 px-5 py-9 transition-colors duration-200 lg:block">
 
         {/* =====================================================
             Navigation
@@ -367,8 +367,8 @@ export default function WorkspaceSidebar({
                   key={item.label}
                   type="button"
                   className={`flex w-full items-center gap-4 rounded-xl px-4 py-3 text-left text-sm transition ${item.active
-                      ? "bg-[#E3F7F3] font-semibold text-[#13B49F]"
-                      : "text-[#52616F] hover:bg-[#F1F8F7]"
+                      ? "bg-[var(--color-primary-soft)] font-semibold text-[var(--color-primary)]"
+                      : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-muted)]"
                     }`}
                 >
                   <Icon size={20} />
@@ -390,7 +390,7 @@ export default function WorkspaceSidebar({
 
           <div className="mb-5 flex items-center justify-between px-3">
 
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#7A8992]">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
               Tags
             </p>
 
@@ -408,9 +408,9 @@ export default function WorkspaceSidebar({
                     key={item}
                     className="flex items-center gap-3"
                   >
-                    <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#DDE9E7]" />
+                    <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[var(--color-border)]" />
 
-                    <span className="h-3 w-24 animate-pulse rounded bg-[#EDF3F2]" />
+                    <span className="h-3 w-24 animate-pulse rounded bg-[var(--color-border-muted)]" />
                   </div>
                 )
               )}
@@ -423,7 +423,7 @@ export default function WorkspaceSidebar({
 
           {!isLoadingTags &&
             tagsError && (
-              <p className="px-3 text-xs text-red-500">
+              <p className="px-3 text-xs text-[var(--color-danger)]">
                 {tagsError}
               </p>
             )}
@@ -434,7 +434,7 @@ export default function WorkspaceSidebar({
           {!isLoadingTags &&
             !tagsError &&
             tags.length === 0 && (
-              <p className="px-3 text-xs text-[#8B98A0]">
+              <p className="px-3 text-xs text-[var(--color-text-muted)]">
                 No tags yet.
               </p>
             )}
@@ -458,8 +458,8 @@ export default function WorkspaceSidebar({
                     <div
                       key={tag.id}
                       className={`group relative flex items-center rounded-xl transition ${isSelected
-                          ? "bg-[#E3F7F3]"
-                          : "hover:bg-[#F1F8F7]"
+                          ? "bg-[var(--color-primary-soft)]"
+                          : "hover:bg-[var(--color-surface-muted)]"
                         }`}
                     >
 
@@ -475,8 +475,8 @@ export default function WorkspaceSidebar({
                           )
                         }
                         className={`flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-sm ${isSelected
-                            ? "font-semibold text-[#13B49F]"
-                            : "text-[#53616D]"
+                            ? "font-semibold text-[var(--color-primary)]"
+                            : "text-[var(--color-text-secondary)]"
                           }`}
                       >
 
@@ -485,7 +485,7 @@ export default function WorkspaceSidebar({
                           style={{
                             backgroundColor:
                               tag.color ||
-                              "#45D2B7",
+                              "var(--color-primary)",
                           }}
                         />
 
@@ -509,7 +509,7 @@ export default function WorkspaceSidebar({
                         <button
                           type="button"
                           onClick={() => openEditTagModal(tag)}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg text-[#8B98A0] opacity-0 transition hover:bg-white hover:text-[#52616F] group-hover:opacity-100"
+                          className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--color-text-muted)] opacity-0 transition hover:bg-[var(--color-surface)] hover:text-[var(--color-text-primary)] group-hover:opacity-100"
                           title="Edit tag"
                         >
                           <Pencil size={15} />
@@ -520,7 +520,7 @@ export default function WorkspaceSidebar({
                         <button
                           type="button"
                           onClick={() => setDeletingTag(tag)}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg text-[#8B98A0] opacity-0 transition hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+                          className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--color-text-muted)] opacity-0 transition hover:bg-red-500/10 hover:text-red-500 group-hover:opacity-100"
                           title="Delete tag"
                         >
                           <Trash2 size={15} />
@@ -545,7 +545,7 @@ export default function WorkspaceSidebar({
             onClick={
               openCreateTagModal
             }
-            className="mt-3 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[#52616F] transition hover:bg-[#F1F8F7] hover:text-[#13B49F]"
+            className="mt-3 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
           >
             <Plus size={17} />
 
@@ -559,23 +559,23 @@ export default function WorkspaceSidebar({
             Upgrade Card
         ===================================================== */}
 
-        <div className="mt-36 rounded-2xl border border-[#D8EEEA] bg-gradient-to-br from-[#F1FCFA] to-[#E7F8F5] p-4">
+        <div className="mt-36 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-4 shadow-sm">
 
-          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[#13BFA8] shadow-sm">
+          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--color-surface)] text-[var(--color-primary)] shadow-sm">
             <Sparkles size={19} />
           </div>
 
-          <h3 className="text-sm font-semibold text-[#273946]">
+          <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
             Need more storage?
           </h3>
 
-          <p className="mt-2 text-xs leading-5 text-[#71818B]">
+          <p className="mt-2 text-xs leading-5 text-[var(--color-text-muted)]">
             Upgrade your plan for unlimited projects and AI processing.
           </p>
 
           <button
             type="button"
-            className="mt-4 w-full rounded-xl bg-[#15C2A8] py-2.5 text-xs font-semibold text-white transition hover:bg-[#0EAE97]"
+            className="mt-4 w-full rounded-xl bg-[var(--color-primary)] py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)]"
           >
             Upgrade Now
           </button>
@@ -590,9 +590,9 @@ export default function WorkspaceSidebar({
       ======================================================= */}
 
       {tagModalMode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay)] px-4 backdrop-blur-sm">
 
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)]">
 
             {/* Header */}
 
@@ -600,14 +600,14 @@ export default function WorkspaceSidebar({
 
               <div>
 
-                <h2 className="text-lg font-semibold text-[#273946]">
+                <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
                   {tagModalMode ===
                     "create"
                     ? "Create Tag"
                     : "Edit Tag"}
                 </h2>
 
-                <p className="mt-1 text-sm text-[#71818B]">
+                <p className="mt-1 text-sm text-[var(--color-text-muted)]">
                   {tagModalMode ===
                     "create"
                     ? "Create a new tag for your projects."
@@ -625,7 +625,7 @@ export default function WorkspaceSidebar({
                 disabled={
                   isSubmitting
                 }
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8B98A0] transition hover:bg-[#F1F8F7] hover:text-[#52616F]"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--color-text-muted)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-text-primary)]"
               >
                 <X size={18} />
               </button>
@@ -637,7 +637,7 @@ export default function WorkspaceSidebar({
 
             <div className="mt-6">
 
-              <label className="text-sm font-medium text-[#52616F]">
+              <label className="text-sm font-medium text-[var(--color-text-secondary)]">
                 Tag name
               </label>
 
@@ -663,7 +663,7 @@ export default function WorkspaceSidebar({
                 disabled={
                   isSubmitting
                 }
-                className="mt-2 w-full rounded-xl border border-[#DCE8E5] px-4 py-3 text-sm text-[#273946] outline-none transition placeholder:text-[#A4AFB5] focus:border-[#13B49F] focus:ring-2 focus:ring-[#13B49F]/10 disabled:bg-[#F5F8F7]"
+                className="mt-2 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-4 py-3 text-sm text-[var(--color-text-primary)] outline-none transition placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/10 disabled:bg-[var(--color-disabled-background)]"
                 autoFocus
               />
 
@@ -674,7 +674,7 @@ export default function WorkspaceSidebar({
 
             <div className="mt-5">
 
-              <label className="text-sm font-medium text-[#52616F]">
+              <label className="text-sm font-medium text-[var(--color-text-secondary)]">
                 Color
               </label>
 
@@ -694,7 +694,7 @@ export default function WorkspaceSidebar({
                   disabled={
                     isSubmitting
                   }
-                  className="h-11 w-14 cursor-pointer rounded-lg border border-[#DCE8E5] bg-white p-1"
+                  className="h-11 w-14 cursor-pointer rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-1"
                 />
 
                 <input
@@ -709,7 +709,7 @@ export default function WorkspaceSidebar({
                   disabled={
                     isSubmitting
                   }
-                  className="flex-1 rounded-xl border border-[#DCE8E5] px-4 py-3 text-sm text-[#273946] outline-none focus:border-[#13B49F] focus:ring-2 focus:ring-[#13B49F]/10 disabled:bg-[#F5F8F7]"
+                  className="flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-4 py-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/10 disabled:bg-[var(--color-disabled-background)]"
                 />
 
               </div>
@@ -729,7 +729,7 @@ export default function WorkspaceSidebar({
                 disabled={
                   isSubmitting
                 }
-                className="rounded-xl px-4 py-2.5 text-sm font-medium text-[#52616F] transition hover:bg-[#F1F8F7] disabled:opacity-50"
+                className="rounded-xl px-4 py-2.5 text-sm font-medium text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -743,7 +743,7 @@ export default function WorkspaceSidebar({
                   isSubmitting ||
                   !tagName.trim()
                 }
-                className="rounded-xl bg-[#15C2A8] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0EAE97] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSubmitting
                   ? "Saving..."
@@ -766,31 +766,31 @@ export default function WorkspaceSidebar({
       ======================================================= */}
 
       {deletingTag && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay)] px-4 backdrop-blur-sm">
 
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)]">
 
             <div className="flex items-start gap-4">
 
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-500">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-[var(--color-danger)]">
                 <Trash2 size={19} />
               </div>
 
               <div>
 
-                <h2 className="text-lg font-semibold text-[#273946]">
+                <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">
                   Delete Tag
                 </h2>
 
-                <p className="mt-2 text-sm leading-6 text-[#71818B]">
+                <p className="mt-2 text-sm leading-6 text-[var(--color-text-muted)]">
                   Are you sure you want to delete{" "}
-                  <span className="font-semibold text-[#52616F]">
+                  <span className="font-semibold text-[var(--color-text-primary)]">
                     "{deletingTag.name}"
                   </span>
                   ?
                 </p>
 
-                <p className="mt-1 text-xs text-[#9AA6AD]">
+                <p className="mt-1 text-xs text-[var(--color-text-muted)]">
                   This action cannot be undone.
                 </p>
 
@@ -813,7 +813,7 @@ export default function WorkspaceSidebar({
                 disabled={
                   isDeleting
                 }
-                className="rounded-xl px-4 py-2.5 text-sm font-medium text-[#52616F] transition hover:bg-[#F1F8F7] disabled:opacity-50"
+                className="rounded-xl px-4 py-2.5 text-sm font-medium text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] disabled:opacity-50"
               >
                 Cancel
               </button>

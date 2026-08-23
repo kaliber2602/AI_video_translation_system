@@ -141,13 +141,13 @@ export default function ProjectTable() {
   };
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-[#E4ECEB] bg-white shadow-[0_10px_35px_rgba(30,70,80,0.04)]">
+    <section className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)] transition-colors duration-200">
       {/* Table Header */}
-      <div className="grid grid-cols-[40px_1.4fr_1.5fr_100px_140px_100px_180px_40px] items-center gap-4 border-b border-[#EDF2F1] px-5 py-4 text-xs font-semibold text-[#7B8B90]">
+      <div className="grid grid-cols-[40px_1.4fr_1.5fr_100px_140px_100px_180px_40px] items-center gap-4 border-b border-[var(--color-border)] px-5 py-4 text-xs font-semibold text-[var(--color-text-muted)]">
         <div>
           <input
             type="checkbox"
-            className="h-4 w-4 rounded border-[#CBD8D7] accent-[#18C3AA]"
+            className="h-4 w-4 rounded border-[var(--color-border)] accent-[var(--color-primary)]"
           />
         </div>
 
@@ -172,14 +172,14 @@ export default function ProjectTable() {
               handleProjectClick(project.id);
             }
           }}
-          className="group grid w-full cursor-pointer grid-cols-[40px_1.4fr_1.5fr_100px_140px_100px_180px_40px] items-center gap-4 border-b border-[#EDF2F1] px-5 py-5 text-left transition hover:bg-[#F8FCFB] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#18C3AA]"
+          className="group grid w-full cursor-pointer grid-cols-[40px_1.4fr_1.5fr_100px_140px_100px_180px_40px] items-center gap-4 border-b border-[var(--color-border)] px-5 py-5 text-left transition hover:bg-[var(--color-surface-muted)] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)]"
         >
           {/* Checkbox */}
           <div>
             <input
               type="checkbox"
               onClick={(event) => event.stopPropagation()}
-              className="h-4 w-4 rounded border-[#CBD8D7] accent-[#18C3AA]"
+              className="h-4 w-4 rounded border-[var(--color-border)] accent-[var(--color-primary)]"
             />
           </div>
 
@@ -190,11 +190,11 @@ export default function ProjectTable() {
             </div>
 
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-[#263641]">
+              <div className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
                 {project.name}
               </div>
 
-              <div className="mt-1 text-xs text-[#8B9A9E]">
+              <div className="mt-1 text-xs text-[var(--color-text-muted)]">
                 {project.videos} videos
               </div>
             </div>
@@ -207,28 +207,28 @@ export default function ProjectTable() {
             </div>
 
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-[#34434B]">
+              <div className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
                 {project.recentProject}
               </div>
 
-              <div className="mt-1 text-xs text-[#8B9A9E]">
+              <div className="mt-1 text-xs text-[var(--color-text-muted)]">
                 {project.duration}
               </div>
             </div>
           </div>
 
           {/* Videos */}
-          <div className="text-sm text-[#53666B]">
+          <div className="text-sm text-[var(--color-text-secondary)]">
             {project.videos}
           </div>
 
           {/* Updated */}
-          <div className="text-sm text-[#53666B]">
+          <div className="text-sm text-[var(--color-text-secondary)]">
             {project.updated}
           </div>
 
           {/* Size */}
-          <div className="text-sm text-[#53666B]">
+          <div className="text-sm text-[var(--color-text-secondary)]">
             {project.size}
           </div>
 
@@ -251,7 +251,7 @@ export default function ProjectTable() {
               onClick={(event) => {
                 event.stopPropagation();
               }}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8C9A9D] transition hover:bg-[#EAF8F5] hover:text-[#18BFA7]"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--color-text-muted)] transition hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)]"
             >
               <MoreHorizontal size={19} />
             </button>

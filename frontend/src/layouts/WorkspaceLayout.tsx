@@ -45,7 +45,7 @@ export default function WorkspaceLayout() {
   }, [location, navigate]);
 
   return (
-    <div className="min-h-screen bg-[#F7FBFA] text-[#152238]">
+    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200">
       <WorkspaceTopbar />
 
       <div className="flex">

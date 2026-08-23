@@ -54,13 +54,13 @@ export default function ProjectDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7FBFA] text-[#152238]">
+    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200">
       <main className="mx-auto w-full max-w-[1600px] px-8 py-8">
         {/* Back to Workspace */}
         <button
           type="button"
           onClick={handleBackToProjects}
-          className="mb-6 flex items-center gap-2 text-sm font-medium text-[#718387] transition hover:text-[#18BFA7]"
+          className="mb-6 flex items-center gap-2 text-sm font-medium text-[var(--color-text-muted)] transition hover:text-[var(--color-primary)]"
         >
           <ArrowLeft size={17} />
           Back to Projects
@@ -75,17 +75,17 @@ export default function ProjectDetail() {
               </div>
 
               <div>
-                <h1 className="text-[28px] font-bold tracking-[-0.6px] text-[#152238]">
+                <h1 className="text-[28px] font-bold tracking-[-0.6px] text-[var(--color-text-primary)]">
                   NLP Tutorials
                 </h1>
 
-                <p className="mt-1 text-sm text-[#819095]">
+                <p className="mt-1 text-sm text-[var(--color-text-muted)]">
                   4 videos · 3.6 GB · Updated May 25, 2024
                 </p>
               </div>
             </div>
 
-            <p className="max-w-2xl text-sm leading-6 text-[#718387]">
+            <p className="max-w-2xl text-sm leading-6 text-[var(--color-text-secondary)]">
               A collection of videos about Natural Language Processing,
               including translated content, subtitles, dubbing, and generated
               documents.
@@ -96,7 +96,7 @@ export default function ProjectDetail() {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="flex h-11 items-center gap-2 rounded-xl border border-[#E1EBE9] bg-white px-4 text-sm font-semibold text-[#53666B] transition hover:border-[#18C3AA] hover:text-[#18BFA7]"
+              className="flex h-11 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
             >
               <MoreHorizontal size={18} />
               More
@@ -104,7 +104,7 @@ export default function ProjectDetail() {
 
             <button
               type="button"
-              className="flex h-11 items-center gap-2 rounded-xl bg-[#18C3AA] px-5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(24,195,170,0.22)] transition hover:-translate-y-0.5 hover:bg-[#12B49D]"
+              className="flex h-11 items-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)]"
             >
               <Upload size={18} />
               Upload Video
@@ -113,23 +113,23 @@ export default function ProjectDetail() {
         </section>
 
         {/* Search and Folder Toolbar */}
-        <section className="mb-6 flex flex-col gap-3 rounded-2xl border border-[#E5EFED] bg-white p-3 shadow-[0_8px_30px_rgba(30,70,80,0.04)] sm:flex-row">
+        <section className="mb-6 flex flex-col gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-[var(--shadow-card)] sm:flex-row">
           <div className="relative min-w-0 flex-1">
             <Search
               size={18}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-[#91A3A7]"
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
             />
 
             <input
               type="text"
               placeholder="Search videos in this project..."
-              className="h-11 w-full rounded-xl border border-[#E4ECEB] bg-[#FBFDFC] pl-11 pr-4 text-sm outline-none transition placeholder:text-[#9AA8AC] focus:border-[#20C5AE] focus:bg-white focus:ring-4 focus:ring-[#20C5AE]/10"
+              className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-11 pr-4 text-sm text-[var(--color-text-primary)] outline-none transition placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:bg-[var(--color-surface)] focus:ring-4 focus:ring-[var(--color-primary)]/10"
             />
           </div>
 
           <button
             type="button"
-            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#E4ECEB] px-5 text-sm text-[#53666B] transition hover:border-[#20C5AE] hover:bg-[#F4FBFA]"
+            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] px-5 text-sm text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)]"
           >
             <Plus size={17} />
             New Folder

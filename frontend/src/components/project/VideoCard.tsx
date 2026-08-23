@@ -61,7 +61,7 @@ export default function VideoCard({
   const status = statusConfig[video.status];
 
   return (
-    <article className="group overflow-hidden rounded-2xl border border-[#E4ECEB] bg-white shadow-[0_10px_35px_rgba(30,70,80,0.04)] transition hover:-translate-y-1 hover:shadow-[0_18px_45px_rgba(30,70,80,0.09)]">
+    <article className="group overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)] transition hover:-translate-y-1 hover:shadow-lg">
       {/* ================= Thumbnail ================= */}
 
       <div className="relative h-[190px] overflow-hidden bg-gradient-to-br from-[#15212B] via-[#334854] to-[#78919A]">
@@ -74,7 +74,7 @@ export default function VideoCard({
             type="button"
             onClick={onOpen}
             aria-label={`Open ${video.title}`}
-            className="flex h-14 w-14 items-center justify-center rounded-full bg-white/90 text-[#18BFA7] shadow-xl transition hover:scale-110 hover:bg-white"
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-white/90 text-[var(--color-primary)] shadow-xl transition hover:scale-110 hover:bg-white"
           >
             <Play
               size={22}
@@ -109,11 +109,11 @@ export default function VideoCard({
         {/* Title + Status */}
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h2 className="truncate text-base font-bold text-[#263641]">
+            <h2 className="truncate text-base font-bold text-[var(--color-text-primary)]">
               {video.title}
             </h2>
 
-            <p className="mt-1 truncate text-xs text-[#8A999D]">
+            <p className="mt-1 truncate text-xs text-[var(--color-text-muted)]">
               {video.filename}
             </p>
           </div>
@@ -127,7 +127,7 @@ export default function VideoCard({
         </div>
 
         {/* Metadata */}
-        <div className="mt-5 flex items-center justify-between border-t border-[#EDF2F1] pt-4 text-xs text-[#829196]">
+        <div className="mt-5 flex items-center justify-between border-t border-[var(--color-border)] pt-4 text-xs text-[var(--color-text-muted)]">
           <span>{video.size}</span>
 
           <span>{video.updated}</span>
@@ -139,7 +139,7 @@ export default function VideoCard({
           <button
             type="button"
             onClick={onOpen}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#E8F9F5] py-2.5 text-xs font-semibold text-[#13BDA5] transition hover:bg-[#D9F5EF]"
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--color-primary-soft)] py-2.5 text-xs font-semibold text-[var(--color-primary)] transition hover:opacity-90"
           >
             <Settings2 size={15} />
 
@@ -159,7 +159,7 @@ export default function VideoCard({
               event.stopPropagation();
             }}
             aria-label="View generated documents"
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#E3EBEA] text-[#7D8D91] transition hover:border-[#18C3AA] hover:text-[#18BFA7]"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
           >
             <FileText size={16} />
           </button>
