@@ -16,6 +16,7 @@ import enWorkspace from "./locales/en/workspace.json";
 import enProject from "./locales/en/project.json";
 import enPipeline from "./locales/en/pipeline.json";
 import enSettings from "./locales/en/settings.json";
+import enPricing from "./locales/en/pricing.json";
 
 // Vietnamese resources
 import viCommon from "./locales/vi/common.json";
@@ -26,6 +27,7 @@ import viWorkspace from "./locales/vi/workspace.json";
 import viProject from "./locales/vi/project.json";
 import viPipeline from "./locales/vi/pipeline.json";
 import viSettings from "./locales/vi/settings.json";
+import viPricing from "./locales/vi/pricing.json";
 
 export const resources = {
   en: {
@@ -37,6 +39,7 @@ export const resources = {
     project: enProject,
     pipeline: enPipeline,
     settings: enSettings,
+    pricing: enPricing,
   },
   vi: {
     common: viCommon,
@@ -47,6 +50,7 @@ export const resources = {
     project: viProject,
     pipeline: viPipeline,
     settings: viSettings,
+    pricing: viPricing,
   },
 } as const;
 
@@ -76,6 +80,7 @@ i18n
       "project",
       "pipeline",
       "settings",
+      "pricing",
     ],
     interpolation: {
       escapeValue: false, 

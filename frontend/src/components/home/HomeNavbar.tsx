@@ -45,7 +45,7 @@ export default function HomeNavbar() {
         </Link>
 
         {/* Navigation */}
-        <nav className="hidden items-center gap-8 lg:flex">
+        <nav className="hidden items-center gap-7 lg:flex">
           <a
             href="#home"
             className="relative py-2 text-sm font-semibold text-[var(--color-primary)]"
@@ -62,10 +62,17 @@ export default function HomeNavbar() {
           </a>
 
           <a
-            href="#solutions"
+            href="#how-it-works"
             className="py-2 text-sm font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-primary)]"
           >
-            {t("navigation:solutions")}
+            {t("navigation:howItWorks")}
+          </a>
+
+          <a
+            href="#semantic-search"
+            className="py-2 text-sm font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-primary)]"
+          >
+            {t("navigation:semanticSearch")}
           </a>
 
           <a
@@ -73,20 +80,6 @@ export default function HomeNavbar() {
             className="py-2 text-sm font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-primary)]"
           >
             {t("navigation:pricing")}
-          </a>
-
-          <a
-            href="#resources"
-            className="py-2 text-sm font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-primary)]"
-          >
-            {t("navigation:resources")}
-          </a>
-
-          <a
-            href="#about"
-            className="py-2 text-sm font-medium text-[var(--color-text-secondary)] transition hover:text-[var(--color-primary)]"
-          >
-            {t("navigation:about")}
           </a>
         </nav>
 

@@ -473,4 +473,295 @@ CREATE INDEX idx_activity_logs_project_id
 CREATE INDEX idx_activity_logs_user_id
     ON activity_logs(user_id);
 
+-- =========================================================
+-- SUBSCRIPTION PLANS & RESOURCES
+-- =========================================================
+
+CREATE TABLE plans (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    price_monthly NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+    price_yearly NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+    billing_cycle VARCHAR(20) NOT NULL DEFAULT 'monthly',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    is_popular BOOLEAN NOT NULL DEFAULT FALSE,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE plan_resources (
+    id SERIAL PRIMARY KEY,
+    plan_id INTEGER NOT NULL,
+    resource_type VARCHAR(50) NOT NULL,
+    resource_key VARCHAR(100) NOT NULL,
+    limit_value VARCHAR(255) NOT NULL,
+    unit VARCHAR(50),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_plan_resources_plan
+        FOREIGN KEY (plan_id)
+        REFERENCES plans(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT uq_plan_resource
+        UNIQUE (plan_id, resource_key)
+);
+
+CREATE TABLE storage_addons (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    storage_bytes BIGINT NOT NULL,
+    price_monthly NUMERIC(10, 2) NOT NULL,
+    price_yearly NUMERIC(10, 2) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE user_subscriptions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    plan_id INTEGER NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'active',
+    billing_cycle VARCHAR(20) NOT NULL DEFAULT 'monthly',
+    started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_user_subscriptions_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_user_subscriptions_plan
+        FOREIGN KEY (plan_id)
+        REFERENCES plans(id)
+        ON DELETE RESTRICT
+);
+
+CREATE TABLE user_storage_addons (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    addon_id INTEGER NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'active',
+    started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_user_storage_addons_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_user_storage_addons_addon
+        FOREIGN KEY (addon_id)
+        REFERENCES storage_addons(id)
+        ON DELETE RESTRICT
+);
+
+CREATE TABLE user_consumable_usage (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    period_start TIMESTAMP NOT NULL,
+    period_end TIMESTAMP NOT NULL,
+    credits_used INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_user_consumable_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT uq_user_consumable_period
+        UNIQUE (user_id, period_start, period_end)
+);
+
+CREATE INDEX idx_plan_resources_plan_id ON plan_resources(plan_id);
+CREATE INDEX idx_user_subscriptions_user_id ON user_subscriptions(user_id);
+CREATE INDEX idx_user_subscriptions_status ON user_subscriptions(status);
+CREATE INDEX idx_user_storage_addons_user_id ON user_storage_addons(user_id);
+CREATE INDEX idx_user_consumable_usage_user_id ON user_consumable_usage(user_id);
+
+-- =========================================================
+-- DEFAULT USER SUBSCRIPTION TRIGGER
+-- =========================================================
+
+CREATE OR REPLACE FUNCTION assign_default_user_subscription()
+RETURNS TRIGGER AS $$
+DECLARE
+    free_plan_id INTEGER;
+BEGIN
+    SELECT id INTO free_plan_id FROM plans WHERE code = 'free' LIMIT 1;
+    IF free_plan_id IS NOT NULL THEN
+        INSERT INTO user_subscriptions (user_id, plan_id, status, started_at)
+        VALUES (NEW.id, free_plan_id, 'active', CURRENT_TIMESTAMP);
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_assign_default_user_subscription
+AFTER INSERT ON users
+FOR EACH ROW
+EXECUTE FUNCTION assign_default_user_subscription();
+
+-- =========================================================
+-- SEED INITIAL PLANS & RESOURCES
+-- =========================================================
+
+INSERT INTO plans (code, name, description, price_monthly, price_yearly, is_popular, display_order)
+VALUES
+    ('free', 'Free', 'For trying the platform and personal use', 0.00, 0.00, FALSE, 1),
+    ('pro', 'Pro', 'For creators, freelancers and professionals', 12.00, 120.00, TRUE, 2),
+    ('business', 'Business', 'For teams, studios and scaling organizations', 49.00, 490.00, FALSE, 3);
+
+-- FREE RESOURCES
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'STORAGE', 'storage_bytes', '5368709120', 'bytes' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'CONSUMABLE', 'ai_credits_monthly', '1000', 'credits' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_file_size_bytes', '524288000', 'bytes' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_video_duration_seconds', '1800', 'seconds' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_upload_resolution', '1080p', 'resolution' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_processing_resolution', '720p', 'resolution' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_streaming_resolution', '720p', 'resolution' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_export_resolution', '720p', 'resolution' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_concurrent_jobs', '1', 'count' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_projects', '5', 'count' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'ai_translation', 'true', 'boolean' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'text_to_speech', 'true', 'boolean' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'speaker_diarization', 'true', 'boolean' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'hls_streaming', 'true', 'boolean' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'video_editor', 'true', 'boolean' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'document_export', 'true', 'boolean' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'smart_subtitles', 'true', 'boolean' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'batch_processing', 'true', 'boolean' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'api_access', 'true', 'boolean' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'priority_processing', 'true', 'boolean' FROM plans WHERE code = 'free';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'team_workspace', 'true', 'boolean' FROM plans WHERE code = 'free';
+
+-- PRO RESOURCES
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'STORAGE', 'storage_bytes', '107374182400', 'bytes' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'CONSUMABLE', 'ai_credits_monthly', '10000', 'credits' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_file_size_bytes', '5368709120', 'bytes' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_video_duration_seconds', '14400', 'seconds' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_upload_resolution', '4K', 'resolution' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_processing_resolution', '1080p', 'resolution' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_streaming_resolution', '1080p', 'resolution' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_export_resolution', '1080p', 'resolution' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_concurrent_jobs', '3', 'count' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_projects', '50', 'count' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'ai_translation', 'true', 'boolean' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'text_to_speech', 'true', 'boolean' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'speaker_diarization', 'true', 'boolean' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'hls_streaming', 'true', 'boolean' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'video_editor', 'true', 'boolean' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'document_export', 'true', 'boolean' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'smart_subtitles', 'true', 'boolean' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'batch_processing', 'true', 'boolean' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'api_access', 'true', 'boolean' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'priority_processing', 'true', 'boolean' FROM plans WHERE code = 'pro';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'team_workspace', 'true', 'boolean' FROM plans WHERE code = 'pro';
+
+-- BUSINESS RESOURCES
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'STORAGE', 'storage_bytes', '1099511627776', 'bytes' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'CONSUMABLE', 'ai_credits_monthly', '100000', 'credits' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_file_size_bytes', '21474836480', 'bytes' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_video_duration_seconds', '43200', 'seconds' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_upload_resolution', '4K', 'resolution' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_processing_resolution', '4K', 'resolution' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_streaming_resolution', '4K', 'resolution' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_export_resolution', '4K', 'resolution' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_concurrent_jobs', '10', 'count' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'LIMIT', 'max_projects', '500', 'count' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'ai_translation', 'true', 'boolean' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'text_to_speech', 'true', 'boolean' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'speaker_diarization', 'true', 'boolean' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'hls_streaming', 'true', 'boolean' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'video_editor', 'true', 'boolean' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'document_export', 'true', 'boolean' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'smart_subtitles', 'true', 'boolean' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'batch_processing', 'true', 'boolean' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'api_access', 'true', 'boolean' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'priority_processing', 'true', 'boolean' FROM plans WHERE code = 'business';
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'FEATURE', 'team_workspace', 'true', 'boolean' FROM plans WHERE code = 'business';
+
+-- STORAGE ADD-ONS
+INSERT INTO storage_addons (code, name, storage_bytes, price_monthly, price_yearly, display_order)
+VALUES
+    ('addon_50gb', '+50 GB Storage', 53687091200, 2.00, 20.00, 1),
+    ('addon_200gb', '+200 GB Storage', 214748364800, 6.00, 60.00, 2),
+    ('addon_500gb', '+500 GB Storage', 536870912000, 10.00, 100.00, 3),
+    ('addon_1tb', '+1 TB Storage', 1099511627776, 15.00, 150.00, 4);
+
 COMMIT;

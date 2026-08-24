@@ -10,7 +10,7 @@
   "steps": {
     "upload": {
       "title": "Tải lên",
-      "description": "Video gốc",
+      "description": "Tải video lên để hệ thống phân tách và chuẩn bị toàn bộ tài nguyên xử lý.",
       "pageTitle": "Tải lên Video",
       "pageDescription": "Tải video của bạn lên và chọn ngôn ngữ bạn muốn dịch sang. Ngôn ngữ gốc sẽ được tự động nhận diện.",
       "dropzoneTitle": "Kéo thả video vào đây",
@@ -27,32 +27,23 @@
     },
     "transcript": {
       "title": "Bản ghi âm",
-      "description": "Chuyển giọng nói thành văn bản"
+      "description": "Tự động nhận diện giọng nói, tách người nói và lưu chuẩn xác mốc thời gian."
     },
     "translation": {
       "title": "Dịch thuật",
-      "description": "Xem lại bản dịch"
+      "description": "Dịch lời thoại đa ngữ, giữ nguyên ngữ cảnh, thuật ngữ và cấu trúc người nói."
     },
     "subtitle": {
       "title": "Phụ đề",
-      "description": "Tạo phụ đề",
-      "pageTitle": "Tạo Phụ đề",
-      "pageDescription": "Tùy chỉnh định dạng phụ đề và xem trước phụ đề dịch trước khi xuất.",
-      "previewTitle": "Xem trước Phụ đề",
-      "previewSubtitle": "Phụ đề đã dịch",
-      "downloadSrt": "Tải xuống tệp SRT",
-      "format": "Định dạng",
-      "fontSize": "Kích cỡ chữ",
-      "position": "Vị trí",
-      "settingsSaved": "Đã lưu cài đặt phụ đề"
+      "description": "Tạo phụ đề tự động chuẩn xác theo thời gian, sẵn sàng xem trước và tùy chỉnh."
     },
     "dubbing": {
       "title": "Lồng tiếng",
-      "description": "Tạo giọng nói AI"
+      "description": "Chuyển lời thoại dịch thành giọng đọc AI tự nhiên, giữ trọn nhịp điệu cảm xúc."
     },
     "reviewExport": {
       "title": "Duyệt & Xuất tệp",
-      "description": "Xem lại và xuất kết quả",
+      "description": "Xem lại toàn bộ kết quả, chỉnh sửa timeline và xuất video, phụ đề hoặc tài liệu.",
       "pageTitle": "Xem lại & Xuất tệp",
       "pageDescription": "Xem lại video đã xử lý, điều chỉnh timeline và chọn các tệp bạn muốn xuất.",
       "backToEditing": "Quay lại chỉnh sửa",

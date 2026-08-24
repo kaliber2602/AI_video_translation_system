@@ -35,6 +35,117 @@
       "description": "Generate summaries, mindmaps, quizzes, and flashcards."
     }
   },
+  "pipelineSection": {
+    "badge": "End-to-End Workflow",
+    "title": "How VidNova Works",
+    "subtitle": "From raw footage to multilingual, structured knowledge in six seamless AI-powered steps.",
+    "cardsSubtitle": "High-level overview of our intelligent media processing pipeline",
+    "diagramBadge": "Live Workflow Engine",
+    "diagramTitle": "Visual Pipeline Architecture",
+    "diagramSubtitle": "Watch how raw video streams through neural extraction, diarization, contextual translation, and multi-asset synthesis.",
+    "liveStreamNote": "Continuous neural data stream with real-time audio-visual synchronization"
+  },
+  "diagram": {
+    "nodes": {
+      "input": {
+        "title": "01. Video Ingestion",
+        "badge": "Input Stream",
+        "description": "Original multi-format video upload with automatic codec and resolution analysis."
+      },
+      "extraction": {
+        "title": "02. Audio Separation",
+        "badge": "Demucs AI",
+        "description": "Isolates clean speech vocals from ambient noise and background music tracks."
+      },
+      "stt": {
+        "title": "03. STT & Diarization",
+        "badge": "Whisper + PyAnnote",
+        "description": "Generates millisecond-accurate timestamps and assigns dialogue to distinct speakers."
+      },
+      "translation": {
+        "title": "04. Neural Translation",
+        "badge": "NLLB-200 / LLM",
+        "description": "Preserves domain terminology, idioms, and multi-speaker conversational context."
+      },
+      "subtitles": {
+        "title": "05A. Subtitle Generator",
+        "badge": "SRT / VTT / ASS",
+        "description": "Formats rhythm-adjusted subtitles with styling and position presets."
+      },
+      "dubbing": {
+        "title": "05B. Voice Dubbing",
+        "badge": "Neural TTS / Coqui",
+        "description": "Synthesizes natural voice acting matched to original duration and cadence."
+      },
+      "export": {
+        "title": "06. Multi-Asset Export",
+        "badge": "Final Synthesis",
+        "description": "Packages final dubbed video, synchronized subtitle files, and structured knowledge docs."
+      }
+    },
+    "interactiveHint": "Hover or click any processing node to explore the underlying neural pipeline."
+  },
+  "semanticSearch": {
+    "badge": "Semantic Intelligence & RAG",
+    "title": "Search & Query Your Videos with Natural Language",
+    "subtitle": "Once processed, your video library transforms into an indexed vector knowledge base. Ask questions, pinpoint moments, and extract grounded insights.",
+    "input": {
+      "placeholder": "Ask anything about your video content...",
+      "button": "Search Knowledge",
+      "suggestedLabel": "Suggested questions:"
+    },
+    "questions": {
+      "q1": "What did the speaker say about AI automation?",
+      "q2": "Where is pricing and subscription explained?",
+      "q3": "Summarize key architecture recommendations."
+    },
+    "results": {
+      "header": "Semantic Video Segments",
+      "relevance": "match",
+      "speaker": "Speaker",
+      "source": "Source Video",
+      "jumpTo": "Jump to timestamp"
+    },
+    "aiAnswer": {
+      "badge": "Grounded AI Synthesis",
+      "title": "Synthesized Answer",
+      "sourcesLabel": "Grounded Sources & Citations",
+      "answers": {
+        "a1": "The speaker emphasizes that AI automation removes repetitive manual workflows, enabling teams to scale video localization 10x faster while maintaining human-in-the-loop oversight.",
+        "a2": "Pricing is structured around storage tiers and monthly consumable AI minutes, offering transparent scalable plans with optional standalone storage expansion add-ons.",
+        "a3": "The recommended architecture utilizes an asynchronous pipeline queue with decoupled transcription, neural translation, and multi-speaker voice synthesis engines."
+      }
+    },
+    "ragFlow": {
+      "title": "How RAG Turns Video into Grounded Truth",
+      "subtitle": "Unlike generic LLMs that hallucinate, VidNova anchors every answer strictly within your transcribed video context.",
+      "step1": "Video Transcription & Chunking",
+      "step1Desc": "Speech is converted to timestamped text segments and speaker blocks.",
+      "step2": "Vector Embeddings",
+      "step2Desc": "Semantic vectors are generated and indexed in high-dimensional space.",
+      "step3": "Context Retrieval",
+      "step3Desc": "Your query retrieves the most semantically relevant video timestamps.",
+      "step4": "Grounded AI Answer",
+      "step4Desc": "LLM formulates precise answers strictly citing the source timestamps."
+    },
+    "comparison": {
+      "title": "Keyword Search vs. Semantic Search",
+      "keyword": "Traditional Keyword Search",
+      "keywordPoints": [
+        "Exact word matching only",
+        "Fails on synonyms or paraphrasing",
+        "No conceptual context understanding",
+        "Requires exact memory of phrasing"
+      ],
+      "semantic": "VidNova Semantic & RAG Search",
+      "semanticPoints": [
+        "Understands intent, concept & meaning",
+        "Finds answers across multilingual videos",
+        "Synthesizes grounded multi-source summaries",
+        "Pinpoints exact video playback timestamps"
+      ]
+    }
+  },
   "cta": {
     "titlePrefix": "Ready to transform video into",
     "titleHighlight": "knowledge?",

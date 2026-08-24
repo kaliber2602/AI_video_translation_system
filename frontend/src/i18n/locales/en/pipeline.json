@@ -10,7 +10,7 @@
   "steps": {
     "upload": {
       "title": "Upload",
-      "description": "Original video",
+      "description": "Upload your video and let the system prepare every asset needed for processing.",
       "pageTitle": "Upload Video",
       "pageDescription": "Upload your video and choose the language you want to translate it into. The original language will be detected automatically.",
       "dropzoneTitle": "Drop your video here",
@@ -27,15 +27,15 @@
     },
     "transcript": {
       "title": "Transcript",
-      "description": "Speech to text"
+      "description": "Automatically transcribe speech, detect speakers, and preserve timestamps."
     },
     "translation": {
       "title": "Translation",
-      "description": "Review translated text"
+      "description": "Translate dialogue while keeping context, terminology, and speaker structure."
     },
     "subtitle": {
       "title": "Subtitle",
-      "description": "Create subtitles",
+      "description": "Generate accurate, time-synchronized subtitles ready for review and export.",
       "pageTitle": "Create Subtitles",
       "pageDescription": "Customize subtitle format and preview the translated subtitles before exporting.",
       "previewTitle": "Subtitle Preview",
@@ -48,11 +48,11 @@
     },
     "dubbing": {
       "title": "Dubbing",
-      "description": "Generate voice"
+      "description": "Convert translated dialogue into natural-sounding speech while preserving speaker flow."
     },
     "reviewExport": {
       "title": "Review & Export",
-      "description": "Review and generate outputs",
+      "description": "Review the generated content, make corrections, and export subtitles, documents, or the final video.",
       "pageTitle": "Review & Export",
       "pageDescription": "Review your processed video, adjust the timeline, and select the files you want to export.",
       "backToEditing": "Back to Editing",

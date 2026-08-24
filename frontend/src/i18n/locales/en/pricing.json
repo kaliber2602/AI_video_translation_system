@@ -1,0 +1,101 @@
+{
+  "badge": "Transparent & Flexible Pricing",
+  "title": "Choose the right plan for your workflow",
+  "subtitle": "Translate, process and manage your videos with resources that scale with you.",
+  "billing": {
+    "monthly": "Monthly billing",
+    "yearly": "Yearly billing",
+    "savePercent": "Save 20%"
+  },
+  "plans": {
+    "free": {
+      "name": "Free",
+      "tagline": "For trying the platform & personal projects",
+      "cta": "Get Started Free"
+    },
+    "pro": {
+      "name": "Pro",
+      "tagline": "For creators, freelancers & power users",
+      "popular": "Most Popular",
+      "cta": "Upgrade to Pro"
+    },
+    "business": {
+      "name": "Business",
+      "tagline": "For teams, studios & scaling organizations",
+      "cta": "Upgrade to Business"
+    },
+    "currentPlan": "Current Plan",
+    "pricePerMonth": "/ month",
+    "pricePerYear": "/ year",
+    "billedYearly": "Billed annually"
+  },
+  "sections": {
+    "storage": "Storage & Retention",
+    "consumable": "AI Processing Credits",
+    "limits": "Limits & Performance",
+    "features": "Core AI Capabilities"
+  },
+  "storageAddons": {
+    "badge": "Storage Expansion",
+    "title": "Need more storage?",
+    "subtitle": "Keep your current plan and add extra cloud storage whenever you need it.",
+    "effectiveFormula": "Base Plan Storage + Active Add-ons = Effective Storage Quota",
+    "pricePerMonth": "/ month",
+    "pricePerYear": "/ year"
+  },
+  "currentUsage": {
+    "title": "Your Current Plan & Resource Usage",
+    "planLabel": "Active Plan",
+    "storageUsed": "Storage Used",
+    "storageIncluded": "included in base plan",
+    "storageAddon": "storage add-ons",
+    "creditsUsed": "AI Processing Minutes",
+    "creditsRemaining": "minutes remaining this cycle",
+    "managePlan": "Manage Plan",
+    "storageDetails": "Storage breakdown"
+  },
+  "comparison": {
+    "title": "Feature & Specification Matrix",
+    "subtitle": "Compare all technical limits and resource quotas across tiers",
+    "featureCol": "Features & Limits",
+    "allFeaturesNote": "All AI features are available on all plans",
+    "categories": {
+      "resources": "Storage & Processing Quota",
+      "limits": "File & Resolution Limits",
+      "features": "AI Translation & Studio Features"
+    },
+    "rows": {
+      "storage": "Cloud Storage",
+      "credits": "AI Credits / Month",
+      "minutes": "Estimated AI Minutes",
+      "maxFile": "Max Upload File Size",
+      "maxDuration": "Max Video Duration",
+      "uploadRes": "Upload Resolution",
+      "processingRes": "Processing Resolution",
+      "streamingRes": "Streaming Resolution",
+      "exportRes": "Export Resolution",
+      "concurrency": "Concurrent Jobs",
+      "projects": "Max Projects",
+      "translation": "AI Translation & Dubbing",
+      "tts": "Voice Synthesis (TTS)",
+      "diarization": "Speaker Diarization",
+      "subtitles": "Smart Time-synced Subtitles",
+      "editor": "Video & Subtitle Editor",
+      "exportDocs": "Multi-format Document Export",
+      "hls": "HLS Adaptive Streaming",
+      "batch": "Batch Video Processing",
+      "api": "Developer API Access",
+      "priority": "Priority Queue Processing",
+      "team": "Team Collaboration Workspace"
+    }
+  },
+  "faq": {
+    "title": "Frequently Asked Questions",
+    "q1": "Do Storage Add-ons change my subscription tier?",
+    "a1": "No. Storage add-ons simply expand your storage quota while keeping all features and credit limits of your current plan intact.",
+    "q2": "Are all AI translation and dubbing features available in the Free plan?",
+    "a2": "Yes! All VidNova AI features (translation, voice dubbing, diarization, subtitle editor) are fully accessible to every user.",
+    "q3": "How are AI Processing Credits calculated?",
+    "a3": "1 minute of video speech processing typically consumes 1 credit. Your monthly credits reset automatically at the beginning of each billing cycle."
+  }
+}

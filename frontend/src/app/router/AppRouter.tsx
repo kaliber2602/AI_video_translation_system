@@ -6,6 +6,7 @@ import {
 } from "react-router-dom";
 
 import Home from "../../pages/Home";
+import PricingPage from "../../pages/PricingPage";
 import Login from "../../pages/Login";
 import Register from "../../pages/Register";
 import Workspace from "../../pages/Workspace";
@@ -32,6 +33,13 @@ export default function AppRouter() {
         <Route
           path="/"
           element={<Home />}
+        />
+
+        {/* Pricing Page */}
+
+        <Route
+          path="/pricing"
+          element={<PricingPage />}
         />
 
         {/* Authentication */}

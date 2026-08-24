@@ -8,6 +8,7 @@ from app.schemas.project import (
     ProjectUpdateRequest,
 )
 from app.schemas.tag import TagResponse
+from app.services.subscription_service import validate_project_quota
 from app.services.project_service import (
     add_project_tag,
     create_project,
@@ -61,6 +62,9 @@ def create_project_route(
     data: ProjectCreateRequest,
     user_id: int = Depends(get_current_user_id),
 ):
+    # Enforce plan project limit quota
+    validate_project_quota(user_id)
+
     try:
         return create_project(
             owner_id=user_id,

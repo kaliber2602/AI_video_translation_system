@@ -1,0 +1,101 @@
+{
+  "badge": "Bảng Giá Minh Bạch & Linh Hoạt",
+  "title": "Chọn gói phù hợp cho công việc của bạn",
+  "subtitle": "Dịch thuật, lồng tiếng và quản lý video với tài nguyên mở rộng linh hoạt theo nhu cầu của bạn.",
+  "billing": {
+    "monthly": "Thanh toán theo tháng",
+    "yearly": "Thanh toán theo năm",
+    "savePercent": "Tiết kiệm 20%"
+  },
+  "plans": {
+    "free": {
+      "name": "Free",
+      "tagline": "Trải nghiệm nền tảng & dự án cá nhân",
+      "cta": "Bắt đầu Miễn phí"
+    },
+    "pro": {
+      "name": "Pro",
+      "tagline": "Dành cho nhà sáng tạo nội dung & chuyên gia",
+      "popular": "Phổ Biến Nhất",
+      "cta": "Nâng cấp lên Pro"
+    },
+    "business": {
+      "name": "Business",
+      "tagline": "Dành cho nhóm, studio & doanh nghiệp mở rộng",
+      "cta": "Nâng cấp lên Business"
+    },
+    "currentPlan": "Gói Hiện Tại",
+    "pricePerMonth": "/ tháng",
+    "pricePerYear": "/ năm",
+    "billedYearly": "Thanh toán theo năm"
+  },
+  "sections": {
+    "storage": "Dung Lượng Lưu Trữ",
+    "consumable": "AI Credits Tiêu Hao",
+    "limits": "Giới Hạn & Hiệu Suất",
+    "features": "Tính Năng AI Đầy Đủ"
+  },
+  "storageAddons": {
+    "badge": "Mở Rộng Dung Lượng",
+    "title": "Cần thêm dung lượng lưu trữ?",
+    "subtitle": "Giữ nguyên gói hiện tại và bổ sung thêm dung lượng đám mây bất cứ khi nào bạn cần.",
+    "effectiveFormula": "Dung Lượng Gói Gốc + Storage Add-on = Tổng Dung Lượng Khả Dụng",
+    "pricePerMonth": "/ tháng",
+    "pricePerYear": "/ năm"
+  },
+  "currentUsage": {
+    "title": "Gói Đang Sử Dụng & Tài Nguyên Khả Dụng",
+    "planLabel": "Gói Hiện Tại",
+    "storageUsed": "Dung Lượng Đã Dùng",
+    "storageIncluded": "có sẵn trong gói gốc",
+    "storageAddon": "bổ sung từ storage add-on",
+    "creditsUsed": "Thời Lượng Xử Lý AI",
+    "creditsRemaining": "phút còn lại trong chu kỳ này",
+    "managePlan": "Quản lý Gói",
+    "storageDetails": "Chi tiết phân bổ"
+  },
+  "comparison": {
+    "title": "Bảng So Sánh Thông Số Kỹ Thuật Chi Tiết",
+    "subtitle": "So sánh định mức tài nguyên và giới hạn kỹ thuật giữa các gói",
+    "featureCol": "Tính Năng & Giới Hạn",
+    "allFeaturesNote": "Tất cả tính năng AI đều mở cho mọi gói",
+    "categories": {
+      "resources": "Định Mức Lưu Trữ & Xử Lý",
+      "limits": "Giới Hạn File & Độ Phân Giải",
+      "features": "Bộ Tính Năng AI Studio"
+    },
+    "rows": {
+      "storage": "Dung lượng Lưu Trữ",
+      "credits": "AI Credits / Tháng",
+      "minutes": "Quy đổi Thời Lượng Xử Lý",
+      "maxFile": "Dung Lượng File Tối Đa",
+      "maxDuration": "Thời Lượng Video Tối Đa",
+      "uploadRes": "Độ Phân Giải Tải Lên",
+      "processingRes": "Độ Phân Giải Xử Lý",
+      "streamingRes": "Độ Phân Giải Streaming",
+      "exportRes": "Độ Phân Giải Xuất Bản",
+      "concurrency": "Tiến Trình Chạy Đồng Thời",
+      "projects": "Số Project Tối Đa",
+      "translation": "Dịch Thuật & Lồng Tiếng AI",
+      "tts": "Tổng Hợp Giọng Nói Tự Nhiên (TTS)",
+      "diarization": "Phân Tách Giọng Người Nói",
+      "subtitles": "Tạo Phụ Đề Chuẩn Khớp Thời Gian",
+      "editor": "Trình Chỉnh Sửa Video & Phụ Đề",
+      "exportDocs": "Xuất Tài Liệu Đa Định Dạng",
+      "hls": "Phát Video HLS Thích Ứng",
+      "batch": "Xử Lý Hàng Loạt Nhiều Video",
+      "api": "Cổng Kết Nối API Nhà Phát Triển",
+      "priority": "Ưu Tiên Xử Lý Trong Hàng Đợi",
+      "team": "Không Gian Làm Việc Nhóm"
+    }
+  },
+  "faq": {
+    "title": "Câu Hỏi Thường Gặp",
+    "q1": "Storage Add-on có làm thay đổi gói subscription chính không?",
+    "a1": "Không. Storage add-on chỉ cộng thêm dung lượng lưu trữ vào tài khoản của bạn mà không làm thay đổi các giới hạn credits hay tính năng của gói chính.",
+    "q2": "Gói Miễn phí (Free) có được dùng tất cả các tính năng AI không?",
+    "a2": "Có! Tất cả tính năng AI (dịch thuật, lồng tiếng, phân tách giọng, tạo phụ đề) đều mở đầy đủ cho mọi người dùng.",
+    "q3": "AI Credits được tính như thế nào?",
+    "a3": "1 phút xử lý âm thanh video tương ứng khoảng 1 credit. Định mức credits sẽ tự động được làm mới vào đầu mỗi chu kỳ hàng tháng."
+  }
+}

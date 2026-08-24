@@ -1,0 +1,291 @@
+erDiagram
+    %% =========================================================
+    %% USERS & AUTHENTICATION
+    %% =========================================================
+    users {
+        int id PK
+        string email UK
+        string password_hash
+        string full_name
+        string avatar
+        string role
+        boolean is_active
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    user_settings {
+        int id PK
+        int user_id FK, UK
+        string theme
+        string language
+        string default_target_language
+        string default_translation_model
+        string default_tts_model
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    refresh_tokens {
+        uuid id PK
+        int user_id FK
+        string token_hash UK
+        timestamptz expires_at
+        timestamptz revoked_at
+        timestamptz created_at
+    }
+
+    notifications {
+        int id PK
+        int user_id FK
+        string title
+        string message
+        boolean is_read
+        timestamp read_at
+        timestamp created_at
+    }
+
+    activity_logs {
+        int id PK
+        int user_id FK
+        int project_id FK
+        string action
+        string target_type
+        int target_id
+        jsonb metadata
+        timestamp created_at
+    }
+
+    %% =========================================================
+    %% SUBSCRIPTIONS & QUOTA MANAGEMENT
+    %% =========================================================
+    plans {
+        int id PK
+        string code UK
+        string name
+        string description
+        numeric price_monthly
+        numeric price_yearly
+        string billing_cycle
+        boolean is_active
+        boolean is_popular
+        int display_order
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    plan_resources {
+        int id PK
+        int plan_id FK
+        string resource_type
+        string resource_key
+        string limit_value
+        string unit
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    storage_addons {
+        int id PK
+        string code UK
+        string name
+        bigint storage_bytes
+        numeric price_monthly
+        numeric price_yearly
+        boolean is_active
+        int display_order
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    user_subscriptions {
+        int id PK
+        int user_id FK
+        int plan_id FK
+        string status
+        string billing_cycle
+        timestamp started_at
+        timestamp expires_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    user_storage_addons {
+        int id PK
+        int user_id FK
+        int addon_id FK
+        string status
+        timestamp started_at
+        timestamp expires_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    user_consumable_usage {
+        int id PK
+        int user_id FK
+        timestamp period_start
+        timestamp period_end
+        int credits_used
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    %% =========================================================
+    %% PROJECTS & TAGS
+    %% =========================================================
+    projects {
+        int id PK
+        int owner_id FK
+        string name
+        string description
+        string cover_path
+        string status
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    tags {
+        int id PK
+        int user_id FK
+        string name
+        string color
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    project_tags {
+        int project_id PK, FK
+        int tag_id PK, FK
+        timestamp created_at
+    }
+
+    project_glossary {
+        int id PK
+        int project_id FK
+        string source_term
+        string target_term
+        string note
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    %% =========================================================
+    %% VIDEOS & AI PIPELINE
+    %% =========================================================
+    videos {
+        int id PK
+        int project_id FK
+        string title
+        string original_filename
+        string original_path
+        string extracted_vocal_path
+        string background_music_path
+        string transcript_path
+        string subtitle_path
+        string dubbed_audio_path
+        string output_path
+        double duration
+        double fps
+        string resolution
+        string status
+        string current_step
+        int progress
+        string error_message
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    speaker_profiles {
+        int id PK
+        int video_id FK
+        string speaker_label
+        string voice_sample_path
+        string voice_description
+        string language
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    transcript_segments {
+        int id PK
+        int video_id FK
+        int speaker_id FK
+        int sequence
+        double start_time
+        double end_time
+        string original_text
+        string language
+        double confidence
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    translation_segments {
+        int id PK
+        int transcript_segment_id FK
+        string target_language
+        string translated_text
+        string edited_text
+        string translation_model
+        boolean is_reviewed
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    subtitle_segments {
+        int id PK
+        int translation_segment_id FK
+        double start_time
+        double end_time
+        string subtitle_text
+        string subtitle_format
+        jsonb style_json
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    video_comments {
+        int id PK
+        int video_id FK
+        int user_id FK
+        string step
+        double timestamp
+        string comment
+        string status
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    %% =========================================================
+    %% RELATIONSHIPS
+    %% =========================================================
+    users ||--o| user_settings : "has"
+    users ||--o{ refresh_tokens : "owns"
+    users ||--o{ notifications : "receives"
+    users ||--o{ activity_logs : "triggers"
+    users ||--o{ projects : "creates/owns"
+    users ||--o{ tags : "creates"
+    users ||--o{ video_comments : "writes"
+
+    users ||--o{ user_subscriptions : "subscribes_to"
+    plans ||--o{ user_subscriptions : "assigned_in"
+    plans ||--o{ plan_resources : "defines_limits_and_features"
+
+    users ||--o{ user_storage_addons : "purchases"
+    storage_addons ||--o{ user_storage_addons : "provides_storage"
+
+    users ||--o{ user_consumable_usage : "consumes_credits"
+
+    projects ||--o{ project_tags : "tagged_with"
+    tags ||--o{ project_tags : "categorizes"
+    projects ||--o{ project_glossary : "contains"
+    projects ||--o{ videos : "manages"
+    projects ||--o{ activity_logs : "associated_with"
+
+    videos ||--o{ speaker_profiles : "identifies"
+    videos ||--o{ transcript_segments : "transcribes_into"
+    speaker_profiles ||--o{ transcript_segments : "speaks_in"
+    transcript_segments ||--o{ translation_segments : "translates_into"
+    translation_segments ||--o{ subtitle_segments : "formats_as_subtitles"
+    videos ||--o{ video_comments : "receives_feedback_on"

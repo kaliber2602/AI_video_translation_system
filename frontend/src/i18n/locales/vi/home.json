@@ -1,58 +1,169 @@
 {
-  "badge": "AI Video Translator & Knowledge Suite",
+  "badge": "Bộ Giải Pháp Dịch Video & Khai Phá Tri Thức AI",
   "heroTitlePrefix": "Biến mọi video thành",
-  "heroTitleHighlight": "tri thức",
-  "heroTitleSuffix": "giá trị",
-  "heroSubtitle": "Dịch video, lồng tiếng, tạo phụ đề và trích xuất kiến thức thông minh. Tất cả trong một nền tảng AI mạnh mẽ.",
-  "startFree": "Bắt đầu miễn phí",
-  "viewDemo": "Xem demo",
-  "trustedBy": "Được tin dùng bởi 10,000+ người dùng và đội nhóm",
+  "heroTitleHighlight": "tri thức giá trị",
+  "heroTitleSuffix": "",
+  "heroSubtitle": "Dịch video, lồng tiếng AI, tạo phụ đề tự động và trích xuất tri thức thông minh. Tất cả trong một nền tảng AI mạnh mẽ.",
+  "startFree": "Bắt đầu Miễn phí",
+  "viewDemo": "Xem Video Demo",
+  "trustedBy": "Được tin dùng bởi hơn 10.000+ nhà sáng tạo và đội ngũ",
   "stats": {
-    "users": "Người dùng tin tưởng",
+    "users": "Người dùng tin cậy",
     "videos": "Video đã xử lý",
     "languages": "Ngôn ngữ hỗ trợ",
     "accuracy": "Độ chính xác trung bình"
   },
   "features": {
     "translation": {
-      "title": "Dịch & Lồng tiếng AI",
-      "description": "Dịch hơn 100+ ngôn ngữ và lồng tiếng tự nhiên như người thật."
+      "title": "Dịch Thuật & Lồng Tiếng AI",
+      "description": "Dịch sang 100+ ngôn ngữ với giọng đọc tự nhiên như người thật."
     },
     "subtitles": {
-      "title": "Phụ đề thông minh",
-      "description": "Tự động tạo phụ đề chính xác, chuẩn thời gian."
+      "title": "Phụ Đề Thông Minh",
+      "description": "Tự động tạo phụ đề chuẩn xác, khớp hoàn hảo theo thời gian."
     },
     "documents": {
-      "title": "Trích xuất tài liệu",
-      "description": "Xuất TXT, DOCX, PDF, SRT, Markdown chỉ với 1 click."
+      "title": "Trích Xuất Tài Liệu",
+      "description": "Xuất tệp TXT, DOCX, PDF, SRT và Markdown chỉ với một cú nhấp chuột."
     },
     "timeline": {
-      "title": "Timeline & Chủ đề",
-      "description": "AI phân tích và chia video thành các phần theo chủ đề."
+      "title": "Timeline & Phân Đoạn",
+      "description": "AI tự động phân tích và chia video thành các chương nội dung rành mạch."
     },
     "summary": {
-      "title": "Tóm tắt & Insight",
-      "description": "Tóm tắt nội dung, tạo mindmap, quiz và flashcard."
+      "title": "Tóm Tắt & Phân Tích Sâu",
+      "description": "Tạo bản tóm tắt, sơ đồ tư duy, câu hỏi trắc nghiệm và flashcard."
+    }
+  },
+  "pipelineSection": {
+    "badge": "Quy Trình Xử Lý Toàn Diện",
+    "title": "Cách VidNova Hoạt Động",
+    "subtitle": "Từ video thô đến kho tri thức đa ngôn ngữ hoàn chỉnh qua 6 bước thông minh được hỗ trợ bởi AI.",
+    "cardsSubtitle": "Tổng quan các bước trong quy trình xử lý media thông minh",
+    "diagramBadge": "Kiến Trúc Dòng Chảy AI",
+    "diagramTitle": "Sơ Đồ Luồng Xử Lý Trực Quan",
+    "diagramSubtitle": "Theo dõi cách một video đi qua các tầng trích xuất âm thanh, phân tách người nói, dịch ngữ cảnh và tổng hợp đa tài nguyên.",
+    "liveStreamNote": "Dòng dữ liệu thần kinh liên tục với khả năng đồng bộ âm thanh - hình ảnh thời gian thực"
+  },
+  "diagram": {
+    "nodes": {
+      "input": {
+        "title": "01. Nạp Video Đầu Vào",
+        "badge": "Luồng Tải Lên",
+        "description": "Tiếp nhận video đa định dạng và tự động phân tích codec, độ phân giải cùng thời lượng."
+      },
+      "extraction": {
+        "title": "02. Tách Âm Thanh AI",
+        "badge": "Demucs AI",
+        "description": "Tách riêng giọng nói người nói (Vocal) khỏi tạp âm môi trường và nhạc nền (BGM)."
+      },
+      "stt": {
+        "title": "03. Nhận Diện & Tách Giọng",
+        "badge": "Whisper + Diarization",
+        "description": "Tạo mốc thời gian chính xác từng mili-giây và phân bổ lời thoại cho từng người nói riêng biệt."
+      },
+      "translation": {
+        "title": "04. Dịch Ngữ Cảnh AI",
+        "badge": "NLLB-200 / LLM",
+        "description": "Bảo toàn thuật ngữ chuyên ngành, thành ngữ và ngữ cảnh đối thoại đa nhân vật."
+      },
+      "subtitles": {
+        "title": "05A. Tạo Phụ Đề Chuẩn",
+        "badge": "SRT / VTT / ASS",
+        "description": "Định dạng phụ đề khớp nhịp nói, hỗ trợ tùy biến kiểu chữ, màu sắc và vị trí hiển thị."
+      },
+      "dubbing": {
+        "title": "05B. Lồng Tiếng AI",
+        "badge": "Neural TTS / Coqui",
+        "description": "Tổng hợp giọng đọc truyền cảm, đồng bộ thời lượng và nhịp điệu với người nói gốc."
+      },
+      "export": {
+        "title": "06. Xuất Bản Đa Tài Liệu",
+        "badge": "Tổng Hợp Cuối Cùng",
+        "description": "Đóng gói video hoàn chỉnh, file phụ đề chuẩn và hệ thống tài liệu tri thức (DOCX/PDF/TXT/MD)."
+      }
+    },
+    "interactiveHint": "Di chuột hoặc nhấp vào từng node để khám phá chi tiết công nghệ bên dưới."
+  },
+  "semanticSearch": {
+    "badge": "Trí Tuệ Ngữ Nghĩa & RAG",
+    "title": "Tìm Kiếm & Hỏi Đáp Nội Dung Video Bằng Ngôn Ngữ Tự Nhiên",
+    "subtitle": "Sau khi xử lý, kho video của bạn trở thành một cơ sở tri thức vector thông minh. Bạn có thể đặt câu hỏi, tìm nhanh khoảnh khắc và nhận câu trả lời có nguồn dẫn chứng xác thực.",
+    "input": {
+      "placeholder": "Hỏi bất kỳ điều gì về nội dung các video của bạn...",
+      "button": "Tìm Kiếm Tri Thức",
+      "suggestedLabel": "Câu hỏi gợi ý:"
+    },
+    "questions": {
+      "q1": "Diễn giả đã nói gì về tự động hóa AI?",
+      "q2": "Đoạn nào giải thích về bảng giá và gói đăng ký?",
+      "q3": "Tóm tắt các khuyến nghị kiến trúc quan trọng."
+    },
+    "results": {
+      "header": "Các Đoạn Video Khớp Ngữ Nghĩa",
+      "relevance": "độ khớp",
+      "speaker": "Người nói",
+      "source": "Video nguồn",
+      "jumpTo": "Nhảy tới mốc thời gian"
+    },
+    "aiAnswer": {
+      "badge": "Câu Trả Lời Tổng Hợp RAG",
+      "title": "AI Trả Lời Dựa Trên Nội Dung Video",
+      "sourcesLabel": "Nguồn Dẫn Chứng & Mốc Thời Gian",
+      "answers": {
+        "a1": "Diễn giả nhấn mạnh rằng tự động hóa AI giúp loại bỏ các tác vụ thủ công lặp lại, cho phép các đội ngũ bản địa hóa video nhanh gấp 10 lần trong khi vẫn duy trì sự kiểm soát chất lượng của con người.",
+        "a2": "Bảng giá được phân tầng theo dung lượng lưu trữ đám mây và số phút xử lý AI hàng tháng, cung cấp các gói linh hoạt cùng tùy chọn mua thêm dung lượng Add-on mà không cần đổi gói chính.",
+        "a3": "Kiến trúc được đề xuất sử dụng hàng đợi xử lý bất đồng bộ, tách rời các tiến trình nhận dạng giọng nói, dịch ngữ cảnh và công cụ tổng hợp giọng nói đa nhân vật."
+      }
+    },
+    "ragFlow": {
+      "title": "Quy Trình RAG Biến Video Thành Nguồn Tri Thức Đáng Tin Cậy",
+      "subtitle": "Không giống như LLM thông thường có thể sinh thông tin sai lệch (hallucination), VidNova neo chặt mọi câu trả lời vào chính nội dung thực tế trích xuất từ video.",
+      "step1": "Nhận Diện & Phân Đoạn Video",
+      "step1Desc": "Lời thoại được chuyển thành các khối văn bản kèm timestamp và thông tin người nói.",
+      "step2": "Tạo Vector Embeddings",
+      "step2Desc": "Các đoạn nội dung được mã hóa thành vector ngữ nghĩa trong không gian đa chiều.",
+      "step3": "Truy Xuất Ngữ Cảnh (Retrieval)",
+      "step3Desc": "Câu hỏi của bạn được dùng để tìm kiếm các mốc video có ý nghĩa sát nhất.",
+      "step4": "Tổng Hợp Câu Trả Lời (Generation)",
+      "step4Desc": "AI tổng hợp câu trả lời chính xác và đính kèm chính xác mốc thời gian nguồn dẫn."
+    },
+    "comparison": {
+      "title": "So Sánh Tìm Kiếm Từ Khóa vs. Tìm Kiếm Ngữ Nghĩa",
+      "keyword": "Tìm Kiếm Từ Khóa Truyền Thống",
+      "keywordPoints": [
+        "Chỉ tìm đúng từ ngữ chính xác",
+        "Bỏ sót các từ đồng nghĩa hoặc diễn đạt khác",
+        "Không hiểu được ngữ cảnh hay ý định người hỏi",
+        "Đòi hỏi người dùng phải nhớ chính xác từ đã nói"
+      ],
+      "semantic": "Tìm Kiếm Ngữ Nghĩa & RAG VidNova",
+      "semanticPoints": [
+        "Hiểu sâu ý định, ngữ cảnh và khái niệm trừu tượng",
+        "Tìm kiếm xuyên suốt video đa ngôn ngữ",
+        "Tổng hợp câu trả lời mạch lạc từ nhiều nguồn",
+        "Nhảy chính xác đến từng giây trong video"
+      ]
     }
   },
   "cta": {
-    "titlePrefix": "Sẵn sàng biến video thành",
+    "titlePrefix": "Sẵn sàng biến mọi video thành",
     "titleHighlight": "tri thức?",
     "titleSuffix": "",
-    "subtitle": "Tham gia ngay để trải nghiệm sức mạnh của AI trong dịch thuật, lồng tiếng và khai thác tri thức từ video.",
-    "freeTrial": "Miễn phí 7 ngày",
-    "noCreditCard": "Không cần thẻ tín dụng",
-    "cancelAnytime": "Hủy bất cứ lúc nào"
+    "subtitle": "Tham gia ngay hôm nay để trải nghiệm sức mạnh của AI trong dịch thuật video, lồng tiếng và khai phá tri thức thông minh.",
+    "freeTrial": "Dùng thử miễn phí 7 ngày",
+    "noCreditCard": "Không yêu cầu thẻ tín dụng",
+    "cancelAnytime": "Hủy bất kỳ lúc nào"
   },
   "preview": {
-    "videoTitle": "Giới thiệu về Trí tuệ nhân tạo",
+    "videoTitle": "Giới thiệu về Trí tuệ Nhân tạo",
     "share": "Chia sẻ",
-    "pipelineTitle": "Quy trình xử lý",
+    "pipelineTitle": "Luồng Xử Lý",
     "stepUploaded": "Đã tải lên",
-    "stepSpeechToText": "Chuyển giọng nói",
+    "stepSpeechToText": "Chuyển thành văn bản",
     "stepTranslate": "Dịch thuật",
     "stepDubbing": "Lồng tiếng",
-    "stepExtract": "Trích xuất kiến thức",
-    "stepCompleted": "Hoàn tất"
+    "stepExtract": "Khai phá tri thức",
+    "stepCompleted": "Hoàn thành"
   }
 }
