@@ -146,6 +146,66 @@
       ]
     }
   },
+  "about": {
+    "badge": "Engineering & Vision",
+    "title": "Built by Engineers Passionate About AI & Media",
+    "subtitle": "VidNova is designed and developed by a dedicated team bridging machine learning, video infrastructure, and intuitive user experiences.",
+    "members": {
+      "member1": {
+        "name": "Alex Nguyen",
+        "role": "Lead AI & Systems Engineer",
+        "bio": "Specializing in speech-to-text models, neural voice cloning, and high-throughput video processing pipelines.",
+        "location": "Ho Chi Minh City, VN",
+        "github": "https://github.com",
+        "linkedin": "https://linkedin.com",
+        "twitter": "https://x.com"
+      },
+      "member2": {
+        "name": "Elena Tran",
+        "role": "Full-Stack & Product Architect",
+        "bio": "Focused on real-time web media studio interfaces, multi-tenant cloud systems, and vector search integrations.",
+        "location": "Ho Chi Minh City, VN",
+        "github": "https://github.com",
+        "linkedin": "https://linkedin.com",
+        "twitter": "https://x.com"
+      }
+    }
+  },
+  "contact": {
+    "badge": "Get in Touch",
+    "title": "Let's Build Something Meaningful",
+    "subtitle": "Have a question about the platform, want to explore collaboration, or have feedback? We'd love to hear from you.",
+    "info": {
+      "heading": "Direct Inquiries",
+      "description": "Reach out directly for partnership opportunities, enterprise integrations, or technical inquiries.",
+      "emailLabel": "Email Us",
+      "emailValue": "contact@vidnova.ai",
+      "locationLabel": "Base Location",
+      "locationValue": "Ho Chi Minh City, Vietnam",
+      "responseLabel": "Response Window",
+      "responseValue": "Within 24 business hours"
+    },
+    "form": {
+      "nameLabel": "Your Name",
+      "namePlaceholder": "Jane Doe",
+      "emailLabel": "Email Address",
+      "emailPlaceholder": "jane@company.com",
+      "subjectLabel": "Subject",
+      "subjectPlaceholder": "Partnership / Product Inquiry",
+      "messageLabel": "Your Message",
+      "messagePlaceholder": "Tell us about your project, idea, or questions...",
+      "submitButton": "Send Message",
+      "submitting": "Sending message...",
+      "successTitle": "Thank you for reaching out!",
+      "successMessage": "Your message has been received. We will get back to you within 24 hours.",
+      "sendAnother": "Send another message",
+      "errors": {
+        "nameRequired": "Please enter your name",
+        "emailRequired": "Please enter a valid email address",
+        "messageRequired": "Please enter your message (min. 10 characters)"
+      }
+    }
+  },
   "cta": {
     "titlePrefix": "Ready to transform video into",
     "titleHighlight": "knowledge?",

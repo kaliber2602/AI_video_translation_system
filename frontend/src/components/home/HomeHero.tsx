@@ -21,7 +21,7 @@ export default function HomeHero() {
         <div className="absolute left-[-180px] top-[350px] h-[400px] w-[400px] rounded-full bg-[var(--color-primary-soft)] opacity-40 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto grid max-w-[1400px] items-center gap-12 px-5 pb-20 pt-16 lg:grid-cols-[0.92fr_1.08fr] lg:px-8 lg:pb-24 lg:pt-24">
+      <div className="relative mx-auto grid max-w-[1400px] items-center gap-12 px-5 pb-16 pt-8 lg:grid-cols-[0.92fr_1.08fr] lg:px-8 lg:pb-20 lg:pt-12">
         {/* Left */}
         <div>
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-primary-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--color-primary)]">

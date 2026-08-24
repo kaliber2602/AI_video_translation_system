@@ -4,6 +4,8 @@ import HomeFeatures from "../components/home/HomeFeatures";
 import HomePipeline from "../components/home/pipeline/HomePipeline";
 import HomeSemanticSearch from "../components/home/search/HomeSemanticSearch";
 import HomePricing from "../components/home/HomePricing";
+import HomeAbout from "../components/home/about/HomeAbout";
+import HomeContact from "../components/home/contact/HomeContact";
 import HomeStats from "../components/home/HomeStats";
 import HomeCTA from "../components/home/HomeCTA";
 
@@ -25,6 +27,10 @@ export default function Home() {
         <HomeSemanticSearch />
 
         <HomePricing />
+
+        <HomeAbout />
+
+        <HomeContact />
 
         <HomeStats />
 

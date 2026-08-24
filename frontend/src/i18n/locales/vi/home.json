@@ -146,6 +146,66 @@
       ]
     }
   },
+  "about": {
+    "badge": "Đội Ngũ Kỹ Thuật & Tầm Nhìn",
+    "title": "Được Xây Dựng Bởi Những Kỹ Sư Đam Mê AI & Media",
+    "subtitle": "VidNova được thiết kế và phát triển bởi đội ngũ tâm huyết kết hợp học máy, hạ tầng video hiệu năng cao và trải nghiệm người dùng tinh tế.",
+    "members": {
+      "member1": {
+        "name": "Nguyễn Văn A",
+        "role": "Kỹ Sư Trưởng AI & Hạ Tầng Hệ Thống",
+        "bio": "Chuyên sâu về mô hình nhận diện giọng nói, tách người nói, tổng hợp giọng đọc AI và pipeline xử lý video thông lượng cao.",
+        "location": "TP. Hồ Chí Minh, VN",
+        "github": "https://github.com",
+        "linkedin": "https://linkedin.com",
+        "twitter": "https://x.com"
+      },
+      "member2": {
+        "name": "Trần Thị B",
+        "role": "Kiến Trúc Sư Sản Phẩm & Full-Stack",
+        "bio": "Tập trung vào giao diện phòng thu video thời gian thực, kiến trúc đám mây mở rộng và tích hợp tìm kiếm ngữ nghĩa RAG.",
+        "location": "TP. Hồ Chí Minh, VN",
+        "github": "https://github.com",
+        "linkedin": "https://linkedin.com",
+        "twitter": "https://x.com"
+      }
+    }
+  },
+  "contact": {
+    "badge": "Kết Nối Với Chúng Tôi",
+    "title": "Cùng Xây Dựng Những Giá Trị Đột Phá",
+    "subtitle": "Bạn có câu hỏi về nền tảng, muốn hợp tác phát triển hay đóng góp ý kiến? Chúng tôi luôn sẵn sàng lắng nghe bạn.",
+    "info": {
+      "heading": "Thông Tin Liên Hệ",
+      "description": "Liên hệ trực tiếp với chúng tôi để trao đổi cơ hội hợp tác, tích hợp doanh nghiệp hoặc hỗ trợ kỹ thuật.",
+      "emailLabel": "Email Trực Tiếp",
+      "emailValue": "contact@vidnova.ai",
+      "locationLabel": "Địa Điểm",
+      "locationValue": "TP. Hồ Chí Minh, Việt Nam",
+      "responseLabel": "Thời Gian Phản Hồi",
+      "responseValue": "Trong vòng 24 giờ làm việc"
+    },
+    "form": {
+      "nameLabel": "Họ và Tên",
+      "namePlaceholder": "Nguyễn Văn A",
+      "emailLabel": "Địa chỉ Email",
+      "emailPlaceholder": "name@company.com",
+      "subjectLabel": "Chủ đề",
+      "subjectPlaceholder": "Hợp tác / Hỏi đáp về sản phẩm",
+      "messageLabel": "Nội dung tin nhắn",
+      "messagePlaceholder": "Chia sẻ về dự án, ý tưởng hoặc câu hỏi của bạn...",
+      "submitButton": "Gửi Tin Nhắn",
+      "submitting": "Đang gửi tin nhắn...",
+      "successTitle": "Cảm ơn bạn đã liên hệ!",
+      "successMessage": "Tin nhắn của bạn đã được tiếp nhận. Đội ngũ chúng tôi sẽ phản hồi trong vòng 24 giờ.",
+      "sendAnother": "Gửi tin nhắn khác",
+      "errors": {
+        "nameRequired": "Vui lòng nhập họ và tên của bạn",
+        "emailRequired": "Vui lòng nhập địa chỉ email hợp lệ",
+        "messageRequired": "Vui lòng nhập nội dung tin nhắn (tối thiểu 10 ký tự)"
+      }
+    }
+  },
   "cta": {
     "titlePrefix": "Sẵn sàng biến mọi video thành",
     "titleHighlight": "tri thức?",
