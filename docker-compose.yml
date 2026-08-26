@@ -21,8 +21,22 @@ services:
       # Required for diarization: pyannote/speaker-diarization-3.1 is gated on
       # Hugging Face — accept the license at huggingface.co/pyannote/speaker-diarization-3.1
       # then create a free access token and put it in a .env file next to this file:
-      HF_TOKEN:
+      HF_TOKEN: ${HF_TOKEN}
       TTS_API_URL: "http://tts-service:8001/generate_tts"
+      
+      # ============================================================================
+      # AWS S3 CONFIGURATION - ADD THESE LINES
+      # ============================================================================
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION:-ap-southeast-1}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      
+      # ============================================================================
+      # VIDEO PROCESSING CONFIGURATION
+      # ============================================================================
+      SEGMENT_SECONDS: ${SEGMENT_SECONDS:-5}
+      
     depends_on:
       - db
       - redis
@@ -71,7 +85,6 @@ services:
     volumes:
       - ./backend/uploads:/app/uploads
       - ./tts-model-cache:/root/.local/share/tts
-
     environment:
       PYTHONUNBUFFERED: "1"
       COQUI_TOS_AGREED: "1"
