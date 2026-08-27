@@ -156,9 +156,9 @@ function createDefaultGradientCanvas(): HTMLCanvasElement {
   const ctx = canvas.getContext("2d");
   if (ctx) {
     const grad = ctx.createLinearGradient(0, 0, 1200, 0);
-    grad.addColorStop(0, "rgba(21, 194, 168, 0.05)"); // ultra-light translucent mint
-    grad.addColorStop(0.5, "rgba(255, 255, 255, 0.02)"); // crystal clear center
-    grad.addColorStop(1, "rgba(76, 148, 232, 0.05)"); // ultra-light translucent sky
+    grad.addColorStop(0, "rgba(21, 194, 168, 0.16)");
+    grad.addColorStop(0.5, "rgba(255, 255, 255, 0.06)");
+    grad.addColorStop(1, "rgba(76, 148, 232, 0.16)");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 1200, 100);
   }

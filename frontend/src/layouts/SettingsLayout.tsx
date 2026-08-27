@@ -4,8 +4,17 @@ import type { UserResponse } from "../types/auth";
 import type { SettingsSection } from "../types/settings";
 import SettingsHeader from "../components/settings/SettingsHeader";
 import SettingsSidebar from "../components/settings/SettingsSidebar";
+import MobileSettingsNav from "../components/settings/MobileSettingsNav";
 import AccountSettingsSection from "../components/settings/AccountSettingsSection";
-import SettingsPlaceholderSection from "../components/settings/SettingsPlaceholderSection";
+import GeneralSection from "../components/settings/sections/GeneralSection";
+import WorkspaceSection from "../components/settings/sections/WorkspaceSection";
+import AIProcessingSection from "../components/settings/sections/AIProcessingSection";
+import TranslationVoiceSection from "../components/settings/sections/TranslationVoiceSection";
+import BillingSection from "../components/settings/sections/BillingSection";
+import NotificationsSection from "../components/settings/sections/NotificationsSection";
+import IntegrationsSection from "../components/settings/sections/IntegrationsSection";
+import SecuritySection from "../components/settings/sections/SecuritySection";
+import DataPrivacySection from "../components/settings/sections/DataPrivacySection";
 
 export interface SettingsLayoutProps {
   user: UserResponse | null;
@@ -81,6 +90,11 @@ export default function SettingsLayout({
         isLoadingUser={isLoadingUser}
       />
 
+      <MobileSettingsNav
+        activeSection={activeSection}
+        onSectionChange={onSectionChange}
+      />
+
       <div className="mx-auto flex w-full max-w-[1600px]">
         <SettingsSidebar
           activeSection={activeSection}
@@ -89,7 +103,7 @@ export default function SettingsLayout({
 
         <main className="min-w-0 flex-1 p-5 sm:p-7 lg:p-8">
           <div key={activeSection} className="animate-fade-up">
-            {activeSection === "account" ? (
+            {activeSection === "account" && (
               <AccountSettingsSection
                 user={user}
                 profileEditing={profileEditing}
@@ -120,8 +134,67 @@ export default function SettingsLayout({
                 onProcessingUpdatesChange={onProcessingUpdatesChange}
                 onTipsNewsChange={onTipsNewsChange}
               />
-            ) : (
-              <SettingsPlaceholderSection activeSection={activeSection} />
+            )}
+
+            {activeSection === "general" && (
+              <GeneralSection
+                user={user}
+                isUploadingAvatar={isUploadingAvatar}
+                onAvatarChange={onAvatarChange}
+              />
+            )}
+
+            {activeSection === "workspace" && (
+              <WorkspaceSection
+                autoSave={autoSave}
+                showTranscripts={showTranscripts}
+                aiSuggestions={aiSuggestions}
+                compactView={compactView}
+                onAutoSaveChange={onAutoSaveChange}
+                onShowTranscriptsChange={onShowTranscriptsChange}
+                onAiSuggestionsChange={onAiSuggestionsChange}
+                onCompactViewChange={onCompactViewChange}
+              />
+            )}
+
+            {activeSection === "ai" && (
+              <AIProcessingSection
+                autoTranslation={autoTranslation}
+                autoSummary={autoSummary}
+                onAutoTranslationChange={onAutoTranslationChange}
+                onAutoSummaryChange={onAutoSummaryChange}
+              />
+            )}
+
+            {activeSection === "translation" && (
+              <TranslationVoiceSection />
+            )}
+
+            {activeSection === "billing" && (
+              <BillingSection />
+            )}
+
+            {activeSection === "notifications" && (
+              <NotificationsSection
+                emailNotifications={emailNotifications}
+                processingUpdates={processingUpdates}
+                tipsNews={tipsNews}
+                onEmailNotificationsChange={onEmailNotificationsChange}
+                onProcessingUpdatesChange={onProcessingUpdatesChange}
+                onTipsNewsChange={onTipsNewsChange}
+              />
+            )}
+
+            {activeSection === "integrations" && (
+              <IntegrationsSection />
+            )}
+
+            {activeSection === "security" && (
+              <SecuritySection />
+            )}
+
+            {activeSection === "privacy" && (
+              <DataPrivacySection />
             )}
           </div>
         </main>

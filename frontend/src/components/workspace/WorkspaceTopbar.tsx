@@ -175,7 +175,7 @@ export default function WorkspaceTopbar({
       );
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      navigate("/login", {
+      navigate("/", {
         replace: true,
       });
 
