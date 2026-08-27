@@ -2,17 +2,17 @@ import os
 import tempfile
 import shutil
 from app.services import AudioService, TranslationService, STTService, TTSAlignerService
-from app.services.s3_service import upload_file  # ← NEW
-from app.video.processor import split_video, convert_all_qualities  # ← NEW
+from app.services.s3_service import upload_file
+from app.video.processor import split_video, convert_all_qualities
 from app.core.languages import TARGET_LANGUAGE_MAP, SOURCE_LANGUAGE_MAP
-from app.core.config import SEGMENT_SECONDS  # ← NEW
+from app.core.config import SEGMENT_SECONDS
 
-# Load mô hình 1 lần duy nhất khi ứng dụng khởi chạy
+# Load models once when application starts
 audio_service = AudioService()
 stt_service = STTService()
 translation_service = TranslationService()
 
-# Lấy URL của TTS từ biến môi trường của Docker
+# Get TTS URL from Docker environment variable
 tts_url = os.getenv("TTS_API_URL", "http://tts-service:8001/generate_tts")
 tts_aligner = TTSAlignerService(tts_api_url=tts_url)
 
@@ -21,10 +21,10 @@ def process_video_translation(
     final_output_path: str, 
     target_language: str, 
     glossary: dict = None,
-    video_id: str = None,        # ← NEW: For S3 folder structure
-    upload_to_s3: bool = True,   # ← NEW: Control S3 upload
-    create_segments: bool = True, # ← NEW: Also create segments from translated video
-    create_qualities: bool = True # ← NEW: Also create quality versions
+    video_id: str = None,
+    upload_to_s3: bool = True,
+    create_segments: bool = True,
+    create_qualities: bool = True
 ):
     if glossary is None: 
         glossary = {}
@@ -33,7 +33,7 @@ def process_video_translation(
     nllb_tgt_lang = lang_config["nllb"]
     xtts_tgt_lang = lang_config["xtts"]
     
-    print(f"[Pipeline] Khởi động tiến trình dịch sang: {target_language.upper()}", flush=True)
+    print(f"[Pipeline] Starting translation to: {target_language.upper()}", flush=True)
     
     result = {
         "translated_video_path": final_output_path,
@@ -50,21 +50,21 @@ def process_video_translation(
         temp_raw_audio = os.path.join(temp_dir, "raw_audio.wav")
         temp_final_tts = os.path.join(temp_dir, "final_tts_track.wav")
         
-        # --- BƯỚC 1: Tiền xử lý & Tách âm thanh ---
-        print("[1/5] Trích xuất và bóc tách Vocal / Nhạc nền (Demucs)...", flush=True)
+        # --- STEP 1: Pre-process and separate audio ---
+        print("[1/5] Extracting and separating Vocal / BGM (Demucs)...", flush=True)
         audio_service.extract_audio(video_input_path, temp_raw_audio)
         vocal_path, bgm_path = audio_service.separate_vocal_bgm(temp_raw_audio, temp_dir)
         
-        # --- BƯỚC 2: STT & TIN TƯỞNG TUYỆT ĐỐI VÀO WHISPER ---
-        print("[2/5] Nhận diện giọng nói và phát hiện ngôn ngữ (Whisper)...", flush=True)
+        # --- STEP 2: STT with Whisper ---
+        print("[2/5] Speech recognition and language detection (Whisper)...", flush=True)
         segments, detected_iso_lang = stt_service.transcribe_audio(vocal_path)
         
-        print(f"[*] Whisper phát hiện ngôn ngữ gốc là: {detected_iso_lang.upper()}", flush=True)
+        print(f"[*] Whisper detected source language: {detected_iso_lang.upper()}", flush=True)
         nllb_src_lang = SOURCE_LANGUAGE_MAP.get(detected_iso_lang, "eng_Latn")
-        print(f"[*] CHỐT NGÔN NGỮ ĐƯA VÀO NLLB: {nllb_src_lang}", flush=True)
+        print(f"[*] NLLB source language: {nllb_src_lang}", flush=True)
         
-        # --- BƯỚC 3: Dịch thuật bối cảnh (Document Context) & Bảo vệ từ khóa ---
-        print(f"[3/5] Dịch thuật văn bản ({nllb_src_lang} -> {nllb_tgt_lang}) bằng NLLB-1.3B...", flush=True)
+        # --- STEP 3: Translation ---
+        print(f"[3/5] Translating text ({nllb_src_lang} -> {nllb_tgt_lang}) with NLLB-1.3B...", flush=True)
         translated_segments = translation_service.translate_document(
             segments=segments,
             glossary=glossary,
@@ -76,8 +76,8 @@ def process_video_translation(
         result["detected_language"] = detected_iso_lang
         result["translated_segments"] = translated_segments
         
-        # --- BƯỚC 4: Lồng tiếng Voice Cloning & Ép Timeline ---
-        print(f"[4/5] Trích xuất Voice Profile VAD và sinh giọng lồng tiếng ({xtts_tgt_lang})...", flush=True)
+        # --- STEP 4: Voice cloning and TTS ---
+        print(f"[4/5] Voice Profile VAD and TTS generation ({xtts_tgt_lang})...", flush=True)
         tts_aligner.generate_tts_with_alignment(
             segments=translated_segments, 
             output_path=temp_final_tts, 
@@ -86,11 +86,11 @@ def process_video_translation(
             tgt_lang=xtts_tgt_lang 
         )
         
-        # --- BƯỚC 5: Mix Audio & Xuất Video ---
-        print("[5/5] Trộn âm thanh lồng tiếng + Nhạc nền gốc và đóng gói Video...", flush=True)
+        # --- STEP 5: Mix audio and export video ---
+        print("[5/5] Mixing TTS + BGM and packaging video...", flush=True)
         audio_service.mix_and_mux(video_input_path, temp_final_tts, bgm_path, final_output_path, temp_dir)
         
-        # --- NEW: Upload to S3 ---
+        # --- Upload to S3 ---
         if upload_to_s3 and video_id:
             print(f"[S3] Uploading translated video to S3...", flush=True)
             
@@ -98,7 +98,7 @@ def process_video_translation(
             s3_key = f"videos/{video_id}/translated/{target_language}/source.mp4"
             upload_file(final_output_path, s3_key, "video/mp4")
             result["s3_keys"]["translated_video"] = s3_key
-            print(f"✅ Uploaded to S3: {s3_key}", flush=True)
+            print(f"Uploaded to S3: {s3_key}", flush=True)
             
             # Create and upload segments from translated video
             if create_segments:
@@ -114,7 +114,7 @@ def process_video_translation(
                     segment_keys.append(s3_key)
                 
                 result["s3_keys"]["segments"] = segment_keys
-                print(f"✅ Uploaded {len(segment_keys)} segments to S3", flush=True)
+                print(f"Uploaded {len(segment_keys)} segments to S3", flush=True)
             
             # Create and upload quality versions from translated video
             if create_qualities:
@@ -129,7 +129,7 @@ def process_video_translation(
                     quality_keys[quality] = s3_key
                 
                 result["s3_keys"]["qualities"] = quality_keys
-                print(f"✅ Uploaded {len(quality_keys)} quality versions to S3", flush=True)
+                print(f"Uploaded {len(quality_keys)} quality versions to S3", flush=True)
         
-    print("[Pipeline] Xử lý hoàn tất! Đã tự động dọn dẹp các tệp tạm.", flush=True)
+    print("[Pipeline] Processing complete! Temporary files cleaned up.", flush=True)
     return result

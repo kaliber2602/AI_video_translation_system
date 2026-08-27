@@ -49,3 +49,32 @@ class UploadResponse(BaseModel):
 class ProcessingStatusResponse(BaseModel):
     status: str
     message: str
+    
+    
+from typing import Optional, List, Dict
+from pydantic import BaseModel
+
+
+class ProcessingStatusResponse(BaseModel):
+    status: str
+    message: str
+
+
+class HLSInfo(BaseModel):
+    hls_prefix: str
+    master_playlist: Optional[str] = None
+    playlists: Optional[List[str]] = None
+    segments: Optional[List[str]] = None
+
+
+class UploadResponse(BaseModel):
+    filename: str
+    message: str
+    stored_name: str
+    transcript: str
+    detected_language: str
+    target_language: str
+    output_video_path: str
+    dubbed_video_path: str
+    status: str
+    s3_info: Optional[Dict] = None

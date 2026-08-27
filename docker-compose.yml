@@ -25,7 +25,7 @@ services:
       TTS_API_URL: "http://tts-service:8001/generate_tts"
       
       # ============================================================================
-      # AWS S3 CONFIGURATION - ADD THESE LINES
+      # AWS S3 CONFIGURATION
       # ============================================================================
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
@@ -49,6 +49,12 @@ services:
       - ./frontend:/app
     ports:
       - "5173:5173"
+    environment:
+      # ============================================================================
+      # FRONTEND ENVIRONMENT VARIABLES (VITE_ prefix required)
+      # ============================================================================
+      - VITE_S3_BUCKET_URL=${VITE_S3_BUCKET_URL}
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
 
   db:
     image: postgres:16-alpine
