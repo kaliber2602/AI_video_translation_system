@@ -1,3 +1,4 @@
+# app/api/routes.py - UPDATED
 import logging
 import shutil
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
@@ -7,20 +8,31 @@ from app.core.config import OUTPUT_DIR, UPLOAD_DIR
 from app.pipeline import process_video_translation
 from app.schemas import ProcessingStatusResponse, UploadResponse
 
+# Import all routers
 from app.api.auth_routes import router as auth_router
 from app.api.user_settings_routes import router as user_settings_router
 from app.api.tag_routes import router as tag_router
 from app.api.project_routes import router as project_router
 from app.api.subscription_routes import router as subscription_router
+from app.api.video_routes import router as video_router
 
 logger = logging.getLogger("app.api.routes")
 
+# Main router
 router = APIRouter(prefix="/api")
+
+# Include all sub-routers
 router.include_router(auth_router)
 router.include_router(user_settings_router)
 router.include_router(tag_router)
 router.include_router(project_router)
 router.include_router(subscription_router)
+router.include_router(video_router)
+
+
+# ============================================================
+# LEGACY / HEALTH ENDPOINTS
+# ============================================================
 
 @router.get("/health")
 def health_check():
@@ -35,11 +47,18 @@ def processing_status():
     )
 
 
+# ============================================================
+# LEGACY UPLOAD ENDPOINT (Keep for backward compatibility)
+# ============================================================
 @router.post("/uploads", response_model=UploadResponse)
-async def upload_video(
+async def upload_video_legacy(
     file: UploadFile = File(...),
     target_language: str = Query("vi"),
 ):
+    """
+    Legacy upload endpoint - kept for backward compatibility.
+    Use /api/videos/upload for new development.
+    """
     input_video_path = UPLOAD_DIR / file.filename
     output_video_name = f"dubbed_{file.filename}"
     output_video_path = OUTPUT_DIR / output_video_name
