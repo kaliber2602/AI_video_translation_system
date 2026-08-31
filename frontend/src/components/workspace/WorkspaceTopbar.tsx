@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronUp,
   LogOut,
+  Menu,
   Search,
   Settings,
   User,
@@ -25,11 +26,13 @@ import type { UserResponse } from "../../types/auth";
 interface WorkspaceTopbarProps {
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  onToggleMobileSidebar?: () => void;
 }
 
 export default function WorkspaceTopbar({
   isCollapsed = false,
   onToggleCollapse,
+  onToggleMobileSidebar,
 }: WorkspaceTopbarProps = {}) {
   const { t } = useTranslation(["navigation", "common", "workspace"]);
   const navigate = useNavigate();
@@ -211,7 +214,19 @@ export default function WorkspaceTopbar({
   // =========================================================
 
   return (
-    <header className="sticky top-0 z-30 flex h-[84px] items-center border-b border-[var(--color-border-muted)] liquid-glass px-6 backdrop-blur-xl transition-colors duration-200 lg:px-8">
+    <header className="sticky top-0 z-30 flex h-[72px] sm:h-[84px] items-center border-b border-[var(--color-border-muted)] liquid-glass px-4 sm:px-6 backdrop-blur-xl transition-colors duration-200 lg:px-8">
+
+      {/* Mobile Sidebar Hamburger Button */}
+      {onToggleMobileSidebar && (
+        <button
+          type="button"
+          onClick={onToggleMobileSidebar}
+          aria-label="Open navigation menu"
+          className="mr-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] shadow-xs transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] active:scale-95 lg:hidden"
+        >
+          <Menu size={20} />
+        </button>
+      )}
 
       {/* =====================================================
           LOGO
@@ -220,14 +235,15 @@ export default function WorkspaceTopbar({
       <button
         type="button"
         onClick={handleWorkspace}
-        className="flex w-[220px] shrink-0 items-center gap-3 text-left"
+        className="flex shrink-0 items-center gap-2.5 sm:gap-3 text-left lg:w-[220px]"
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
+        <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
           <svg
-            width="28"
-            height="28"
+            width="24"
+            height="24"
             viewBox="0 0 32 32"
             fill="none"
+            className="sm:h-7 sm:w-7"
           >
             <circle
               cx="7"
@@ -265,11 +281,11 @@ export default function WorkspaceTopbar({
         </div>
 
         <div>
-          <h1 className="text-[22px] font-bold tracking-tight text-[var(--color-text-primary)]">
+          <h1 className="text-lg sm:text-[22px] font-bold tracking-tight text-[var(--color-text-primary)]">
             VIDNOVA
           </h1>
 
-          <p className="text-[10px] font-semibold tracking-[5px] text-[var(--color-primary)]">
+          <p className="hidden sm:block text-[10px] font-semibold tracking-[5px] text-[var(--color-primary)]">
             SINCE 2026
           </p>
         </div>
@@ -279,21 +295,16 @@ export default function WorkspaceTopbar({
           GLOBAL SEARCH
       ====================================================== */}
 
-      <div className="mx-auto flex w-full max-w-[540px] items-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-4 py-2.5 shadow-sm">
+      <div className="mx-3 sm:mx-auto hidden md:flex w-full max-w-[540px] items-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-4 py-2 sm:py-2.5 shadow-sm">
         <Search
-          size={19}
-          className="text-[var(--color-text-muted)]"
+          size={18}
+          className="text-[var(--color-text-muted)] shrink-0"
         />
 
         <input
           type="text"
           placeholder={t("common:searchPlaceholder")}
-          className="flex-1 bg-transparent px-3 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
-        />
-
-        <Search
-          size={18}
-          className="text-[var(--color-text-muted)]"
+          className="flex-1 bg-transparent px-3 text-xs sm:text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
         />
       </div>
 
@@ -301,7 +312,7 @@ export default function WorkspaceTopbar({
           ACTIONS
       ====================================================== */}
 
-      <div className="ml-auto flex items-center gap-4">
+      <div className="ml-auto flex items-center gap-2 sm:gap-4">
 
 
         {/* NOTIFICATION */}

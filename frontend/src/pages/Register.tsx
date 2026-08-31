@@ -6,9 +6,9 @@ export default function Register() {
   return (
     <div
       data-theme="default_theme"
-      className="min-h-screen bg-[#EAFBFA] px-3 py-3 sm:px-5 sm:py-5 page-enter"
+      className="min-h-screen bg-[#EAFBFA] p-3 sm:p-5 page-enter"
     >
-      <div className="mx-auto grid min-h-[calc(100vh-24px)] w-full max-w-[1500px] overflow-hidden rounded-[34px] bg-white shadow-[0_25px_80px_rgba(44,110,105,0.14)] lg:grid-cols-[1.02fr_0.98fr]">
+      <div className="mx-auto grid min-h-[calc(100vh-24px)] w-full max-w-[1500px] overflow-hidden rounded-2xl sm:rounded-[34px] bg-white shadow-[0_25px_80px_rgba(44,110,105,0.14)] lg:grid-cols-[1.02fr_0.98fr]">
         {/* LEFT SIDE */}
         <section className="relative hidden overflow-hidden bg-gradient-to-br from-[#F3FFFE] via-[#E8FAF8] to-[#DDF8F5] px-12 py-12 lg:block xl:px-16">
           {/* Decorative lines */}
@@ -162,23 +162,19 @@ export default function Register() {
         </section>
 
         {/* RIGHT SIDE */}
-        <section className="flex min-h-[calc(100vh-24px)] items-center justify-center bg-white px-6 py-10 sm:px-10 lg:px-12 xl:px-16">
+        <section className="flex min-h-[calc(100vh-24px)] items-center justify-center bg-white px-4 py-8 sm:px-10 lg:px-12 xl:px-16">
           <div className="w-full max-w-[470px]">
             {/* Mobile logo */}
-            <div className="mb-8 lg:hidden">
+            <div className="mb-6 flex justify-center lg:hidden">
               <AuthBrand />
             </div>
 
             <div className="text-center">
-              <div className="mb-6 flex justify-center">
-                <AuthBrand />
-              </div>
-
-              <h1 className="mt-4 text-[28px] font-bold tracking-[-0.8px] text-[#111B35] sm:text-[32px]">
+              <h1 className="text-2xl font-bold tracking-tight text-[#111B35] sm:text-[32px]">
                 Create your account
               </h1>
 
-              <p className="mt-2 text-sm text-[#71859B]">
+              <p className="mt-2 text-xs sm:text-sm text-[#71859B]">
                 Start transforming your videos with VidNova
               </p>
             </div>

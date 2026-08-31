@@ -61,6 +61,7 @@ export default function WorkspaceLayout() {
   const [sortOption, setSortOption] = useState<SortOption>("updated-recent");
   const [viewMode, setViewModeState] = useState<ViewMode>(getInitialViewMode);
   const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Modals
   const [projectModalMode, setProjectModalMode] = useState<"create" | "edit" | null>(null);
@@ -313,6 +314,7 @@ export default function WorkspaceLayout() {
         <WorkspaceTopbar
           isCollapsed={isNavbarCollapsed}
           onToggleCollapse={() => setIsNavbarCollapsed(!isNavbarCollapsed)}
+          onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         />
       </div>
 
@@ -337,9 +339,11 @@ export default function WorkspaceLayout() {
           selectedTagId={selectedTagId}
           onTagSelect={setSelectedTagId}
           isNavbarCollapsed={isNavbarCollapsed}
+          isOpenMobile={isMobileSidebarOpen}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
 
-        <main className="min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-8 transition-all duration-300 page-enter">
+        <main className="min-w-0 flex-1 px-3.5 py-6 sm:px-6 lg:px-8 transition-all duration-300 page-enter">
           <WorkspaceHeader
             totalProjects={projects.length}
             matchingCount={processedProjects.length}

@@ -29,16 +29,16 @@ export default function Login() {
       </div>
 
       {/* ================= Main ================= */}
-      <div className="relative z-10 flex min-h-screen items-center justify-center p-8 xl:p-12">
-        <div className="flex w-full max-w-[1520px] overflow-hidden rounded-[40px] bg-white/65 shadow-[0_40px_120px_rgba(0,0,0,.12)] backdrop-blur-xl">
+      <div className="relative z-10 flex min-h-screen items-center justify-center p-3 sm:p-6 md:p-8 xl:p-12">
+        <div className="flex w-full max-w-[1520px] overflow-hidden rounded-2xl sm:rounded-[36px] lg:rounded-[40px] bg-white/65 shadow-[0_40px_120px_rgba(0,0,0,.12)] backdrop-blur-xl">
           {/* Hero */}
           <div className="hidden lg:block lg:w-[58%]">
             <Hero />
           </div>
 
           {/* Login */}
-          <div className="relative flex w-full items-center justify-center bg-transparent px-6 py-10 lg:w-[42%] lg:px-12">
-            <div className="relative w-full max-w-[560px] rounded-[42px] border border-white/60 bg-gradient-to-br from-white/72 via-white/58 to-white/45 p-12 backdrop-blur-[55px] shadow-[0_35px_120px_rgba(15,40,60,.10)]">
+          <div className="relative flex w-full items-center justify-center bg-transparent px-3 py-6 sm:px-6 sm:py-10 lg:w-[42%] lg:px-12">
+            <div className="relative w-full max-w-[560px] rounded-2xl sm:rounded-[36px] lg:rounded-[42px] border border-white/60 bg-gradient-to-br from-white/72 via-white/58 to-white/45 p-5 sm:p-8 md:p-10 lg:p-12 backdrop-blur-[55px] shadow-[0_35px_120px_rgba(15,40,60,.10)]">
               <LoginForm />
             </div>
           </div>

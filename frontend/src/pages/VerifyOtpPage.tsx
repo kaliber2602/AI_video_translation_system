@@ -59,7 +59,7 @@ export default function VerifyOtpPage() {
       data-theme="default_theme"
       className="flex min-h-screen items-center justify-center bg-[#f7fcfc] px-4 py-8 page-enter"
     >
-      <div className="w-full max-w-[520px] rounded-3xl bg-white px-6 py-10 shadow-[0_24px_80px_rgba(15,23,42,0.08)] sm:px-10">
+      <div className="w-full max-w-[520px] rounded-2xl sm:rounded-3xl bg-white px-5 py-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)] sm:px-10 sm:py-10">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#22c7a9]/10">
           <ShieldCheck
             size={24}

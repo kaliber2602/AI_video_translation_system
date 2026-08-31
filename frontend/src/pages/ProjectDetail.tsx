@@ -112,36 +112,36 @@ export default function ProjectDetail() {
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200 page-enter">
-      <main className="mx-auto w-full max-w-[1600px] px-8 py-8">
+      <main className="mx-auto w-full max-w-[1600px] px-3.5 py-6 sm:px-6 lg:px-8">
         {/* Back to Workspace */}
         <button
           type="button"
           onClick={handleBackToProjects}
-          className="mb-6 flex items-center gap-2 text-sm font-medium text-[var(--color-text-muted)] transition hover:text-[var(--color-primary)]"
+          className="mb-5 flex items-center gap-2 text-xs sm:text-sm font-medium text-[var(--color-text-muted)] transition hover:text-[var(--color-primary)]"
         >
-          <ArrowLeft size={17} />
+          <ArrowLeft size={16} />
           {t("navigation:backToProjects")}
         </button>
 
         {/* Project Header */}
-        <section className="mb-8 flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
+        <section className="mb-6 sm:mb-8 flex flex-col justify-between gap-4 sm:gap-5 lg:flex-row lg:items-center">
           <div>
-            <div className="mb-3 flex items-center gap-3">
+            <div className="mb-2 sm:mb-3 flex items-center gap-3">
               <FolderIcon size="lg" />
 
               <div>
-                <h1 className="text-[28px] font-bold tracking-[-0.6px] text-[var(--color-text-primary)]">
+                <h1 className="text-xl sm:text-[28px] font-bold tracking-tight text-[var(--color-text-primary)]">
                   {project.name}
                 </h1>
 
-                <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+                <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-[var(--color-text-muted)]">
                   {t("workspace:videosCount", { count: project.video_count || 0 })} · {t("workspace:columns.updated")} {formatDate(project.updated_at)}
                 </p>
               </div>
             </div>
 
             {project.description && (
-              <p className="max-w-2xl text-sm leading-6 text-[var(--color-text-secondary)]">
+              <p className="max-w-2xl text-xs sm:text-sm leading-relaxed text-[var(--color-text-secondary)]">
                 {project.description}
               </p>
             )}
@@ -151,7 +151,7 @@ export default function ProjectDetail() {
                 {project.tags.map((tag) => (
                   <span
                     key={tag.id}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs font-medium text-[var(--color-text-secondary)]"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)]"
                   >
                     <span
                       className="h-2 w-2 rounded-full"
@@ -165,51 +165,51 @@ export default function ProjectDetail() {
           </div>
 
           {/* Project Actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
             <button
               type="button"
-              className="flex h-11 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+              className="flex h-10 sm:h-11 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 sm:px-4 text-xs sm:text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
             >
-              <MoreHorizontal size={18} />
+              <MoreHorizontal size={17} />
               {t("common:more")}
             </button>
 
             <button
               type="button"
-              className="flex h-11 items-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)]"
+              className="flex h-10 sm:h-11 items-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 sm:px-5 text-xs sm:text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)]"
             >
-              <Upload size={18} />
+              <Upload size={17} />
               {t("project:uploadVideo")}
             </button>
           </div>
         </section>
 
         {/* Search and Folder Toolbar */}
-        <section className="mb-6 flex flex-col gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-[var(--shadow-card)] sm:flex-row">
+        <section className="mb-6 flex flex-col gap-2.5 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5 sm:p-3 shadow-[var(--shadow-card)] sm:flex-row">
           <div className="relative min-w-0 flex-1">
             <Search
-              size={18}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
+              size={17}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
             />
 
             <input
               type="text"
               placeholder={t("project:searchVideosPlaceholder")}
-              className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-11 pr-4 text-sm text-[var(--color-text-primary)] outline-none transition placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:bg-[var(--color-surface)] focus:ring-4 focus:ring-[var(--color-primary)]/10"
+              className="h-10 sm:h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-10 pr-4 text-xs sm:text-sm text-[var(--color-text-primary)] outline-none transition placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:bg-[var(--color-surface)] focus:ring-2 focus:ring-[var(--color-primary)]/10"
             />
           </div>
 
           <button
             type="button"
-            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] px-5 text-sm text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)]"
+            className="flex h-10 sm:h-11 items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] px-4 text-xs sm:text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)]"
           >
-            <Plus size={17} />
+            <Plus size={16} />
             {t("project:newFolder")}
           </button>
         </section>
 
         {/* Video List */}
-        <section className="grid gap-5 xl:grid-cols-2">
+        <section className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-2">
           {fallbackVideos.map((video) => (
             <VideoCard
               key={video.id}

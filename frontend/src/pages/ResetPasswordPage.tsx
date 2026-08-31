@@ -76,7 +76,7 @@ export default function ResetPasswordPage() {
       data-theme="default_theme"
       className="flex min-h-screen items-center justify-center bg-[#f7fcfc] px-4 py-8 page-enter"
     >
-        <div className="w-full max-w-[520px] rounded-3xl bg-white px-6 py-12 text-center shadow-[0_24px_80px_rgba(15,23,42,0.08)] sm:px-10">
+        <div className="w-full max-w-[520px] rounded-2xl sm:rounded-3xl bg-white px-5 py-8 text-center shadow-[0_24px_80px_rgba(15,23,42,0.08)] sm:px-10 sm:py-12">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#22c7a9]/10">
             <CheckCircle2
               size={32}

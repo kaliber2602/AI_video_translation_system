@@ -100,30 +100,30 @@ export default function ReviewExportStep() {
       {/* Header */}
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
         <div>
-          <p className="text-sm font-semibold text-[var(--color-primary)]">
+          <p className="text-xs sm:text-sm font-semibold text-[var(--color-primary)]">
             {t("pipeline:header.stepBadge", { current: "06", total: "06" })}
           </p>
 
-          <h2 className="mt-2 text-3xl font-bold tracking-[-0.8px] text-[var(--color-text-primary)]">
+          <h2 className="mt-1 sm:mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-[var(--color-text-primary)]">
             {t("pipeline:steps.reviewExport.pageTitle")}
           </h2>
 
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-text-muted)]">
+          <p className="mt-1.5 sm:mt-2 max-w-2xl text-xs sm:text-sm leading-relaxed text-[var(--color-text-muted)]">
             {t("pipeline:steps.reviewExport.pageDescription")}
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-xs font-medium text-[var(--color-text-muted)]">
-            <Check size={15} className="text-[var(--color-primary)]" />
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 sm:px-4 py-2 sm:py-2.5 text-xs font-medium text-[var(--color-text-muted)]">
+            <Check size={14} className="text-[var(--color-primary)]" />
             {t("pipeline:header.savedJustNow")}
           </div>
 
           <button
             type="button"
-            className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+            className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
           >
-            <Save size={16} />
+            <Save size={15} />
             {t("common:save")}
           </button>
         </div>
@@ -186,20 +186,20 @@ export default function ReviewExportStep() {
       <TimelineEditor />
 
       {/* Bottom Actions */}
-      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 sm:flex-row sm:items-center">
+      <div className="flex flex-col-reverse justify-between gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 sm:p-5 sm:flex-row sm:items-center">
         <button
           type="button"
-          className="flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] px-5 py-3 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+          className="flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] px-4 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
         >
-          <ChevronLeft size={17} />
+          <ChevronLeft size={16} />
           {t("pipeline:steps.reviewExport.backToEditing")}
         </button>
 
         <button
           type="button"
-          className="flex items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(24,195,170,0.2)] transition hover:bg-[var(--color-primary-hover)]"
+          className="flex items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold text-white shadow-[0_8px_20px_rgba(24,195,170,0.2)] transition hover:bg-[var(--color-primary-hover)]"
         >
-          <Download size={17} />
+          <Download size={16} />
           {t("pipeline:steps.reviewExport.exportSelected")}
         </button>
       </div>

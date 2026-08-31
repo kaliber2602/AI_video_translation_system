@@ -106,29 +106,29 @@ export default function VideoPipeline() {
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200 page-enter">
-      <header className="flex min-h-[76px] items-center justify-between gap-4 border-b border-[var(--color-border)] liquid-glass px-4 py-4 backdrop-blur-xl transition-colors duration-200 sm:px-6 lg:px-8">
-        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+      <header className="flex min-h-[64px] sm:min-h-[76px] items-center justify-between gap-3 sm:gap-4 border-b border-[var(--color-border)] liquid-glass px-3.5 py-3 backdrop-blur-xl transition-colors duration-200 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 items-center gap-2.5 sm:gap-4">
           <button
             type="button"
             onClick={() => navigate("/workspace")}
             aria-label={t("common:back")}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] transition-all duration-200 ease-out hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+            className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] transition-all duration-200 ease-out hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={17} />
           </button>
 
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-base font-bold text-[var(--color-text-primary)] sm:text-lg">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <h1 className="truncate text-sm font-bold text-[var(--color-text-primary)] sm:text-lg">
                 NLP Introduction
               </h1>
 
-              <span className="rounded-full bg-[#FFF2D8] px-3 py-0.5 text-xs font-bold text-[#C68A1C] dark:bg-amber-950/50 dark:text-amber-300">
+              <span className="rounded-full bg-[#FFF2D8] px-2.5 py-0.5 text-[11px] sm:text-xs font-bold text-[#C68A1C] dark:bg-amber-950/50 dark:text-amber-300">
                 {t("pipeline:header.inProgress")}
               </span>
             </div>
 
-            <p className="mt-0.5 truncate text-xs text-[var(--color-text-muted)]">
+            <p className="mt-0.5 truncate text-[11px] sm:text-xs text-[var(--color-text-muted)]">
               NLP Tutorials / nlp-introduction.mp4
             </p>
           </div>
@@ -161,7 +161,7 @@ export default function VideoPipeline() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-[1700px] flex-col gap-4 p-4 sm:gap-6 sm:p-6 lg:flex-row lg:p-8">
+      <main className="mx-auto flex w-full max-w-[1700px] flex-col gap-4 p-3.5 sm:gap-6 sm:p-6 lg:flex-row lg:p-8">
         <div className="overflow-x-auto lg:hidden">
           <div className="flex min-w-max gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 shadow-[var(--shadow-card)]">
             {pipelineSteps.map((step, index) => {

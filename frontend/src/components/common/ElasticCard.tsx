@@ -135,6 +135,14 @@ export default function ElasticCard({
         const rawDx = moveEvent.clientX - startPosRef.current.x;
         const rawDy = moveEvent.clientY - startPosRef.current.y;
 
+        // If on touch device and user is scrolling vertically more than horizontally, cancel dragging to allow native scroll
+        if (moveEvent.pointerType === "touch" && !hasMovedRef.current) {
+          if (Math.abs(rawDy) > Math.abs(rawDx) && Math.abs(rawDy) > 8) {
+            isDraggingRef.current = false;
+            return;
+          }
+        }
+
         if (Math.abs(rawDx) > 3 || Math.abs(rawDy) > 3) {
           hasMovedRef.current = true;
         }
@@ -283,7 +291,7 @@ export default function ElasticCard({
       ref={cardRef}
       onClick={handleClick}
       style={{
-        touchAction: "none",
+        touchAction: "pan-y",
         userSelect: "none",
         WebkitUserSelect: "none",
         cursor: "grab",

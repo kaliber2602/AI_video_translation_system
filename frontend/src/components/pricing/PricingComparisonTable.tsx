@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -95,7 +96,7 @@ export default function PricingComparisonTable() {
             {/* Table Body */}
             <tbody className="divide-y divide-[var(--color-border)]">
               {rows.map((section) => (
-                <tr key={section.category} className="contents">
+                <Fragment key={section.category}>
                   {/* Category Header Row */}
                   <tr className="bg-[var(--color-background)]/50">
                     <td
@@ -126,7 +127,7 @@ export default function PricingComparisonTable() {
                       </td>
                     </tr>
                   ))}
-                </tr>
+                </Fragment>
               ))}
             </tbody>
           </table>
