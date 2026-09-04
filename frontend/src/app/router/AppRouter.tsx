@@ -20,6 +20,16 @@ import VNPayReturnPage from "../../pages/VNPayReturnPage";
 import StripeReturnPage from "../../pages/StripeReturnPage";
 
 import ProtectedRoute from "./ProtectedRoute";
+import AdminRoute from "./AdminRoute";
+import AdminLayout from "../../layouts/AdminLayout";
+import AdminDashboard from "../../pages/admin/AdminDashboard";
+import AdminJobsPage from "../../pages/admin/AdminJobsPage";
+import AdminModelsPage from "../../pages/admin/AdminModelsPage";
+import AdminUsersPage from "../../pages/admin/AdminUsersPage";
+import AdminFinancePage from "../../pages/admin/AdminFinancePage";
+import AdminLogsPage from "../../pages/admin/AdminLogsPage";
+import AdminContactsPage from "../../pages/admin/AdminContactsPage";
+import AdminToolsPage from "../../pages/admin/AdminToolsPage";
 
 export default function AppRouter() {
   return (
@@ -122,6 +132,23 @@ export default function AppRouter() {
 
         </Route>
 
+        {/* ================================================== */}
+        {/* ADMIN ROUTES */}
+        {/* ================================================== */}
+
+        <Route element={<AdminRoute />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="jobs" element={<AdminJobsPage />} />
+            <Route path="models" element={<AdminModelsPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+            <Route path="finance" element={<AdminFinancePage />} />
+            <Route path="logs" element={<AdminLogsPage />} />
+            <Route path="contacts" element={<AdminContactsPage />} />
+            <Route path="tools" element={<AdminToolsPage />} />
+          </Route>
+        </Route>
 
         {/* ================================================== */}
         {/* FALLBACK */}

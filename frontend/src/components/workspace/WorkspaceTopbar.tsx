@@ -11,6 +11,7 @@ import {
   Sparkles,
   User,
   Zap,
+  ShieldAlert,
 } from "lucide-react";
 
 import { useEffect, useState } from "react";
@@ -336,6 +337,21 @@ export default function WorkspaceTopbar({
 
       <div className="ml-auto flex items-center gap-2 sm:gap-4">
 
+        {/* =================================================
+            ADMIN PORTAL BUTTON (Visible only for admins)
+        ================================================== */}
+        {currentUser?.role === "admin" && (
+          <button
+            type="button"
+            onClick={() => navigate("/admin/dashboard")}
+            className="flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-extrabold text-red-600 dark:text-red-400 shadow-xs hover:bg-red-500/20 transition cursor-pointer"
+            title="Truy cập Trung tâm Quản trị Admin"
+          >
+            <ShieldAlert size={15} />
+            <span className="hidden md:inline">Admin Portal</span>
+          </button>
+        )}
+
         {/* NOTIFICATION */}
 
         <button
@@ -528,6 +544,26 @@ export default function WorkspaceTopbar({
                 ================================================== */}
 
                 <div className="p-2 space-y-0.5">
+
+                  {currentUser?.role === "admin" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileOpen(false);
+                        navigate("/admin/dashboard");
+                      }}
+                      disabled={loggingOut}
+                      className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-bold text-red-600 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <ShieldAlert size={17} />
+                        <span>Admin Portal</span>
+                      </div>
+                      <span className="text-[10px] font-black uppercase rounded bg-red-500/20 px-1.5 py-0.5">
+                        Manager
+                      </span>
+                    </button>
+                  )}
 
                   <button
                     type="button"
