@@ -1,6 +1,8 @@
 backend/uploads/
 backend/outputs/
 .pytest_cache/
+uploads/
+outputs/
 model-cache
 .venv/
 __pycache__/
