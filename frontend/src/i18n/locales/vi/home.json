@@ -202,7 +202,9 @@
       "errors": {
         "nameRequired": "Vui lòng nhập họ và tên của bạn",
         "emailRequired": "Vui lòng nhập địa chỉ email hợp lệ",
-        "messageRequired": "Vui lòng nhập nội dung tin nhắn (tối thiểu 10 ký tự)"
+        "messageRequired": "Vui lòng nhập nội dung tin nhắn (tối thiểu 10 ký tự)",
+        "serverError": "Không thể gửi tin nhắn vào lúc này. Vui lòng thử lại sau.",
+        "networkError": "Lỗi kết nối mạng. Vui lòng kiểm tra đường truyền và thử lại."
       }
     }
   },

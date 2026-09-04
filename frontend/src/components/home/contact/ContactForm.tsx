@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { Send, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { submitContactMessage } from "../../../services/contact.service";
+import { toast } from "../../../lib/toast";
 
 export interface ContactFormData {
   name: string;
@@ -20,6 +22,7 @@ export default function ContactForm() {
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof ContactFormData, string>>>({});
+  const [serverError, setServerError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
 
@@ -48,9 +51,16 @@ export default function ContactForm() {
     if (!validate()) return;
 
     setIsSubmitting(true);
+    setServerError(null);
 
-    // Simulate realistic asynchronous network submission dispatch
-    setTimeout(() => {
+    try {
+      await submitContactMessage({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        subject: formData.subject.trim() || undefined,
+        message: formData.message.trim(),
+      });
+
       setIsSubmitting(false);
       setIsSuccess(true);
       setFormData({
@@ -60,11 +70,31 @@ export default function ContactForm() {
         message: "",
       });
       setErrors({});
-    }, 1200);
+      setServerError(null);
+      toast.success(
+        t("home:contact.form.successTitle"),
+        t("home:contact.form.successMessage")
+      );
+    } catch (err: any) {
+      setIsSubmitting(false);
+      const detailMsg =
+        err?.response?.data?.detail ||
+        (err?.message === "Network Error"
+          ? t("home:contact.form.errors.networkError")
+          : t("home:contact.form.errors.serverError"));
+
+      setServerError(typeof detailMsg === "string" ? detailMsg : JSON.stringify(detailMsg));
+      toast.error(
+        t("home:contact.form.errors.serverError"),
+        typeof detailMsg === "string" ? detailMsg : undefined
+      );
+    }
   };
 
   const handleReset = () => {
     setIsSuccess(false);
+    setServerError(null);
+    setErrors({});
   };
 
   if (isSuccess) {
@@ -100,6 +130,14 @@ export default function ContactForm() {
       className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 sm:p-10 shadow-[var(--shadow-card)] transition-colors"
     >
       <div className="space-y-5">
+        {/* Server Error Alert Banner */}
+        {serverError && (
+          <div className="flex items-center gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs sm:text-sm text-rose-500 animate-in fade-in">
+            <AlertCircle size={18} className="shrink-0 text-rose-500" />
+            <p className="font-medium leading-relaxed">{serverError}</p>
+          </div>
+        )}
+
         {/* Name and Email in 2 columns on sm+ */}
         <div className="grid gap-5 sm:grid-cols-2">
           {/* Name */}
@@ -118,6 +156,7 @@ export default function ContactForm() {
                 onChange={(e) => {
                   setFormData({ ...formData, name: e.target.value });
                   if (errors.name) setErrors({ ...errors, name: undefined });
+                  if (serverError) setServerError(null);
                 }}
                 disabled={isSubmitting}
                 placeholder={t("home:contact.form.namePlaceholder")}
@@ -151,6 +190,7 @@ export default function ContactForm() {
                 onChange={(e) => {
                   setFormData({ ...formData, email: e.target.value });
                   if (errors.email) setErrors({ ...errors, email: undefined });
+                  if (serverError) setServerError(null);
                 }}
                 disabled={isSubmitting}
                 placeholder={t("home:contact.form.emailPlaceholder")}
@@ -182,7 +222,10 @@ export default function ContactForm() {
               id="contact-subject"
               type="text"
               value={formData.subject}
-              onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, subject: e.target.value });
+                if (serverError) setServerError(null);
+              }}
               disabled={isSubmitting}
               placeholder={t("home:contact.form.subjectPlaceholder")}
               className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-background)] px-4 py-3 text-xs sm:text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] shadow-sm transition-all focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20"
@@ -206,6 +249,7 @@ export default function ContactForm() {
               onChange={(e) => {
                 setFormData({ ...formData, message: e.target.value });
                 if (errors.message) setErrors({ ...errors, message: undefined });
+                if (serverError) setServerError(null);
               }}
               disabled={isSubmitting}
               placeholder={t("home:contact.form.messagePlaceholder")}

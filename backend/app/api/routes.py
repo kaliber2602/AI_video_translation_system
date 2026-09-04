@@ -13,6 +13,7 @@ from app.api.tag_routes import router as tag_router
 from app.api.project_routes import router as project_router
 from app.api.subscription_routes import router as subscription_router
 from app.api.payment_routes import router as payment_router
+from app.api.contact_routes import router as contact_router
 
 logger = logging.getLogger("app.api.routes")
 
@@ -23,6 +24,7 @@ router.include_router(tag_router)
 router.include_router(project_router)
 router.include_router(subscription_router)
 router.include_router(payment_router)
+router.include_router(contact_router)
 
 @router.get("/health")
 def health_check():

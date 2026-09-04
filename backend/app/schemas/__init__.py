@@ -22,3 +22,8 @@ from .payment import (
     DemoPaymentFailResponse,
     VNPayReturnResponse,
 )
+from .contact import (
+    ContactCreateRequest,
+    ContactResponse,
+    ContactSubmitSuccessResponse,
+)

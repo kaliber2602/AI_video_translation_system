@@ -858,9 +858,24 @@ CREATE TABLE pipeline_task_logs (
         ON DELETE CASCADE
 );
 
+CREATE TABLE contact_messages (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    subject VARCHAR(255),
+    message TEXT NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    ip_address VARCHAR(45),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- =========================================================
 -- ALL INDEXES
 -- =========================================================
+
+CREATE INDEX idx_contact_messages_email ON contact_messages(email);
+CREATE INDEX idx_contact_messages_created_at ON contact_messages(created_at DESC);
 
 CREATE INDEX idx_projects_owner_id ON projects(owner_id);
 CREATE INDEX idx_project_members_user ON project_members(user_id);
