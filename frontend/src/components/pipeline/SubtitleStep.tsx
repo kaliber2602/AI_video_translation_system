@@ -19,14 +19,16 @@ export default function SubtitleStep() {
   const [selectedFormat, setSelectedFormat] = useState("srt");
   const [fontSize, setFontSize] = useState("20");
   const [position, setPosition] = useState("bottom");
+  const [subtitleError, setSubtitleError] = useState<string | null>(null);
 
   useEffect(() => {
     loadSubtitles();
-  }, [selectedFormat]);
+  }, [selectedFormat, state.video?.videoId, state.targetLanguage]);
 
   const loadSubtitles = async () => {
     if (!state.video?.videoId) return;
     setIsLoading(true);
+    setSubtitleError(null);
 
     try {
       const targetLang = state.targetLanguage || "vi";
@@ -43,6 +45,7 @@ export default function SubtitleStep() {
   const generateSubtitles = async () => {
     if (!state.video?.videoId) return;
     setIsGenerating(true);
+    setSubtitleError(null);
 
     try {
       const targetLang = state.targetLanguage || "vi";
@@ -58,8 +61,9 @@ export default function SubtitleStep() {
         type: "SET_SUBTITLES",
         payload: data,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Subtitle generation failed:", error);
+      setSubtitleError(error.message || "Failed to generate subtitles");
     } finally {
       setIsGenerating(false);
     }
@@ -67,6 +71,7 @@ export default function SubtitleStep() {
 
   const downloadSubtitles = async () => {
     if (!state.video?.videoId) return;
+    setSubtitleError(null);
     try {
       const targetLang = state.targetLanguage || "vi";
       const blob = await videoService.downloadSubtitles(
@@ -80,8 +85,9 @@ export default function SubtitleStep() {
       a.download = `subtitles_${targetLang}.${selectedFormat}`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Download failed:", error);
+      setSubtitleError(error.message || "Failed to download subtitles");
     }
   };
 
@@ -112,6 +118,19 @@ export default function SubtitleStep() {
           {t("pipeline:steps.subtitle.pageDescription")}
         </p>
       </div>
+
+      {subtitleError && (
+        <div className="rounded-2xl border border-red-500/50 bg-red-500/10 p-4 text-red-500">
+          <p className="text-sm font-medium">Error: {subtitleError}</p>
+          <button
+            type="button"
+            onClick={() => setSubtitleError(null)}
+            className="mt-2 text-xs underline hover:text-red-400 transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)]">
         <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-5">

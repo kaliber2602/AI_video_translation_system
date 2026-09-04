@@ -11,15 +11,30 @@ export default function TranscriptStep() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<{
     segments: Array<{ start: number; end: number; text: string; speaker: string }>;
     language: string;
   } | null>(null);
   const [editingSegment, setEditingSegment] = useState<number | null>(null);
+  const [editingText, setEditingText] = useState<string>("");
 
   useEffect(() => {
     loadTranscript();
-  }, []);
+    loadVideoPreview();
+  }, [state.video?.videoId]);
+
+  const loadVideoPreview = async () => {
+    if (!state.video?.videoId) return;
+    try {
+      const blob = await videoService.getVideoBlob(state.video.videoId);
+      const url = URL.createObjectURL(blob);
+      setVideoUrl(url);
+    } catch (error) {
+      console.warn("Original video preview unavailable:", error);
+    }
+  };
 
   const loadTranscript = async () => {
     if (!state.video?.videoId) {
@@ -52,8 +67,17 @@ export default function TranscriptStep() {
   const generateTranscript = async () => {
     if (!state.video?.videoId) return;
     setIsGenerating(true);
+    setTranscriptionError(null);
 
     try {
+      // 1. Ensure audio is extracted first so transcription doesn't fail with HTTP 400
+      try {
+        await videoService.extractAudio(state.video.videoId);
+      } catch (extractErr: any) {
+        console.log("Audio extraction status:", extractErr.message || extractErr);
+      }
+
+      // 2. Start transcription
       const data = await videoService.startTranscription(state.video.videoId);
       
       // ✅ Make sure we have valid data
@@ -64,11 +88,12 @@ export default function TranscriptStep() {
           payload: data,
         });
       } else {
-        throw new Error("Invalid transcript data received");
+        throw new Error(data?.message || "Invalid transcript data received");
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("Transcription failed:", error);
+      setTranscriptionError(error.message || "Transcription failed");
     } finally {
       setIsGenerating(false);
     }
@@ -91,8 +116,9 @@ export default function TranscriptStep() {
         segments: updatedSegments,
       });
       setEditingSegment(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to update segment:", error);
+      setTranscriptionError(error.message || "Failed to update segment");
     } finally {
       setIsSaving(false);
     }
@@ -143,17 +169,36 @@ export default function TranscriptStep() {
         </p>
       </div>
 
+      {transcriptionError && (
+        <div className="rounded-2xl border border-red-500/50 bg-red-500/10 p-4 text-red-500">
+          <p className="text-sm font-medium">Error: {transcriptionError}</p>
+          <button
+            type="button"
+            onClick={() => setTranscriptionError(null)}
+            className="mt-2 text-xs underline hover:text-red-400 transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
         <div className="rounded-2xl border border-[var(--color-border)] bg-[#17232D] p-5">
-          <div className="relative flex aspect-video items-center justify-center rounded-xl bg-[#293B46]">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(45,90,95,0.4),transparent_65%)]" />
-            <button
-              type="button"
-              aria-label="Play video"
-              className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-[var(--color-primary)] shadow-xl transition hover:scale-110"
-            >
-              <Play size={22} fill="currentColor" />
-            </button>
+          <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-[#293B46]">
+            {videoUrl ? (
+              <video
+                src={videoUrl}
+                controls
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <>
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(45,90,95,0.4),transparent_65%)]" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-[var(--color-primary)] shadow-xl">
+                  <Play size={22} fill="currentColor" />
+                </div>
+              </>
+            )}
           </div>
 
           <div className="mt-5">
@@ -235,7 +280,8 @@ export default function TranscriptStep() {
                     {editingSegment === index ? (
                       <div>
                         <textarea
-                          defaultValue={seg.text}
+                          value={editingText}
+                          onChange={(e) => setEditingText(e.target.value)}
                           className="min-h-[80px] w-full resize-none rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-sm leading-6 text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
                           onKeyDown={(e) => {
                             if (e.key === "Escape") setEditingSegment(null);
@@ -243,12 +289,7 @@ export default function TranscriptStep() {
                         />
                         <div className="mt-2 flex gap-2">
                           <button
-                            onClick={() => {
-                              const textarea = document.querySelector(
-                                `textarea[data-index="${index}"]`
-                              ) as HTMLTextAreaElement;
-                              if (textarea) handleUpdateSegment(index, textarea.value);
-                            }}
+                            onClick={() => handleUpdateSegment(index, editingText)}
                             disabled={isSaving}
                             className="rounded-lg bg-[var(--color-primary)] px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
                           >
@@ -265,7 +306,10 @@ export default function TranscriptStep() {
                     ) : (
                       <p
                         className="cursor-pointer text-sm leading-6 text-[var(--color-text-primary)] hover:text-[var(--color-primary)]"
-                        onClick={() => setEditingSegment(index)}
+                        onClick={() => {
+                          setEditingSegment(index);
+                          setEditingText(seg.text);
+                        }}
                       >
                         {seg.text}
                       </p>

@@ -12,6 +12,13 @@ export interface PipelineState {
     filename?: string;
     fileSize?: number;
     status?: string;
+    duration?: number;
+    outputPath?: string;
+    dubbedAudioPath?: string;
+    subtitlePath?: string;
+    transcriptPath?: string;
+    extractedVocalPath?: string;
+    projectId?: number;
   } | null;
   job: {
     jobId?: string;
@@ -26,6 +33,7 @@ export interface PipelineState {
   translation: any;
   subtitles: any;
   tts: any;
+  dubbedVideo: any;
   error: string | null;
 }
 
@@ -40,6 +48,7 @@ export type PipelineAction =
   | { type: "SET_TRANSLATION"; payload: any }
   | { type: "SET_SUBTITLES"; payload: any }
   | { type: "SET_TTS"; payload: any }
+  | { type: "SET_DUBBED_VIDEO"; payload: any }
   | { type: "SET_ERROR"; payload: string }
   | { type: "CLEAR_ERROR" };
 
@@ -57,6 +66,7 @@ export const initialState: PipelineState = {
   translation: null,
   subtitles: null,
   tts: null,
+  dubbedVideo: null,
   error: null,
 };
 
@@ -86,6 +96,8 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
       return { ...state, subtitles: action.payload };
     case "SET_TTS":
       return { ...state, tts: action.payload };
+    case "SET_DUBBED_VIDEO":
+      return { ...state, dubbedVideo: action.payload };
     case "SET_ERROR":
       return { ...state, error: action.payload };
     case "CLEAR_ERROR":

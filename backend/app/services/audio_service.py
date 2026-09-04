@@ -1,34 +1,40 @@
+# app/services/audio_service.py
 import os
 import subprocess
+import logging
+from typing import Optional
 from pydub import AudioSegment
 import torch
+
+logger = logging.getLogger("app.services.audio_service")
 
 class AudioService:
     @staticmethod
     def extract_audio(video_path: str, output_audio_path: str):
-        """Trích xuất audio gốc từ video bằng FFmpeg."""
+        """Extract audio from video using FFmpeg."""
         command = [
             "ffmpeg", "-y", "-i", video_path,
             "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2",
             output_audio_path
         ]
         subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        logger.info(f"✅ Audio extracted to: {output_audio_path}")
 
     @staticmethod
     def separate_vocal_bgm(audio_path: str, output_dir: str):
         """
-        Tách âm thanh gốc thành 2 track riêng biệt bằng Demucs:
-        - Vocal Track: Dùng để nhận diện giọng nói (STT) & trích xuất Voice Profile.
-        - BGM Track: Nhạc nền & hiệu ứng âm thanh giữ lại để mix hậu kỳ.
+        Separate audio into vocal and BGM tracks using Demucs:
+        - Vocal Track: For speech recognition (STT) & voice profile extraction
+        - BGM Track: Background music & sound effects to keep for post-production mixing
         """
         # Auto-detect CUDA
         cuda_available = torch.cuda.is_available()
         
         if cuda_available:
-            print("[Demucs] ✅ CUDA detected, using GPU", flush=True)
+            logger.info("[Demucs] ✅ CUDA detected, using GPU")
             device = "cuda"
         else:
-            print("[Demucs] ⚠️ CUDA not detected, using CPU", flush=True)
+            logger.info("[Demucs] ⚠️ CUDA not detected, using CPU")
             device = "cpu"
         
         command = [
@@ -42,12 +48,12 @@ class AudioService:
         
         try:
             subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-            print(f"[Demucs] ✅ Separation complete on {device.upper()}", flush=True)
+            logger.info(f"[Demucs] ✅ Separation complete on {device.upper()}")
         except Exception as e:
-            print(f"[Demucs] ❌ Separation failed: {e}", flush=True)
+            logger.error(f"[Demucs] ❌ Separation failed: {e}")
             # Fallback: try CPU if GPU failed
             if device == "cuda":
-                print("[Demucs] 🔄 Retrying on CPU...", flush=True)
+                logger.info("[Demucs] 🔄 Retrying on CPU...")
                 command = [
                     "demucs", "--two-stems=vocals",
                     "-n", "htdemucs",
@@ -64,28 +70,236 @@ class AudioService:
         vocal_path = os.path.join(output_dir, "htdemucs", base_name, "vocals.wav")
         bgm_path = os.path.join(output_dir, "htdemucs", base_name, "no_vocals.wav")
         
+        # Verify files exist
+        if not os.path.exists(vocal_path):
+            raise FileNotFoundError(f"Vocal track not found at: {vocal_path}")
+        if not os.path.exists(bgm_path):
+            raise FileNotFoundError(f"BGM track not found at: {bgm_path}")
+        
+        logger.info(f"✅ Vocal track: {vocal_path}")
+        logger.info(f"✅ BGM track: {bgm_path}")
+        
         return vocal_path, bgm_path
 
     @staticmethod
-    def mix_and_mux(video_path: str, tts_audio_path: str, bgm_audio_path: str, final_output_path: str, temp_dir: str):
-        """Mix track lồng tiếng mới (TTS) với nhạc nền gốc (BGM) và ghép lại vào Video."""
+    def mix_and_mux(
+        video_path: str,
+        tts_audio_path: str,
+        bgm_audio_path: Optional[str],
+        final_output_path: str,
+        temp_dir: str
+    ):
+        """
+        Mix TTS audio with optional BGM and mux with video.
+        
+        Args:
+            video_path: Path to original video file
+            tts_audio_path: Path to TTS audio file
+            bgm_audio_path: Path to BGM audio file (can be None)
+            final_output_path: Path for final output video
+            temp_dir: Temporary directory for intermediate files
+        """
         mixed_audio_path = os.path.join(temp_dir, "mixed_audio.wav")
         
-        # 1. Trộn âm thanh bằng Pydub
-        tts_audio = AudioSegment.from_file(tts_audio_path)
-        bgm_audio = AudioSegment.from_file(bgm_audio_path)
-        
-        # Hạ âm lượng BGM xuống 10dB để giọng lồng tiếng nghe rõ ràng hơn
-        bgm_audio = bgm_audio - 10
-        
-        # Đè TTS lên BGM
-        mixed_audio = bgm_audio.overlay(tts_audio)
-        mixed_audio.export(mixed_audio_path, format="wav")
-        
-        # 2. Muxing Audio & Video bằng FFMPEG
-        command = [
-            "ffmpeg", "-y", "-i", video_path, "-i", mixed_audio_path,
-            "-c:v", "copy", "-c:a", "aac", "-map", "0:v:0", "-map", "1:a:0",
-            "-shortest", final_output_path
-        ]
-        subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        try:
+            # 1. Load TTS audio
+            logger.info(f"Loading TTS audio from: {tts_audio_path}")
+            if not os.path.exists(tts_audio_path):
+                raise FileNotFoundError(f"TTS audio not found at: {tts_audio_path}")
+            
+            tts_audio = AudioSegment.from_file(tts_audio_path)
+            logger.info(f"TTS audio duration: {len(tts_audio)/1000:.2f}s, channels: {tts_audio.channels}")
+            
+            # 2. Handle BGM (if provided)
+            if bgm_audio_path and os.path.exists(bgm_audio_path):
+                logger.info(f"Loading BGM from: {bgm_audio_path}")
+                bgm_audio = AudioSegment.from_file(bgm_audio_path)
+                logger.info(f"BGM duration: {len(bgm_audio)/1000:.2f}s, channels: {bgm_audio.channels}")
+                
+                # Reduce BGM volume by 10dB to make voice clearer
+                bgm_audio = bgm_audio - 10
+                
+                # Ensure BGM is same length as TTS (or loop if shorter)
+                if len(bgm_audio) < len(tts_audio):
+                    logger.info(f"BGM shorter than TTS, looping...")
+                    # Calculate how many times to loop
+                    loop_count = (len(tts_audio) // len(bgm_audio)) + 1
+                    bgm_audio = bgm_audio * loop_count
+                
+                # Trim BGM to match TTS duration
+                bgm_audio = bgm_audio[:len(tts_audio)]
+                
+                # Overlay TTS on BGM
+                logger.info("Mixing TTS with BGM...")
+                mixed_audio = bgm_audio.overlay(tts_audio)
+            else:
+                # No BGM, use TTS only
+                logger.info("No BGM provided, using TTS audio only")
+                mixed_audio = tts_audio
+            
+            # 3. Export mixed audio
+            logger.info(f"Exporting mixed audio to: {mixed_audio_path}")
+            mixed_audio.export(mixed_audio_path, format="wav")
+            
+            # Verify mixed audio was created
+            if not os.path.exists(mixed_audio_path) or os.path.getsize(mixed_audio_path) == 0:
+                raise Exception("Mixed audio file is empty or was not created")
+            
+            # 4. Get video info
+            logger.info(f"Checking video file: {video_path}")
+            if not os.path.exists(video_path):
+                raise FileNotFoundError(f"Video file not found at: {video_path}")
+            
+            # Get video duration
+            cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", video_path]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0 and result.stdout:
+                video_duration = float(result.stdout.strip())
+                logger.info(f"Video duration: {video_duration:.2f}s")
+            else:
+                logger.warning("Could not get video duration, using audio duration")
+                video_duration = len(mixed_audio) / 1000.0
+            
+            # 5. Mux audio with video using FFmpeg
+            logger.info(f"Muxing video ({video_path}) with mixed audio...")
+            
+            # Use copy codec for video, encode audio
+            command = [
+                "ffmpeg", "-y",
+                "-i", video_path,
+                "-i", mixed_audio_path,
+                "-c:v", "libx264",  # Re-encode video
+                "-preset", "medium",  # Balance between speed and quality
+                "-crf", "23",  # Quality
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-map", "0:v:0",
+                "-map", "1:a:0",
+                "-shortest",
+                "-movflags", "+faststart",  # Optimize for streaming
+                final_output_path
+            ]
+            
+            logger.info(f"Running FFmpeg command: {' '.join(command)}")
+            result = subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            if result.returncode != 0:
+                logger.error(f"FFmpeg failed with error: {result.stderr}")
+                raise subprocess.CalledProcessError(result.returncode, command, result.stderr)
+            
+            # Verify output file was created and has content
+            if not os.path.exists(final_output_path):
+                raise FileNotFoundError(f"Output file not created: {final_output_path}")
+            
+            file_size = os.path.getsize(final_output_path)
+            if file_size < 1024:  # Less than 1KB is suspicious
+                logger.warning(f"Output file is very small ({file_size} bytes), may be corrupted")
+                # Try alternative approach: use copy codec
+                logger.info("Retrying with copy codec...")
+                command_copy = [
+                    "ffmpeg", "-y",
+                    "-i", video_path,
+                    "-i", mixed_audio_path,
+                    "-c:v", "copy",
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    "-map", "0:v:0",
+                    "-map", "1:a:0",
+                    "-shortest",
+                    "-movflags", "+faststart",
+                    final_output_path
+                ]
+                result = subprocess.run(command_copy, capture_output=True, text=True)
+                if result.returncode != 0:
+                    logger.error(f"FFmpeg copy failed: {result.stderr}")
+                    raise subprocess.CalledProcessError(result.returncode, command_copy, result.stderr)
+                
+                file_size = os.path.getsize(final_output_path)
+                if file_size < 1024:
+                    raise Exception(f"Output file is still too small ({file_size} bytes)")
+            
+            logger.info(f"✅ Dubbed video created successfully: {final_output_path} ({file_size} bytes)")
+            
+        except subprocess.CalledProcessError as e:
+            logger.error(f"FFmpeg failed: {e.stderr if e.stderr else str(e)}")
+            raise
+        except FileNotFoundError as e:
+            logger.error(f"File not found: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Mix and mux failed: {str(e)}")
+            raise
+
+    @staticmethod
+    def get_audio_duration(audio_path: str) -> float:
+        """Get duration of audio file in seconds."""
+        try:
+            audio = AudioSegment.from_file(audio_path)
+            return len(audio) / 1000.0
+        except Exception as e:
+            logger.error(f"Failed to get audio duration: {e}")
+            return 0.0
+
+    @staticmethod
+    def normalize_audio(audio_path: str, output_path: str, target_dbfs: float = -20.0):
+        """Normalize audio to target dBFS level."""
+        try:
+            audio = AudioSegment.from_file(audio_path)
+            current_dbfs = audio.dBFS
+            gain = target_dbfs - current_dbfs
+            normalized = audio.apply_gain(gain)
+            normalized.export(output_path, format="wav")
+            logger.info(f"✅ Audio normalized: {audio_path} -> {output_path} (gain: {gain:.2f}dB)")
+            return output_path
+        except Exception as e:
+            logger.error(f"Failed to normalize audio: {e}")
+            raise
+
+    @staticmethod
+    def trim_silence(audio_path: str, output_path: str, silence_thresh: int = -50, min_silence_len: int = 500):
+        """Trim leading/trailing silence from audio."""
+        try:
+            audio = AudioSegment.from_file(audio_path)
+            start_trim = 0
+            for i in range(0, len(audio), min_silence_len):
+                if audio[i:i+min_silence_len].dBFS > silence_thresh:
+                    start_trim = i
+                    break
+            
+            end_trim = len(audio)
+            for i in range(len(audio) - min_silence_len, 0, -min_silence_len):
+                if audio[i:i+min_silence_len].dBFS > silence_thresh:
+                    end_trim = i + min_silence_len
+                    break
+            
+            trimmed = audio[start_trim:end_trim]
+            trimmed.export(output_path, format="wav")
+            logger.info(f"✅ Silence trimmed: {audio_path} -> {output_path}")
+            return output_path
+        except Exception as e:
+            logger.error(f"Failed to trim silence: {e}")
+            raise
+
+    @staticmethod
+    def convert_to_mono(audio_path: str, output_path: str):
+        """Convert audio to mono."""
+        try:
+            audio = AudioSegment.from_file(audio_path)
+            if audio.channels > 1:
+                mono = audio.set_channels(1)
+                mono.export(output_path, format="wav")
+                logger.info(f"✅ Converted to mono: {audio_path} -> {output_path}")
+                return output_path
+            else:
+                import shutil
+                shutil.copy2(audio_path, output_path)
+                logger.info(f"✅ Already mono: {audio_path} -> {output_path}")
+                return output_path
+        except Exception as e:
+            logger.error(f"Failed to convert to mono: {e}")
+            raise

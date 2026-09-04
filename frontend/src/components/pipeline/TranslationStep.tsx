@@ -22,9 +22,11 @@ export default function TranslationStep() {
     }>;
   } | null>(null);
 
+  const [translationError, setTranslationError] = useState<string | null>(null);
+
   useEffect(() => {
     loadTranslation();
-  }, []);
+  }, [state.video?.videoId, state.targetLanguage]);
 
   const loadTranslation = async () => {
     if (!state.video?.videoId) {
@@ -32,6 +34,7 @@ export default function TranslationStep() {
       return;
     }
     setIsLoading(true);
+    setTranslationError(null);
 
     try {
       const targetLang = state.targetLanguage || "vi";
@@ -42,7 +45,7 @@ export default function TranslationStep() {
         payload: data,
       });
     } catch (error) {
-      // Translation not found
+      // Translation not found - this is expected, set to null
       setTranslation(null);
     } finally {
       setIsLoading(false);
@@ -52,6 +55,7 @@ export default function TranslationStep() {
   const generateTranslation = async () => {
     if (!state.video?.videoId) return;
     setIsTranslating(true);
+    setTranslationError(null);
 
     try {
       const targetLang = state.targetLanguage || "vi";
@@ -61,8 +65,9 @@ export default function TranslationStep() {
         type: "SET_TRANSLATION",
         payload: data,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Translation generation failed:", error);
+      setTranslationError(error.message || "Failed to generate translation");
     } finally {
       setIsTranslating(false);
     }
@@ -125,6 +130,19 @@ export default function TranslationStep() {
         </p>
       </div>
 
+      {translationError && (
+        <div className="rounded-2xl border border-red-500/50 bg-red-500/10 p-4 text-red-500">
+          <p className="text-sm font-medium">Error: {translationError}</p>
+          <button
+            type="button"
+            onClick={() => setTranslationError(null)}
+            className="mt-2 text-xs underline hover:text-red-400 transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)]">
         <div className="flex flex-col justify-between gap-4 border-b border-[var(--color-border)] pb-5 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
@@ -179,31 +197,52 @@ export default function TranslationStep() {
         ) : (
           <>
             <div className="mt-6 max-h-[500px] space-y-5 overflow-y-auto pr-2">
-              {translation.segments.map((seg, index) => (
-                <div key={index} className="grid gap-4 xl:grid-cols-2">
-                  <div>
-                    <div className="mb-2 flex justify-between text-xs text-[var(--color-text-muted)]">
-                      <span>{formatTime(seg.start)} → {formatTime(seg.end)}</span>
+              {translation.segments && translation.segments.length > 0 ? (
+                translation.segments.map((seg, index) => (
+                  <div key={index} className="grid gap-4 xl:grid-cols-2">
+                    <div>
+                      <div className="mb-2 flex justify-between text-xs text-[var(--color-text-muted)]">
+                        <span>{formatTime(seg.start)} → {formatTime(seg.end)}</span>
+                      </div>
+                      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-4">
+                        <p className="text-sm leading-6 text-[var(--color-text-secondary)]">
+                          {seg.text}
+                        </p>
+                      </div>
                     </div>
-                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-4">
-                      <p className="text-sm leading-6 text-[var(--color-text-secondary)]">
-                        {seg.text}
-                      </p>
-                    </div>
-                  </div>
 
-                  <div>
-                    <div className="mb-2 flex justify-between text-xs text-[var(--color-text-muted)]">
-                      <span>Translation</span>
+                    <div>
+                      <div className="mb-2 flex justify-between text-xs text-[var(--color-text-muted)]">
+                        <span>Translation</span>
+                      </div>
+                      <textarea
+                        defaultValue={seg.translated_text || seg.text}
+                        className="min-h-[80px] w-full resize-none rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] p-4 text-sm leading-6 text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10"
+                        onBlur={(e) => handleUpdateSegment(index, e.target.value)}
+                      />
                     </div>
-                    <textarea
-                      defaultValue={seg.translated_text || seg.text}
-                      className="min-h-[80px] w-full resize-none rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] p-4 text-sm leading-6 text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10"
-                      onBlur={(e) => handleUpdateSegment(index, e.target.value)}
-                    />
                   </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <p className="text-sm text-[var(--color-text-muted)]">
+                    No segments available for translation.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={generateTranslation}
+                    disabled={isTranslating}
+                    className="mt-4 flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(24,195,170,0.2)] transition hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+                  >
+                    {isTranslating ? (
+                      <Loader2 size={17} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={17} />
+                    )}
+                    {isTranslating ? "Translating..." : "Generate Translation"}
+                  </button>
                 </div>
-              ))}
+              )}
             </div>
 
             <div className="mt-6 flex flex-col justify-between gap-3 border-t border-[var(--color-border)] pt-5 sm:flex-row sm:items-center">
@@ -223,7 +262,7 @@ export default function TranslationStep() {
 
               <div className="flex items-center gap-3">
                 <span className="text-xs text-[var(--color-text-muted)]">
-                  {translation.segments.length} segments translated
+                  {translation.segments?.length || 0} segments translated
                 </span>
                 <button
                   type="button"

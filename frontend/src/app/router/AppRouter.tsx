@@ -95,11 +95,7 @@ export default function AppRouter() {
 
           <Route
             path="/workspace/project/:projectId/video/:videoId"
-            element={
-              <PipelineProvider>
-                <VideoPipeline />
-              </PipelineProvider>
-            }
+            element={<VideoPipeline />}
           />
 
           {/* Settings */}

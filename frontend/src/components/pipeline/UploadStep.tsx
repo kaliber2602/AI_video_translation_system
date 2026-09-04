@@ -8,15 +8,18 @@ import {
   Loader2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { usePipeline } from "../../hooks/usePipeline";
 import { videoService } from "../../services/video.service";
 
 export default function UploadStep() {
   const { t } = useTranslation(["pipeline", "common"]);
+  const navigate = useNavigate();
   const { state, dispatch } = usePipeline();
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatusText, setUploadStatusText] = useState<string>("Uploading...");
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadComplete, setUploadComplete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -25,28 +28,32 @@ export default function UploadStep() {
   useEffect(() => {
     if (uploadComplete && state.video?.videoId) {
       const timer = setTimeout(() => {
+        if (state.projectId) {
+          navigate(`/workspace/project/${state.projectId}/video/${state.video.videoId}`, { replace: true });
+        }
         dispatch({ type: "SET_STEP", payload: 2 });
-      }, 1000); // 1 second delay to show the success state
+      }, 1200); // 1.2 second delay to show the success state
       return () => clearTimeout(timer);
     }
-  }, [uploadComplete, state.video?.videoId, dispatch]);
+  }, [uploadComplete, state.video?.videoId, state.projectId, dispatch, navigate]);
 
   const handleFileUpload = async (file: File) => {
     setIsUploading(true);
     setUploadProgress(0);
+    setUploadStatusText("Uploading video file...");
     setUploadError(null);
     setUploadComplete(false);
 
     // Simulate upload progress
     const progressInterval = setInterval(() => {
       setUploadProgress((prev) => {
-        if (prev >= 90) {
+        if (prev >= 85) {
           clearInterval(progressInterval);
-          return 90;
+          return 85;
         }
         return prev + 10;
       });
-    }, 300);
+    }, 250);
 
     try {
       const response = await videoService.uploadVideo(
@@ -64,9 +71,18 @@ export default function UploadStep() {
       }
 
       console.log("✅ Video uploaded with ID:", videoId);
-
-      // Clear the progress interval
       clearInterval(progressInterval);
+      setUploadProgress(90);
+      setUploadStatusText("Extracting audio for transcription...");
+
+      // Automatically extract audio now so Step 2 (Transcript) is immediately ready
+      try {
+        await videoService.extractAudio(videoId);
+        console.log("✅ Audio extracted for video:", videoId);
+      } catch (extractErr: any) {
+        console.warn("⚠️ Initial audio extraction notice:", extractErr?.message || extractErr);
+      }
+
       setUploadProgress(100);
 
       // Update state with video details
@@ -167,7 +183,7 @@ export default function UploadStep() {
             <div className="flex flex-col items-center gap-4">
               <Loader2 size={40} className="animate-spin text-[var(--color-primary)]" />
               <p className="text-sm font-semibold text-[var(--color-text-primary)]">
-                Uploading... {uploadProgress}%
+                {uploadStatusText} {uploadProgress}%
               </p>
               <div className="h-2 w-64 overflow-hidden rounded-full bg-[var(--color-border)]">
                 <div

@@ -1,141 +1,304 @@
+# app/services/tts_aligner_service.py
 import os
+import subprocess
+import json
 import requests
-import librosa
+import tempfile
+from typing import List, Dict, Any, Optional
+import logging
+import numpy as np
 import soundfile as sf
 from pydub import AudioSegment
-from pydub.silence import split_on_silence
-import torch
+
+logger = logging.getLogger("app.services.tts_aligner_service")
 
 class TTSAlignerService:
-    def __init__(self, tts_api_url="http://127.0.0.1:8002/generate_tts"):
-        self.tts_api_url = tts_api_url
-        
-        # Auto-detect and set appropriate threads
-        cuda_available = torch.cuda.is_available()
-        
-        # ✅ FIX: Use librosa.util.set_num_threads() instead of librosa.set_num_threads()
-        if hasattr(librosa, 'util') and hasattr(librosa.util, 'set_num_threads'):
-            librosa.util.set_num_threads(4 if cuda_available else 2)
-        else:
-            # Fallback: use os environment variables
-            os.environ["OMP_NUM_THREADS"] = str(4 if cuda_available else 2)
-            os.environ["OPENBLAS_NUM_THREADS"] = str(4 if cuda_available else 2)
-        
-        if cuda_available:
-            print("[TTS Aligner] ✅ CUDA detected", flush=True)
-        else:
-            print("[TTS Aligner] ⚠️ CUDA not detected, using CPU", flush=True)
+    def __init__(self, tts_api_url: str = None):
+        self.tts_api_url = tts_api_url or os.getenv("TTS_API_URL", "http://tts-service:8001/generate_tts")
+        logger.info(f"TTSAlignerService initialized with API: {self.tts_api_url}")
 
-    def extract_voice_profile(self, vocal_path: str, temp_dir: str, target_duration_sec: int = 12):
+    def generate_tts_with_alignment(
+        self,
+        segments: List[Dict[str, Any]],
+        output_path: str,
+        temp_dir: str,
+        vocal_path: Optional[str] = None,
+        tgt_lang: str = "en"
+    ) -> str:
         """
-        Trích xuất Voice Profile bằng thuật toán VAD (Voice Activity Detection):
-        Tự động lọc bỏ các đoạn lặng và tiếng thở, gom đúng 12s mẫu giọng nói sắc nét nhất.
+        Generate TTS for each segment and combine into a single audio file.
         """
-        print("[VAD] Đang lọc khoảng lặng và trích xuất Voice Profile chuẩn 12s...", flush=True)
-        profile_path = os.path.join(temp_dir, "speaker_profile.wav")
+        if not segments:
+            raise ValueError("No segments provided for TTS generation")
         
-        try:
-            audio = AudioSegment.from_file(vocal_path)
+        logger.info(f"Generating TTS for {len(segments)} segments, target language: {tgt_lang}")
+        
+        # Create temp directory
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        # ✅ Extract voice profile once for all segments
+        speaker_wav_data = None
+        if vocal_path and os.path.exists(vocal_path):
+            logger.info(f"Using vocal track for voice cloning: {vocal_path}")
+            speaker_wav_data = self._get_speaker_wav(vocal_path)
+        
+        if speaker_wav_data is None:
+            logger.warning("No speaker voice provided, using default voice")
+        
+        # Generate TTS for each segment
+        audio_segments = []
+        
+        for idx, seg in enumerate(segments):
+            text = seg.get("translated_text", seg.get("text", ""))
+            if not text or len(text.strip()) < 1:
+                logger.warning(f"Segment {idx} has empty text, skipping")
+                continue
             
-            chunks = split_on_silence(
-                audio,
-                min_silence_len=500,
-                silence_thresh=audio.dBFS - 14,
-                keep_silence=100
+            logger.info(f"Generating TTS for segment {idx}: {text[:50]}...")
+            
+            try:
+                # ✅ Generate TTS with speaker voice
+                audio_data = self._call_tts_service(text, tgt_lang, speaker_wav_data)
+                
+                if audio_data is None:
+                    logger.error(f"Failed to generate TTS for segment {idx}")
+                    continue
+                
+                # Save individual segment
+                seg_path = os.path.join(temp_dir, f"segment_{idx:04d}.wav")
+                sf.write(seg_path, audio_data, 22050)
+                
+                # Load as AudioSegment for alignment
+                audio_seg = AudioSegment.from_file(seg_path)
+                
+                # Get original duration
+                original_duration = seg.get("end", 0) - seg.get("start", 0)
+                if original_duration > 0:
+                    # Align duration (time-stretch)
+                    current_duration = len(audio_seg) / 1000.0
+                    if current_duration > original_duration * 1.2 or current_duration < original_duration * 0.8:
+                        # Time-stretch to match original duration
+                        speed_factor = current_duration / original_duration
+                        audio_seg = self._time_stretch_audio(audio_seg, speed_factor)
+                        logger.info(f"Time-stretched segment {idx}: {current_duration:.2f}s -> {original_duration:.2f}s (factor: {speed_factor:.2f})")
+                
+                audio_segments.append((seg.get("start", 0), audio_seg))
+                
+            except Exception as e:
+                logger.error(f"Failed to generate TTS for segment {idx}: {e}")
+                continue
+        
+        if not audio_segments:
+            raise Exception("No TTS segments were generated successfully")
+        
+        # Combine all segments with silence gaps
+        combined_audio = self._combine_audio_segments(audio_segments)
+        
+        # Export combined audio
+        combined_audio.export(output_path, format="wav")
+        logger.info(f"TTS generated successfully: {output_path} ({os.path.getsize(output_path)} bytes)")
+        
+        # Verify file is valid
+        if os.path.getsize(output_path) < 1024:
+            raise Exception(f"TTS file is too small ({os.path.getsize(output_path)} bytes), generation failed")
+        
+        return output_path
+
+    def _call_tts_service(self, text: str, tgt_lang: str, speaker_wav_data: Optional[bytes] = None) -> Optional[np.ndarray]:
+        """Call the TTS service to generate audio with voice cloning."""
+        try:
+            # ✅ Check if we have speaker data
+            if speaker_wav_data is None:
+                # Try to use a default voice
+                logger.warning("No speaker voice data available, trying with default voice")
+                # Some TTS services allow empty speaker_wav for default voice
+            
+            # ✅ Prepare multipart/form-data for TTS service
+            # The service expects:
+            # - text: string (required)
+            # - speaker_wav: file (required for voice cloning)
+            
+            # Create multipart form data
+            files = {}
+            data = {
+                "text": text,
+                "language": tgt_lang,
+                "speaker_id": "0",
+                "style": "neutral",
+                "speed": 1.0
+            }
+            
+            # ✅ Add speaker_wav as file if available
+            if speaker_wav_data:
+                files["speaker_wav"] = ("speaker.wav", speaker_wav_data, "audio/wav")
+                logger.info(f"Sending speaker_wav: {len(speaker_wav_data)} bytes")
+            
+            # Make request with multipart/form-data
+            response = requests.post(
+                self.tts_api_url,
+                data=data,
+                files=files if files else None,
+                timeout=120
             )
             
-            if not chunks:
-                print("[VAD] Cảnh báo: Không tách được khoảng lặng, cắt 12s đầu làm mặc định.", flush=True)
-                audio[:target_duration_sec * 1000].export(profile_path, format="wav")
-                return profile_path
-
-            target_duration_ms = target_duration_sec * 1000
-            clean_audio = AudioSegment.empty()
+            if response.status_code != 200:
+                logger.error(f"TTS service returned {response.status_code}: {response.text[:500]}")
+                return None
             
-            for chunk in chunks:
-                clean_audio += chunk
-                if len(clean_audio) >= target_duration_ms:
-                    break
+            # Check response content type
+            content_type = response.headers.get("content-type", "")
+            
+            if "audio" in content_type or "octet-stream" in content_type:
+                # Save response to temp file and load
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+                    f.write(response.content)
+                    temp_file = f.name
+                
+                try:
+                    # Load audio
+                    audio, sr = sf.read(temp_file)
+                    if sr != 22050:
+                        # Resample to 22050 if needed
+                        from scipy import signal
+                        audio = signal.resample(audio, int(len(audio) * 22050 / sr))
+                    return audio
+                finally:
+                    os.unlink(temp_file)
+            elif "json" in content_type:
+                # Try JSON response with base64 audio
+                data = response.json()
+                if "audio" in data:
+                    import base64
+                    audio_bytes = base64.b64decode(data["audio"])
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+                        f.write(audio_bytes)
+                        temp_file = f.name
                     
-            clean_audio = clean_audio[:target_duration_ms]
-            print(f"[VAD] Trích xuất thành công {len(clean_audio)/1000}s mẫu giọng chuẩn.", flush=True)
-            clean_audio.export(profile_path, format="wav")
-            return profile_path
-            
-        except Exception as e:
-            print(f"[VAD] Error: {e}, using fallback", flush=True)
-            audio = AudioSegment.from_file(vocal_path)
-            audio[:target_duration_sec * 1000].export(profile_path, format="wav")
-            return profile_path
-
-    def speed_up_audio(self, audio_path: str, output_path: str, target_duration: float):
-        """Time-stretch ép thời gian bằng Librosa mà không làm biến dạng cao độ (Pitch)."""
-        try:
-            # Auto-detect CUDA for audio processing
-            use_gpu = torch.cuda.is_available()
-            sr = 44100 if use_gpu else 16000  # Higher sample rate on GPU
-            
-            y, sr = librosa.load(audio_path, sr=sr, mono=True)
-            current_duration = librosa.get_duration(y=y, sr=sr)
-            
-            if current_duration > target_duration and target_duration > 0:
-                rate = current_duration / target_duration
-                rate = min(rate, 1.8)
-                y_stretched = librosa.effects.time_stretch(y, rate=rate)
-                sf.write(output_path, y_stretched, sr)
+                    try:
+                        audio, sr = sf.read(temp_file)
+                        if sr != 22050:
+                            from scipy import signal
+                            audio = signal.resample(audio, int(len(audio) * 22050 / sr))
+                        return audio
+                    finally:
+                        os.unlink(temp_file)
+                elif "url" in data:
+                    # Download audio from URL
+                    audio_response = requests.get(data["url"], timeout=30)
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+                        f.write(audio_response.content)
+                        temp_file = f.name
+                    
+                    try:
+                        audio, sr = sf.read(temp_file)
+                        if sr != 22050:
+                            from scipy import signal
+                            audio = signal.resample(audio, int(len(audio) * 22050 / sr))
+                        return audio
+                    finally:
+                        os.unlink(temp_file)
             else:
-                sf.write(output_path, y, sr)
+                logger.error(f"Unexpected response from TTS service: {content_type[:100]}")
+                return None
+                
+        except requests.exceptions.Timeout:
+            logger.error("TTS service timeout after 120 seconds")
+            return None
+        except Exception as e:
+            logger.error(f"Error calling TTS service: {e}")
+            return None
+
+    def _get_speaker_wav(self, vocal_path: str) -> Optional[bytes]:
+        """Extract speaker voice sample from vocal track."""
+        if not vocal_path or not os.path.exists(vocal_path):
+            logger.warning(f"Vocal path not found: {vocal_path}")
+            return None
+        
+        try:
+            # Read vocal audio
+            audio, sr = sf.read(vocal_path)
+            
+            # Convert to mono if stereo
+            if len(audio.shape) > 1:
+                audio = np.mean(audio, axis=1)
+            
+            # ✅ Trim to first 5-10 seconds for voice sample
+            sample_duration = min(10, len(audio) / sr)
+            sample_samples = int(sample_duration * sr)
+            audio_sample = audio[:sample_samples]
+            
+            # Save as temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+                sf.write(f.name, audio_sample, sr)
+                with open(f.name, "rb") as audio_file:
+                    audio_data = audio_file.read()
+                os.unlink(f.name)
+                
+            logger.info(f"Extracted speaker sample: {sample_duration:.1f}s, {len(audio_data)} bytes")
+            return audio_data
                 
         except Exception as e:
-            print(f"[TTS] Speed up failed: {e}, using fallback", flush=True)
-            import shutil
-            shutil.copy(audio_path, output_path)
+            logger.error(f"Failed to extract voice profile: {e}")
+            return None
 
-    def generate_tts_with_alignment(self, segments: list, output_path: str, temp_dir: str, vocal_path: str, tgt_lang: str):
-        """Sinh giọng lồng tiếng cho từng câu, ép vừa Timeline và ghép thành 1 track duy nhất."""
-        speaker_profile_path = self.extract_voice_profile(vocal_path, temp_dir)
+    def _time_stretch_audio(self, audio: AudioSegment, speed_factor: float) -> AudioSegment:
+        """Time-stretch audio using FFmpeg."""
+        try:
+            # Save temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+                temp_input = f.name
+                audio.export(temp_input, format="wav")
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+                temp_output = f.name
+            
+            # Use FFmpeg for time stretching
+            cmd = [
+                "ffmpeg", "-y",
+                "-i", temp_input,
+                "-filter:a", f"atempo={1/speed_factor}",
+                temp_output
+            ]
+            subprocess.run(cmd, check=True, capture_output=True)
+            
+            # Load stretched audio
+            stretched = AudioSegment.from_file(temp_output)
+            
+            # Clean up
+            os.unlink(temp_input)
+            os.unlink(temp_output)
+            
+            return stretched
+            
+        except Exception as e:
+            logger.error(f"Time-stretch failed: {e}")
+            return audio
+
+    def _combine_audio_segments(self, audio_segments: List[tuple]) -> AudioSegment:
+        """Combine audio segments with appropriate gaps."""
+        if not audio_segments:
+            raise ValueError("No audio segments to combine")
         
-        master_audio = AudioSegment.empty()
-        current_timeline = 0.0
-
-        for idx, seg in enumerate(segments):
-            translated_text = seg.get("translated_text", seg["text"])
-            original_duration = seg["end"] - seg["start"]
+        # Sort by start time
+        audio_segments.sort(key=lambda x: x[0])
+        
+        # Start with first segment
+        combined = audio_segments[0][1]
+        last_end = audio_segments[0][0] + len(audio_segments[0][1]) / 1000.0
+        
+        for start_time, audio_seg in audio_segments[1:]:
+            gap = start_time - last_end
             
-            chunk_tts_path = os.path.join(temp_dir, f"tts_chunk_{idx}.wav")
-            adjusted_tts_path = os.path.join(temp_dir, f"tts_adjusted_{idx}.wav")
-
-            try:
-                with open(speaker_profile_path, "rb") as f_speaker:
-                    response = requests.post(
-                        self.tts_api_url,
-                        data={"text": translated_text, "language": tgt_lang},
-                        files={"speaker_wav": f_speaker},
-                        timeout=120
-                    )
-                
-                if response.status_code == 200:
-                    with open(chunk_tts_path, "wb") as f_out:
-                        f_out.write(response.content)
-                else:
-                    print(f"Lỗi TTS API (Segment {idx}): {response.text}", flush=True)
-                    continue
-            except Exception as e:
-                print(f"Lỗi kết nối TTS Server: {e}", flush=True)
-                continue
-
-            self.speed_up_audio(chunk_tts_path, adjusted_tts_path, target_duration=original_duration)
+            if gap > 0:
+                # Add silence gap
+                silence = AudioSegment.silent(duration=int(gap * 1000))
+                combined += silence
             
-            tts_segment = AudioSegment.from_file(adjusted_tts_path)
-            tts_duration_sec = len(tts_segment) / 1000.0
+            combined += audio_seg
+            last_end = start_time + len(audio_seg) / 1000.0
+        
+        return combined
 
-            silence_gap = seg["start"] - current_timeline
-            if silence_gap > 0:
-                silence = AudioSegment.silent(duration=int(silence_gap * 1000))
-                master_audio += silence
-                current_timeline += silence_gap
-
-            master_audio += tts_segment
-            current_timeline += tts_duration_sec
-
-        master_audio.export(output_path, format="wav")
+    def extract_voice_profile(self, vocal_path: str) -> Optional[bytes]:
+        """Extract voice profile from vocal track for voice cloning."""
+        return self._get_speaker_wav(vocal_path)

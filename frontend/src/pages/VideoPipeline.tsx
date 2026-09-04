@@ -6,6 +6,7 @@ import {
   Circle,
   Clock3,
   Save,
+  Loader2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
@@ -16,6 +17,8 @@ import TranslationStep from "../components/pipeline/TranslationStep";
 import SubtitleStep from "../components/pipeline/SubtitleStep";
 import DubbingStep from "../components/pipeline/DubbingStep";
 import ReviewExportStep from "../components/pipeline/ReviewExportStep";
+
+import { videoService } from "../services/video.service";
 
 // Import Pipeline context
 import { usePipeline } from "../hooks/usePipeline";
@@ -51,6 +54,8 @@ function VideoPipelineContent() {
   const [activeStep, setActiveStep] = useState("upload");
   const [isSaved, setIsSaved] = useState(true);
   const [projectName, setProjectName] = useState<string>("");
+  const [isLoadingVideo, setIsLoadingVideo] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
 
   // Initialize project and video data from URL/state
   useEffect(() => {
@@ -79,9 +84,63 @@ function VideoPipelineContent() {
 
     // If videoId is not "new", load existing video data
     if (videoId && videoId !== "new") {
-      console.log("📹 Loading existing video:", videoId);
-      // You could load video data here from your API
-      // For now, we'll just set the step to where the video left off
+      const vidNum = parseInt(videoId);
+      if (!isNaN(vidNum) && (!state.video || state.video.videoId !== vidNum)) {
+        console.log("📹 Loading existing video:", vidNum);
+        setIsLoadingVideo(true);
+        setVideoError(null);
+
+        videoService.getVideo(vidNum)
+          .then((videoData: any) => {
+            console.log("📹 Loaded video data:", videoData);
+            dispatch({
+              type: "SET_VIDEO",
+              payload: {
+                videoId: videoData.id,
+                filename: videoData.original_filename || videoData.title,
+                fileSize: videoData.file_size || 0,
+                status: videoData.status,
+                duration: videoData.duration,
+                outputPath: videoData.output_path,
+                dubbedAudioPath: videoData.dubbed_audio_path,
+                subtitlePath: videoData.subtitle_path,
+                transcriptPath: videoData.transcript_path,
+                extractedVocalPath: videoData.extracted_vocal_path,
+                projectId: videoData.project_id,
+              },
+            });
+
+            if (videoData.target_language) {
+              dispatch({
+                type: "SET_TARGET_LANGUAGE",
+                payload: videoData.target_language,
+              });
+            }
+
+            // Route to appropriate step based on available assets
+            let targetStep = 2; // Default to transcript if uploaded
+            if (videoData.output_path || videoData.status === "completed") {
+              targetStep = 6;
+            } else if (videoData.dubbed_audio_path) {
+              targetStep = 5;
+            } else if (videoData.subtitle_path) {
+              targetStep = 4;
+            } else if (videoData.transcript_path) {
+              targetStep = 3;
+            } else if (videoData.extracted_vocal_path) {
+              targetStep = 2;
+            }
+
+            dispatch({ type: "SET_STEP", payload: targetStep });
+          })
+          .catch((err: any) => {
+            console.error("❌ Failed to load video details:", err);
+            setVideoError(err.message || "Failed to load video");
+          })
+          .finally(() => {
+            setIsLoadingVideo(false);
+          });
+      }
     }
 
     // Set active step based on current step from context or URL
@@ -419,9 +478,33 @@ function VideoPipelineContent() {
         </aside>
 
         <section className="min-w-0 flex-1">
-          <div key={activeStep} className="animate-fade-in">
-            {renderStep(activeStep)}
-          </div>
+          {isLoadingVideo ? (
+            <div className="flex min-h-[400px] flex-col items-center justify-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-[var(--shadow-card)]">
+              <Loader2 size={36} className="animate-spin text-[var(--color-primary)]" />
+              <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+                Loading video data...
+              </p>
+              <p className="text-xs text-[var(--color-text-muted)]">
+                Syncing status and processing steps
+              </p>
+            </div>
+          ) : videoError ? (
+            <div className="rounded-2xl border border-red-500/50 bg-red-500/10 p-6 text-red-500">
+              <p className="text-base font-bold">Failed to load video</p>
+              <p className="mt-1 text-sm">{videoError}</p>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="mt-4 rounded-xl bg-red-500 px-4 py-2 text-xs font-semibold text-white transition hover:bg-red-600"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <div key={activeStep} className="animate-fade-in">
+              {renderStep(activeStep)}
+            </div>
+          )}
         </section>
       </main>
     </div>

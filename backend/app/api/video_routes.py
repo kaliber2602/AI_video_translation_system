@@ -1347,6 +1347,7 @@ async def list_voices(
 async def generate_tts(
     video_id: int,
     language: str = Query(..., description="Target language for TTS"),
+    speaker_id: Optional[int] = Query(None, description="Speaker ID for voice cloning"),
     style: str = Query("neutral", description="Speaking style"),
     speed: float = Query(1.0, description="Speaking speed multiplier (0.5 - 2.0)"),
     db: Session = Depends(get_db),
@@ -1361,6 +1362,7 @@ async def generate_tts(
     if not project or project.owner_id != user_id:
         raise HTTPException(403, "You don't have access to this video")
     
+    # Find translation
     translation_dir = os.path.dirname(video.transcript_path) if video.transcript_path else None
     if not translation_dir:
         raise HTTPException(404, "Transcript directory not found")
@@ -1369,25 +1371,37 @@ async def generate_tts(
     if not os.path.exists(translation_path):
         raise HTTPException(404, f"Translation for {language} not found")
     
-    with open(translation_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-        segments = data.get("segments", [])
+    # Load translation data
+    try:
+        with open(translation_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            segments = data.get("segments", [])
+    except Exception as e:
+        raise HTTPException(500, f"Failed to read translation: {str(e)}")
     
+    if not segments:
+        raise HTTPException(400, "No segments found in translation")
+    
+    # Get vocal path for voice cloning
     vocal_path = video.extracted_vocal_path
     if not vocal_path or not os.path.exists(vocal_path):
-        raise HTTPException(404, "Vocal track not found")
+        logger.warning(f"No vocal track found for video {video_id}, using default voice")
+        vocal_path = None
     
+    # Language mapping for XTTS
     from app.core.languages import TARGET_LANGUAGE_MAP
     lang_config = TARGET_LANGUAGE_MAP.get(language)
     xtts_lang = lang_config["xtts"] if lang_config else "en"
     
     tts_service = TTSAlignerService()
     
+    # Create TTS directory
     tts_dir = OUTPUT_DIR / f"tts_{video_id}"
     tts_dir.mkdir(parents=True, exist_ok=True)
     tts_path = tts_dir / f"tts_{language}.wav"
     
     try:
+        # Generate TTS
         tts_service.generate_tts_with_alignment(
             segments=segments,
             output_path=str(tts_path),
@@ -1396,18 +1410,41 @@ async def generate_tts(
             tgt_lang=xtts_lang
         )
         
-        if speed != 1.0:
-            import subprocess
-            temp_path = tts_dir / f"tts_{language}_temp.wav"
-            subprocess.run([
-                "ffmpeg", "-i", str(tts_path),
-                "-filter:a", f"atempo={speed}",
-                str(temp_path)
-            ], check=True)
-            shutil.move(str(temp_path), str(tts_path))
+        # ✅ Validate the generated file
+        if not os.path.exists(tts_path):
+            raise HTTPException(500, "TTS file was not created")
         
+        file_size = os.path.getsize(tts_path)
+        if file_size < 1024:
+            logger.error(f"TTS file is too small: {file_size} bytes")
+            raise HTTPException(400, f"TTS audio file is corrupted or empty ({file_size} bytes)")
+        
+        # Apply speed adjustment if needed
+        if speed != 1.0:
+            temp_path = tts_dir / f"tts_{language}_temp.wav"
+            try:
+                subprocess.run([
+                    "ffmpeg", "-y", "-i", str(tts_path),
+                    "-filter:a", f"atempo={speed}",
+                    str(temp_path)
+                ], check=True, capture_output=True)
+                
+                # Replace with speed-adjusted version
+                shutil.move(str(temp_path), str(tts_path))
+                
+                # Validate again
+                if os.path.getsize(tts_path) < 1024:
+                    raise HTTPException(400, "Speed-adjusted TTS file is corrupted")
+                    
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Speed adjustment failed: {e.stderr}")
+                # Continue with original file
+        
+        # Update video record
         video.dubbed_audio_path = str(tts_path)
         db.commit()
+        
+        logger.info(f"✅ TTS generated: {tts_path} ({file_size} bytes)")
         
         return {
             "video_id": video_id,
@@ -1415,13 +1452,17 @@ async def generate_tts(
             "style": style,
             "speed": speed,
             "tts_path": str(tts_path),
+            "file_size": file_size,
             "status": "completed",
             "message": "TTS generated successfully"
         }
+        
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"TTS generation failed: {str(e)}")
         raise HTTPException(500, f"TTS generation failed: {str(e)}")
-
-
+    
 @router.get("/{video_id}/tts/{language}")
 async def get_tts(
     video_id: int,
@@ -1443,14 +1484,59 @@ async def get_tts(
     tts_path = tts_dir / f"tts_{language}.wav"
     
     if tts_path.exists():
+        file_size = os.path.getsize(tts_path)
+        
+        # Check if file is valid
+        if file_size < 1024:
+            logger.warning(f"TTS file {tts_path} is too small ({file_size} bytes)")
+            return {
+                "video_id": video_id,
+                "language": language,
+                "status": "corrupted",
+                "message": f"TTS file is corrupted ({file_size} bytes)",
+                "tts_path": str(tts_path),
+                "size": file_size
+            }
+        
         if preview:
-            return FileResponse(tts_path, media_type="audio/wav", filename=f"tts_{language}_preview.wav")
+            # Verify it's a valid audio file
+            try:
+                # Quick validation with ffprobe
+                probe_cmd = [
+                    "ffprobe",
+                    "-v", "error",
+                    "-show_entries", "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    str(tts_path)
+                ]
+                result = subprocess.run(probe_cmd, capture_output=True, text=True)
+                if result.returncode != 0:
+                    logger.error(f"Invalid audio file: {result.stderr}")
+                    raise HTTPException(400, "TTS file is corrupted")
+                
+                duration = float(result.stdout.strip()) if result.stdout else 0
+                if duration < 0.1:
+                    logger.warning(f"TTS file has very short duration: {duration}s")
+            except Exception as e:
+                logger.error(f"Error validating TTS file: {e}")
+                # Still try to serve it
+                pass
+            
+            return FileResponse(
+                tts_path,
+                media_type="audio/wav",
+                filename=f"tts_{language}_preview.wav",
+                headers={
+                    "Content-Disposition": f"inline; filename=tts_{language}_preview.wav"
+                }
+            )
         
         return {
             "video_id": video_id,
             "language": language,
             "tts_path": str(tts_path),
-            "size": os.path.getsize(tts_path),
+            "size": file_size,
+            "duration": 0,  # Could calculate if needed
             "status": "available"
         }
     
@@ -1465,6 +1551,8 @@ async def get_tts(
 # ============================================================
 # VIDEO DUBBING
 # ============================================================
+
+# In video_routes.py - replace the generate_dubbed_video function
 
 @router.post("/{video_id}/dub")
 async def generate_dubbed_video(
@@ -1484,6 +1572,7 @@ async def generate_dubbed_video(
     if not project or project.owner_id != user_id:
         raise HTTPException(403, "You don't have access to this video")
     
+    # Find original video file
     video_path = None
     for file in UPLOAD_DIR.glob(f"{video_id}_*"):
         video_path = str(file)
@@ -1492,17 +1581,29 @@ async def generate_dubbed_video(
     if not video_path:
         raise HTTPException(404, "Original video not found")
     
+    # Check TTS audio exists
     tts_path = video.dubbed_audio_path
     if not tts_path or not os.path.exists(tts_path):
         raise HTTPException(400, "TTS not found. Generate TTS first.")
     
-    bgm_path = video.background_music_path
-    if not bgm_path or not os.path.exists(bgm_path):
+    # Check TTS file size
+    if os.path.getsize(tts_path) < 1024:
+        raise HTTPException(400, "TTS audio file is corrupted or empty")
+    
+    # Handle BGM
+    bgm_path = None
+    if video.background_music_path and os.path.exists(video.background_music_path):
+        bgm_path = video.background_music_path
+    else:
+        # Try to find BGM in audio directory
         bgm_dir = OUTPUT_DIR / f"audio_{video_id}"
         if bgm_dir.exists():
             bgm_files = list(bgm_dir.glob("*bgm*.wav"))
-            if bgm_files:
+            if bgm_files and os.path.exists(str(bgm_files[0])):
                 bgm_path = str(bgm_files[0])
+    
+    if not bgm_path:
+        logger.warning(f"No BGM found for video {video_id}, using TTS only")
     
     audio_service = AudioService()
     
@@ -1515,15 +1616,68 @@ async def generate_dubbed_video(
             audio_service.mix_and_mux(
                 video_path=video_path,
                 tts_audio_path=tts_path,
-                bgm_audio_path=bgm_path or "",
+                bgm_audio_path=bgm_path,
                 final_output_path=output_path,
                 temp_dir=temp_dir
             )
+        
+        # ✅ Validate the output file
+        if not os.path.exists(output_path):
+            raise HTTPException(500, "Output file was not created")
+        
+        file_size = os.path.getsize(output_path)
+        if file_size < 1024:
+            logger.error(f"Output file is too small: {file_size} bytes")
+            # Try an alternative approach: use ffmpeg directly without pydub
+            logger.info("Attempting alternative approach with ffmpeg directly...")
+            
+            # Build FFmpeg command directly
+            ffmpeg_cmd = [
+                "ffmpeg", "-y",
+                "-i", video_path,
+                "-i", tts_path,
+                "-c:v", "copy",
+                "-c:a", "aac",
+                "-map", "0:v:0",
+                "-map", "1:a:0",
+                "-shortest",
+                output_path
+            ]
+            
+            # Add BGM if available
+            if bgm_path and os.path.exists(bgm_path):
+                # Use amix filter
+                ffmpeg_cmd = [
+                    "ffmpeg", "-y",
+                    "-i", video_path,
+                    "-i", tts_path,
+                    "-i", bgm_path,
+                    "-filter_complex", "[1:a][2:a]amix=inputs=2:duration=first:dropout_transition=3[aout]",
+                    "-map", "0:v:0",
+                    "-map", "[aout]",
+                    "-c:v", "copy",
+                    "-c:a", "aac",
+                    "-shortest",
+                    output_path
+                ]
+            
+            logger.info(f"Running FFmpeg command: {' '.join(ffmpeg_cmd)}")
+            result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                logger.error(f"Alternative FFmpeg failed: {result.stderr}")
+                raise HTTPException(500, f"FFmpeg failed: {result.stderr}")
+            
+            # Check again
+            if not os.path.exists(output_path) or os.path.getsize(output_path) < 1024:
+                raise HTTPException(500, "Failed to generate valid video file")
         
         video.output_path = output_path
         video.status = VideoStatus.COMPLETED.value
         video.resolution = quality
         db.commit()
+        
+        logger.info(f"✅ Dubbed video generated: {output_path} ({os.path.getsize(output_path)} bytes)")
         
         return {
             "video_id": video_id,
@@ -1531,13 +1685,17 @@ async def generate_dubbed_video(
             "video_format": video_format,
             "quality": quality,
             "output_path": output_path,
+            "file_size": os.path.getsize(output_path),
             "status": "completed",
             "message": "Dubbed video generated successfully"
         }
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"Dubbing failed for video {video_id}: {str(e)}")
         raise HTTPException(500, f"Dubbing failed: {str(e)}")
-
-
+    
+    
 @router.get("/{video_id}/dub")
 async def get_dubbing_status(
     video_id: int,
@@ -1638,6 +1796,7 @@ async def get_export_options(
     export_service = ExportService()
     available_exports = export_service.get_available_exports(video)
     
+    # ✅ Return the expected format
     return {
         "video_id": video_id,
         "title": video.title,
@@ -1668,22 +1827,50 @@ async def export_video(
     export_service = ExportService()
     
     if export_type == "final_video":
+        # Check if video exists and is valid
         if not video.output_path or not os.path.exists(video.output_path):
             raise HTTPException(404, "Final video not found")
         
-        if quality:
-            output_path = export_service.export_final_video(
-                video_path=video.output_path,
-                format=format,
-                quality=quality
-            )
-            return FileResponse(output_path, media_type="video/mp4", filename=f"export_{quality}.{format}")
+        # Check file size
+        file_size = os.path.getsize(video.output_path)
+        if file_size < 1024:
+            raise HTTPException(400, f"Video file is corrupted or empty ({file_size} bytes)")
         
-        return FileResponse(video.output_path, media_type="video/mp4", filename=f"export.{format}")
+        try:
+            # If quality is specified, re-encode
+            if quality and quality != "1080p":  # Only re-encode if different from default
+                output_path = export_service.export_final_video(
+                    video_path=video.output_path,
+                    format=format,
+                    quality=quality
+                )
+                return FileResponse(
+                    output_path,
+                    media_type="video/mp4",
+                    filename=f"export_{quality}.{format}"
+                )
+            else:
+                # Return the file directly
+                return FileResponse(
+                    video.output_path,
+                    media_type="video/mp4",
+                    filename=f"export.{format}"
+                )
+        except Exception as e:
+            logger.error(f"Export failed: {str(e)}")
+            # Try to serve the original file
+            if os.path.exists(video.output_path):
+                return FileResponse(
+                    video.output_path,
+                    media_type="video/mp4",
+                    filename=f"export.{format}"
+                )
+            raise HTTPException(500, f"Export failed: {str(e)}")
     
     elif export_type == "subtitles":
         if not language:
-            language = video.target_language or "vi"
+            config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
+            language = config.target_language if config else "vi"
         
         subtitle_dir = os.path.dirname(video.subtitle_path) if video.subtitle_path else None
         if subtitle_dir:
@@ -1704,7 +1891,11 @@ async def export_video(
             audio_path=video.dubbed_audio_path,
             format=format
         )
-        return FileResponse(output_path, media_type="audio/mpeg" if format == "mp3" else "audio/wav", filename=f"audio.{format}")
+        return FileResponse(
+            output_path,
+            media_type="audio/mpeg" if format == "mp3" else "audio/wav",
+            filename=f"audio.{format}"
+        )
     
     elif export_type == "transcript":
         if not video.transcript_path or not os.path.exists(video.transcript_path):
@@ -1715,11 +1906,16 @@ async def export_video(
             format=format
         )
         media_type = "text/plain" if format == "txt" else "application/json"
-        return FileResponse(output_path, media_type=media_type, filename=f"transcript.{format}")
+        return FileResponse(
+            output_path,
+            media_type=media_type,
+            filename=f"transcript.{format}"
+        )
     
     elif export_type == "translation":
         if not language:
-            language = video.target_language or "vi"
+            config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
+            language = config.target_language if config else "vi"
         
         if video.transcript_path:
             translation_dir = os.path.dirname(video.transcript_path)
@@ -1730,13 +1926,15 @@ async def export_video(
                     format=format
                 )
                 media_type = "text/plain" if format == "txt" else "application/json"
-                return FileResponse(output_path, media_type=media_type, filename=f"translation_{language}.{format}")
+                return FileResponse(
+                    output_path,
+                    media_type=media_type,
+                    filename=f"translation_{language}.{format}"
+                )
         
         raise HTTPException(404, f"Translation for language '{language}' not found")
     
     raise HTTPException(400, f"Invalid export type: {export_type}")
-
-
 # ============================================================
 # PLAYBACK (HLS Streaming)
 # ============================================================

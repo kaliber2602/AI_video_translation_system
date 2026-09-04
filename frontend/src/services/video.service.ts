@@ -22,7 +22,78 @@ export const videoService = {
     return response.json();
   },
 
-  // ✅ NEW: List videos with filtering
+  // Get single video details
+  async getVideo(videoId: number) {
+    const response = await fetch(`${API_URL}/videos/${videoId}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch video details: ${response.status}`);
+    }
+    return response.json();
+  },
+
+  // Audio extraction
+  async extractAudio(videoId: number) {
+    const response = await fetch(`${API_URL}/videos/${videoId}/audio/extract`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+      },
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Failed to extract audio: ${response.status}`);
+    }
+    return response.json();
+  },
+
+  // Media Blobs (authenticated streams for in-browser playback)
+  async getVideoBlob(videoId: number): Promise<Blob> {
+    const response = await fetch(`${API_URL}/videos/${videoId}/original`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error("Failed to load video file");
+    }
+    return response.blob();
+  },
+
+  async getAudioBlob(videoId: number, language: string): Promise<Blob> {
+    const response = await fetch(`${API_URL}/videos/${videoId}/tts/${language}?preview=true`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+      },
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Failed to load audio preview: ${response.status}`);
+    }
+    const blob = await response.blob();
+    // ✅ Check if blob is valid
+    if (blob.size < 1024) {
+      throw new Error(`TTS audio file is corrupted or empty (${blob.size} bytes)`);
+    }
+    return blob;
+  },
+
+  async getDubbedVideoBlob(videoId: number, language: string, format = "mp4"): Promise<Blob> {
+    const response = await fetch(`${API_URL}/videos/${videoId}/dub/${language}/download?video_format=${format}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error("Failed to load dubbed video");
+    }
+    return response.blob();
+  },
+
+  // List videos with filtering
   async listVideos(params?: { project_id?: number; status?: string; limit?: number; offset?: number }) {
     const queryParams = new URLSearchParams();
     if (params?.project_id) queryParams.append('project_id', String(params.project_id));
@@ -87,7 +158,14 @@ export const videoService = {
         Authorization: `Bearer ${localStorage.getItem("access_token")}`,
       },
     });
-    return response.json();
+    if (!response.ok) {
+      throw new Error(`Transcript not available (${response.status})`);
+    }
+    const data = await response.json();
+    if (data.status === "not_available") {
+      throw new Error("Transcript not available yet");
+    }
+    return data;
   },
 
   async startTranscription(videoId: number) {
@@ -97,6 +175,10 @@ export const videoService = {
         Authorization: `Bearer ${localStorage.getItem("access_token")}`,
       },
     });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Transcription failed: ${response.status}`);
+    }
     return response.json();
   },
 
@@ -109,6 +191,10 @@ export const videoService = {
       },
       body: JSON.stringify(updates),
     });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Failed to update transcript: ${response.status}`);
+    }
     return response.json();
   },
 
@@ -118,6 +204,9 @@ export const videoService = {
         Authorization: `Bearer ${localStorage.getItem("access_token")}`,
       },
     });
+    if (!response.ok) {
+      throw new Error(`Failed to export transcript: ${response.status}`);
+    }
     return response.blob();
   },
 
@@ -128,6 +217,9 @@ export const videoService = {
         Authorization: `Bearer ${localStorage.getItem("access_token")}`,
       },
     });
+    if (!response.ok) {
+      throw new Error(`Translation not found (${response.status})`);
+    }
     return response.json();
   },
 
@@ -141,6 +233,10 @@ export const videoService = {
         },
       }
     );
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Translation failed: ${response.status}`);
+    }
     return response.json();
   },
 
@@ -153,6 +249,10 @@ export const videoService = {
       },
       body: JSON.stringify(updates),
     });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Failed to update translation: ${response.status}`);
+    }
     return response.json();
   },
 
@@ -163,6 +263,9 @@ export const videoService = {
         Authorization: `Bearer ${localStorage.getItem("access_token")}`,
       },
     });
+    if (!response.ok) {
+      throw new Error(`Subtitles not found (${response.status})`);
+    }
     return response.json();
   },
 
@@ -176,6 +279,10 @@ export const videoService = {
         },
       }
     );
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Subtitle generation failed: ${response.status}`);
+    }
     return response.json();
   },
 
@@ -188,10 +295,17 @@ export const videoService = {
         },
       }
     );
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to download subtitles");
+    }
     return response.blob();
   },
 
-  // TTS / Voices
+  // ============================================================
+  // TTS / Voices - UPDATED
+  // ============================================================
+
   async listVoices(videoId: number) {
     const response = await fetch(`${API_URL}/videos/${videoId}/voices`, {
       headers: {
@@ -211,19 +325,58 @@ export const videoService = {
         },
       }
     );
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `TTS generation failed: ${response.status}`);
+    }
     return response.json();
   },
 
-  async getTTS(videoId: number, language: string) {
-    const response = await fetch(`${API_URL}/videos/${videoId}/tts/${language}`, {
+  // ✅ UPDATED: Get TTS with preview support
+  async getTTS(videoId: number, language: string, preview: boolean = false): Promise<any | Blob> {
+    const url = preview 
+      ? `${API_URL}/videos/${videoId}/tts/${language}?preview=true`
+      : `${API_URL}/videos/${videoId}/tts/${language}`;
+    
+    const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("access_token")}`,
       },
     });
+    
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Failed to get TTS: ${response.status}`);
+    }
+    
+    // If preview, return the blob directly
+    if (preview) {
+      const blob = await response.blob();
+      // ✅ Validate blob
+      if (blob.size < 1024) {
+        throw new Error(`TTS audio file is corrupted or empty (${blob.size} bytes)`);
+      }
+      // Check if it's actually audio
+      const contentType = blob.type;
+      if (!contentType.startsWith('audio/')) {
+        console.warn(`Expected audio, got: ${contentType}`);
+        // Still try to use it, but warn
+      }
+      return blob;
+    }
+    
     return response.json();
   },
 
-  // Dubbing
+  // ✅ NEW: Get TTS blob directly (convenience method)
+  async getTTSBlob(videoId: number, language: string): Promise<Blob> {
+    return this.getTTS(videoId, language, true) as Promise<Blob>;
+  },
+
+  // ============================================================
+  // Dubbing - UPDATED
+  // ============================================================
+
   async generateDubbedVideo(videoId: number, language: string, format: string, quality: string) {
     const response = await fetch(
       `${API_URL}/videos/${videoId}/dub?language=${language}&video_format=${format}&quality=${quality}`,
@@ -234,6 +387,12 @@ export const videoService = {
         },
       }
     );
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      // ✅ Better error message
+      const errorMsg = err.detail || `Dubbing generation failed: ${response.status}`;
+      throw new Error(errorMsg);
+    }
     return response.json();
   },
 
@@ -243,6 +402,10 @@ export const videoService = {
         Authorization: `Bearer ${localStorage.getItem("access_token")}`,
       },
     });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Failed to get dubbing status: ${response.status}`);
+    }
     return response.json();
   },
 
@@ -255,6 +418,10 @@ export const videoService = {
         },
       }
     );
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to download dubbed video");
+    }
     return response.blob();
   },
 
@@ -275,10 +442,13 @@ export const videoService = {
         Authorization: `Bearer ${localStorage.getItem("access_token")}`,
       },
     });
+    if (!response.ok) {
+      throw new Error(`Failed to load export options: ${response.status}`);
+    }
     return response.json();
   },
 
-  async exportVideo(videoId: number, type: string, format: string, quality?: string, language?: string) {
+  async exportVideo(videoId: number, type: string, format: string, quality?: string, language?: string): Promise<Blob> {
     let url = `${API_URL}/videos/${videoId}/export?export_type=${type}&format=${format}`;
     if (quality) url += `&quality=${quality}`;
     if (language) url += `&language=${language}`;
@@ -287,6 +457,10 @@ export const videoService = {
         Authorization: `Bearer ${localStorage.getItem("access_token")}`,
       },
     });
-    return response.url;
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Export failed: ${response.status}`);
+    }
+    return response.blob();
   },
 };
