@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ArrowLeft,
   Check,
@@ -8,7 +8,7 @@ import {
   Save,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 
 import UploadStep from "../components/pipeline/UploadStep";
 import TranscriptStep from "../components/pipeline/TranscriptStep";
@@ -17,36 +17,86 @@ import SubtitleStep from "../components/pipeline/SubtitleStep";
 import DubbingStep from "../components/pipeline/DubbingStep";
 import ReviewExportStep from "../components/pipeline/ReviewExportStep";
 
+// Import Pipeline context
+import { usePipeline } from "../hooks/usePipeline";
+import { PipelineProvider } from "../contexts/PipelineContext";
+
 function renderStep(step: string) {
   switch (step) {
     case "upload":
       return <UploadStep />;
-
     case "transcript":
       return <TranscriptStep />;
-
     case "translation":
       return <TranslationStep />;
-
     case "subtitle":
       return <SubtitleStep />;
-
     case "dubbing":
       return <DubbingStep />;
-
     case "review-export":
       return <ReviewExportStep />;
-
     default:
       return <UploadStep />;
   }
 }
 
-export default function VideoPipeline() {
+// Inner component that uses the pipeline context
+function VideoPipelineContent() {
   const { t } = useTranslation(["pipeline", "common"]);
   const navigate = useNavigate();
-  const [activeStep, setActiveStep] = useState("translation");
+  const { projectId, videoId } = useParams();
+  const location = useLocation();
+  const { state, dispatch } = usePipeline();
+  
+  const [activeStep, setActiveStep] = useState("upload");
   const [isSaved, setIsSaved] = useState(true);
+  const [projectName, setProjectName] = useState<string>("");
+
+  // Initialize project and video data from URL/state
+  useEffect(() => {
+    console.log("🔍 VideoPipeline mounted");
+    console.log("🔍 URL params - projectId:", projectId, "videoId:", videoId);
+    console.log("🔍 Location state:", location.state);
+
+    // Get projectId from URL params or location state
+    const projectIdFromState = location.state?.projectId;
+    const projectIdFromUrl = projectId ? parseInt(projectId) : undefined;
+    const projectNameFromState = location.state?.projectName || location.state?.project?.name;
+    
+    // Use projectId from state first, then from URL
+    const finalProjectId = projectIdFromState || projectIdFromUrl;
+    
+    if (finalProjectId) {
+      console.log("📁 Setting project ID:", finalProjectId);
+      setProjectName(projectNameFromState || `Project ${finalProjectId}`);
+      dispatch({
+        type: "SET_PROJECT",
+        payload: finalProjectId,
+      });
+    } else {
+      console.warn("⚠️ No projectId found in URL or state");
+    }
+
+    // If videoId is not "new", load existing video data
+    if (videoId && videoId !== "new") {
+      console.log("📹 Loading existing video:", videoId);
+      // You could load video data here from your API
+      // For now, we'll just set the step to where the video left off
+    }
+
+    // Set active step based on current step from context or URL
+    if (state.step) {
+      const stepMap: { [key: number]: string } = {
+        1: "upload",
+        2: "transcript",
+        3: "translation",
+        4: "subtitle",
+        5: "dubbing",
+        6: "review-export",
+      };
+      setActiveStep(stepMap[state.step] || "upload");
+    }
+  }, [projectId, videoId, location.state, dispatch, state.step]);
 
   const pipelineSteps = [
     {
@@ -98,11 +148,37 @@ export default function VideoPipeline() {
   const handleStepChange = (stepId: string) => {
     setActiveStep(stepId);
     setIsSaved(false);
+    
+    // Update the context step
+    const stepMap: { [key: string]: number } = {
+      "upload": 1,
+      "transcript": 2,
+      "translation": 3,
+      "subtitle": 4,
+      "dubbing": 5,
+      "review-export": 6,
+    };
+    dispatch({ type: "SET_STEP", payload: stepMap[stepId] || 1 });
   };
 
   const handleSave = () => {
     setIsSaved(true);
+    // You could save the current state here
+    console.log("💾 Saving pipeline state...");
   };
+
+  const handleBackToProjects = () => {
+    // Navigate back to the project detail page
+    if (projectId) {
+      navigate(`/workspace/project/${projectId}`);
+    } else {
+      navigate("/workspace");
+    }
+  };
+
+  // Get the display name for the header
+  const videoDisplayName = state.video?.filename || location.state?.videoName || "New Video";
+  const projectDisplayName = projectName || location.state?.projectName || `Project ${projectId || ''}`;
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200 page-enter">
@@ -110,7 +186,7 @@ export default function VideoPipeline() {
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <button
             type="button"
-            onClick={() => navigate("/workspace")}
+            onClick={handleBackToProjects}
             aria-label={t("common:back")}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] transition-all duration-200 ease-out hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
           >
@@ -120,7 +196,7 @@ export default function VideoPipeline() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-base font-bold text-[var(--color-text-primary)] sm:text-lg">
-                NLP Introduction
+                {videoDisplayName}
               </h1>
 
               <span className="rounded-full bg-[#FFF2D8] px-3 py-0.5 text-xs font-bold text-[#C68A1C] dark:bg-amber-950/50 dark:text-amber-300">
@@ -129,7 +205,8 @@ export default function VideoPipeline() {
             </div>
 
             <p className="mt-0.5 truncate text-xs text-[var(--color-text-muted)]">
-              NLP Tutorials / nlp-introduction.mp4
+              {projectDisplayName} / {videoDisplayName}
+              {state.video?.videoId && ` · ID: ${state.video.videoId}`}
             </p>
           </div>
         </div>
@@ -137,7 +214,6 @@ export default function VideoPipeline() {
         <div className="flex shrink-0 items-center gap-2 sm:gap-4">
           <div className="hidden items-center gap-2 text-xs font-medium text-[var(--color-text-muted)] xl:flex">
             <Clock3 size={15} />
-
             <span>
               {isSaved ? t("pipeline:header.savedJustNow") : t("pipeline:header.unsavedChanges")}
             </span>
@@ -153,7 +229,6 @@ export default function VideoPipeline() {
             }`}
           >
             <Save size={15} />
-
             <span className="hidden sm:inline">
               {isSaved ? t("common:saved") : t("common:save")}
             </span>
@@ -229,6 +304,11 @@ export default function VideoPipeline() {
             <h2 className="mt-1 text-base font-black text-[var(--color-text-primary)]">
               Processing Steps
             </h2>
+            {projectId && (
+              <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                Project: {projectDisplayName}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -316,6 +396,26 @@ export default function VideoPipeline() {
               {t("pipeline:header.autoSaveNotice")}
             </p>
           </div>
+
+          {/* Project info card */}
+          {state.projectId && (
+            <div className="mt-4 rounded-xl border border-[var(--color-border-muted)] bg-[var(--color-surface-muted)] p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
+                Project Information
+              </p>
+              <p className="mt-1 text-sm font-medium text-[var(--color-text-primary)]">
+                {projectDisplayName}
+              </p>
+              <p className="text-xs text-[var(--color-text-muted)]">
+                ID: {state.projectId}
+              </p>
+              {state.video?.videoId && (
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Video ID: {state.video.videoId}
+                </p>
+              )}
+            </div>
+          )}
         </aside>
 
         <section className="min-w-0 flex-1">
@@ -325,5 +425,14 @@ export default function VideoPipeline() {
         </section>
       </main>
     </div>
+  );
+}
+
+// Main export - wraps with PipelineProvider
+export default function VideoPipeline() {
+  return (
+    <PipelineProvider>
+      <VideoPipelineContent />
+    </PipelineProvider>
   );
 }

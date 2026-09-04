@@ -16,6 +16,7 @@ import Setting from "../../pages/Settings";
 import ResetPasswordPage from "../../pages/ResetPasswordPage";
 import VerifyOtpPage from "../../pages/VerifyOtpPage";
 import ForgotPasswordPage from "../../pages/ForgotPasswordPage";
+import { PipelineProvider } from "../../contexts/PipelineContext";
 
 import ProtectedRoute from "./ProtectedRoute";
 
@@ -94,7 +95,11 @@ export default function AppRouter() {
 
           <Route
             path="/workspace/project/:projectId/video/:videoId"
-            element={<VideoPipeline />}
+            element={
+              <PipelineProvider>
+                <VideoPipeline />
+              </PipelineProvider>
+            }
           />
 
           {/* Settings */}

@@ -1,6 +1,7 @@
 import os
 import subprocess
 from pydub import AudioSegment
+import torch
 
 class AudioService:
     @staticmethod
@@ -20,12 +21,44 @@ class AudioService:
         - Vocal Track: Dùng để nhận diện giọng nói (STT) & trích xuất Voice Profile.
         - BGM Track: Nhạc nền & hiệu ứng âm thanh giữ lại để mix hậu kỳ.
         """
+        # Auto-detect CUDA
+        cuda_available = torch.cuda.is_available()
+        
+        if cuda_available:
+            print("[Demucs] ✅ CUDA detected, using GPU", flush=True)
+            device = "cuda"
+        else:
+            print("[Demucs] ⚠️ CUDA not detected, using CPU", flush=True)
+            device = "cpu"
+        
         command = [
             "demucs", "--two-stems=vocals",
             "-n", "htdemucs",
-            "-o", output_dir, audio_path
+            "-o", output_dir,
+            "--device", device,
+            "--shifts", "2" if cuda_available else "1",
+            audio_path
         ]
-        subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        
+        try:
+            subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            print(f"[Demucs] ✅ Separation complete on {device.upper()}", flush=True)
+        except Exception as e:
+            print(f"[Demucs] ❌ Separation failed: {e}", flush=True)
+            # Fallback: try CPU if GPU failed
+            if device == "cuda":
+                print("[Demucs] 🔄 Retrying on CPU...", flush=True)
+                command = [
+                    "demucs", "--two-stems=vocals",
+                    "-n", "htdemucs",
+                    "-o", output_dir,
+                    "--device", "cpu",
+                    "--shifts", "1",
+                    audio_path
+                ]
+                subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            else:
+                raise
         
         base_name = os.path.splitext(os.path.basename(audio_path))[0]
         vocal_path = os.path.join(output_dir, "htdemucs", base_name, "vocals.wav")
@@ -43,7 +76,7 @@ class AudioService:
         bgm_audio = AudioSegment.from_file(bgm_audio_path)
         
         # Hạ âm lượng BGM xuống 10dB để giọng lồng tiếng nghe rõ ràng hơn
-        bgm_audio = bgm_audio - 10 
+        bgm_audio = bgm_audio - 10
         
         # Đè TTS lên BGM
         mixed_audio = bgm_audio.overlay(tts_audio)

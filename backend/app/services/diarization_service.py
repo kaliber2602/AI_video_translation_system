@@ -4,7 +4,7 @@ import json
 from typing import List, Dict, Any, Optional
 from app.models import SpeakerProfile
 from sqlalchemy.orm import Session
-
+import torch
 
 class DiarizationService:
     """Service for speaker diarization using pyannote"""
@@ -14,7 +14,7 @@ class DiarizationService:
         self._load_pipeline()
     
     def _load_pipeline(self):
-        """Load pyannote pipeline lazily"""
+        """Load pyannote pipeline with auto device detection"""
         try:
             from pyannote.audio import Pipeline
             import torch
@@ -25,13 +25,16 @@ class DiarizationService:
                 use_auth_token=os.getenv("HF_TOKEN")
             )
             
-            # Move to GPU if available
+            # Auto-detect CUDA
             if torch.cuda.is_available():
                 self.pipeline.to(torch.device("cuda"))
+                print("[Diarization] ✅ Pyannote pipeline loaded on GPU", flush=True)
+            else:
+                self.pipeline.to(torch.device("cpu"))
+                print("[Diarization] ⚠️ Pyannote pipeline loaded on CPU", flush=True)
             
-            print("[Diarization] Pyannote pipeline loaded successfully")
         except Exception as e:
-            print(f"[Diarization] Failed to load pyannote: {e}")
+            print(f"[Diarization] ❌ Failed to load pyannote: {e}", flush=True)
             self.pipeline = None
     
     def diarize(self, audio_path: str, num_speakers: Optional[int] = None) -> List[Dict]:
@@ -48,10 +51,8 @@ class DiarizationService:
         if not self.pipeline:
             raise RuntimeError("Pyannote pipeline not available")
         
-        # Run diarization
         diarization = self.pipeline(audio_path)
         
-        # Process results
         segments = []
         for turn, _, speaker in diarization.itertracks(yield_label=True):
             segments.append({
@@ -85,14 +86,12 @@ class DiarizationService:
         
         segments = transcript_data.get("segments", [])
         
-        # Map speakers to segments based on timestamps
         for seg in segments:
             seg_start = seg.get("start", 0)
             seg_end = seg.get("end", 0)
             seg_mid = (seg_start + seg_end) / 2
             
-            # Find matching speaker
-            speaker = "SPEAKER_01"  # Default
+            speaker = "SPEAKER_01"
             for diar_seg in diarization_segments:
                 if diar_seg["start"] <= seg_mid <= diar_seg["end"]:
                     speaker = diar_seg["speaker"]
@@ -127,16 +126,15 @@ class DiarizationService:
         Returns:
             List of created SpeakerProfile objects
         """
-        # Get unique speakers
+        from datetime import datetime
+        
         speakers = set()
         for seg in segments:
             if seg.get("speaker"):
                 speakers.add(seg["speaker"])
         
-        # Create profiles
         profiles = []
         for speaker_label in speakers:
-            # Check if speaker already exists
             existing = db.query(SpeakerProfile).filter(
                 SpeakerProfile.video_id == video_id,
                 SpeakerProfile.speaker_label == speaker_label
