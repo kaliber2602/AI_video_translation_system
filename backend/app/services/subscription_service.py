@@ -1163,7 +1163,10 @@ def validate_project_quota(user_id: int):
 
     try:
         with connection.cursor() as cursor:
-            cursor.execute("SELECT COUNT(id) FROM projects WHERE owner_id = %s", (user_id,))
+            cursor.execute(
+                "SELECT COUNT(id) FROM projects WHERE owner_id = %s AND status != 'trash' AND deleted_at IS NULL",
+                (user_id,),
+            )
             current_count = cursor.fetchone()[0]
             if current_count >= max_projects:
                 raise HTTPException(

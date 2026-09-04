@@ -3,6 +3,10 @@ import api from "./api/axios";
 import type {
   Project,
   ProjectCreateRequest,
+  ProjectFavoriteResponse,
+  ProjectMember,
+  ProjectMemberAddRequest,
+  ProjectMemberUpdateRequest,
   ProjectUpdateRequest,
 } from "../types/project";
 import type { TagResponse } from "../types/tag";
@@ -16,6 +20,7 @@ import type { TagResponse } from "../types/tag";
 export const getProjects = async (params?: {
   tag_id?: number;
   search?: string;
+  scope?: "all" | "favorites" | "shared" | "trash";
 }): Promise<Project[]> => {
   const response = await api.get<Project[]>("/api/projects", {
     params,
@@ -132,5 +137,115 @@ export const removeProjectTag = async (
 ): Promise<void> => {
   await api.delete(
     `/api/projects/${projectId}/tags/${tagId}`
+  );
+};
+
+
+// =========================================================
+// Restore Project from Trash
+// POST /api/projects/{project_id}/restore
+// =========================================================
+
+export const restoreProject = async (
+  projectId: number | string
+): Promise<Project> => {
+  const response = await api.post<Project>(
+    `/api/projects/${projectId}/restore`
+  );
+
+  return response.data;
+};
+
+
+// =========================================================
+// Permanently Delete Project
+// DELETE /api/projects/{project_id}/permanent
+// =========================================================
+
+export const permanentDeleteProject = async (
+  projectId: number | string
+): Promise<void> => {
+  await api.delete(`/api/projects/${projectId}/permanent`);
+};
+
+
+// =========================================================
+// Empty Trash
+// DELETE /api/projects/trash/empty
+// =========================================================
+
+export const emptyTrash = async (): Promise<{ deleted_count: number; message: string }> => {
+  const response = await api.delete<{ deleted_count: number; message: string }>(
+    "/api/projects/trash/empty"
+  );
+
+  return response.data;
+};
+
+
+// =========================================================
+// Toggle Project Favorite
+// POST /api/projects/{project_id}/favorite
+// =========================================================
+
+export const toggleProjectFavorite = async (
+  projectId: number | string
+): Promise<ProjectFavoriteResponse> => {
+  const response = await api.post<ProjectFavoriteResponse>(
+    `/api/projects/${projectId}/favorite`
+  );
+
+  return response.data;
+};
+
+
+// =========================================================
+// Project Members Management
+// =========================================================
+
+export const getProjectMembers = async (
+  projectId: number | string
+): Promise<ProjectMember[]> => {
+  const response = await api.get<ProjectMember[]>(
+    `/api/projects/${projectId}/members`
+  );
+
+  return response.data;
+};
+
+
+export const addProjectMember = async (
+  projectId: number | string,
+  data: ProjectMemberAddRequest
+): Promise<ProjectMember> => {
+  const response = await api.post<ProjectMember>(
+    `/api/projects/${projectId}/members`,
+    data
+  );
+
+  return response.data;
+};
+
+
+export const updateProjectMemberRole = async (
+  projectId: number | string,
+  memberId: number,
+  data: ProjectMemberUpdateRequest
+): Promise<ProjectMember> => {
+  const response = await api.put<ProjectMember>(
+    `/api/projects/${projectId}/members/${memberId}`,
+    data
+  );
+
+  return response.data;
+};
+
+
+export const removeProjectMember = async (
+  projectId: number | string,
+  memberId: number
+): Promise<void> => {
+  await api.delete(
+    `/api/projects/${projectId}/members/${memberId}`
   );
 };

@@ -127,5 +127,51 @@
     "active": "Đang hoạt động",
     "storageAddonTitle": "Mua thêm dung lượng",
     "storageAddonSubtitle": "Mở rộng bộ nhớ lưu trữ đám mây cho không gian làm việc của bạn"
+  },
+  "sharedWithMeTitle": "Chia sẻ với tôi",
+  "sharedWithMeSubtitle": "Các dự án mà cộng tác viên chia sẻ quyền truy cập với bạn",
+  "favoritesTitle": "Mục yêu thích",
+  "favoritesSubtitle": "Các dự án quan trọng được đánh dấu sao để bạn truy cập nhanh nhất",
+  "trashTitle": "Thùng rác",
+  "trashSubtitle": "Hàng chờ xóa tạm thời. Các dự án trong này có thể khôi phục hoặc xóa vĩnh viễn.",
+  "share": {
+    "action": "Chia sẻ",
+    "sharedBy": "Chia sẻ bởi {{name}}",
+    "sharedWithMe": "Được chia sẻ",
+    "roleViewer": "Xem",
+    "roleEditor": "Chỉnh sửa",
+    "roleAdmin": "Quản trị"
+  },
+  "favorite": {
+    "addToFavorites": "Thêm vào yêu thích",
+    "removeFromFavorites": "Bỏ khỏi yêu thích",
+    "added": "Đã thêm vào mục yêu thích",
+    "removed": "Đã bỏ khỏi mục yêu thích"
+  },
+  "trash": {
+    "moveToTrash": "Chuyển vào thùng rác",
+    "moveToTrashTitle": "Chuyển vào thùng rác",
+    "moveToTrashConfirm": "Dự án \"{{name}}\" sẽ được đưa vào hàng chờ xóa tạm thời. Bạn có thể khôi phục lại bất kỳ lúc nào từ mục Thùng rác.",
+    "moveToTrashBtn": "Chuyển vào thùng rác",
+    "permanentDelete": "Xóa vĩnh viễn",
+    "permanentDeleteTitle": "Xóa vĩnh viễn dự án",
+    "permanentDeleteConfirm": "Bạn có chắc chắn muốn xóa vĩnh viễn dự án \"{{name}}\"? Dữ liệu sẽ không thể khôi phục.",
+    "permanentDeleteBtn": "Xóa vĩnh viễn",
+    "canBeRestored": "Dự án có thể khôi phục lại từ Thùng rác.",
+    "restore": "Khôi phục",
+    "restoredSuccess": "Đã khôi phục dự án \"{{name}}\" thành công.",
+    "restoredError": "Không thể khôi phục dự án",
+    "permanentSuccess": "Đã xóa vĩnh viễn dự án \"{{name}}\".",
+    "permanentError": "Không thể xóa vĩnh viễn dự án",
+    "emptyTrash": "Dọn sạch thùng rác",
+    "emptyTrashTitle": "Dọn sạch thùng rác?",
+    "emptyTrashConfirm": "Tất cả các dự án trong thùng rác sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.",
+    "emptyTrashSuccess": "Đã dọn sạch thùng rác ({{count}} dự án).",
+    "emptyTrashError": "Không thể dọn sạch thùng rác",
+    "emptyTrashButton": "Dọn sạch thùng rác",
+    "deletedAt": "Đã xóa {{date}}",
+    "inTrashNotice": "Dự án này đang ở trong thùng rác. Khôi phục dự án để tiếp tục chỉnh sửa hoặc truy cập.",
+    "cannotOpenInTrash": "Dự án đang ở trong thùng rác. Vui lòng khôi phục trước khi mở."
   }
 }
+

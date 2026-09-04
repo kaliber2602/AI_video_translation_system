@@ -5,6 +5,7 @@ import {
   FolderPlus,
   Search,
   SlidersHorizontal,
+  Trash2,
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -30,6 +31,9 @@ interface ProjectToolbarProps {
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
   onNewProject?: () => void;
+  isTrashMode?: boolean;
+  onEmptyTrash?: () => void;
+  trashCount?: number;
 }
 
 export default function ProjectToolbar({
@@ -43,7 +47,11 @@ export default function ProjectToolbar({
   viewMode,
   onViewModeChange,
   onNewProject,
+  isTrashMode = false,
+  onEmptyTrash,
+  trashCount = 0,
 }: ProjectToolbarProps) {
+
   const { t } = useTranslation(["workspace", "common"]);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
@@ -234,8 +242,21 @@ export default function ProjectToolbar({
           onViewModeChange={onViewModeChange}
         />
 
-        {/* New Project CTA Button */}
-        {onNewProject && (
+        {/* Empty Trash Button in Trash mode */}
+        {isTrashMode && onEmptyTrash && (
+          <button
+            type="button"
+            onClick={onEmptyTrash}
+            disabled={trashCount === 0}
+            className="flex h-11 items-center gap-2 rounded-xl bg-red-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            <Trash2 size={16} />
+            <span className="hidden sm:inline">{t("workspace:trash.emptyTrashButton", "Dọn sạch thùng rác")}</span>
+          </button>
+        )}
+
+        {/* New Project CTA Button in normal modes */}
+        {!isTrashMode && onNewProject && (
           <button
             type="button"
             onClick={onNewProject}
@@ -248,4 +269,4 @@ export default function ProjectToolbar({
       </div>
     </section>
   );
-}
+}

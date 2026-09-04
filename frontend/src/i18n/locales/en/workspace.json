@@ -127,5 +127,51 @@
     "active": "Active",
     "storageAddonTitle": "Quick Storage Add-ons",
     "storageAddonSubtitle": "Select an instant storage boost for your workspace"
+  },
+  "sharedWithMeTitle": "Shared with Me",
+  "sharedWithMeSubtitle": "Projects shared with you by teammates and collaborators",
+  "favoritesTitle": "Favorites",
+  "favoritesSubtitle": "Starred projects for your quickest access",
+  "trashTitle": "Trash",
+  "trashSubtitle": "Temporary deletion queue. Projects here can be restored or permanently removed.",
+  "share": {
+    "action": "Share",
+    "sharedBy": "Shared by {{name}}",
+    "sharedWithMe": "Shared",
+    "roleViewer": "Viewer",
+    "roleEditor": "Editor",
+    "roleAdmin": "Admin"
+  },
+  "favorite": {
+    "addToFavorites": "Add to favorites",
+    "removeFromFavorites": "Remove from favorites",
+    "added": "Added to favorites",
+    "removed": "Removed from favorites"
+  },
+  "trash": {
+    "moveToTrash": "Move to trash",
+    "moveToTrashTitle": "Move to trash",
+    "moveToTrashConfirm": "Project \"{{name}}\" will be moved to the temporary deletion queue. You can restore it anytime from Trash.",
+    "moveToTrashBtn": "Move to trash",
+    "permanentDelete": "Permanently Delete",
+    "permanentDeleteTitle": "Permanently delete project",
+    "permanentDeleteConfirm": "Are you sure you want to permanently delete \"{{name}}\"? This data cannot be recovered.",
+    "permanentDeleteBtn": "Permanently Delete",
+    "canBeRestored": "Project can be restored anytime from Trash.",
+    "restore": "Restore",
+    "restoredSuccess": "Project \"{{name}}\" restored successfully.",
+    "restoredError": "Failed to restore project",
+    "permanentSuccess": "Project \"{{name}}\" permanently deleted.",
+    "permanentError": "Failed to permanently delete project",
+    "emptyTrash": "Empty Trash",
+    "emptyTrashTitle": "Empty Trash?",
+    "emptyTrashConfirm": "All projects in trash will be permanently deleted. This action cannot be undone.",
+    "emptyTrashSuccess": "Trash emptied successfully ({{count}} projects).",
+    "emptyTrashError": "Failed to empty trash",
+    "emptyTrashButton": "Empty Trash",
+    "deletedAt": "Deleted {{date}}",
+    "inTrashNotice": "This project is in trash. Restore it to continue editing or accessing.",
+    "cannotOpenInTrash": "Project is in trash. Please restore it before opening."
   }
 }
+

@@ -23,22 +23,30 @@ import type { TagResponse } from "../../types/tag";
 import type { UserSubscriptionSummary, StorageAddon, Plan } from "../../types/subscription";
 import { toast } from "../../lib/toast";
 
+export type WorkspaceTab = "allProjects" | "sharedWithMe" | "favorites" | "trash";
+
 interface WorkspaceSidebarProps {
+  currentTab?: WorkspaceTab;
+  onTabChange?: (tab: WorkspaceTab) => void;
   selectedTagId?: number | null;
   onTagSelect?: (tagId: number | null) => void;
   isNavbarCollapsed?: boolean;
   isOpenMobile?: boolean;
   onCloseMobile?: () => void;
+  trashCount?: number;
 }
 
 type TagModalMode = "create" | "edit" | null;
 
 export default function WorkspaceSidebar({
+  currentTab = "allProjects",
+  onTabChange,
   selectedTagId = null,
   onTagSelect,
   isNavbarCollapsed = false,
   isOpenMobile = false,
   onCloseMobile,
+  trashCount,
 }: WorkspaceSidebarProps) {
   const { t } = useTranslation(["workspace", "navigation", "common"]);
   const navigate = useNavigate();
@@ -75,25 +83,29 @@ export default function WorkspaceSidebar({
 
   const navigationItems = [
     {
-      id: "allProjects",
+      id: "allProjects" as WorkspaceTab,
       label: t("navigation:allProjects"),
       icon: Folder,
-      active: true,
+      active: currentTab === "allProjects",
     },
     {
-      id: "sharedWithMe",
+      id: "sharedWithMe" as WorkspaceTab,
       label: t("navigation:sharedWithMe"),
       icon: Users,
+      active: currentTab === "sharedWithMe",
     },
     {
-      id: "favorites",
+      id: "favorites" as WorkspaceTab,
       label: t("navigation:favorites"),
       icon: Star,
+      active: currentTab === "favorites",
     },
     {
-      id: "trash",
+      id: "trash" as WorkspaceTab,
       label: t("navigation:trash"),
       icon: Trash2,
+      active: currentTab === "trash",
+      badge: trashCount && trashCount > 0 ? trashCount : undefined,
     },
   ];
 
@@ -351,6 +363,7 @@ export default function WorkspaceSidebar({
                 id={isTrash ? "sidebar-trash-dropzone" : undefined}
                 type="button"
                 onClick={() => {
+                  onTabChange?.(item.id);
                   if (isMobile) onCloseMobile?.();
                 }}
                 className={buttonClass}
@@ -367,9 +380,20 @@ export default function WorkspaceSidebar({
                       : "text-[var(--color-text-muted)] group-hover:scale-105"
                   }`}
                 />
-                <span className="font-medium tracking-tight">
+                <span className="font-medium tracking-tight flex-1 text-left">
                   {isTrashOver ? t("workspace:dropToDelete", "Thả để xóa") : item.label}
                 </span>
+                {item.badge !== undefined && (
+                  <span
+                    className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold transition-colors ${
+                      item.active
+                        ? "bg-white/20 text-white"
+                        : "bg-[var(--color-surface-muted)] text-[var(--color-text-muted)] group-hover:bg-[var(--color-primary-soft)] group-hover:text-[var(--color-primary)]"
+                    }`}
+                  >
+                    {item.badge}
+                  </span>
+                )}
               </button>
             </div>
           );
