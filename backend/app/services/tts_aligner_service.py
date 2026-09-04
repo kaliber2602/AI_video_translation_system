@@ -1,7 +1,5 @@
 import os
 import requests
-import librosa
-import soundfile as sf
 from pydub import AudioSegment
 from pydub.silence import split_on_silence
 
@@ -47,6 +45,8 @@ class TTSAlignerService:
 
     def speed_up_audio(self, audio_path: str, output_path: str, target_duration: float):
         """Time-stretch ép thời gian bằng Librosa mà không làm biến dạng cao độ (Pitch)."""
+        import librosa
+        import soundfile as sf
         y, sr = librosa.load(audio_path, sr=None)
         current_duration = librosa.get_duration(y=y, sr=sr)
         

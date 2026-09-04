@@ -1,5 +1,17 @@
-import { useState } from "react";
-import { CreditCard, Sparkles, Download, Plus, Check, AlertCircle, HardDrive, Clock, PlusCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  CreditCard,
+  Sparkles,
+  Download,
+  AlertCircle,
+  HardDrive,
+  Clock,
+  PlusCircle,
+  Layers,
+  Receipt,
+  ShieldCheck,
+  Globe,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "../../../lib/toast";
 import SettingCard from "../SettingCard";
@@ -7,66 +19,109 @@ import SettingsSectionHeader from "../common/SettingsSectionHeader";
 import SettingsBadge from "../common/SettingsBadge";
 import SettingsTabs from "../common/SettingsTabs";
 import SettingsModal from "../common/SettingsModal";
-import SettingsInput from "../common/SettingsInput";
-import { INITIAL_MOCK_SETTINGS, type PaymentCard, type InvoiceItem } from "../mock/settingsMockData";
+import DemoCheckoutModal from "../../pricing/DemoCheckoutModal";
+
+import {
+  getMySubscriptionSummary,
+  getPricingCatalog,
+} from "../../../services/subscription.service";
+import {
+  getMyPaymentTransactions,
+} from "../../../services/payment.service";
+import type {
+  BillingCycle,
+  Plan,
+  StorageAddon,
+  UserSubscriptionSummary,
+} from "../../../types/subscription";
+import type { PaymentTransaction } from "../../../types/payment";
 
 export default function BillingSection() {
   const { t } = useTranslation(["settings", "common"]);
 
-  const [billingCycle, setBillingCycle] = useState(INITIAL_MOCK_SETTINGS.billing.billingCycle);
-  const [paymentCards, setPaymentCards] = useState<PaymentCard[]>(INITIAL_MOCK_SETTINGS.billing.paymentCards);
-  const [invoices] = useState<InvoiceItem[]>(INITIAL_MOCK_SETTINGS.billing.invoices);
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [addons, setAddons] = useState<StorageAddon[]>([]);
+  const [userSummary, setUserSummary] = useState<UserSubscriptionSummary | null>(null);
+  const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
 
   // Modals
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
-  const [isAddCardModalOpen, setIsAddCardModalOpen] = useState(false);
   const [isStorageAddonModalOpen, setIsStorageAddonModalOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
 
-  // Add card form state
-  const [newCardNumber, setNewCardNumber] = useState("");
-  const [newCardExpiry, setNewCardExpiry] = useState("");
-  const [newCardCvc, setNewCardCvc] = useState("");
-  const [newCardHolder, setNewCardHolder] = useState("");
+  // Demo / Hosted Checkout state
+  const [checkoutProduct, setCheckoutProduct] = useState<{
+    type: "PLAN" | "STORAGE_ADDON";
+    data: Plan | StorageAddon;
+  } | null>(null);
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
 
-  const handleDownloadInvoice = (invNumber: string) => {
-    toast.success("Downloading Invoice", `Preparing ${invNumber}.pdf for download...`);
-  };
+  const loadBillingData = async () => {
+    try {
+      const [catalogRes, summaryRes, txnRes] = await Promise.allSettled([
+        getPricingCatalog(),
+        getMySubscriptionSummary(),
+        getMyPaymentTransactions({ limit: 20 }),
+      ]);
 
-  const handleAddCardSubmit = () => {
-    if (!newCardNumber || !newCardExpiry || !newCardCvc) {
-      toast.error("Missing Card Information", "Please enter valid credit card details.");
-      return;
+      if (catalogRes.status === "fulfilled") {
+        setPlans(catalogRes.value.plans || []);
+        setAddons(catalogRes.value.storage_addons || []);
+      }
+
+      if (summaryRes.status === "fulfilled") {
+        setUserSummary(summaryRes.value);
+        if (summaryRes.value.subscription?.billing_cycle) {
+          setBillingCycle(summaryRes.value.subscription.billing_cycle as BillingCycle);
+        }
+      }
+
+      if (txnRes.status === "fulfilled") {
+        setTransactions(txnRes.value.transactions || []);
+      }
+    } catch (err) {
+      console.error("[BillingSection] Error loading data:", err);
     }
-
-    const last4 = newCardNumber.slice(-4) || "9988";
-    const newCard: PaymentCard = {
-      id: `card-${Date.now()}`,
-      brand: "visa",
-      last4,
-      expiry: newCardExpiry,
-      isDefault: false,
-      holderName: newCardHolder || "Alex Morgan",
-    };
-
-    setPaymentCards([...paymentCards, newCard]);
-    setIsAddCardModalOpen(false);
-    setNewCardNumber("");
-    setNewCardExpiry("");
-    setNewCardCvc("");
-    setNewCardHolder("");
-    toast.success("Payment Method Added", `Visa ending in ${last4} was saved.`);
   };
 
-  const handleSetDefaultCard = (id: string) => {
-    setPaymentCards((cards) =>
-      cards.map((c) => ({
-        ...c,
-        isDefault: c.id === id,
-      }))
-    );
-    toast.success("Default Payment Updated", "Your primary payment card has been changed.");
+  useEffect(() => {
+    loadBillingData();
+  }, []);
+
+  const handleSelectPlanToUpgrade = (plan: Plan) => {
+    setIsUpgradeModalOpen(false);
+    setCheckoutProduct({ type: "PLAN", data: plan });
+    setIsCheckoutModalOpen(true);
   };
+
+  const handleSelectAddonToPurchase = (addon: StorageAddon) => {
+    setIsStorageAddonModalOpen(false);
+    setCheckoutProduct({ type: "STORAGE_ADDON", data: addon });
+    setIsCheckoutModalOpen(true);
+  };
+
+  // Derived Subscription Details
+  const sub = userSummary?.subscription;
+  const quota = userSummary?.effective_quota;
+  const currentPlanCode = sub?.plan_code || "free";
+  const currentPlanObj = plans.find((p) => p.code === currentPlanCode);
+
+  const planPrice =
+    currentPlanObj
+      ? billingCycle === "monthly"
+        ? currentPlanObj.price_monthly
+        : currentPlanObj.price_yearly
+      : 0;
+
+  // Format Expiration Date
+  const renewsDateFormatted = sub?.expires_at
+    ? new Date(sub.expires_at).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
+    : "Lifetime / No expiry";
 
   return (
     <div className="space-y-6">
@@ -74,7 +129,7 @@ export default function BillingSection() {
         title={t("settings:billing.title", "Billing & Subscription")}
         subtitle={t(
           "settings:billing.subtitle",
-          "Manage active tier subscription, monitor real-time pipeline quotas, invoices, and payment cards."
+          "Manage active tier subscription, monitor real-time pipeline quotas, invoices, and payment history."
         )}
       />
 
@@ -82,27 +137,27 @@ export default function BillingSection() {
         {/* CARD 1: CURRENT PLAN CARD */}
         <SettingCard
           title={t("settings:billing.planTitle", "Current Subscription")}
-          description="Your workspace is currently subscribed to the VidNova Pro plan."
+          description="Your workspace active tier and billing renewal settings."
         >
           <div className="space-y-5">
             <div className="flex flex-col justify-between gap-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/60 p-4 sm:flex-row sm:items-center">
               <div>
                 <div className="flex items-center gap-2">
-                  <h4 className="text-lg font-black text-[var(--color-text-primary)]">
-                    VidNova Pro
+                  <h4 className="text-lg font-black text-[var(--color-text-primary)] capitalize">
+                    {sub?.plan_name ? `VidNova ${sub.plan_name}` : "VidNova Free Tier"}
                   </h4>
                   <SettingsBadge variant="success" size="sm" dot>
-                    Active
+                    {sub?.status ? sub.status.toUpperCase() : "ACTIVE"}
                   </SettingsBadge>
                 </div>
                 <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                  Renews on <b>Sep 27, 2026</b> via Visa •••• 4242
+                  Renews on <b>{renewsDateFormatted}</b> • {sub?.billing_cycle?.toUpperCase() || "MONTHLY"}
                 </p>
               </div>
 
               <div className="text-right sm:self-center">
                 <div className="text-2xl font-black text-[var(--color-primary)]">
-                  ${billingCycle === "monthly" ? "12" : "120"}
+                  ${planPrice}
                   <span className="text-xs font-normal text-[var(--color-text-muted)]">
                     /{billingCycle === "monthly" ? "month" : "year"}
                   </span>
@@ -117,8 +172,8 @@ export default function BillingSection() {
               </span>
               <SettingsTabs
                 tabs={[
-                  { id: "monthly", label: "Monthly ($12/mo)" },
-                  { id: "yearly", label: "Annual ($120/yr)", badge: "Save $24" },
+                  { id: "monthly", label: "Monthly" },
+                  { id: "yearly", label: "Annual", badge: "Discounted" },
                 ]}
                 activeTab={billingCycle}
                 onChange={(tab) => {
@@ -129,11 +184,31 @@ export default function BillingSection() {
               />
             </div>
 
+            {/* Active Storage Add-ons summary */}
+            {userSummary?.addons && userSummary.addons.length > 0 && (
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] p-3 text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-[var(--color-text-primary)] mb-1">
+                  <Layers size={13} className="text-[var(--color-primary)]" />
+                  <span>Active Storage Add-ons:</span>
+                </div>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {userSummary.addons.map((a) => (
+                    <span
+                      key={a.id}
+                      className="inline-flex items-center gap-1 rounded-md bg-[var(--color-primary-soft)] px-2 py-0.5 text-[11px] font-bold text-[var(--color-primary)]"
+                    >
+                      {a.addon_name} (+{roundGb(a.storage_bytes)} GB)
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={() => setIsUpgradeModalOpen(true)}
-                className="flex-1 rounded-xl bg-[var(--color-primary)] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)] active:scale-95"
+                className="flex-1 rounded-xl bg-[var(--color-primary)] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)] active:scale-95 cursor-pointer"
               >
                 <span className="flex items-center justify-center gap-1.5">
                   <Sparkles size={14} />
@@ -144,7 +219,7 @@ export default function BillingSection() {
               <button
                 type="button"
                 onClick={() => setIsStorageAddonModalOpen(true)}
-                className="rounded-xl border border-[var(--color-primary)]/40 bg-[var(--color-primary-soft)]/20 px-3.5 py-2.5 text-xs font-semibold text-[var(--color-primary)] transition hover:bg-[var(--color-primary)] hover:text-white"
+                className="rounded-xl border border-[var(--color-primary)]/40 bg-[var(--color-primary-soft)]/20 px-3.5 py-2.5 text-xs font-semibold text-[var(--color-primary)] transition hover:bg-[var(--color-primary)] hover:text-white cursor-pointer"
               >
                 <span className="flex items-center gap-1.5">
                   <PlusCircle size={14} />
@@ -152,21 +227,23 @@ export default function BillingSection() {
                 </span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setIsCancelModalOpen(true)}
-                className="rounded-xl border border-[var(--color-border)] px-3.5 py-2.5 text-xs font-semibold text-[var(--color-text-muted)] transition hover:bg-rose-500/10 hover:text-rose-600 hover:border-rose-500/30"
-              >
-                Cancel Plan
-              </button>
+              {currentPlanCode !== "free" && (
+                <button
+                  type="button"
+                  onClick={() => setIsCancelModalOpen(true)}
+                  className="rounded-xl border border-[var(--color-border)] px-3.5 py-2.5 text-xs font-semibold text-[var(--color-text-muted)] transition hover:bg-rose-500/10 hover:text-rose-600 hover:border-rose-500/30 cursor-pointer"
+                >
+                  Cancel Plan
+                </button>
+              )}
             </div>
           </div>
         </SettingCard>
 
-        {/* CARD 2: REAL-TIME QUOTAS & CONSUMABLES (Aligned with plan_resources) */}
+        {/* CARD 2: REAL-TIME QUOTAS & CONSUMABLES */}
         <SettingCard
           title={t("settings:billing.usageTitle", "Pipeline Quotas & AI Credits")}
-          description="Real-time balance of monthly AI translation credits and storage allowances."
+          description="Authoritative real-time balance of storage allowance and monthly AI credits."
         >
           <div className="space-y-4">
             {/* Storage Quota */}
@@ -177,14 +254,20 @@ export default function BillingSection() {
                   Cloud Storage Allowance
                 </span>
                 <span className="text-[var(--color-text-primary)]">
-                  72.4 GB / 100 GB <span className="text-[var(--color-text-muted)]">(72.4%)</span>
+                  {quota ? `${quota.storage.used_gb} GB / ${quota.storage.total_gb} GB` : "0 GB / 5 GB"}
+                  <span className="text-[var(--color-text-muted)] ml-1">
+                    ({quota ? `${quota.storage.usage_percent}%` : "0%"})
+                  </span>
                 </span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-border)]">
-                <div className="h-full w-[72.4%] rounded-full bg-[var(--color-primary)] transition-all duration-500" />
+                <div
+                  className="h-full rounded-full bg-[var(--color-primary)] transition-all duration-500"
+                  style={{ width: `${Math.min(100, quota?.storage?.usage_percent || 0)}%` }}
+                />
               </div>
               <p className="mt-1 text-[10px] text-[var(--color-text-muted)]">
-                Pro Plan base 100 GB. Need more? Add +50GB to +1TB anytime.
+                Base plan {quota?.storage.included_gb || 5} GB + Addons {quota?.storage.addon_gb || 0} GB.
               </p>
             </div>
 
@@ -196,14 +279,32 @@ export default function BillingSection() {
                   Monthly AI Credits (Whisper / NLLB / XTTS)
                 </span>
                 <span className="text-[var(--color-text-primary)]">
-                  6,420 / 10,000 <span className="text-[var(--color-text-muted)]">(64.2%)</span>
+                  {quota
+                    ? `${quota.credits.used_credits.toLocaleString()} / ${quota.credits.total_credits.toLocaleString()}`
+                    : "0 / 1,000"}
+                  <span className="text-[var(--color-text-muted)] ml-1">
+                    (
+                    {quota && quota.credits.total_credits > 0
+                      ? `${Math.round((quota.credits.used_credits / quota.credits.total_credits) * 100)}%`
+                      : "0%"}
+                    )
+                  </span>
                 </span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-border)]">
-                <div className="h-full w-[64.2%] rounded-full bg-blue-500 transition-all duration-500" />
+                <div
+                  className="h-full rounded-full bg-blue-500 transition-all duration-500"
+                  style={{
+                    width: `${
+                      quota && quota.credits.total_credits > 0
+                        ? Math.min(100, (quota.credits.used_credits / quota.credits.total_credits) * 100)
+                        : 0
+                    }%`,
+                  }}
+                />
               </div>
               <p className="mt-1 text-[10px] text-[var(--color-text-muted)]">
-                ~358 minutes of video translation remaining in this monthly cycle.
+                ~{quota?.credits.remaining_credits.toLocaleString() || "1,000"} minutes of video translation remaining.
               </p>
             </div>
 
@@ -211,287 +312,242 @@ export default function BillingSection() {
             <div className="grid grid-cols-2 gap-3 pt-1 border-t border-[var(--color-border)]/60 text-xs">
               <div>
                 <span className="text-[var(--color-text-muted)] block text-[11px]">Max Concurrent Jobs</span>
-                <span className="font-bold text-[var(--color-text-primary)]">3 Parallel Tasks</span>
+                <span className="font-bold text-[var(--color-text-primary)]">
+                  {quota?.limits?.max_concurrent_jobs || 1} Parallel Tasks
+                </span>
               </div>
               <div>
                 <span className="text-[var(--color-text-muted)] block text-[11px]">Max Projects Capacity</span>
-                <span className="font-bold text-[var(--color-text-primary)]">28 / 50 Active Projects</span>
+                <span className="font-bold text-[var(--color-text-primary)]">
+                  {quota?.limits?.max_projects || 5} Max Projects
+                </span>
               </div>
             </div>
           </div>
         </SettingCard>
 
-        {/* CARD 3: PAYMENT METHODS */}
+        {/* CARD 3: PAYMENT GATEWAYS & SECURITY */}
         <SettingCard
-          title={t("settings:billing.paymentTitle", "Payment Methods")}
-          description="Credit cards, Stripe, and localized payment gateways on file."
+          title={t("settings:billing.paymentTitle", "Payment Gateways")}
+          description="PCI-DSS compliant hosted gateways. No raw card numbers stored in VidNova."
         >
           <div className="space-y-3">
-            {paymentCards.map((card) => (
-              <div
-                key={card.id}
-                className={`flex items-center justify-between rounded-xl border p-3.5 transition-all ${
-                  card.isDefault
-                    ? "border-[var(--color-primary)]/40 bg-[var(--color-primary-soft)]/20"
-                    : "border-[var(--color-border)] bg-[var(--color-surface)]"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-surface-muted)] text-[var(--color-text-primary)]">
-                    <CreditCard size={18} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-[var(--color-text-primary)]">
-                        {card.brand.toUpperCase()} •••• {card.last4}
-                      </span>
-                      {card.isDefault && (
-                        <SettingsBadge variant="primary" size="sm">
-                          Default
-                        </SettingsBadge>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-[var(--color-text-muted)]">
-                      Expires {card.expiry} • {card.holderName}
-                    </p>
-                  </div>
+            {/* Stripe Card */}
+            <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 transition-all hover:border-[var(--color-primary)]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600">
+                  <CreditCard size={18} />
                 </div>
-
-                {!card.isDefault && (
-                  <button
-                    type="button"
-                    onClick={() => handleSetDefaultCard(card.id)}
-                    className="text-xs font-semibold text-[var(--color-primary)] hover:underline"
-                  >
-                    Set Default
-                  </button>
-                )}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-[var(--color-text-primary)]">
+                      Stripe Global Checkout
+                    </span>
+                    <SettingsBadge variant="primary" size="sm">
+                      Global USD
+                    </SettingsBadge>
+                  </div>
+                  <p className="text-[11px] text-[var(--color-text-muted)]">
+                    Visa, MasterCard, American Express, Apple Pay
+                  </p>
+                </div>
               </div>
-            ))}
+              <ShieldCheck size={16} className="text-blue-500" />
+            </div>
+
+            {/* VNPay Card */}
+            <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 transition-all hover:border-[var(--color-primary)]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
+                  <Globe size={18} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-[var(--color-text-primary)]">
+                      VNPay Vietnam Gateway
+                    </span>
+                    <SettingsBadge variant="success" size="sm">
+                      VND
+                    </SettingsBadge>
+                  </div>
+                  <p className="text-[11px] text-[var(--color-text-muted)]">
+                    ATM Napas, VNPAY-QR, Thẻ ngân hàng nội địa
+                  </p>
+                </div>
+              </div>
+              <ShieldCheck size={16} className="text-emerald-500" />
+            </div>
 
             <button
               type="button"
-              onClick={() => setIsAddCardModalOpen(true)}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--color-border)] py-3 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-primary-soft)]/10"
+              onClick={() => setIsUpgradeModalOpen(true)}
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--color-border)] py-3 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] hover:bg-[var(--color-primary-soft)]/10 cursor-pointer"
             >
-              <Plus size={14} />
-              Add Payment Method (Stripe / VNPay / MoMo)
+              <Sparkles size={14} />
+              Upgrade or Manage Plan via Gateway
             </button>
           </div>
         </SettingCard>
 
-        {/* CARD 4: INVOICE HISTORY */}
+        {/* CARD 4: PAYMENT TRANSACTIONS & INVOICE HISTORY */}
         <SettingCard
-          title={t("settings:billing.invoicesTitle", "Invoices & Financial Audit")}
-          description="Receipts for past subscription renewals and storage addons."
+          title="Payment Transactions & Financial Audit"
+          description="Authoritative ledger of subscription upgrades and storage add-ons."
         >
           <div className="divide-y divide-[var(--color-border)]/60">
-            {invoices.map((inv) => (
-              <div
-                key={inv.id}
-                className="flex items-center justify-between py-3 text-xs"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-[var(--color-text-primary)]">
-                      {inv.number}
-                    </span>
-                    <SettingsBadge variant="success" size="sm">
-                      {inv.status.toUpperCase()}
-                    </SettingsBadge>
-                  </div>
-                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
-                    {inv.date} • {inv.plan}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-[var(--color-text-primary)]">
-                    {inv.amount}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadInvoice(inv.number)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors"
-                    title="Download PDF"
-                  >
-                    <Download size={14} />
-                  </button>
-                </div>
+            {transactions.length === 0 ? (
+              <div className="py-6 text-center text-xs text-[var(--color-text-muted)]">
+                <Receipt className="mx-auto mb-2 text-[var(--color-text-muted)]" size={24} />
+                No payment transactions on record yet.
               </div>
-            ))}
+            ) : (
+              transactions.map((tx) => (
+                <div
+                  key={tx.id}
+                  className="flex items-center justify-between py-3 text-xs"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-[var(--color-text-primary)]">
+                        {tx.transaction_code}
+                      </span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          tx.status === "completed"
+                            ? "bg-emerald-500/10 text-emerald-600"
+                            : tx.status === "failed"
+                            ? "bg-rose-500/10 text-rose-600"
+                            : "bg-amber-500/10 text-amber-600"
+                        }`}
+                      >
+                        {tx.status}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
+                      {new Date(tx.created_at).toLocaleDateString()} • {tx.product_name || tx.product_type} ({tx.payment_method})
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-[var(--color-text-primary)]">
+                      ${tx.amount} {tx.currency}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => toast.success("Invoice Ready", `Receipt for ${tx.transaction_code} generated.`)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors cursor-pointer"
+                      title="Download PDF"
+                    >
+                      <Download size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </SettingCard>
       </div>
 
-      {/* MODAL 1: PLAN TIERS (Exact database plans) */}
+      {/* MODAL 1: PLAN TIERS */}
       <SettingsModal
         isOpen={isUpgradeModalOpen}
         onClose={() => setIsUpgradeModalOpen(false)}
         title="Subscription Plans Catalog"
-        subtitle="Scale your monthly AI credits and storage allocation"
+        subtitle="Select a tier to scale your storage and monthly AI processing credits"
         icon={<Sparkles size={20} />}
         maxWidth="lg"
-        footer={
-          <button
-            type="button"
-            onClick={() => {
-              setIsUpgradeModalOpen(false);
-              toast.success("Plan Updated", "Your subscription tier was updated.");
-            }}
-            className="rounded-xl bg-[var(--color-primary)] px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)]"
-          >
-            Confirm Plan Selection
-          </button>
-        }
       >
         <div className="grid gap-4 md:grid-cols-3">
-          {/* Free Tier */}
-          <div className="rounded-xl border border-[var(--color-border)] p-4 text-left">
-            <h5 className="font-bold text-sm text-[var(--color-text-primary)]">Free</h5>
-            <p className="text-xl font-black mt-2 text-[var(--color-text-primary)]">$0</p>
-            <ul className="mt-3 space-y-1.5 text-[11px] text-[var(--color-text-muted)]">
-              <li className="flex items-center gap-1.5"><Check size={12} className="text-emerald-500" /> 5 GB Cloud Storage</li>
-              <li className="flex items-center gap-1.5"><Check size={12} className="text-emerald-500" /> 1,000 AI Credits (~100 mins)</li>
-              <li className="flex items-center gap-1.5"><Check size={12} className="text-emerald-500" /> 720p HD Export</li>
-              <li className="flex items-center gap-1.5"><Check size={12} className="text-emerald-500" /> 1 Concurrent Job</li>
-            </ul>
-          </div>
+          {plans.map((p) => {
+            const isSelected = p.code === currentPlanCode;
+            const price = billingCycle === "monthly" ? p.price_monthly : p.price_yearly;
 
-          {/* Pro Tier */}
-          <div className="rounded-xl border-2 border-[var(--color-primary)] bg-[var(--color-primary-soft)]/20 p-4 text-left relative">
-            <div className="absolute top-2 right-2">
-              <SettingsBadge variant="primary" size="sm">Current</SettingsBadge>
-            </div>
-            <h5 className="font-bold text-sm text-[var(--color-primary)]">VidNova Pro</h5>
-            <p className="text-xl font-black mt-2 text-[var(--color-text-primary)]">$12<span className="text-xs font-normal">/mo</span></p>
-            <ul className="mt-3 space-y-1.5 text-[11px] text-[var(--color-text-primary)]">
-              <li className="flex items-center gap-1.5"><Check size={12} className="text-[var(--color-primary)]" /> 100 GB Cloud Storage</li>
-              <li className="flex items-center gap-1.5"><Check size={12} className="text-[var(--color-primary)]" /> 10,000 AI Credits (~1,000 mins)</li>
-              <li className="flex items-center gap-1.5"><Check size={12} className="text-[var(--color-primary)]" /> 1080p Full HD Export</li>
-              <li className="flex items-center gap-1.5"><Check size={12} className="text-[var(--color-primary)]" /> 3 Concurrent Jobs</li>
-              <li className="flex items-center gap-1.5"><Check size={12} className="text-[var(--color-primary)]" /> Coqui XTTS Voice Cloning</li>
-            </ul>
-          </div>
+            return (
+              <div
+                key={p.code}
+                className={`rounded-2xl border p-4 text-left relative flex flex-col justify-between ${
+                  p.is_popular
+                    ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)]/20 ring-1 ring-[var(--color-primary)]"
+                    : "border-[var(--color-border)] bg-[var(--color-surface)]"
+                }`}
+              >
+                <div>
+                  {isSelected && (
+                    <div className="absolute top-3 right-3">
+                      <SettingsBadge variant="primary" size="sm">Current</SettingsBadge>
+                    </div>
+                  )}
+                  <h5 className="font-bold text-sm text-[var(--color-text-primary)]">{p.name}</h5>
+                  <p className="text-xl font-black mt-2 text-[var(--color-text-primary)]">
+                    ${price}
+                    <span className="text-xs font-normal text-[var(--color-text-muted)]">
+                      /{billingCycle === "monthly" ? "mo" : "yr"}
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-[var(--color-text-muted)] mt-1">{p.description}</p>
+                </div>
 
-          {/* Business Tier */}
-          <div className="rounded-xl border border-[var(--color-border)] p-4 text-left">
-            <h5 className="font-bold text-sm text-[var(--color-text-primary)]">Business</h5>
-            <p className="text-xl font-black mt-2 text-[var(--color-text-primary)]">$49<span className="text-xs font-normal">/mo</span></p>
-            <ul className="mt-3 space-y-1.5 text-[11px] text-[var(--color-text-muted)]">
-              <li className="flex items-center gap-1.5"><Check size={12} className="text-emerald-500" /> 1 TB Cloud Storage</li>
-              <li className="flex items-center gap-1.5"><Check size={12} className="text-emerald-500" /> 100,000 AI Credits (~10,000 mins)</li>
-              <li className="flex items-center gap-1.5"><Check size={12} className="text-emerald-500" /> 4K Ultra HD Export</li>
-              <li className="flex items-center gap-1.5"><Check size={12} className="text-emerald-500" /> 10 Concurrent Jobs</li>
-              <li className="flex items-center gap-1.5"><Check size={12} className="text-emerald-500" /> ElevenLabs Voice API Key</li>
-            </ul>
-          </div>
+                <button
+                  type="button"
+                  disabled={isSelected}
+                  onClick={() => handleSelectPlanToUpgrade(p)}
+                  className={`mt-4 w-full rounded-xl py-2 text-xs font-bold transition ${
+                    isSelected
+                      ? "border border-[var(--color-border)] text-[var(--color-text-muted)] cursor-default"
+                      : "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] cursor-pointer"
+                  }`}
+                >
+                  {isSelected ? "Active Plan" : `Upgrade to ${p.name}`}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </SettingsModal>
 
-      {/* MODAL 2: STORAGE ADD-ONS (Exact database storage_addons) */}
+      {/* MODAL 2: STORAGE ADD-ONS */}
       <SettingsModal
         isOpen={isStorageAddonModalOpen}
         onClose={() => setIsStorageAddonModalOpen(false)}
         title="Add Storage Add-On"
-        subtitle="Expand your cloud footage storage capacity seamlessly"
+        subtitle="Expand cloud video storage capacity seamlessly"
         icon={<HardDrive size={20} />}
         maxWidth="md"
       >
         <div className="space-y-3">
-          {[
-            { code: "addon_50gb", name: "+50 GB Storage", price: "$2.00/mo" },
-            { code: "addon_200gb", name: "+200 GB Storage", price: "$6.00/mo" },
-            { code: "addon_500gb", name: "+500 GB Storage", price: "$10.00/mo" },
-            { code: "addon_1tb", name: "+1 TB Storage", price: "$15.00/mo" },
-          ].map((addon) => (
-            <div
-              key={addon.code}
-              className="flex items-center justify-between rounded-xl border border-[var(--color-border)] p-3 text-xs"
-            >
-              <div>
-                <span className="font-bold text-[var(--color-text-primary)]">{addon.name}</span>
-                <p className="text-[11px] text-[var(--color-text-muted)]">Instant activation on current billing cycle</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsStorageAddonModalOpen(false);
-                  toast.success("Storage Add-on Activated", `Added ${addon.name} to workspace.`);
-                }}
-                className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 font-bold text-white hover:bg-[var(--color-primary-hover)]"
+          {addons.map((addon) => {
+            const price = billingCycle === "monthly" ? addon.price_monthly : addon.price_yearly;
+
+            return (
+              <div
+                key={addon.code}
+                className="flex items-center justify-between rounded-xl border border-[var(--color-border)] p-3 text-xs bg-[var(--color-surface)]"
               >
-                {addon.price}
-              </button>
-            </div>
-          ))}
+                <div>
+                  <span className="font-bold text-[var(--color-text-primary)]">{addon.name}</span>
+                  <p className="text-[11px] text-[var(--color-text-muted)]">
+                    +{addon.storage_gb} GB Instant allocation
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleSelectAddonToPurchase(addon)}
+                  className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 font-bold text-white hover:bg-[var(--color-primary-hover)] cursor-pointer"
+                >
+                  ${price}/{billingCycle === "monthly" ? "mo" : "yr"}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </SettingsModal>
 
-      {/* MODAL 3: ADD PAYMENT CARD */}
-      <SettingsModal
-        isOpen={isAddCardModalOpen}
-        onClose={() => setIsAddCardModalOpen(false)}
-        title="Add Payment Method"
-        subtitle="Secured via Stripe with 256-bit encryption"
-        icon={<CreditCard size={20} />}
-        maxWidth="md"
-        footer={
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setIsAddCardModalOpen(false)}
-              className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-muted)]"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleAddCardSubmit}
-              className="rounded-xl bg-[var(--color-primary)] px-5 py-2 text-xs font-bold text-white hover:bg-[var(--color-primary-hover)]"
-            >
-              Save Card
-            </button>
-          </div>
-        }
-      >
-        <div className="space-y-4">
-          <SettingsInput
-            label="Name on Card"
-            placeholder="e.g. Alex Morgan"
-            value={newCardHolder}
-            onChange={setNewCardHolder}
-          />
-          <SettingsInput
-            label="Card Number"
-            placeholder="4242 •••• •••• 4242"
-            value={newCardNumber}
-            onChange={setNewCardNumber}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <SettingsInput
-              label="Expiry Date"
-              placeholder="MM/YY"
-              value={newCardExpiry}
-              onChange={setNewCardExpiry}
-            />
-            <SettingsInput
-              label="CVC / CVV"
-              placeholder="123"
-              type="password"
-              value={newCardCvc}
-              onChange={setNewCardCvc}
-            />
-          </div>
-        </div>
-      </SettingsModal>
-
-      {/* MODAL 4: CANCEL CONFIRMATION */}
+      {/* MODAL 3: CANCEL CONFIRMATION */}
       <SettingsModal
         isOpen={isCancelModalOpen}
         onClose={() => setIsCancelModalOpen(false)}
         title="Cancel Subscription"
-        subtitle="Are you sure you want to cancel your VidNova Pro plan?"
+        subtitle="Are you sure you want to downgrade your VidNova plan?"
         icon={<AlertCircle size={20} />}
         maxWidth="sm"
         footer={
@@ -499,7 +555,7 @@ export default function BillingSection() {
             <button
               type="button"
               onClick={() => setIsCancelModalOpen(false)}
-              className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)]"
+              className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)] cursor-pointer"
             >
               Keep My Plan
             </button>
@@ -507,9 +563,9 @@ export default function BillingSection() {
               type="button"
               onClick={() => {
                 setIsCancelModalOpen(false);
-                toast.warning("Subscription Cancelled", "Access remains active until billing period end.");
+                toast.warning("Subscription Cancelled", "Plan features remain active until period end.");
               }}
-              className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700"
+              className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700 cursor-pointer"
             >
               Confirm Cancellation
             </button>
@@ -517,9 +573,24 @@ export default function BillingSection() {
         }
       >
         <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-          If you cancel, your storage limit will downgrade to 5 GB and concurrent jobs to 1 stream on <b>Sep 27, 2026</b>.
+          If you cancel, your storage limit will revert to Free 5 GB on <b>{renewsDateFormatted}</b>.
         </p>
       </SettingsModal>
+
+      {/* DEMO / HOSTED CHECKOUT MODAL */}
+      <DemoCheckoutModal
+        isOpen={isCheckoutModalOpen}
+        onClose={() => setIsCheckoutModalOpen(false)}
+        product={checkoutProduct}
+        billingCycle={billingCycle}
+        onPaymentSuccess={() => {
+          loadBillingData();
+        }}
+      />
     </div>
   );
+}
+
+function roundGb(bytes: number): number {
+  return Math.round(bytes / (1024 ** 3));
 }

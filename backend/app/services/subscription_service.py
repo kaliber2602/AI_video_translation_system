@@ -1,7 +1,8 @@
 import os
-from datetime import datetime, timezone
+import logging
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from fastapi import HTTPException, status
 import psycopg2
@@ -9,120 +10,130 @@ import psycopg2
 from app.core.database import get_connection
 from app.core.config import UPLOAD_DIR, OUTPUT_DIR
 
+logger = logging.getLogger(__name__)
 
 # =========================================================
-# Default Fallback Plan & Addons (if DB not yet seeded)
+# Default Fallback Plan & Addons (if DB not yet seeded or offline)
 # =========================================================
 
 DEFAULT_PLANS_SEED = [
     {
+        "id": 1,
         "code": "free",
         "name": "Free",
         "description": "For trying the platform and personal use",
         "price_monthly": 0.0,
         "price_yearly": 0.0,
+        "billing_cycle": "monthly",
+        "is_active": True,
         "is_popular": False,
         "display_order": 1,
         "resources": [
-            {"resource_type": "STORAGE", "resource_key": "storage_bytes", "limit_value": "5368709120", "unit": "bytes"},
-            {"resource_type": "CONSUMABLE", "resource_key": "ai_credits_monthly", "limit_value": "1000", "unit": "credits"},
-            {"resource_type": "LIMIT", "resource_key": "max_file_size_bytes", "limit_value": "524288000", "unit": "bytes"},
-            {"resource_type": "LIMIT", "resource_key": "max_video_duration_seconds", "limit_value": "1800", "unit": "seconds"},
-            {"resource_type": "LIMIT", "resource_key": "max_upload_resolution", "limit_value": "1080p", "unit": "resolution"},
-            {"resource_type": "LIMIT", "resource_key": "max_processing_resolution", "limit_value": "720p", "unit": "resolution"},
-            {"resource_type": "LIMIT", "resource_key": "max_streaming_resolution", "limit_value": "720p", "unit": "resolution"},
-            {"resource_type": "LIMIT", "resource_key": "max_export_resolution", "limit_value": "720p", "unit": "resolution"},
-            {"resource_type": "LIMIT", "resource_key": "max_concurrent_jobs", "limit_value": "1", "unit": "count"},
-            {"resource_type": "LIMIT", "resource_key": "max_projects", "limit_value": "5", "unit": "count"},
-            {"resource_type": "FEATURE", "resource_key": "ai_translation", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "text_to_speech", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "speaker_diarization", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "hls_streaming", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "video_editor", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "document_export", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "smart_subtitles", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "batch_processing", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "api_access", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "priority_processing", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "team_workspace", "limit_value": "true", "unit": "boolean"},
+            {"id": 1, "plan_id": 1, "resource_type": "STORAGE", "resource_key": "storage_bytes", "limit_value": "5368709120", "unit": "bytes"},
+            {"id": 2, "plan_id": 1, "resource_type": "CONSUMABLE", "resource_key": "ai_credits_monthly", "limit_value": "1000", "unit": "credits"},
+            {"id": 3, "plan_id": 1, "resource_type": "LIMIT", "resource_key": "max_file_size_bytes", "limit_value": "524288000", "unit": "bytes"},
+            {"id": 4, "plan_id": 1, "resource_type": "LIMIT", "resource_key": "max_video_duration_seconds", "limit_value": "1800", "unit": "seconds"},
+            {"id": 5, "plan_id": 1, "resource_type": "LIMIT", "resource_key": "max_upload_resolution", "limit_value": "1080p", "unit": "resolution"},
+            {"id": 6, "plan_id": 1, "resource_type": "LIMIT", "resource_key": "max_processing_resolution", "limit_value": "720p", "unit": "resolution"},
+            {"id": 7, "plan_id": 1, "resource_type": "LIMIT", "resource_key": "max_streaming_resolution", "limit_value": "720p", "unit": "resolution"},
+            {"id": 8, "plan_id": 1, "resource_type": "LIMIT", "resource_key": "max_export_resolution", "limit_value": "720p", "unit": "resolution"},
+            {"id": 9, "plan_id": 1, "resource_type": "LIMIT", "resource_key": "max_concurrent_jobs", "limit_value": "1", "unit": "count"},
+            {"id": 10, "plan_id": 1, "resource_type": "LIMIT", "resource_key": "max_projects", "limit_value": "5", "unit": "count"},
+            {"id": 11, "plan_id": 1, "resource_type": "FEATURE", "resource_key": "ai_translation", "limit_value": "true", "unit": "boolean"},
+            {"id": 12, "plan_id": 1, "resource_type": "FEATURE", "resource_key": "text_to_speech", "limit_value": "true", "unit": "boolean"},
+            {"id": 13, "plan_id": 1, "resource_type": "FEATURE", "resource_key": "speaker_diarization", "limit_value": "true", "unit": "boolean"},
+            {"id": 14, "plan_id": 1, "resource_type": "FEATURE", "resource_key": "hls_streaming", "limit_value": "true", "unit": "boolean"},
+            {"id": 15, "plan_id": 1, "resource_type": "FEATURE", "resource_key": "video_editor", "limit_value": "true", "unit": "boolean"},
+            {"id": 16, "plan_id": 1, "resource_type": "FEATURE", "resource_key": "document_export", "limit_value": "true", "unit": "boolean"},
+            {"id": 17, "plan_id": 1, "resource_type": "FEATURE", "resource_key": "smart_subtitles", "limit_value": "true", "unit": "boolean"},
+            {"id": 18, "plan_id": 1, "resource_type": "FEATURE", "resource_key": "batch_processing", "limit_value": "true", "unit": "boolean"},
+            {"id": 19, "plan_id": 1, "resource_type": "FEATURE", "resource_key": "api_access", "limit_value": "true", "unit": "boolean"},
+            {"id": 20, "plan_id": 1, "resource_type": "FEATURE", "resource_key": "priority_processing", "limit_value": "true", "unit": "boolean"},
+            {"id": 21, "plan_id": 1, "resource_type": "FEATURE", "resource_key": "team_workspace", "limit_value": "true", "unit": "boolean"},
         ],
     },
     {
+        "id": 2,
         "code": "pro",
         "name": "Pro",
         "description": "For creators, freelancers and professionals",
         "price_monthly": 12.0,
         "price_yearly": 120.0,
+        "billing_cycle": "monthly",
+        "is_active": True,
         "is_popular": True,
         "display_order": 2,
         "resources": [
-            {"resource_type": "STORAGE", "resource_key": "storage_bytes", "limit_value": "107374182400", "unit": "bytes"},
-            {"resource_type": "CONSUMABLE", "resource_key": "ai_credits_monthly", "limit_value": "10000", "unit": "credits"},
-            {"resource_type": "LIMIT", "resource_key": "max_file_size_bytes", "limit_value": "5368709120", "unit": "bytes"},
-            {"resource_type": "LIMIT", "resource_key": "max_video_duration_seconds", "limit_value": "14400", "unit": "seconds"},
-            {"resource_type": "LIMIT", "resource_key": "max_upload_resolution", "limit_value": "4K", "unit": "resolution"},
-            {"resource_type": "LIMIT", "resource_key": "max_processing_resolution", "limit_value": "1080p", "unit": "resolution"},
-            {"resource_type": "LIMIT", "resource_key": "max_streaming_resolution", "limit_value": "1080p", "unit": "resolution"},
-            {"resource_type": "LIMIT", "resource_key": "max_export_resolution", "limit_value": "1080p", "unit": "resolution"},
-            {"resource_type": "LIMIT", "resource_key": "max_concurrent_jobs", "limit_value": "3", "unit": "count"},
-            {"resource_type": "LIMIT", "resource_key": "max_projects", "limit_value": "50", "unit": "count"},
-            {"resource_type": "FEATURE", "resource_key": "ai_translation", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "text_to_speech", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "speaker_diarization", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "hls_streaming", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "video_editor", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "document_export", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "smart_subtitles", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "batch_processing", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "api_access", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "priority_processing", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "team_workspace", "limit_value": "true", "unit": "boolean"},
+            {"id": 22, "plan_id": 2, "resource_type": "STORAGE", "resource_key": "storage_bytes", "limit_value": "107374182400", "unit": "bytes"},
+            {"id": 23, "plan_id": 2, "resource_type": "CONSUMABLE", "resource_key": "ai_credits_monthly", "limit_value": "10000", "unit": "credits"},
+            {"id": 24, "plan_id": 2, "resource_type": "LIMIT", "resource_key": "max_file_size_bytes", "limit_value": "5368709120", "unit": "bytes"},
+            {"id": 25, "plan_id": 2, "resource_type": "LIMIT", "resource_key": "max_video_duration_seconds", "limit_value": "14400", "unit": "seconds"},
+            {"id": 26, "plan_id": 2, "resource_type": "LIMIT", "resource_key": "max_upload_resolution", "limit_value": "4K", "unit": "resolution"},
+            {"id": 27, "plan_id": 2, "resource_type": "LIMIT", "resource_key": "max_processing_resolution", "limit_value": "1080p", "unit": "resolution"},
+            {"id": 28, "plan_id": 2, "resource_type": "LIMIT", "resource_key": "max_streaming_resolution", "limit_value": "1080p", "unit": "resolution"},
+            {"id": 29, "plan_id": 2, "resource_type": "LIMIT", "resource_key": "max_export_resolution", "limit_value": "1080p", "unit": "resolution"},
+            {"id": 30, "plan_id": 2, "resource_type": "LIMIT", "resource_key": "max_concurrent_jobs", "limit_value": "3", "unit": "count"},
+            {"id": 31, "plan_id": 2, "resource_type": "LIMIT", "resource_key": "max_projects", "limit_value": "50", "unit": "count"},
+            {"id": 32, "plan_id": 2, "resource_type": "FEATURE", "resource_key": "ai_translation", "limit_value": "true", "unit": "boolean"},
+            {"id": 33, "plan_id": 2, "resource_type": "FEATURE", "resource_key": "text_to_speech", "limit_value": "true", "unit": "boolean"},
+            {"id": 34, "plan_id": 2, "resource_type": "FEATURE", "resource_key": "speaker_diarization", "limit_value": "true", "unit": "boolean"},
+            {"id": 35, "plan_id": 2, "resource_type": "FEATURE", "resource_key": "hls_streaming", "limit_value": "true", "unit": "boolean"},
+            {"id": 36, "plan_id": 2, "resource_type": "FEATURE", "resource_key": "video_editor", "limit_value": "true", "unit": "boolean"},
+            {"id": 37, "plan_id": 2, "resource_type": "FEATURE", "resource_key": "document_export", "limit_value": "true", "unit": "boolean"},
+            {"id": 38, "plan_id": 2, "resource_type": "FEATURE", "resource_key": "smart_subtitles", "limit_value": "true", "unit": "boolean"},
+            {"id": 39, "plan_id": 2, "resource_type": "FEATURE", "resource_key": "batch_processing", "limit_value": "true", "unit": "boolean"},
+            {"id": 40, "plan_id": 2, "resource_type": "FEATURE", "resource_key": "api_access", "limit_value": "true", "unit": "boolean"},
+            {"id": 41, "plan_id": 2, "resource_type": "FEATURE", "resource_key": "priority_processing", "limit_value": "true", "unit": "boolean"},
+            {"id": 42, "plan_id": 2, "resource_type": "FEATURE", "resource_key": "team_workspace", "limit_value": "true", "unit": "boolean"},
         ],
     },
     {
+        "id": 3,
         "code": "business",
         "name": "Business",
         "description": "For teams, studios and scaling organizations",
         "price_monthly": 49.0,
         "price_yearly": 490.0,
+        "billing_cycle": "monthly",
+        "is_active": True,
         "is_popular": False,
         "display_order": 3,
         "resources": [
-            {"resource_type": "STORAGE", "resource_key": "storage_bytes", "limit_value": "1099511627776", "unit": "bytes"},
-            {"resource_type": "CONSUMABLE", "resource_key": "ai_credits_monthly", "limit_value": "100000", "unit": "credits"},
-            {"resource_type": "LIMIT", "resource_key": "max_file_size_bytes", "limit_value": "21474836480", "unit": "bytes"},
-            {"resource_type": "LIMIT", "resource_key": "max_video_duration_seconds", "limit_value": "43200", "unit": "seconds"},
-            {"resource_type": "LIMIT", "resource_key": "max_upload_resolution", "limit_value": "4K", "unit": "resolution"},
-            {"resource_type": "LIMIT", "resource_key": "max_processing_resolution", "limit_value": "4K", "unit": "resolution"},
-            {"resource_type": "LIMIT", "resource_key": "max_streaming_resolution", "limit_value": "4K", "unit": "resolution"},
-            {"resource_type": "LIMIT", "resource_key": "max_export_resolution", "limit_value": "4K", "unit": "resolution"},
-            {"resource_type": "LIMIT", "resource_key": "max_concurrent_jobs", "limit_value": "10", "unit": "count"},
-            {"resource_type": "LIMIT", "resource_key": "max_projects", "limit_value": "500", "unit": "count"},
-            {"resource_type": "FEATURE", "resource_key": "ai_translation", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "text_to_speech", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "speaker_diarization", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "hls_streaming", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "video_editor", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "document_export", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "smart_subtitles", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "batch_processing", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "api_access", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "priority_processing", "limit_value": "true", "unit": "boolean"},
-            {"resource_type": "FEATURE", "resource_key": "team_workspace", "limit_value": "true", "unit": "boolean"},
+            {"id": 43, "plan_id": 3, "resource_type": "STORAGE", "resource_key": "storage_bytes", "limit_value": "1099511627776", "unit": "bytes"},
+            {"id": 44, "plan_id": 3, "resource_type": "CONSUMABLE", "resource_key": "ai_credits_monthly", "limit_value": "100000", "unit": "credits"},
+            {"id": 45, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_file_size_bytes", "limit_value": "21474836480", "unit": "bytes"},
+            {"id": 46, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_video_duration_seconds", "limit_value": "43200", "unit": "seconds"},
+            {"id": 47, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_upload_resolution", "limit_value": "4K", "unit": "resolution"},
+            {"id": 48, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_processing_resolution", "limit_value": "4K", "unit": "resolution"},
+            {"id": 49, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_streaming_resolution", "limit_value": "4K", "unit": "resolution"},
+            {"id": 50, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_export_resolution", "limit_value": "4K", "unit": "resolution"},
+            {"id": 51, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_concurrent_jobs", "limit_value": "10", "unit": "count"},
+            {"id": 52, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_projects", "limit_value": "500", "unit": "count"},
+            {"id": 53, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "ai_translation", "limit_value": "true", "unit": "boolean"},
+            {"id": 54, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "text_to_speech", "limit_value": "true", "unit": "boolean"},
+            {"id": 55, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "speaker_diarization", "limit_value": "true", "unit": "boolean"},
+            {"id": 56, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "hls_streaming", "limit_value": "true", "unit": "boolean"},
+            {"id": 57, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "video_editor", "limit_value": "true", "unit": "boolean"},
+            {"id": 58, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "document_export", "limit_value": "true", "unit": "boolean"},
+            {"id": 59, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "smart_subtitles", "limit_value": "true", "unit": "boolean"},
+            {"id": 60, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "batch_processing", "limit_value": "true", "unit": "boolean"},
+            {"id": 61, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "api_access", "limit_value": "true", "unit": "boolean"},
+            {"id": 62, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "priority_processing", "limit_value": "true", "unit": "boolean"},
+            {"id": 63, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "team_workspace", "limit_value": "true", "unit": "boolean"},
         ],
     },
 ]
 
 DEFAULT_ADDONS_SEED = [
-    {"code": "addon_50gb", "name": "+50 GB Storage", "storage_bytes": 53687091200, "price_monthly": 2.0, "price_yearly": 20.0, "display_order": 1},
-    {"code": "addon_200gb", "name": "+200 GB Storage", "storage_bytes": 214748364800, "price_monthly": 6.0, "price_yearly": 60.0, "display_order": 2},
-    {"code": "addon_500gb", "name": "+500 GB Storage", "storage_bytes": 536870912000, "price_monthly": 10.0, "price_yearly": 100.0, "display_order": 3},
-    {"code": "addon_1tb", "name": "+1 TB Storage", "storage_bytes": 1099511627776, "price_monthly": 15.0, "price_yearly": 150.0, "display_order": 4},
+    {"id": 1, "code": "addon_50gb", "name": "+50 GB Storage", "storage_bytes": 53687091200, "storage_gb": 50.0, "price_monthly": 2.0, "price_yearly": 20.0, "is_active": True, "display_order": 1},
+    {"id": 2, "code": "addon_200gb", "name": "+200 GB Storage", "storage_bytes": 214748364800, "storage_gb": 200.0, "price_monthly": 6.0, "price_yearly": 60.0, "is_active": True, "display_order": 2},
+    {"id": 3, "code": "addon_500gb", "name": "+500 GB Storage", "storage_bytes": 536870912000, "storage_gb": 500.0, "price_monthly": 10.0, "price_yearly": 100.0, "is_active": True, "display_order": 3},
+    {"id": 4, "code": "addon_1tb", "name": "+1 TB Storage", "storage_bytes": 1099511627776, "storage_gb": 1000.0, "price_monthly": 15.0, "price_yearly": 150.0, "is_active": True, "display_order": 4},
 ]
 
 
 # =========================================================
-# Ensure Tables Exist (Migration Helper)
+# Ensure Tables Exist (Migration / Schema Helper)
 # =========================================================
 
 def ensure_subscription_tables_exist(connection=None):
@@ -131,8 +142,12 @@ def ensure_subscription_tables_exist(connection=None):
     """
     should_close = False
     if connection is None:
-        connection = get_connection()
-        should_close = True
+        try:
+            connection = get_connection()
+            should_close = True
+        except Exception as e:
+            logger.debug(f"[SubscriptionService] Database connection bypassed in fallback: {e}")
+            return
 
     try:
         with connection.cursor() as cursor:
@@ -240,6 +255,41 @@ def ensure_subscription_tables_exist(connection=None):
                 """
             )
 
+            # 7. Credit audit logs
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS credit_audit_logs (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    video_id INTEGER,
+                    job_id UUID,
+                    service_type VARCHAR(50) NOT NULL,
+                    credits_deducted INTEGER NOT NULL,
+                    balance_after INTEGER,
+                    description TEXT,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                """
+            )
+
+            # 8. Payment transactions
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS payment_transactions (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    transaction_code VARCHAR(100) NOT NULL UNIQUE,
+                    amount NUMERIC(10, 2) NOT NULL,
+                    currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+                    payment_method VARCHAR(50) NOT NULL,
+                    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+                    metadata JSONB,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                """
+            )
+
             # Seed Plans & Resources if table is empty
             cursor.execute("SELECT COUNT(*) FROM plans")
             count = cursor.fetchone()[0]
@@ -302,11 +352,11 @@ def ensure_subscription_tables_exist(connection=None):
 
         connection.commit()
     except Exception as e:
-        connection.rollback()
-        # Non-fatal if table already exists or database error
-        print(f"[SubscriptionService] Ensure tables notice: {e}")
+        if connection:
+            connection.rollback()
+        logger.debug(f"[SubscriptionService] Ensure tables notice: {e}")
     finally:
-        if should_close:
+        if should_close and connection:
             connection.close()
 
 
@@ -318,8 +368,12 @@ def get_active_plans() -> List[Dict[str, Any]]:
     """
     Returns all active plans with grouped categorized resources.
     """
-    ensure_subscription_tables_exist()
-    connection = get_connection()
+    try:
+        ensure_subscription_tables_exist()
+        connection = get_connection()
+    except Exception:
+        return DEFAULT_PLANS_SEED
+
     try:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -332,7 +386,6 @@ def get_active_plans() -> List[Dict[str, Any]]:
             )
             plan_rows = cursor.fetchall()
             if not plan_rows:
-                # Return static default
                 return DEFAULT_PLANS_SEED
 
             plan_ids = [r[0] for r in plan_rows]
@@ -379,16 +432,34 @@ def get_active_plans() -> List[Dict[str, Any]]:
                     }
                 )
             return result
+    except Exception as e:
+        logger.warning(f"[SubscriptionService] get_active_plans error, returning fallback: {e}")
+        return DEFAULT_PLANS_SEED
     finally:
         connection.close()
+
+
+def get_plan_by_id_or_code(plan_id_or_code: Union[int, str]) -> Optional[Dict[str, Any]]:
+    """
+    Finds a single plan by its ID or code with all resources.
+    """
+    plans = get_active_plans()
+    if isinstance(plan_id_or_code, int) or (isinstance(plan_id_or_code, str) and plan_id_or_code.isdigit()):
+        pid = int(plan_id_or_code)
+        return next((p for p in plans if p.get("id") == pid), None)
+    return next((p for p in plans if p.get("code") == str(plan_id_or_code).lower()), None)
 
 
 def get_storage_addons() -> List[Dict[str, Any]]:
     """
     Returns all active storage add-ons.
     """
-    ensure_subscription_tables_exist()
-    connection = get_connection()
+    try:
+        ensure_subscription_tables_exist()
+        connection = get_connection()
+    except Exception:
+        return DEFAULT_ADDONS_SEED
+
     try:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -401,10 +472,7 @@ def get_storage_addons() -> List[Dict[str, Any]]:
             )
             rows = cursor.fetchall()
             if not rows:
-                return [
-                    {**addon, "id": i + 1, "storage_gb": round(addon["storage_bytes"] / (1024**3), 1), "is_active": True}
-                    for i, addon in enumerate(DEFAULT_ADDONS_SEED)
-                ]
+                return DEFAULT_ADDONS_SEED
 
             return [
                 {
@@ -420,8 +488,19 @@ def get_storage_addons() -> List[Dict[str, Any]]:
                 }
                 for r in rows
             ]
+    except Exception as e:
+        logger.warning(f"[SubscriptionService] get_storage_addons error, returning fallback: {e}")
+        return DEFAULT_ADDONS_SEED
     finally:
         connection.close()
+
+
+def get_storage_addon_by_id(addon_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Finds a single storage add-on by ID.
+    """
+    addons = get_storage_addons()
+    return next((a for a in addons if a.get("id") == addon_id), None)
 
 
 def get_pricing_catalog() -> Dict[str, Any]:
@@ -440,10 +519,25 @@ def get_pricing_catalog() -> Dict[str, Any]:
 
 def get_user_active_subscription(user_id: int) -> Optional[Dict[str, Any]]:
     """
-    Finds the active subscription of the user or falls back to 'free' plan.
+    Finds the active subscription of the user or falls back to 'free' plan safely.
     """
-    ensure_subscription_tables_exist()
-    connection = get_connection()
+    try:
+        ensure_subscription_tables_exist()
+        connection = get_connection()
+    except Exception:
+        # Fallback Free Subscription
+        return {
+            "id": 1,
+            "user_id": user_id,
+            "plan_id": 1,
+            "plan_code": "free",
+            "plan_name": "Free",
+            "status": "active",
+            "billing_cycle": "monthly",
+            "started_at": datetime.now(timezone.utc),
+            "expires_at": None,
+        }
+
     try:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -472,12 +566,15 @@ def get_user_active_subscription(user_id: int) -> Optional[Dict[str, Any]]:
                     "expires_at": row[8],
                 }
 
-            # Fallback to Free plan
+            # Return default Free plan without violating FK constraints if user_id is virtual
             cursor.execute("SELECT id, code, name FROM plans WHERE code = 'free' LIMIT 1")
             free_row = cursor.fetchone()
-            if free_row:
-                # Optionally auto-create free subscription in DB
-                now = datetime.now(timezone.utc)
+            plan_id = free_row[0] if free_row else 1
+            plan_name = free_row[2] if free_row else "Free"
+
+            now = datetime.now(timezone.utc)
+            # Try to persist if user exists in table
+            try:
                 cursor.execute(
                     """
                     INSERT INTO user_subscriptions (user_id, plan_id, status, started_at)
@@ -485,22 +582,36 @@ def get_user_active_subscription(user_id: int) -> Optional[Dict[str, Any]]:
                     ON CONFLICT DO NOTHING
                     RETURNING id
                     """,
-                    (user_id, free_row[0], now),
+                    (user_id, plan_id, now),
                 )
                 connection.commit()
-                return {
-                    "id": 0,
-                    "user_id": user_id,
-                    "plan_id": free_row[0],
-                    "plan_code": free_row[1],
-                    "plan_name": free_row[2],
-                    "status": "active",
-                    "billing_cycle": "monthly",
-                    "started_at": now,
-                    "expires_at": None,
-                }
+            except Exception:
+                connection.rollback()
 
-            return None
+            return {
+                "id": 1,
+                "user_id": user_id,
+                "plan_id": plan_id,
+                "plan_code": "free",
+                "plan_name": plan_name,
+                "status": "active",
+                "billing_cycle": "monthly",
+                "started_at": now,
+                "expires_at": None,
+            }
+    except Exception as e:
+        logger.warning(f"[SubscriptionService] get_user_active_subscription fallback: {e}")
+        return {
+            "id": 1,
+            "user_id": user_id,
+            "plan_id": 1,
+            "plan_code": "free",
+            "plan_name": "Free",
+            "status": "active",
+            "billing_cycle": "monthly",
+            "started_at": datetime.now(timezone.utc),
+            "expires_at": None,
+        }
     finally:
         connection.close()
 
@@ -509,8 +620,12 @@ def get_user_active_storage_addons(user_id: int) -> List[Dict[str, Any]]:
     """
     Returns active storage add-ons for the user.
     """
-    ensure_subscription_tables_exist()
-    connection = get_connection()
+    try:
+        ensure_subscription_tables_exist()
+        connection = get_connection()
+    except Exception:
+        return []
+
     try:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -539,6 +654,9 @@ def get_user_active_storage_addons(user_id: int) -> List[Dict[str, Any]]:
                 }
                 for r in rows
             ]
+    except Exception as e:
+        logger.debug(f"[SubscriptionService] get_user_active_storage_addons notice: {e}")
+        return []
     finally:
         connection.close()
 
@@ -547,11 +665,14 @@ def get_user_storage_usage(user_id: int) -> int:
     """
     Calculates the total storage in bytes currently consumed by the user's projects & video assets.
     """
-    connection = get_connection()
+    try:
+        connection = get_connection()
+    except Exception:
+        return 0
+
     total_bytes = 0
     try:
         with connection.cursor() as cursor:
-            # Query video file paths for projects owned by this user
             cursor.execute(
                 """
                 SELECT v.original_path, v.extracted_vocal_path, v.background_music_path,
@@ -568,7 +689,6 @@ def get_user_storage_usage(user_id: int) -> int:
                     if path_str:
                         p = Path(path_str)
                         if not p.is_absolute():
-                            # Check in uploads or outputs
                             up = UPLOAD_DIR / path_str
                             out = OUTPUT_DIR / path_str
                             if up.exists():
@@ -580,7 +700,7 @@ def get_user_storage_usage(user_id: int) -> int:
 
         return total_bytes
     except Exception as e:
-        print(f"[SubscriptionService] Error calculating storage usage: {e}")
+        logger.debug(f"[SubscriptionService] Error calculating storage usage: {e}")
         return 0
     finally:
         connection.close()
@@ -590,7 +710,11 @@ def get_user_consumable_usage(user_id: int) -> Dict[str, int]:
     """
     Returns monthly AI processing credits used by the user.
     """
-    connection = get_connection()
+    try:
+        connection = get_connection()
+    except Exception:
+        return {"credits_used": 0}
+
     try:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -612,22 +736,113 @@ def get_user_consumable_usage(user_id: int) -> Dict[str, int]:
         connection.close()
 
 
+def get_user_credit_audit_logs(user_id: int, limit: int = 50, offset: int = 0) -> Tuple[List[Dict[str, Any]], int]:
+    """
+    Returns audit trail logs for credit deductions and allocations for this user.
+    """
+    try:
+        ensure_subscription_tables_exist()
+        connection = get_connection()
+    except Exception:
+        return [], 0
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM credit_audit_logs WHERE user_id = %s", (user_id,))
+            total = cursor.fetchone()[0]
+
+            cursor.execute(
+                """
+                SELECT id, user_id, video_id, job_id, service_type, credits_deducted, balance_after, description, created_at
+                FROM credit_audit_logs
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                LIMIT %s OFFSET %s
+                """,
+                (user_id, limit, offset),
+            )
+            rows = cursor.fetchall()
+            logs = [
+                {
+                    "id": r[0],
+                    "user_id": r[1],
+                    "video_id": r[2],
+                    "job_id": str(r[3]) if r[3] else None,
+                    "service_type": r[4],
+                    "credits_deducted": r[5],
+                    "balance_after": r[6],
+                    "description": r[7],
+                    "created_at": r[8],
+                }
+                for r in rows
+            ]
+            return logs, total
+    except Exception as e:
+        logger.debug(f"[SubscriptionService] get_user_credit_audit_logs error: {e}")
+        return [], 0
+    finally:
+        connection.close()
+
+
+def add_credit_audit_log(
+    user_id: int,
+    service_type: str,
+    credits_deducted: int,
+    balance_after: Optional[int] = None,
+    description: Optional[str] = None,
+    video_id: Optional[int] = None,
+    job_id: Optional[str] = None,
+    connection=None,
+) -> bool:
+    """
+    Inserts a credit audit log entry within an existing or new DB transaction.
+    """
+    should_close = False
+    if connection is None:
+        try:
+            connection = get_connection()
+            should_close = True
+        except Exception:
+            return False
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO credit_audit_logs (
+                    user_id, service_type, credits_deducted, balance_after, description, video_id, job_id, created_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                """,
+                (user_id, service_type, credits_deducted, balance_after, description, video_id, job_id),
+            )
+        if should_close:
+            connection.commit()
+        return True
+    except Exception as e:
+        if should_close and connection:
+            connection.rollback()
+        logger.warning(f"[SubscriptionService] add_credit_audit_log error: {e}")
+        return False
+    finally:
+        if should_close and connection:
+            connection.close()
+
+
 def get_user_effective_quota(user_id: int) -> Dict[str, Any]:
     """
     Resolves the user's complete effective quota:
     Effective Storage = Base Plan Storage + Active Storage Add-ons
     Effective Credits = Base Plan AI Credits
-    All Features = True (enabled for all tiers)
+    All Features = True (enabled for all tiers per requirements)
     Limits = Dynamic limits from active plan
     """
     subscription = get_user_active_subscription(user_id)
     plan_code = subscription["plan_code"] if subscription else "free"
 
-    # Find the corresponding plan from active plans
     plans = get_active_plans()
     target_plan = next((p for p in plans if p["code"] == plan_code), plans[0] if plans else DEFAULT_PLANS_SEED[0])
 
-    # Extract Plan Resources
     storage_resource_bytes = 5368709120  # default 5 GB
     credits_resource = 1000  # default 1000 credits
     limits: Dict[str, Any] = {}
@@ -654,10 +869,8 @@ def get_user_effective_quota(user_id: int) -> Dict[str, Any]:
             except ValueError:
                 limits[rkey] = rval
         elif rtype == "FEATURE":
-            # Per requirement: all features are accessible across all tiers
             features[rkey] = True
 
-    # Active Add-ons
     active_addons = get_user_active_storage_addons(user_id)
     addon_bytes = sum(a["storage_bytes"] for a in active_addons)
 
@@ -672,16 +885,23 @@ def get_user_effective_quota(user_id: int) -> Dict[str, Any]:
     used_credits = consumable_info["credits_used"]
     remaining_credits = max(0, credits_resource - used_credits)
 
-    # Convert credits to minutes (1 credit = 1 minute conversion rule)
     converted_total = credits_resource
     converted_used = used_credits
     converted_remaining = remaining_credits
 
-    # Ensure essential limits exist
     if "max_file_size_bytes" not in limits:
         limits["max_file_size_bytes"] = 524288000
     if "max_projects" not in limits:
         limits["max_projects"] = 5
+
+    # Make sure core features are populated
+    for fkey in [
+        "ai_translation", "text_to_speech", "speaker_diarization", "hls_streaming",
+        "video_editor", "document_export", "smart_subtitles", "batch_processing",
+        "api_access", "priority_processing", "team_workspace"
+    ]:
+        if fkey not in features:
+            features[fkey] = True
 
     return {
         "storage": {
@@ -723,6 +943,180 @@ def get_user_subscription_summary(user_id: int) -> Dict[str, Any]:
     }
 
 
+def get_user_usage_details(user_id: int) -> Dict[str, Any]:
+    """
+    Returns usage details for consumable resources and storage.
+    """
+    effective_quota = get_user_effective_quota(user_id)
+    storage = effective_quota["storage"]
+    credits = effective_quota["credits"]
+
+    return {
+        "user_id": user_id,
+        "credits_allocated": credits["total_credits"],
+        "credits_used": credits["used_credits"],
+        "credits_remaining": credits["remaining_credits"],
+        "storage_bytes_allocated": storage["total_bytes"],
+        "storage_bytes_used": storage["used_bytes"],
+        "storage_bytes_remaining": max(0, storage["total_bytes"] - storage["used_bytes"]),
+    }
+
+
+# =========================================================
+# Subscription Entitlement Mutators (Transactional)
+# =========================================================
+
+def activate_plan_subscription(user_id: int, plan_id: int, billing_cycle: str = "monthly", connection=None) -> Dict[str, Any]:
+    """
+    Activates or upgrades a user's subscription in the database within a transaction.
+    """
+    should_close = False
+    if connection is None:
+        connection = get_connection()
+        should_close = True
+
+    try:
+        with connection.cursor() as cursor:
+            # 1. Fetch plan details
+            cursor.execute("SELECT id, code, name, price_monthly, price_yearly FROM plans WHERE id = %s", (plan_id,))
+            plan_row = cursor.fetchone()
+            if not plan_row:
+                raise ValueError(f"Plan ID {plan_id} does not exist.")
+
+            plan_code = plan_row[1]
+            plan_name = plan_row[2]
+
+            # 2. Deactivate existing active subscriptions
+            cursor.execute(
+                """
+                UPDATE user_subscriptions
+                SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s AND status = 'active'
+                """,
+                (user_id,),
+            )
+
+            # 3. Calculate expiration date based on billing cycle
+            now = datetime.now(timezone.utc)
+            duration_days = 365 if billing_cycle == "yearly" else 30
+            expires_at = now + timedelta(days=duration_days)
+
+            # 4. Insert new active subscription
+            cursor.execute(
+                """
+                INSERT INTO user_subscriptions (
+                    user_id, plan_id, status, billing_cycle, started_at, expires_at, created_at, updated_at
+                )
+                VALUES (%s, %s, 'active', %s, %s, %s, %s, %s)
+                RETURNING id, user_id, plan_id, status, billing_cycle, started_at, expires_at
+                """,
+                (user_id, plan_id, billing_cycle, now, expires_at, now, now),
+            )
+            sub_row = cursor.fetchone()
+
+            # 5. Log in credit audit logs
+            add_credit_audit_log(
+                user_id=user_id,
+                service_type="PLAN_UPGRADE",
+                credits_deducted=0,
+                description=f"Upgraded subscription to {plan_name} ({billing_cycle})",
+                connection=connection,
+            )
+
+        if should_close:
+            connection.commit()
+
+        return {
+            "id": sub_row[0],
+            "user_id": sub_row[1],
+            "plan_id": sub_row[2],
+            "plan_code": plan_code,
+            "plan_name": plan_name,
+            "status": sub_row[3],
+            "billing_cycle": sub_row[4],
+            "started_at": sub_row[5],
+            "expires_at": sub_row[6],
+        }
+    except Exception:
+        if should_close and connection:
+            connection.rollback()
+        raise
+    finally:
+        if should_close and connection:
+            connection.close()
+
+
+def activate_storage_addon(user_id: int, addon_id: int, billing_cycle: str = "monthly", connection=None) -> Dict[str, Any]:
+    """
+    Activates an additional storage add-on for the user within a transaction.
+    """
+    should_close = False
+    if connection is None:
+        connection = get_connection()
+        should_close = True
+
+    try:
+        with connection.cursor() as cursor:
+            # 1. Fetch addon details
+            cursor.execute("SELECT id, code, name, storage_bytes FROM storage_addons WHERE id = %s", (addon_id,))
+            addon_row = cursor.fetchone()
+            if not addon_row:
+                raise ValueError(f"Storage Addon ID {addon_id} does not exist.")
+
+            addon_code = addon_row[1]
+            addon_name = addon_row[2]
+            storage_bytes = addon_row[3]
+
+            # 2. Expiration
+            now = datetime.now(timezone.utc)
+            duration_days = 365 if billing_cycle == "yearly" else 30
+            expires_at = now + timedelta(days=duration_days)
+
+            # 3. Insert user storage addon
+            cursor.execute(
+                """
+                INSERT INTO user_storage_addons (
+                    user_id, addon_id, status, started_at, expires_at, created_at, updated_at
+                )
+                VALUES (%s, %s, 'active', %s, %s, %s, %s)
+                RETURNING id, user_id, addon_id, status, started_at, expires_at
+                """,
+                (user_id, addon_id, now, expires_at, now, now),
+            )
+            usa_row = cursor.fetchone()
+
+            # 4. Audit trail
+            add_credit_audit_log(
+                user_id=user_id,
+                service_type="STORAGE_ADDON_PURCHASE",
+                credits_deducted=0,
+                description=f"Purchased storage addon {addon_name} (+{round(storage_bytes / (1024**3))} GB)",
+                connection=connection,
+            )
+
+        if should_close:
+            connection.commit()
+
+        return {
+            "id": usa_row[0],
+            "user_id": usa_row[1],
+            "addon_id": usa_row[2],
+            "addon_code": addon_code,
+            "addon_name": addon_name,
+            "storage_bytes": storage_bytes,
+            "status": usa_row[3],
+            "started_at": usa_row[4],
+            "expires_at": usa_row[5],
+        }
+    except Exception:
+        if should_close and connection:
+            connection.rollback()
+        raise
+    finally:
+        if should_close and connection:
+            connection.close()
+
+
 # =========================================================
 # Quota Validation Enforcers
 # =========================================================
@@ -762,7 +1156,11 @@ def validate_project_quota(user_id: int):
     effective_quota = get_user_effective_quota(user_id)
     max_projects = int(effective_quota["limits"].get("max_projects", 5))
 
-    connection = get_connection()
+    try:
+        connection = get_connection()
+    except Exception:
+        return
+
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT COUNT(id) FROM projects WHERE owner_id = %s", (user_id,))
@@ -778,7 +1176,7 @@ def validate_project_quota(user_id: int):
 
 def has_feature(user_id: int, feature_key: str) -> bool:
     """
-    Checks if a user has access to a feature (All features enabled for all users per requirements).
+    Checks if a user has access to a feature.
     """
     return True
 

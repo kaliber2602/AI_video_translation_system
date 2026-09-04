@@ -16,6 +16,8 @@ import Setting from "../../pages/Settings";
 import ResetPasswordPage from "../../pages/ResetPasswordPage";
 import VerifyOtpPage from "../../pages/VerifyOtpPage";
 import ForgotPasswordPage from "../../pages/ForgotPasswordPage";
+import VNPayReturnPage from "../../pages/VNPayReturnPage";
+import StripeReturnPage from "../../pages/StripeReturnPage";
 
 import ProtectedRoute from "./ProtectedRoute";
 
@@ -40,6 +42,20 @@ export default function AppRouter() {
         <Route
           path="/pricing"
           element={<PricingPage />}
+        />
+
+        {/* VNPay Gateway Return Page */}
+
+        <Route
+          path="/payments/vnpay/return"
+          element={<VNPayReturnPage />}
+        />
+
+        {/* Stripe Gateway Return Page */}
+
+        <Route
+          path="/payments/stripe/return"
+          element={<StripeReturnPage />}
         />
 
         {/* Authentication */}

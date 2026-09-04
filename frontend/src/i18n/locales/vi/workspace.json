@@ -111,5 +111,21 @@
     "badge": "Không gian tự do",
     "tagGroup": "Nhóm theo thẻ",
     "allUnsorted": "Tất cả dự án"
+  },
+  "quota": {
+    "title": "Hạn mức không gian",
+    "storage": "Bộ nhớ đám mây",
+    "credits": "Điểm xử lý AI",
+    "used": "Đã dùng",
+    "remaining": "Còn lại",
+    "addStorage": "+ Thêm dung lượng",
+    "upgradePlan": "Nâng cấp gói",
+    "managePlan": "Quản lý gói",
+    "freePlan": "Gói Miễn phí",
+    "proPlan": "Gói Pro",
+    "businessPlan": "Gói Doanh nghiệp",
+    "active": "Đang hoạt động",
+    "storageAddonTitle": "Mua thêm dung lượng",
+    "storageAddonSubtitle": "Mở rộng bộ nhớ lưu trữ đám mây cho không gian làm việc của bạn"
   }
 }

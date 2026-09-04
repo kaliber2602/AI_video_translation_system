@@ -4,15 +4,21 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 class TranslationService:
     def __init__(self):
-        print("[Translate] Đang khởi tạo NLLB-1.3B...", flush=True)
-        model_name = "facebook/nllb-200-1.3B"
+        self.model_name = "facebook/nllb-200-1.3B"
+        self.model = None
+        self.tokenizer = None
+        self.device = None
+
+    def _ensure_loaded(self):
+        if self.model is not None and self.tokenizer is not None:
+            return
+        print("[Translate] Đang nạp NLLB-1.3B...", flush=True)
         try:
-            from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
             import torch
-            
+            from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(self.device)
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            self.model = AutoModelForSeq2SeqLM.from_pretrained(self.model_name).to(self.device)
             print(f"[Translate] Đã nạp NLLB-1.3B lên {self.device.upper()} thành công!", flush=True)
         except Exception as e:
             print(f"[Translate] Lỗi khởi tạo: {e}", flush=True)
@@ -98,6 +104,10 @@ class TranslationService:
         merged_segments = self._smart_merge_segments(segments)
         print(f"[Translate] Đã gộp {len(segments)} đoạn cắt vụn thành {len(merged_segments)} câu hoàn chỉnh ngữ nghĩa.", flush=True)
         
+        self._ensure_loaded()
+        if self.tokenizer is None or self.model is None:
+            raise RuntimeError("Translation model could not be loaded.")
+
         # 2. Cấu hình NLLB
         self.tokenizer.src_lang = src_lang
         tgt_lang_id = self.tokenizer.convert_tokens_to_ids(tgt_lang)

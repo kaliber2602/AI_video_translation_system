@@ -111,5 +111,21 @@
     "badge": "Freedom Canvas",
     "tagGroup": "Group by Tags",
     "allUnsorted": "All Projects"
+  },
+  "quota": {
+    "title": "Workspace Quotas",
+    "storage": "Cloud Storage",
+    "credits": "AI Credits",
+    "used": "Used",
+    "remaining": "Remaining",
+    "addStorage": "+ Add Storage",
+    "upgradePlan": "Upgrade Plan",
+    "managePlan": "Manage Plan",
+    "freePlan": "Free Plan",
+    "proPlan": "Pro Plan",
+    "businessPlan": "Business Plan",
+    "active": "Active",
+    "storageAddonTitle": "Quick Storage Add-ons",
+    "storageAddonSubtitle": "Select an instant storage boost for your workspace"
   }
 }

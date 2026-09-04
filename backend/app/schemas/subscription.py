@@ -99,3 +99,30 @@ class UserSubscriptionSummaryResponse(BaseModel):
     subscription: Optional[UserSubscriptionOut] = None
     addons: List[UserStorageAddonOut] = []
     effective_quota: EffectiveQuotaOut
+
+
+class UserConsumableUsageOut(BaseModel):
+    user_id: int
+    credits_allocated: int
+    credits_used: int
+    credits_remaining: int
+    storage_bytes_allocated: int
+    storage_bytes_used: int
+    storage_bytes_remaining: int
+
+
+class CreditAuditLogOut(BaseModel):
+    id: int
+    user_id: int
+    video_id: Optional[int] = None
+    job_id: Optional[str] = None
+    service_type: str
+    credits_deducted: int
+    balance_after: Optional[int] = None
+    description: Optional[str] = None
+    created_at: datetime
+
+
+class CreditAuditLogListResponse(BaseModel):
+    logs: List[CreditAuditLogOut]
+    total: int

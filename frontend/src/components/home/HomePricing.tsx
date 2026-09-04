@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getMySubscriptionSummary, getPricingCatalog } from "../../services/subscription.service";
 import { getAccessToken } from "../../services/api/token";
 import type {
@@ -13,6 +14,7 @@ import CurrentUsageWidget from "../pricing/CurrentUsageWidget";
 import PlanCard from "../pricing/PlanCard";
 import StorageAddonSection from "../pricing/StorageAddonSection";
 import PricingComparisonTable from "../pricing/PricingComparisonTable";
+import DemoCheckoutModal from "../pricing/DemoCheckoutModal";
 
 // Fallback plans if backend is initializing
 const FALLBACK_PLANS: Plan[] = [
@@ -95,10 +97,30 @@ const FALLBACK_ADDONS: StorageAddon[] = [
 ];
 
 export default function HomePricing() {
+  const navigate = useNavigate();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [plans, setPlans] = useState<Plan[]>(FALLBACK_PLANS);
   const [addons, setAddons] = useState<StorageAddon[]>(FALLBACK_ADDONS);
   const [userSummary, setUserSummary] = useState<UserSubscriptionSummary | null>(null);
+
+  // Demo Checkout Modal State
+  const [selectedProduct, setSelectedProduct] = useState<{
+    type: "PLAN" | "STORAGE_ADDON";
+    data: Plan | StorageAddon;
+  } | null>(null);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+
+  const fetchUserSummary = async () => {
+    const token = getAccessToken();
+    if (token) {
+      try {
+        const summary = await getMySubscriptionSummary();
+        setUserSummary(summary);
+      } catch (err) {
+        console.log("[HomePricing] User not authenticated or quota unavailable:", err);
+      }
+    }
+  };
 
   useEffect(() => {
     // 1. Fetch Catalog
@@ -117,15 +139,28 @@ export default function HomePricing() {
     };
 
     fetchCatalog();
-
-    // 2. Fetch User Summary if logged in
-    const token = getAccessToken();
-    if (token) {
-      getMySubscriptionSummary()
-        .then((summary) => setUserSummary(summary))
-        .catch((err) => console.log("[HomePricing] User not authenticated or quota unavailable:", err));
-    }
+    fetchUserSummary();
   }, []);
+
+  const handleSelectPlan = (plan: Plan) => {
+    const token = getAccessToken();
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    setSelectedProduct({ type: "PLAN", data: plan });
+    setIsCheckoutOpen(true);
+  };
+
+  const handleSelectAddon = (addon: StorageAddon) => {
+    const token = getAccessToken();
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    setSelectedProduct({ type: "STORAGE_ADDON", data: addon });
+    setIsCheckoutOpen(true);
+  };
 
   return (
     <section
@@ -154,6 +189,7 @@ export default function HomePricing() {
               plan={plan}
               billingCycle={billingCycle}
               isCurrentPlan={userSummary?.subscription?.plan_code === plan.code}
+              onSelectPlan={handleSelectPlan}
             />
           ))}
         </div>
@@ -162,11 +198,23 @@ export default function HomePricing() {
         <StorageAddonSection
           addons={addons}
           billingCycle={billingCycle}
+          onSelectAddon={handleSelectAddon}
         />
 
         {/* Feature Comparison Matrix */}
         <PricingComparisonTable />
       </div>
+
+      {/* Demo Checkout / Payment Modal */}
+      <DemoCheckoutModal
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        product={selectedProduct}
+        billingCycle={billingCycle}
+        onPaymentSuccess={() => {
+          fetchUserSummary();
+        }}
+      />
     </section>
   );
 }

@@ -9,8 +9,12 @@ DATABASE_URL = os.getenv(
 )
 
 
+_RESOLVED_DATABASE_URL = None
+
+
 def get_connection():
-    database_url = DATABASE_URL
+    global _RESOLVED_DATABASE_URL
+    database_url = _RESOLVED_DATABASE_URL or os.getenv("DATABASE_URL", DATABASE_URL)
 
     if database_url.startswith(
         "postgresql+psycopg://"
@@ -30,4 +34,17 @@ def get_connection():
             1,
         )
 
-    return psycopg2.connect(database_url)
+    try:
+        conn = psycopg2.connect(database_url, connect_timeout=2)
+        _RESOLVED_DATABASE_URL = database_url
+        return conn
+    except psycopg2.OperationalError as exc:
+        if "@db:" in database_url or "@db/" in database_url:
+            local_url = database_url.replace("@db:", "@localhost:").replace("@db/", "@localhost/")
+            try:
+                conn = psycopg2.connect(local_url, connect_timeout=2)
+                _RESOLVED_DATABASE_URL = local_url
+                return conn
+            except Exception:
+                pass
+        raise exc
