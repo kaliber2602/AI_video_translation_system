@@ -256,7 +256,7 @@ class TTSAlignerService:
             cmd = [
                 "ffmpeg", "-y",
                 "-i", temp_input,
-                "-filter:a", f"atempo={1/speed_factor}",
+                "-filter:a", f"atempo={speed_factor}",
                 temp_output
             ]
             subprocess.run(cmd, check=True, capture_output=True)

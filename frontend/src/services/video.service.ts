@@ -1,4 +1,4 @@
-// services/videoService.ts
+// services/video.service.ts
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 // Add /api to the base URL
@@ -74,7 +74,6 @@ export const videoService = {
       throw new Error(err.detail || `Failed to load audio preview: ${response.status}`);
     }
     const blob = await response.blob();
-    // ✅ Check if blob is valid
     if (blob.size < 1024) {
       throw new Error(`TTS audio file is corrupted or empty (${blob.size} bytes)`);
     }
@@ -100,25 +99,24 @@ export const videoService = {
     if (params?.status) queryParams.append('status', params.status);
     if (params?.limit) queryParams.append('limit', String(params.limit || 100));
     if (params?.offset) queryParams.append('offset', String(params.offset || 0));
-    
+
     console.log("🔍 Fetching videos with params:", params);
     console.log("🔍 URL:", `${API_URL}/videos/?${queryParams.toString()}`);
-    
+
     const response = await fetch(`${API_URL}/videos/?${queryParams.toString()}`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("access_token")}`,
       },
     });
-    
+
     if (!response.ok) {
       console.error("❌ Failed to fetch videos:", response.status, response.statusText);
       throw new Error(`Failed to fetch videos: ${response.status}`);
     }
-    
+
     const data = await response.json();
     console.log("📦 Videos API Response:", data);
-    
-    // Handle different response formats
+
     if (Array.isArray(data)) {
       return data;
     } else if (data && data.videos && Array.isArray(data.videos)) {
@@ -302,10 +300,7 @@ export const videoService = {
     return response.blob();
   },
 
-  // ============================================================
-  // TTS / Voices - UPDATED
-  // ============================================================
-
+  // TTS / Voices
   async listVoices(videoId: number) {
     const response = await fetch(`${API_URL}/videos/${videoId}/voices`, {
       headers: {
@@ -332,51 +327,42 @@ export const videoService = {
     return response.json();
   },
 
-  // ✅ UPDATED: Get TTS with preview support
   async getTTS(videoId: number, language: string, preview: boolean = false): Promise<any | Blob> {
-    const url = preview 
+    const url = preview
       ? `${API_URL}/videos/${videoId}/tts/${language}?preview=true`
       : `${API_URL}/videos/${videoId}/tts/${language}`;
-    
+
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("access_token")}`,
       },
     });
-    
+
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.detail || `Failed to get TTS: ${response.status}`);
     }
-    
-    // If preview, return the blob directly
+
     if (preview) {
       const blob = await response.blob();
-      // ✅ Validate blob
       if (blob.size < 1024) {
         throw new Error(`TTS audio file is corrupted or empty (${blob.size} bytes)`);
       }
-      // Check if it's actually audio
       const contentType = blob.type;
       if (!contentType.startsWith('audio/')) {
         console.warn(`Expected audio, got: ${contentType}`);
-        // Still try to use it, but warn
       }
       return blob;
     }
-    
+
     return response.json();
   },
 
-  // ✅ NEW: Get TTS blob directly (convenience method)
   async getTTSBlob(videoId: number, language: string): Promise<Blob> {
     return this.getTTS(videoId, language, true) as Promise<Blob>;
   },
 
-  // ============================================================
-  // Dubbing - UPDATED
-  // ============================================================
-
+  // Dubbing
   async generateDubbedVideo(videoId: number, language: string, format: string, quality: string) {
     const response = await fetch(
       `${API_URL}/videos/${videoId}/dub?language=${language}&video_format=${format}&quality=${quality}`,
@@ -389,7 +375,6 @@ export const videoService = {
     );
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      // ✅ Better error message
       const errorMsg = err.detail || `Dubbing generation failed: ${response.status}`;
       throw new Error(errorMsg);
     }
@@ -409,7 +394,7 @@ export const videoService = {
     return response.json();
   },
 
-  async downloadDubbedVideo(videoId: number, language: string, format: string) {
+  async downloadDubbedVideo(videoId: number, language: string, format: string): Promise<Blob> {
     const response = await fetch(
       `${API_URL}/videos/${videoId}/dub/${language}/download?format=${format}`,
       {
@@ -418,10 +403,36 @@ export const videoService = {
         },
       }
     );
+
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.detail || "Failed to download dubbed video");
     }
+
+    const data = await response.json();
+
+    if (data && data.url) {
+      try {
+        const fileResponse = await fetch(data.url, {
+          mode: 'cors',
+          credentials: 'omit',
+          headers: {
+            'Accept': 'video/mp4,*/*',
+          },
+        });
+
+        if (!fileResponse.ok) {
+          throw new Error(`S3 download failed: ${fileResponse.status}`);
+        }
+
+        return fileResponse.blob();
+
+      } catch (error) {
+        console.error('S3 fetch error:', error);
+        throw new Error('Failed to download from S3 storage');
+      }
+    }
+
     return response.blob();
   },
 
@@ -447,20 +458,81 @@ export const videoService = {
     }
     return response.json();
   },
+  // Add this new method after downloadDubbedVideo
+  async getDubbedVideoPreview(videoId: number, language: string): Promise<string> {
+    const response = await fetch(
+      `${API_URL}/videos/${videoId}/dub/${language}/download?format=mp4&preview=true`,
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+        },
+      }
+    );
 
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to get video preview URL");
+    }
+
+    const data = await response.json();
+
+    if (data && data.url) {
+      return data.url;
+    }
+
+    throw new Error('No preview URL received');
+  },
+  
   async exportVideo(videoId: number, type: string, format: string, quality?: string, language?: string): Promise<Blob> {
     let url = `${API_URL}/videos/${videoId}/export?export_type=${type}&format=${format}`;
     if (quality) url += `&quality=${quality}`;
     if (language) url += `&language=${language}`;
+
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("access_token")}`,
       },
     });
+
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.detail || `Export failed: ${response.status}`);
     }
-    return response.blob();
-  },
+
+    const data = await response.json();
+
+    if (data && data.url) {
+      try {
+        // ✅ Fetch directly with CORS - no redirect expected with path-style URLs
+        const fileResponse = await fetch(data.url, {
+          mode: 'cors',
+          credentials: 'omit',
+          headers: {
+            'Accept': 'video/mp4,audio/mpeg,text/plain,application/json,*/*',
+          },
+        });
+
+        if (!fileResponse.ok) {
+          throw new Error(`S3 download failed: ${fileResponse.status} ${fileResponse.statusText}`);
+        }
+
+        const blob = await fileResponse.blob();
+        if (blob.size === 0) {
+          throw new Error('Downloaded file is empty');
+        }
+        return blob;
+
+      } catch (error) {
+        console.error('S3 fetch error:', error);
+        throw new Error('Failed to download from S3 storage. Please try again.');
+      }
+    }
+
+    if (response.headers.get('content-type')?.includes('video') ||
+      response.headers.get('content-type')?.includes('audio')) {
+      return response.blob();
+    }
+
+    throw new Error('Unexpected response format');
+  }
 };

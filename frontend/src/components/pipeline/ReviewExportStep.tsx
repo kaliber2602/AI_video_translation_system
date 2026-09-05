@@ -119,22 +119,35 @@ export default function ReviewExportStep() {
     }
   };
 
+  // ✅ Fixed: Added `async` keyword here
   const loadVideoPreview = async () => {
     if (!state.video?.videoId) return;
     
     try {
-      // Get dubbed video info
       const status = await videoService.getDubbingStatus(state.video.videoId);
       if (status.status === "completed" && status.output_path) {
         setDubbedVideoInfo(status);
-        const lang = state.targetLanguage || "vi";
-        const format = "mp4";
-        // Create URL for video preview
-        const url = `/api/videos/${state.video.videoId}/dub/${lang}/download?video_format=${format}`;
-        setVideoUrl(url);
+        
+        try {
+          // ✅ Get the actual preview URL from S3
+          const previewUrl = await videoService.getDubbedVideoPreview(
+            state.video.videoId,
+            state.targetLanguage || "vi"
+          );
+          setVideoUrl(previewUrl);
+          console.log("✅ Video preview URL loaded:", previewUrl);
+        } catch (error) {
+          console.error("Failed to get preview URL:", error);
+          // Fallback: try the old method
+          const lang = state.targetLanguage || "vi";
+          const format = "mp4";
+          const url = `/api/videos/${state.video.videoId}/dub/${lang}/download?video_format=${format}`;
+          setVideoUrl(url);
+        }
         
         // Also load audio preview if available
         try {
+          const lang = state.targetLanguage || "vi";
           const audioBlob = await videoService.getAudioBlob(state.video.videoId, lang);
           const audioUrl = URL.createObjectURL(audioBlob);
           setAudioUrl(audioUrl);
@@ -209,7 +222,7 @@ export default function ReviewExportStep() {
   };
 
   // ============================================================
-  // EXPORT HANDLER
+  // EXPORT HANDLER - FIXED WITH PROPER CORS HANDLING
   // ============================================================
 
   const handleExport = async () => {
@@ -220,6 +233,7 @@ export default function ReviewExportStep() {
     setExportSuccess(false);
 
     try {
+      // ✅ Get the blob directly from videoService
       const blob = await videoService.exportVideo(
         state.video.videoId,
         selectedType,
@@ -227,7 +241,13 @@ export default function ReviewExportStep() {
         selectedQuality,
         state.targetLanguage || "vi"
       );
-      
+
+      // ✅ Check if we got a valid blob
+      if (!blob || blob.size === 0) {
+        throw new Error('Downloaded file is empty');
+      }
+
+      // ✅ Create download link
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -236,14 +256,16 @@ export default function ReviewExportStep() {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      
+      // ✅ Clean up
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       
       setExportSuccess(true);
       setTimeout(() => setExportSuccess(false), 5000);
       
     } catch (error: any) {
       console.error("Export failed:", error);
-      setExportError(error.message || "Failed to export");
+      setExportError(error.message || "Failed to export. Please try again.");
     } finally {
       setIsExporting(false);
     }

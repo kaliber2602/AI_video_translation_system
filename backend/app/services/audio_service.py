@@ -5,6 +5,12 @@ import logging
 from typing import Optional
 from pydub import AudioSegment
 import torch
+import uuid
+from datetime import datetime
+
+from app.services.s3_service import upload_file
+from app.services.hls_service import process_video_to_hls
+from app.core.config import AWS_S3_BUCKET
 
 logger = logging.getLogger("app.services.audio_service")
 
@@ -87,17 +93,15 @@ class AudioService:
         tts_audio_path: str,
         bgm_audio_path: Optional[str],
         final_output_path: str,
-        temp_dir: str
+        temp_dir: str,
+        video_id: Optional[int] = None,
+        language: Optional[str] = None,
+        quality: Optional[str] = "1080p",
+        generate_hls: bool = True
     ):
         """
         Mix TTS audio with optional BGM and mux with video.
-        
-        Args:
-            video_path: Path to original video file
-            tts_audio_path: Path to TTS audio file
-            bgm_audio_path: Path to BGM audio file (can be None)
-            final_output_path: Path for final output video
-            temp_dir: Temporary directory for intermediate files
+        The output video will maintain the full original video length.
         """
         mixed_audio_path = os.path.join(temp_dir, "mixed_audio.wav")
         
@@ -122,7 +126,6 @@ class AudioService:
                 # Ensure BGM is same length as TTS (or loop if shorter)
                 if len(bgm_audio) < len(tts_audio):
                     logger.info(f"BGM shorter than TTS, looping...")
-                    # Calculate how many times to loop
                     loop_count = (len(tts_audio) // len(bgm_audio)) + 1
                     bgm_audio = bgm_audio * loop_count
                 
@@ -137,15 +140,7 @@ class AudioService:
                 logger.info("No BGM provided, using TTS audio only")
                 mixed_audio = tts_audio
             
-            # 3. Export mixed audio
-            logger.info(f"Exporting mixed audio to: {mixed_audio_path}")
-            mixed_audio.export(mixed_audio_path, format="wav")
-            
-            # Verify mixed audio was created
-            if not os.path.exists(mixed_audio_path) or os.path.getsize(mixed_audio_path) == 0:
-                raise Exception("Mixed audio file is empty or was not created")
-            
-            # 4. Get video info
+            # 3. Get video duration
             logger.info(f"Checking video file: {video_path}")
             if not os.path.exists(video_path):
                 raise FileNotFoundError(f"Video file not found at: {video_path}")
@@ -157,26 +152,46 @@ class AudioService:
                 video_duration = float(result.stdout.strip())
                 logger.info(f"Video duration: {video_duration:.2f}s")
             else:
-                logger.warning("Could not get video duration, using audio duration")
+                logger.warning("Could not get video duration")
                 video_duration = len(mixed_audio) / 1000.0
             
-            # 5. Mux audio with video using FFmpeg
+            # ✅ 4. PAD AUDIO TO MATCH VIDEO LENGTH
+            audio_duration = len(mixed_audio) / 1000.0
+            if audio_duration < video_duration:
+                # Pad with silence to match video length
+                silence_duration_ms = int((video_duration - audio_duration) * 1000)
+                silence = AudioSegment.silent(duration=silence_duration_ms)
+                mixed_audio = mixed_audio + silence
+                logger.info(f"Padded audio from {audio_duration:.2f}s to {video_duration:.2f}s")
+            elif audio_duration > video_duration:
+                # Trim audio to match video length if it's longer
+                mixed_audio = mixed_audio[:int(video_duration * 1000)]
+                logger.info(f"Trimmed audio from {audio_duration:.2f}s to {video_duration:.2f}s")
+            
+            # 5. Export mixed audio
+            logger.info(f"Exporting mixed audio to: {mixed_audio_path}")
+            mixed_audio.export(mixed_audio_path, format="wav")
+            
+            # Verify mixed audio was created
+            if not os.path.exists(mixed_audio_path) or os.path.getsize(mixed_audio_path) == 0:
+                raise Exception("Mixed audio file is empty or was not created")
+            
+            # 6. Mux audio with video using FFmpeg
             logger.info(f"Muxing video ({video_path}) with mixed audio...")
             
-            # Use copy codec for video, encode audio
+            # ✅ REMOVED -shortest flag since audio is now padded to full video length
             command = [
                 "ffmpeg", "-y",
                 "-i", video_path,
                 "-i", mixed_audio_path,
-                "-c:v", "libx264",  # Re-encode video
-                "-preset", "medium",  # Balance between speed and quality
-                "-crf", "23",  # Quality
+                "-c:v", "libx264",
+                "-preset", "medium",
+                "-crf", "23",
                 "-c:a", "aac",
                 "-b:a", "192k",
                 "-map", "0:v:0",
                 "-map", "1:a:0",
-                "-shortest",
-                "-movflags", "+faststart",  # Optimize for streaming
+                "-movflags", "+faststart",
                 final_output_path
             ]
             
@@ -197,7 +212,7 @@ class AudioService:
                 raise FileNotFoundError(f"Output file not created: {final_output_path}")
             
             file_size = os.path.getsize(final_output_path)
-            if file_size < 1024:  # Less than 1KB is suspicious
+            if file_size < 1024:
                 logger.warning(f"Output file is very small ({file_size} bytes), may be corrupted")
                 # Try alternative approach: use copy codec
                 logger.info("Retrying with copy codec...")
@@ -210,7 +225,6 @@ class AudioService:
                     "-b:a", "192k",
                     "-map", "0:v:0",
                     "-map", "1:a:0",
-                    "-shortest",
                     "-movflags", "+faststart",
                     final_output_path
                 ]
@@ -225,6 +239,39 @@ class AudioService:
             
             logger.info(f"✅ Dubbed video created successfully: {final_output_path} ({file_size} bytes)")
             
+            # Prepare result
+            result = {
+                "local_path": final_output_path,
+                "file_size": file_size
+            }
+            
+            # Upload to S3 if video_id is provided
+            if video_id:
+                try:
+                    # Upload original MP4 to S3
+                    s3_key = AudioService._upload_to_s3(final_output_path, video_id, language, quality)
+                    result["s3_key"] = s3_key
+                    logger.info(f"✅ MP4 uploaded to S3: {s3_key}")
+                    
+                    # Generate HLS from the MP4
+                    if generate_hls:
+                        logger.info(f"🎬 Generating HLS for video {video_id}...")
+                        hls_result = process_video_to_hls(
+                            input_path=final_output_path,
+                            video_id=video_id,
+                            language=language or "vi",
+                            qualities=["240p", "360p", "720p", "1080p"]
+                        )
+                        result["hls"] = hls_result
+                        logger.info(f"✅ HLS generated for video {video_id}: {len(hls_result.get('qualities', []))} qualities")
+                        logger.info(f"   Master playlist: {hls_result.get('master_playlist_s3')}")
+                        
+                except Exception as e:
+                    logger.error(f"❌ S3 upload/HLS failed: {e}")
+                    result["error"] = f"S3 upload/HLS failed: {str(e)}"
+            
+            return result
+            
         except subprocess.CalledProcessError as e:
             logger.error(f"FFmpeg failed: {e.stderr if e.stderr else str(e)}")
             raise
@@ -233,6 +280,41 @@ class AudioService:
             raise
         except Exception as e:
             logger.error(f"Mix and mux failed: {str(e)}")
+            raise
+    
+
+    @staticmethod
+    def _upload_to_s3(local_path: str, video_id: int, language: str, quality: str) -> str:
+        """Upload a file to S3 with proper naming and logging."""
+        # Generate S3 key with video_id
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = os.path.basename(local_path)
+        s3_key = f"videos/{video_id}/dubbed/{language}/{quality}/{timestamp}_{filename}"
+        
+        # Determine content type
+        ext = os.path.splitext(local_path)[1].lower()
+        content_type_map = {
+            ".mp4": "video/mp4",
+            ".mov": "video/quicktime",
+            ".avi": "video/x-msvideo",
+            ".mkv": "video/x-matroska",
+            ".webm": "video/webm"
+        }
+        content_type = content_type_map.get(ext, "video/mp4")
+        
+        # Log before upload
+        logger.info(f"📤 Uploading video {video_id} to S3: {s3_key}")
+        logger.info(f"   Local file: {local_path} ({os.path.getsize(local_path)} bytes)")
+        logger.info(f"   Content type: {content_type}")
+        
+        # Upload to S3
+        try:
+            upload_file(local_path, s3_key, content_type)
+            logger.info(f"✅ Successfully uploaded video {video_id} to S3: {s3_key}")
+            logger.info(f"   S3 URI: s3://{AWS_S3_BUCKET}/{s3_key}")
+            return s3_key
+        except Exception as e:
+            logger.error(f"❌ Failed to upload video {video_id} to S3: {str(e)}")
             raise
 
     @staticmethod

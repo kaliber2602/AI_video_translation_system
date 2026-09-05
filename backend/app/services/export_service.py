@@ -193,6 +193,8 @@ class ExportService:
         logger.info(f"✅ Translation exported: {output_path}")
         return output_path
 
+    # app/services/export_service.py - Update get_available_exports
+
     def get_available_exports(self, video) -> dict:
         """Get available export options for a video."""
         exports = {
@@ -219,11 +221,15 @@ class ExportService:
             }
         }
         
-        # Check final video
-        if video.output_path and os.path.exists(video.output_path):
-            file_size = os.path.getsize(video.output_path)
-            if file_size >= 1024:  # At least 1KB
+        # ✅ Check final video (S3 or local)
+        if video.output_path:
+            if video.output_path.startswith("videos/"):
+                # S3 path - consider it available
                 exports["final_video"]["available"] = True
+            elif os.path.exists(video.output_path):
+                file_size = os.path.getsize(video.output_path)
+                if file_size >= 1024:
+                    exports["final_video"]["available"] = True
         
         # Check audio
         if video.dubbed_audio_path and os.path.exists(video.dubbed_audio_path):

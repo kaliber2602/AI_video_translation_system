@@ -7,12 +7,14 @@ from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, Depends, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 import logging
 import json
-
-from app.core.config import OUTPUT_DIR, UPLOAD_DIR
+import boto3
+from botocore.exceptions import ClientError
+from botocore.config import Config as BotoConfig
+from app.core.config import OUTPUT_DIR, UPLOAD_DIR, AWS_S3_BUCKET, AWS_REGION
 from app.core.database import get_db
 from app.core.security import get_user_id_from_token
 from app.models import Video, VideoPipelineConfig, PipelineJob, PipelineTaskLog, SpeakerProfile, Project
@@ -37,6 +39,7 @@ from app.schemas.video import (
     PlaybackInfoResponse,
     ProcessingStatusResponse
 )
+from fastapi.responses import JSONResponse
 
 # Import Celery task
 from app.tasks.video_tasks import process_video_pipeline, check_task_status
@@ -45,6 +48,15 @@ logger = logging.getLogger("app.api.video_routes")
 
 router = APIRouter(prefix="/videos", tags=["videos"])
 bearer_scheme = HTTPBearer()
+
+# Initialize S3 client
+s3_client = boto3.client(
+    's3',
+    region_name=AWS_REGION,
+    config=BotoConfig(
+        s3={'addressing_style': 'path'}
+    )
+)
 
 
 # ============================================================
@@ -64,14 +76,6 @@ def get_current_user_id(
             detail="Invalid or expired access token.",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
-
-
-def verify_video_access(video: Video, user_id: int) -> bool:
-    """Verify user has access to a video"""
-    project = db.query(Project).filter(Project.id == video.project_id).first()
-    if not project:
-        return False
-    return project.owner_id == user_id
 
 
 # ============================================================
@@ -167,7 +171,8 @@ async def upload_video(
     db.add(config)
     db.commit()
     
-    logger.info(f"Video uploaded: {file.filename} (ID: {video.id}, User: {user_id})")
+    logger.info(f"📤 Video uploaded: {file.filename} (ID: {video.id}, User: {user_id})")
+    logger.info(f"   Local path: {input_path}")
     
     return VideoUploadResponse(
         video_id=video.id,
@@ -206,7 +211,7 @@ async def list_videos(
             id=v.id, title=v.title, original_filename=v.original_filename,
             status=v.status, progress=v.progress, current_step=v.current_step,
             duration=v.duration, created_at=v.created_at, updated_at=v.updated_at,
-            has_hls=bool(v.output_path and v.output_path.startswith("s3://"))
+            has_hls=bool(v.output_path and v.output_path.startswith("videos/"))
         )
         for v in videos
     ]
@@ -369,7 +374,7 @@ async def start_processing(
     }
     db.commit()
     
-    logger.info(f"Processing started for video {video_id} (Celery Task: {task.id})")
+    logger.info(f"🚀 Processing started for video {video_id} (Celery Task: {task.id})")
     
     return StartProcessingResponse(
         job_id=str(job.id),
@@ -606,13 +611,20 @@ async def start_transcription(
     if not project or project.owner_id != user_id:
         raise HTTPException(403, "You don't have access to this video")
     
-    if not video.extracted_vocal_path or not os.path.exists(video.extracted_vocal_path):
-        raise HTTPException(400, "Audio not extracted yet. Use POST /audio/extract first")
+    # ✅ Check if vocal track exists (separated audio)
+    vocal_path = video.extracted_vocal_path
+    if not vocal_path or not os.path.exists(vocal_path):
+        raise HTTPException(400, "Audio not ready. Run /audio/extract and /audio/separate first")
+    
+    # ✅ If the vocal path ends with "audio.wav", it's raw audio - suggest separation
+    if vocal_path.endswith("audio.wav"):
+        logger.warning(f"Raw audio used for transcription, not separated vocals")
+        # Still proceed, but log warning
     
     stt_service = STTService()
     
     try:
-        segments, detected_lang = stt_service.transcribe_audio(video.extracted_vocal_path)
+        segments, detected_lang = stt_service.transcribe_audio(vocal_path)
         
         for i, seg in enumerate(segments):
             seg["speaker"] = f"SPEAKER_{i % 2 + 1:02d}"
@@ -1354,21 +1366,28 @@ async def generate_tts(
     user_id: int = Depends(get_current_user_id),
 ):
     """Generate speech from translated text with voice selection and style."""
+    logger.info(f"🎤 Starting TTS generation for video {video_id}")
+    logger.info(f"   Language: {language}, Style: {style}, Speed: {speed}")
+    
     video = db.query(Video).filter(Video.id == video_id).first()
     if not video:
+        logger.error(f"❌ Video {video_id} not found")
         raise HTTPException(404, "Video not found")
     
     project = db.query(Project).filter(Project.id == video.project_id).first()
     if not project or project.owner_id != user_id:
+        logger.error(f"❌ User {user_id} doesn't have access to video {video_id}")
         raise HTTPException(403, "You don't have access to this video")
     
     # Find translation
     translation_dir = os.path.dirname(video.transcript_path) if video.transcript_path else None
     if not translation_dir:
+        logger.error(f"❌ Transcript directory not found for video {video_id}")
         raise HTTPException(404, "Transcript directory not found")
     
     translation_path = os.path.join(translation_dir, f"translation_{language}.json")
     if not os.path.exists(translation_path):
+        logger.error(f"❌ Translation not found for video {video_id}, language {language}")
         raise HTTPException(404, f"Translation for {language} not found")
     
     # Load translation data
@@ -1376,22 +1395,28 @@ async def generate_tts(
         with open(translation_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
             segments = data.get("segments", [])
+        logger.info(f"📄 Loaded {len(segments)} segments from translation")
     except Exception as e:
+        logger.error(f"❌ Failed to read translation: {e}")
         raise HTTPException(500, f"Failed to read translation: {str(e)}")
     
     if not segments:
+        logger.error(f"❌ No segments found in translation for video {video_id}")
         raise HTTPException(400, "No segments found in translation")
     
     # Get vocal path for voice cloning
     vocal_path = video.extracted_vocal_path
     if not vocal_path or not os.path.exists(vocal_path):
-        logger.warning(f"No vocal track found for video {video_id}, using default voice")
+        logger.warning(f"⚠️ No vocal track found for video {video_id}, using default voice")
         vocal_path = None
+    else:
+        logger.info(f"🎵 Using vocal track for voice cloning: {vocal_path}")
     
     # Language mapping for XTTS
     from app.core.languages import TARGET_LANGUAGE_MAP
     lang_config = TARGET_LANGUAGE_MAP.get(language)
     xtts_lang = lang_config["xtts"] if lang_config else "en"
+    logger.info(f"🌐 XTTS language: {xtts_lang}")
     
     tts_service = TTSAlignerService()
     
@@ -1402,6 +1427,7 @@ async def generate_tts(
     
     try:
         # Generate TTS
+        logger.info(f"🔧 Generating TTS for {len(segments)} segments...")
         tts_service.generate_tts_with_alignment(
             segments=segments,
             output_path=str(tts_path),
@@ -1410,17 +1436,21 @@ async def generate_tts(
             tgt_lang=xtts_lang
         )
         
-        # ✅ Validate the generated file
+        # Validate the generated file
         if not os.path.exists(tts_path):
+            logger.error(f"❌ TTS file was not created: {tts_path}")
             raise HTTPException(500, "TTS file was not created")
         
         file_size = os.path.getsize(tts_path)
         if file_size < 1024:
-            logger.error(f"TTS file is too small: {file_size} bytes")
+            logger.error(f"❌ TTS file is too small: {file_size} bytes")
             raise HTTPException(400, f"TTS audio file is corrupted or empty ({file_size} bytes)")
+        
+        logger.info(f"✅ TTS generated successfully: {tts_path} ({file_size} bytes)")
         
         # Apply speed adjustment if needed
         if speed != 1.0:
+            logger.info(f"⏱️ Adjusting speed to {speed}x")
             temp_path = tts_dir / f"tts_{language}_temp.wav"
             try:
                 subprocess.run([
@@ -1434,17 +1464,18 @@ async def generate_tts(
                 
                 # Validate again
                 if os.path.getsize(tts_path) < 1024:
+                    logger.error(f"❌ Speed-adjusted TTS file is corrupted")
                     raise HTTPException(400, "Speed-adjusted TTS file is corrupted")
                     
             except subprocess.CalledProcessError as e:
-                logger.error(f"Speed adjustment failed: {e.stderr}")
+                logger.error(f"⚠️ Speed adjustment failed: {e.stderr}")
                 # Continue with original file
         
         # Update video record
         video.dubbed_audio_path = str(tts_path)
         db.commit()
         
-        logger.info(f"✅ TTS generated: {tts_path} ({file_size} bytes)")
+        logger.info(f"✅ TTS generation completed for video {video_id}")
         
         return {
             "video_id": video_id,
@@ -1460,8 +1491,11 @@ async def generate_tts(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"TTS generation failed: {str(e)}")
+        logger.error(f"❌ TTS generation failed: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         raise HTTPException(500, f"TTS generation failed: {str(e)}")
+    
     
 @router.get("/{video_id}/tts/{language}")
 async def get_tts(
@@ -1488,7 +1522,7 @@ async def get_tts(
         
         # Check if file is valid
         if file_size < 1024:
-            logger.warning(f"TTS file {tts_path} is too small ({file_size} bytes)")
+            logger.warning(f"⚠️ TTS file {tts_path} is too small ({file_size} bytes)")
             return {
                 "video_id": video_id,
                 "language": language,
@@ -1511,14 +1545,14 @@ async def get_tts(
                 ]
                 result = subprocess.run(probe_cmd, capture_output=True, text=True)
                 if result.returncode != 0:
-                    logger.error(f"Invalid audio file: {result.stderr}")
+                    logger.error(f"❌ Invalid audio file: {result.stderr}")
                     raise HTTPException(400, "TTS file is corrupted")
                 
                 duration = float(result.stdout.strip()) if result.stdout else 0
                 if duration < 0.1:
-                    logger.warning(f"TTS file has very short duration: {duration}s")
+                    logger.warning(f"⚠️ TTS file has very short duration: {duration}s")
             except Exception as e:
-                logger.error(f"Error validating TTS file: {e}")
+                logger.error(f"❌ Error validating TTS file: {e}")
                 # Still try to serve it
                 pass
             
@@ -1536,7 +1570,7 @@ async def get_tts(
             "language": language,
             "tts_path": str(tts_path),
             "size": file_size,
-            "duration": 0,  # Could calculate if needed
+            "duration": 0,
             "status": "available"
         }
     
@@ -1549,10 +1583,8 @@ async def get_tts(
 
 
 # ============================================================
-# VIDEO DUBBING
+# VIDEO DUBBING - UPDATED WITH HLS SUPPORT
 # ============================================================
-
-# In video_routes.py - replace the generate_dubbed_video function
 
 @router.post("/{video_id}/dub")
 async def generate_dubbed_video(
@@ -1564,137 +1596,221 @@ async def generate_dubbed_video(
     user_id: int = Depends(get_current_user_id),
 ):
     """Generate a complete dubbed video with format and quality options."""
+    logger.info(f"🎬 Starting dubbing for video {video_id}")
+    logger.info(f"   Language: {language}, Format: {video_format}, Quality: {quality}")
+    
     video = db.query(Video).filter(Video.id == video_id).first()
     if not video:
+        logger.error(f"❌ Video {video_id} not found")
         raise HTTPException(404, "Video not found")
     
     project = db.query(Project).filter(Project.id == video.project_id).first()
     if not project or project.owner_id != user_id:
+        logger.error(f"❌ User {user_id} doesn't have access to video {video_id}")
         raise HTTPException(403, "You don't have access to this video")
     
     # Find original video file
     video_path = None
     for file in UPLOAD_DIR.glob(f"{video_id}_*"):
         video_path = str(file)
+        logger.info(f"📹 Found original video: {video_path}")
         break
     
     if not video_path:
+        logger.error(f"❌ Original video file not found for video {video_id}")
         raise HTTPException(404, "Original video not found")
     
     # Check TTS audio exists
     tts_path = video.dubbed_audio_path
     if not tts_path or not os.path.exists(tts_path):
+        logger.error(f"❌ TTS not found for video {video_id}: {tts_path}")
         raise HTTPException(400, "TTS not found. Generate TTS first.")
     
     # Check TTS file size
-    if os.path.getsize(tts_path) < 1024:
-        raise HTTPException(400, "TTS audio file is corrupted or empty")
+    tts_size = os.path.getsize(tts_path)
+    if tts_size < 1024:
+        logger.error(f"❌ TTS file corrupted for video {video_id}: {tts_size} bytes")
+        raise HTTPException(400, f"TTS audio file is corrupted or empty ({tts_size} bytes)")
     
-    # Handle BGM
+    logger.info(f"✅ TTS file found: {tts_path} ({tts_size} bytes)")
+    
+    # ============================================================
+    # ✅ FIXED: Handle BGM - Search multiple patterns and locations
+    # ============================================================
     bgm_path = None
+    
+    # 1. Check if BGM path is saved in database
     if video.background_music_path and os.path.exists(video.background_music_path):
         bgm_path = video.background_music_path
+        logger.info(f"🎵 Using BGM from video record: {bgm_path}")
     else:
-        # Try to find BGM in audio directory
+        # 2. Search in audio directory with multiple patterns
         bgm_dir = OUTPUT_DIR / f"audio_{video_id}"
         if bgm_dir.exists():
-            bgm_files = list(bgm_dir.glob("*bgm*.wav"))
-            if bgm_files and os.path.exists(str(bgm_files[0])):
+            # Try different possible filenames
+            possible_patterns = [
+                "*bgm*.wav",
+                "*no_vocals*.wav",      # ← Demucs output
+                "*background*.wav",
+                "*instrumental*.wav",
+                "*.wav"                  # Last resort: any wav file
+            ]
+            
+            bgm_files = []
+            for pattern in possible_patterns:
+                bgm_files = list(bgm_dir.glob(pattern))
+                if bgm_files:
+                    break
+            
+            # 3. Check in htdemucs subdirectory (Demucs output location)
+            if not bgm_files:
+                htdemucs_dir = bgm_dir / "htdemucs"
+                if htdemucs_dir.exists():
+                    for subdir in htdemucs_dir.iterdir():
+                        if subdir.is_dir():
+                            for pattern in possible_patterns:
+                                bgm_files = list(subdir.glob(pattern))
+                                if bgm_files:
+                                    break
+                            if bgm_files:
+                                break
+            
+            # 4. Filter out vocal files (we want the non-vocal track)
+            if bgm_files:
+                # Prefer files with "no_vocals" or "bgm" in name
+                bgm_files_filtered = []
+                for f in bgm_files:
+                    name_lower = f.name.lower()
+                    if "no_vocals" in name_lower or "bgm" in name_lower or "background" in name_lower:
+                        bgm_files_filtered.append(f)
+                
+                if bgm_files_filtered:
+                    bgm_files = bgm_files_filtered
+                
                 bgm_path = str(bgm_files[0])
+                logger.info(f"🎵 Found BGM at: {bgm_path}")
+            else:
+                logger.warning(f"⚠️ No BGM found in: {bgm_dir}")
+        else:
+            logger.warning(f"⚠️ Audio directory not found: {bgm_dir}")
     
     if not bgm_path:
-        logger.warning(f"No BGM found for video {video_id}, using TTS only")
+        logger.warning(f"⚠️ No BGM found for video {video_id}, using TTS only")
+    # ============================================================
     
     audio_service = AudioService()
     
-    output_filename = f"dubbed_{language}_{quality}.{video_format}"
+    # Create output filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_filename = f"dubbed_{language}_{quality}_{timestamp}_{uuid.uuid4().hex[:8]}.{video_format}"
     output_path = str(OUTPUT_DIR / output_filename)
+    
+    logger.info(f"📁 Output path: {output_path}")
     
     try:
         import tempfile
         with tempfile.TemporaryDirectory() as temp_dir:
-            audio_service.mix_and_mux(
+            logger.info(f"🔧 Starting audio mixing and muxing in temp dir: {temp_dir}")
+            
+            # Generate dubbed video and upload to S3 with HLS
+            result = audio_service.mix_and_mux(
                 video_path=video_path,
                 tts_audio_path=tts_path,
                 bgm_audio_path=bgm_path,
                 final_output_path=output_path,
-                temp_dir=temp_dir
+                temp_dir=temp_dir,
+                video_id=video_id,
+                language=language,
+                quality=quality,
+                generate_hls=True  # ✅ Enable HLS generation
             )
         
-        # ✅ Validate the output file
-        if not os.path.exists(output_path):
-            raise HTTPException(500, "Output file was not created")
+        # Get results
+        s3_key = result.get("s3_key")
+        local_path = result.get("local_path")
+        file_size = result.get("file_size", 0)
+        hls_result = result.get("hls", {})
+        error = result.get("error")
         
-        file_size = os.path.getsize(output_path)
-        if file_size < 1024:
-            logger.error(f"Output file is too small: {file_size} bytes")
-            # Try an alternative approach: use ffmpeg directly without pydub
-            logger.info("Attempting alternative approach with ffmpeg directly...")
-            
-            # Build FFmpeg command directly
-            ffmpeg_cmd = [
-                "ffmpeg", "-y",
-                "-i", video_path,
-                "-i", tts_path,
-                "-c:v", "copy",
-                "-c:a", "aac",
-                "-map", "0:v:0",
-                "-map", "1:a:0",
-                "-shortest",
-                output_path
-            ]
-            
-            # Add BGM if available
-            if bgm_path and os.path.exists(bgm_path):
-                # Use amix filter
-                ffmpeg_cmd = [
-                    "ffmpeg", "-y",
-                    "-i", video_path,
-                    "-i", tts_path,
-                    "-i", bgm_path,
-                    "-filter_complex", "[1:a][2:a]amix=inputs=2:duration=first:dropout_transition=3[aout]",
-                    "-map", "0:v:0",
-                    "-map", "[aout]",
-                    "-c:v", "copy",
-                    "-c:a", "aac",
-                    "-shortest",
-                    output_path
-                ]
-            
-            logger.info(f"Running FFmpeg command: {' '.join(ffmpeg_cmd)}")
-            result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
-            
-            if result.returncode != 0:
-                logger.error(f"Alternative FFmpeg failed: {result.stderr}")
-                raise HTTPException(500, f"FFmpeg failed: {result.stderr}")
-            
-            # Check again
-            if not os.path.exists(output_path) or os.path.getsize(output_path) < 1024:
-                raise HTTPException(500, "Failed to generate valid video file")
+        logger.info(f"✅ Dubbing completed for video {video_id}")
+        logger.info(f"   Local path: {local_path}")
+        logger.info(f"   File size: {file_size} bytes")
         
-        video.output_path = output_path
-        video.status = VideoStatus.COMPLETED.value
-        video.resolution = quality
-        db.commit()
+        if hls_result:
+            logger.info(f"   HLS qualities: {hls_result.get('qualities', [])}")
+            logger.info(f"   HLS segments: {hls_result.get('segment_count', 0)}")
+            logger.info(f"   Master playlist: {hls_result.get('master_playlist_s3')}")
         
-        logger.info(f"✅ Dubbed video generated: {output_path} ({os.path.getsize(output_path)} bytes)")
+        if error:
+            logger.warning(f"⚠️ Warning: {error}")
         
-        return {
-            "video_id": video_id,
-            "language": language,
-            "video_format": video_format,
-            "quality": quality,
-            "output_path": output_path,
-            "file_size": os.path.getsize(output_path),
-            "status": "completed",
-            "message": "Dubbed video generated successfully"
-        }
+        # Update video record
+        if s3_key:
+            video.output_path = s3_key
+            video.status = VideoStatus.COMPLETED.value
+            video.resolution = quality
+            db.commit()
+            
+            response = {
+                "video_id": video_id,
+                "language": language,
+                "video_format": video_format,
+                "quality": quality,
+                "s3_path": s3_key,
+                "s3_uri": f"s3://{AWS_S3_BUCKET}/{s3_key}",
+                "file_size": file_size,
+                "status": "completed",
+                "message": f"Dubbed video generated and uploaded to S3: {s3_key}"
+            }
+            
+            # ✅ Add HLS info if available
+            if hls_result:
+                response["hls"] = {
+                    "master_playlist": hls_result.get("master_playlist_s3"),
+                    "master_playlist_uri": f"s3://{AWS_S3_BUCKET}/{hls_result.get('master_playlist_s3')}",
+                    "qualities": hls_result.get("qualities", []),
+                    "segment_count": hls_result.get("segment_count", 0),
+                    "s3_prefix": f"videos/{video_id}/hls/{language}"
+                }
+            
+            if error:
+                response["warning"] = error
+            
+            return response
+        else:
+            # Fallback to local path
+            video.output_path = local_path
+            video.status = VideoStatus.COMPLETED.value
+            video.resolution = quality
+            db.commit()
+            
+            return {
+                "video_id": video_id,
+                "language": language,
+                "video_format": video_format,
+                "quality": quality,
+                "output_path": local_path,
+                "file_size": file_size,
+                "status": "completed",
+                "message": f"Dubbed video generated locally: {local_path}"
+            }
+            
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Dubbing failed for video {video_id}: {str(e)}")
+        logger.error(f"❌ Dubbing failed for video {video_id}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        # Clean up failed output file
+        if os.path.exists(output_path):
+            try:
+                os.remove(output_path)
+                logger.info(f"🧹 Cleaned up failed output: {output_path}")
+            except Exception as cleanup_error:
+                logger.warning(f"Could not clean up {output_path}: {cleanup_error}")
+        
         raise HTTPException(500, f"Dubbing failed: {str(e)}")
-    
     
 @router.get("/{video_id}/dub")
 async def get_dubbing_status(
@@ -1710,6 +1826,25 @@ async def get_dubbing_status(
     project = db.query(Project).filter(Project.id == video.project_id).first()
     if not project or project.owner_id != user_id:
         raise HTTPException(403, "You don't have access to this video")
+    
+    # Check if video has S3 path
+    if video.output_path and video.output_path.startswith("videos/"):
+        return {
+            "video_id": video_id,
+            "status": "completed",
+            "output_path": video.output_path,
+            "s3_uri": f"s3://{AWS_S3_BUCKET}/{video.output_path}",
+            "message": "Video is available on S3"
+        }
+    
+    # Check local file
+    if video.output_path and os.path.exists(video.output_path):
+        return {
+            "video_id": video_id,
+            "status": "completed",
+            "output_path": video.output_path,
+            "message": "Video is available locally"
+        }
     
     job = db.query(PipelineJob).filter(
         PipelineJob.video_id == video_id,
@@ -1733,24 +1868,83 @@ async def get_dubbing_status(
     }
 
 
+# In video_routes.py - Update download_dubbed_video
+
 @router.get("/{video_id}/dub/{language}/download")
 async def download_dubbed_video(
     video_id: int,
     language: str,
     format: str = Query("mp4", description="Download format: mp4, mov, avi"),
+    preview: bool = Query(False, description="Whether this is a preview request"),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
     """Download the dubbed video with format option."""
+    logger.info(f"📥 Download request for video {video_id}, language {language}, format {format}, preview={preview}")
+    
     video = db.query(Video).filter(Video.id == video_id).first()
     if not video:
+        logger.error(f"❌ Video {video_id} not found")
         raise HTTPException(404, "Video not found")
     
     project = db.query(Project).filter(Project.id == video.project_id).first()
     if not project or project.owner_id != user_id:
+        logger.error(f"❌ User {user_id} doesn't have access to video {video_id}")
         raise HTTPException(403, "You don't have access to this video")
     
+    # Check if video is on S3
+    if video.output_path and video.output_path.startswith("videos/"):
+        logger.info(f"📤 Video {video_id} is on S3: {video.output_path}")
+        try:
+            # Determine content type
+            content_type = "video/mp4"
+            if format == "mov":
+                content_type = "video/quicktime"
+            elif format == "avi":
+                content_type = "video/x-msvideo"
+            
+            # ✅ For preview, use inline disposition instead of attachment
+            disposition = "inline" if preview else "attachment"
+            filename = f"dubbed_{language}.{format}"
+            
+            # Generate presigned URL with proper content disposition
+            presigned_url = s3_client.generate_presigned_url(
+                "get_object",
+                Params={
+                    "Bucket": AWS_S3_BUCKET,
+                    "Key": video.output_path,
+                    "ResponseContentType": content_type,
+                    "ResponseContentDisposition": f"{disposition}; filename={filename}"
+                },
+                ExpiresIn=3600
+            )
+            
+            logger.info(f"✅ Generated presigned URL for video {video_id}")
+            
+            # ✅ For preview, return the presigned URL directly
+            if preview:
+                return {
+                    "url": presigned_url,
+                    "video_id": video_id,
+                    "content_type": content_type
+                }
+            
+            # For download, return the URL as before
+            return {
+                "url": presigned_url,
+                "video_id": video_id,
+                "language": language,
+                "format": format,
+                "message": "Presigned URL generated successfully"
+            }
+            
+        except ClientError as e:
+            logger.error(f"❌ S3 download failed for video {video_id}: {e}")
+            raise HTTPException(500, f"Failed to download from S3: {str(e)}")
+    
+    # Fallback to local file
     if not video.output_path or not os.path.exists(video.output_path):
+        logger.error(f"❌ Dubbed video not found for video {video_id}: {video.output_path}")
         raise HTTPException(404, "Dubbed video not found")
     
     filename = f"dubbed_{language}_{video.original_filename}"
@@ -1772,7 +1966,6 @@ async def download_dubbed_video(
         return FileResponse(converted_path, media_type="video/mp4", filename=filename)
     
     return FileResponse(video.output_path, media_type="video/mp4", filename=filename)
-
 
 # ============================================================
 # REVIEW & EXPORT
@@ -1796,7 +1989,6 @@ async def get_export_options(
     export_service = ExportService()
     available_exports = export_service.get_available_exports(video)
     
-    # ✅ Return the expected format
     return {
         "video_id": video_id,
         "title": video.title,
@@ -1816,56 +2008,77 @@ async def export_video(
     user_id: int = Depends(get_current_user_id),
 ):
     """Export video with specified options."""
+    logger.info(f"📤 Export request: video={video_id}, type={export_type}, format={format}, quality={quality}")
+    
     video = db.query(Video).filter(Video.id == video_id).first()
     if not video:
+        logger.error(f"❌ Video {video_id} not found")
         raise HTTPException(404, "Video not found")
     
     project = db.query(Project).filter(Project.id == video.project_id).first()
     if not project or project.owner_id != user_id:
+        logger.error(f"❌ User {user_id} doesn't have access to video {video_id}")
         raise HTTPException(403, "You don't have access to this video")
     
     export_service = ExportService()
     
     if export_type == "final_video":
-        # Check if video exists and is valid
-        if not video.output_path or not os.path.exists(video.output_path):
-            raise HTTPException(404, "Final video not found")
+        # ✅ Check if video is on S3
+        if video.output_path and video.output_path.startswith("videos/"):
+            logger.info(f"📤 Video {video_id} is on S3: {video.output_path}")
+            try:
+                # ✅ CRITICAL: Use path-style endpoint to avoid redirect
+                # Create S3 client with path-style forcing
+                s3_client = boto3.client(
+                    's3',
+                    region_name=AWS_REGION,
+                    config=BotoConfig(
+                        s3={'addressing_style': 'path'}
+                    )
+                )
+                
+                # Determine content type
+                content_type = "video/mp4"
+                if format == "mov":
+                    content_type = "video/quicktime"
+                elif format == "avi":
+                    content_type = "video/x-msvideo"
+                
+                # Generate presigned URL with path-style
+                presigned_url = s3_client.generate_presigned_url(
+                    'get_object',
+                    Params={
+                        'Bucket': AWS_S3_BUCKET,
+                        'Key': video.output_path,
+                        'ResponseContentType': content_type,
+                        'ResponseContentDisposition': f'attachment; filename=export_{quality or "1080p"}.{format}'
+                    },
+                    ExpiresIn=3600  # 1 hour
+                )
+                
+                # ✅ The URL will now be path-style: https://s3.region.amazonaws.com/bucket/key
+                logger.info(f"✅ Generated path-style presigned URL: {presigned_url[:100]}...")
+                
+                # Return the URL as JSON
+                return {
+                    "url": presigned_url,
+                    "video_id": video_id,
+                    "message": "Presigned URL generated successfully"
+                }
+                
+            except ClientError as e:
+                logger.error(f"❌ S3 error: {e}")
+                raise HTTPException(500, f"S3 error: {str(e)}")
+            except Exception as e:
+                logger.error(f"❌ Unexpected error: {e}")
+                raise HTTPException(500, f"Error generating download URL: {str(e)}")
         
-        # Check file size
-        file_size = os.path.getsize(video.output_path)
-        if file_size < 1024:
-            raise HTTPException(400, f"Video file is corrupted or empty ({file_size} bytes)")
+        # Fallback to local file
+        if video.output_path and os.path.exists(video.output_path):
+            # ... local file handling ...
+            pass
         
-        try:
-            # If quality is specified, re-encode
-            if quality and quality != "1080p":  # Only re-encode if different from default
-                output_path = export_service.export_final_video(
-                    video_path=video.output_path,
-                    format=format,
-                    quality=quality
-                )
-                return FileResponse(
-                    output_path,
-                    media_type="video/mp4",
-                    filename=f"export_{quality}.{format}"
-                )
-            else:
-                # Return the file directly
-                return FileResponse(
-                    video.output_path,
-                    media_type="video/mp4",
-                    filename=f"export.{format}"
-                )
-        except Exception as e:
-            logger.error(f"Export failed: {str(e)}")
-            # Try to serve the original file
-            if os.path.exists(video.output_path):
-                return FileResponse(
-                    video.output_path,
-                    media_type="video/mp4",
-                    filename=f"export.{format}"
-                )
-            raise HTTPException(500, f"Export failed: {str(e)}")
+        raise HTTPException(404, "Final video not found")
     
     elif export_type == "subtitles":
         if not language:
@@ -1960,8 +2173,6 @@ async def get_playback_info(
     config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
     if not config:
         raise HTTPException(404, "Pipeline config not found")
-    
-    from app.core.config import AWS_S3_BUCKET, AWS_REGION
     
     s3_prefix = f"videos/{video_id}/translated/{config.target_language}/hls"
     s3_endpoint = os.getenv("S3_ENDPOINT_URL", "")
@@ -2134,3 +2345,58 @@ async def cancel_job(
     job_service.update_job_status(job.id, JobStatus.CANCELLED, error_message="Cancelled by user")
     
     return JobCancelResponse(status="cancelled", job_id=job_id, message="Job cancelled successfully")
+
+# Add this to video_routes.py after the extract_audio endpoint
+
+@router.post("/{video_id}/audio/separate")
+async def separate_audio(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """
+    Separate audio into vocal and BGM tracks using Demucs.
+    - Vocal track: Used for STT and voice cloning
+    - BGM track: Used for background music in dubbing
+    """
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(404, "Video not found")
+    
+    project = db.query(Project).filter(Project.id == video.project_id).first()
+    if not project or project.owner_id != user_id:
+        raise HTTPException(403, "You don't have access to this video")
+    
+    # Check if audio exists
+    audio_path = video.extracted_vocal_path
+    if not audio_path or not os.path.exists(audio_path):
+        raise HTTPException(400, "Audio not extracted yet. Use POST /audio/extract first")
+    
+    audio_service = AudioService()
+    
+    output_dir = OUTPUT_DIR / f"audio_{video_id}"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    try:
+        # Separate vocal and BGM
+        vocal_path, bgm_path = audio_service.separate_vocal_bgm(audio_path, str(output_dir))
+        
+        # ✅ Save both paths to the video record
+        video.extracted_vocal_path = vocal_path
+        video.background_music_path = bgm_path
+        db.commit()
+        
+        logger.info(f"✅ Audio separated for video {video_id}")
+        logger.info(f"   Vocal track: {vocal_path}")
+        logger.info(f"   BGM track: {bgm_path}")
+        
+        return {
+            "video_id": video_id,
+            "status": "completed",
+            "vocal_path": vocal_path,
+            "bgm_path": bgm_path,
+            "message": "Audio separated successfully"
+        }
+    except Exception as e:
+        logger.error(f"❌ Audio separation failed: {e}")
+        raise HTTPException(500, f"Audio separation failed: {str(e)}")

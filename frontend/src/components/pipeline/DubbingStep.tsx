@@ -64,53 +64,64 @@ export default function DubbingStep() {
     }
   }, [state.targetLanguage]);
 
-  const loadDubbingStatus = async () => {
+const loadDubbingStatus = async () => {
     if (!state.video?.videoId) {
-      setIsLoading(false);
-      return;
+        setIsLoading(false);
+        return;
     }
     setIsLoading(true);
     setDubbingError(null);
 
     try {
-      // Check TTS status
-      try {
-        const ttsData = await videoService.getTTS(state.video.videoId, selectedLanguage);
-        if (ttsData && ttsData.status === "available") {
-          setTtsStatus("completed");
-          const url = `/api/videos/${state.video.videoId}/tts/${selectedLanguage}?preview=true`;
-          setTtsAudioUrl(url);
-        } else {
-          setTtsStatus("not_generated");
+        // Check TTS status
+        try {
+            const ttsData = await videoService.getTTS(state.video.videoId, selectedLanguage);
+            if (ttsData && ttsData.status === "available") {
+                setTtsStatus("completed");
+                const url = `/api/videos/${state.video.videoId}/tts/${selectedLanguage}?preview=true`;
+                setTtsAudioUrl(url);
+            } else {
+                setTtsStatus("not_generated");
+            }
+        } catch (error) {
+            setTtsStatus("not_generated");
         }
-      } catch (error) {
-        setTtsStatus("not_generated");
-      }
 
-      // Check dubbing status
-      try {
-        const status = await videoService.getDubbingStatus(state.video.videoId);
-        setDubbingStatus(status.status);
-        
-        if (status.status === "completed" && status.output_path) {
-          setDubbedVideo(status);
-          const url = `/api/videos/${state.video.videoId}/dub/${selectedLanguage}/download?video_format=${selectedFormat}`;
-          setVideoUrl(url);
+        // Check dubbing status - ✅ UPDATE THIS SECTION
+        try {
+            const status = await videoService.getDubbingStatus(state.video.videoId);
+            setDubbingStatus(status.status);
+            
+            if (status.status === "completed" && status.output_path) {
+                setDubbedVideo(status);
+                try {
+                    // ✅ Get the actual preview URL from S3
+                    const previewUrl = await videoService.getDubbedVideoPreview(
+                        state.video.videoId,
+                        selectedLanguage
+                    );
+                    setVideoUrl(previewUrl);
+                    console.log("✅ Video preview URL loaded:", previewUrl);
+                } catch (error) {
+                    console.error("Failed to get preview URL:", error);
+                    // Fallback
+                    const url = `/api/videos/${state.video.videoId}/dub/${selectedLanguage}/download?video_format=${selectedFormat}`;
+                    setVideoUrl(url);
+                }
+            }
+        } catch (error: any) {
+            if (error.message?.includes("404")) {
+                setDubbingStatus("not_started");
+            } else {
+                setDubbingError(error.message || "Failed to load dubbing status");
+            }
         }
-      } catch (error: any) {
-        if (error.message?.includes("404")) {
-          setDubbingStatus("not_started");
-        } else {
-          setDubbingError(error.message || "Failed to load dubbing status");
-        }
-      }
     } catch (error: any) {
-      console.error("Failed to load status:", error);
+        console.error("Failed to load status:", error);
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
-  };
-
+};
   const loadSpeakers = async () => {
     if (!state.video?.videoId) return;
     try {
@@ -216,27 +227,47 @@ export default function DubbingStep() {
   // ============================================================
 
   const handleDownload = async () => {
-    if (!state.video?.videoId || !dubbedVideo) return;
-    
-    try {
-      const blob = await videoService.downloadDubbedVideo(
-        state.video.videoId,
-        selectedLanguage,
-        selectedFormat
-      );
+      if (!state.video?.videoId || !dubbedVideo) return;
       
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `dubbed_${selectedLanguage}_${selectedQuality}.${selectedFormat}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (error: any) {
-      console.error("Download failed:", error);
-      setDubbingError(error.message || "Failed to download dubbed video");
-    }
+      try {
+          const response = await videoService.downloadDubbedVideo(
+              state.video.videoId,
+              selectedLanguage,
+              selectedFormat
+          );
+          
+          // ✅ If response is a presigned URL object
+          if (response && response.url) {
+              // Download directly from S3 presigned URL
+              const downloadResponse = await fetch(response.url);
+              const blob = await downloadResponse.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `dubbed_${selectedLanguage}_${selectedQuality}.${selectedFormat}`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+              return;
+          }
+          
+          // If response is a Blob (old format)
+          if (response instanceof Blob) {
+              const url = URL.createObjectURL(response);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `dubbed_${selectedLanguage}_${selectedQuality}.${selectedFormat}`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+              return;
+          }
+      } catch (error: any) {
+          console.error("Download failed:", error);
+          setDubbingError(error.message || "Failed to download dubbed video");
+      }
   };
 
   const togglePlay = () => {
