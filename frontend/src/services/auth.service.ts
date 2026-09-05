@@ -1,4 +1,5 @@
 import api from "./api/axios";
+import { getRefreshToken } from "./api/token";
 
 import type {
   RegisterRequest,
@@ -11,6 +12,7 @@ import type {
   ForgotPasswordResponse,
   ResetPasswordRequest,
   ResetPasswordResponse,
+  LogoutResponse,
 } from "../types/auth";
 
 export const register = async (
@@ -39,8 +41,16 @@ export const refreshToken = async (
 };
 
 
-export async function logout() {
-  return api.post("api/auth/logout");
+export async function logout(refreshToken?: string): Promise<LogoutResponse | void> {
+  const token = refreshToken || getRefreshToken();
+  if (!token) {
+    return;
+  }
+
+  const response = await api.post<LogoutResponse>("/api/auth/logout", {
+    refresh_token: token,
+  });
+  return response.data;
 }
 
 export const getMe =

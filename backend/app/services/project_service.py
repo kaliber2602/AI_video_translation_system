@@ -1,8 +1,11 @@
+import logging
 from typing import Any
 
 import psycopg2
 
 from app.core.database import get_connection
+
+logger = logging.getLogger(__name__)
 
 
 # =========================================================
@@ -970,14 +973,16 @@ def add_project_member(
         with connection.cursor() as cursor:
             # 1. Verify project ownership
             cursor.execute(
-                "SELECT id FROM projects WHERE id = %s AND owner_id = %s",
+                "SELECT id, name FROM projects WHERE id = %s AND owner_id = %s",
                 (project_id, owner_id),
             )
-            if cursor.fetchone() is None:
+            proj = cursor.fetchone()
+            if proj is None:
                 raise ValueError("Project not found or you are not the owner.")
+            project_name = proj[1]
 
             # 2. Check if trying to invite self
-            cursor.execute("SELECT id, email FROM users WHERE id = %s", (owner_id,))
+            cursor.execute("SELECT id, email, full_name FROM users WHERE id = %s", (owner_id,))
             owner_user = cursor.fetchone()
             cleaned_email = email.strip().lower()
             if owner_user and owner_user[1].lower() == cleaned_email:
@@ -1025,6 +1030,29 @@ def add_project_member(
             row = cursor.fetchone()
 
         connection.commit()
+
+        if target_user_id:
+            try:
+                from app.services.notification_service import create_notification
+                inviter_name = (owner_user[2] if owner_user and len(owner_user) > 2 and owner_user[2] else None) or (owner_user[1] if owner_user else "A team member")
+                create_notification(
+                    user_id=target_user_id,
+                    type="collaboration",
+                    title="Project Invitation",
+                    message=f"{inviter_name} invited you to project '{project_name}' as {role}.",
+                    action_url=f"/workspace/project/{project_id}",
+                    target_type="project",
+                    target_id=project_id,
+                    metadata={
+                        "event": "project.member.invited",
+                        "project_id": project_id,
+                        "project_name": project_name,
+                        "role": role,
+                        "invited_by": owner_id,
+                    },
+                )
+            except Exception as notif_err:
+                logger.error(f"Failed to create project invitation notification: {notif_err}")
 
         return {
             "id": row[0],

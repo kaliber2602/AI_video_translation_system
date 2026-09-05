@@ -25,6 +25,7 @@ import type {
   AdminJobResponse,
   AdminJobDetailResponse,
 } from "../../types/admin";
+import ConfirmationDialog from "../../components/common/ConfirmationDialog";
 
 export default function AdminJobsPage() {
   const { t } = useTranslation(["admin", "common"]);
@@ -41,6 +42,7 @@ export default function AdminJobsPage() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [jobDetail, setJobDetail] = useState<AdminJobDetailResponse | null>(null);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [cancelingJobId, setCancelingJobId] = useState<string | null>(null);
 
   useEffect(() => {
     loadJobs();
@@ -97,16 +99,22 @@ export default function AdminJobsPage() {
     }
   };
 
-  const handleCancel = async (jobId: string) => {
-    if (!window.confirm("Bạn có chắc chắn muốn hủy tiến trình đang xử lý này không?")) return;
+  const handleCancel = (jobId: string) => {
+    setCancelingJobId(jobId);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancelingJobId) return;
     try {
-      const res = await cancelAdminJob(jobId);
+      const res = await cancelAdminJob(cancelingJobId);
       if (res.success) {
         toast.success(res.message || "Đã hủy tiến trình.");
         loadJobs();
       }
     } catch (err) {
       toast.error("Không thể hủy tiến trình.");
+    } finally {
+      setCancelingJobId(null);
     }
   };
 
@@ -490,6 +498,18 @@ export default function AdminJobsPage() {
           </div>
         </div>
       )}
+
+      {/* Confirmation Dialog for Job Cancellation */}
+      <ConfirmationDialog
+        isOpen={Boolean(cancelingJobId)}
+        onClose={() => setCancelingJobId(null)}
+        onConfirm={handleConfirmCancel}
+        title="Hủy tiến trình"
+        message="Bạn có chắc chắn muốn hủy tiến trình đang xử lý này không?"
+        confirmLabel="Hủy tiến trình"
+        cancelLabel="Đóng"
+        isDestructive
+      />
     </div>
   );
 }

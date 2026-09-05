@@ -8,7 +8,10 @@ import {
   Save,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+
+import StatusBadge from "../components/common/StatusBadge";
+import ConfirmationDialog from "../components/common/ConfirmationDialog";
 
 import UploadStep from "../components/pipeline/UploadStep";
 import TranscriptStep from "../components/pipeline/TranscriptStep";
@@ -45,8 +48,26 @@ function renderStep(step: string) {
 export default function VideoPipeline() {
   const { t } = useTranslation(["pipeline", "common"]);
   const navigate = useNavigate();
+  const { projectId, videoId } = useParams<{ projectId: string; videoId: string }>();
   const [activeStep, setActiveStep] = useState("translation");
   const [isSaved, setIsSaved] = useState(true);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+
+  const goBack = () => {
+    if (projectId) {
+      navigate(`/workspace/project/${projectId}`);
+    } else {
+      navigate("/workspace");
+    }
+  };
+
+  const handleBack = () => {
+    if (!isSaved) {
+      setShowLeaveConfirm(true);
+    } else {
+      goBack();
+    }
+  };
 
   const pipelineSteps = [
     {
@@ -110,9 +131,9 @@ export default function VideoPipeline() {
         <div className="flex min-w-0 items-center gap-2.5 sm:gap-4">
           <button
             type="button"
-            onClick={() => navigate("/workspace")}
+            onClick={handleBack}
             aria-label={t("common:back")}
-            className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] transition-all duration-200 ease-out hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+            className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] transition-all duration-200 ease-out hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] cursor-pointer"
           >
             <ArrowLeft size={17} />
           </button>
@@ -120,16 +141,14 @@ export default function VideoPipeline() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <h1 className="truncate text-sm font-bold text-[var(--color-text-primary)] sm:text-lg">
-                NLP Introduction
+                Video #{videoId || "1"}
               </h1>
 
-              <span className="rounded-full bg-[#FFF2D8] px-2.5 py-0.5 text-[11px] sm:text-xs font-bold text-[#C68A1C] dark:bg-amber-950/50 dark:text-amber-300">
-                {t("pipeline:header.inProgress")}
-              </span>
+              <StatusBadge status="processing" label={t("pipeline:header.inProgress")} />
             </div>
 
             <p className="mt-0.5 truncate text-[11px] sm:text-xs text-[var(--color-text-muted)]">
-              NLP Tutorials / nlp-introduction.mp4
+              {projectId ? `Project #${projectId}` : "Project"} / video-{videoId || "1"}.mp4
             </p>
           </div>
         </div>
@@ -324,6 +343,20 @@ export default function VideoPipeline() {
           </div>
         </section>
       </main>
+
+      <ConfirmationDialog
+        isOpen={showLeaveConfirm}
+        onClose={() => setShowLeaveConfirm(false)}
+        onConfirm={goBack}
+        title={t("pipeline:unsavedWarningTitle", "Rời khỏi tiến trình?")}
+        message={t(
+          "pipeline:unsavedWarningMessage",
+          "Bạn có những thay đổi chưa được lưu. Nếu rời đi bây giờ, các thay đổi sẽ bị mất."
+        )}
+        confirmLabel={t("common:leave", "Rời đi")}
+        cancelLabel={t("common:stay", "Ở lại")}
+        isDestructive
+      />
     </div>
   );
 }

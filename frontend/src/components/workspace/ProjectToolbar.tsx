@@ -11,6 +11,7 @@ import {
 import { useTranslation } from "react-i18next";
 import type { TagResponse } from "../../types/tag";
 import ViewSwitcher, { type ViewMode } from "./ViewSwitcher";
+import Button from "../common/Button";
 
 export type SortOption =
   | "updated-recent"
@@ -244,27 +245,27 @@ export default function ProjectToolbar({
 
         {/* Empty Trash Button in Trash mode */}
         {isTrashMode && onEmptyTrash && (
-          <button
-            type="button"
+          <Button
+            variant="danger"
+            size="md"
             onClick={onEmptyTrash}
             disabled={trashCount === 0}
-            className="flex h-11 items-center gap-2 rounded-xl bg-red-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            icon={<Trash2 size={16} />}
           >
-            <Trash2 size={16} />
             <span className="hidden sm:inline">{t("workspace:trash.emptyTrashButton", "Dọn sạch thùng rác")}</span>
-          </button>
+          </Button>
         )}
 
         {/* New Project CTA Button in normal modes */}
         {!isTrashMode && onNewProject && (
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            size="md"
             onClick={onNewProject}
-            className="flex h-11 items-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 text-xs font-bold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)] hover:shadow-md"
+            icon={<FolderPlus size={16} />}
           >
-            <FolderPlus size={16} />
             <span className="hidden md:inline">{t("workspace:newProject")}</span>
-          </button>
+          </Button>
         )}
       </div>
     </section>

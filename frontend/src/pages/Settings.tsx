@@ -3,6 +3,7 @@ import {
   useState,
   type ChangeEvent,
 } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { useTheme } from "../app/providers/ThemeContext";
@@ -15,9 +16,23 @@ import type { UserResponse } from "../types/auth";
 import type { SettingsSection } from "../types/settings";
 import SettingsLayout from "../layouts/SettingsLayout";
 
+const VALID_SECTIONS: SettingsSection[] = [
+  "account",
+  "general",
+  "workspace",
+  "ai",
+  "translation",
+  "billing",
+  "notifications",
+  "integrations",
+  "security",
+  "privacy",
+];
+
 export default function Setting() {
   const { t } = useTranslation(["settings", "auth", "common"]);
   const { theme, setTheme } = useTheme();
+  const [searchParams] = useSearchParams();
 
   // =========================================================
   // User
@@ -36,8 +51,23 @@ export default function Setting() {
   // Settings
   // =========================================================
 
+  const getInitialSection = (): SettingsSection => {
+    const tab = searchParams.get("tab") || searchParams.get("section");
+    if (tab && VALID_SECTIONS.includes(tab as SettingsSection)) {
+      return tab as SettingsSection;
+    }
+    return "account";
+  };
+
   const [activeSection, setActiveSection] =
-    useState<SettingsSection>("account");
+    useState<SettingsSection>(getInitialSection);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab") || searchParams.get("section");
+    if (tab && VALID_SECTIONS.includes(tab as SettingsSection)) {
+      setActiveSection(tab as SettingsSection);
+    }
+  }, [searchParams]);
 
   const [isSaved, setIsSaved] =
     useState(true);

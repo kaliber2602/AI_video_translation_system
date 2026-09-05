@@ -22,6 +22,7 @@ import type {
   AdminUserListItem,
   AdminUserDetailResponse,
 } from "../../types/admin";
+import ConfirmationDialog from "../../components/common/ConfirmationDialog";
 
 export default function AdminUsersPage() {
   const { t } = useTranslation(["admin", "common"]);
@@ -44,6 +45,15 @@ export default function AdminUsersPage() {
   const [detailUserId, setDetailUserId] = useState<number | null>(null);
   const [userDetail, setUserDetail] = useState<AdminUserDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Confirmation action state
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    isDestructive: boolean;
+    action: () => Promise<void>;
+  } | null>(null);
 
   useEffect(() => {
     loadUsers();
@@ -74,41 +84,51 @@ export default function AdminUsersPage() {
     loadUsers();
   };
 
-  const handleToggleActive = async (user: AdminUserListItem) => {
+  const handleToggleActive = (user: AdminUserListItem) => {
     const nextState = !user.is_active;
-    const confirmMsg = nextState
-      ? `Bạn có chắc muốn kích hoạt lại tài khoản ${user.email}?`
-      : `Bạn có chắc muốn KHÓA (Ban) tài khoản ${user.email}?`;
-    if (!window.confirm(confirmMsg)) return;
-
-    try {
-      await updateAdminUser(user.id, { is_active: nextState });
-      toast.success(
-        nextState
-          ? `Đã kích hoạt lại tài khoản ${user.email}.`
-          : `Đã khóa tài khoản ${user.email}.`
-      );
-      loadUsers();
-    } catch (err) {
-      toast.error("Không thể cập nhật trạng thái người dùng.");
-    }
+    setConfirmAction({
+      title: nextState ? "Kích hoạt tài khoản" : "Khóa tài khoản",
+      message: nextState
+        ? `Bạn có chắc muốn kích hoạt lại tài khoản ${user.email}?`
+        : `Bạn có chắc muốn KHÓA (Ban) tài khoản ${user.email}? Người dùng sẽ không thể truy cập hệ thống.`,
+      confirmLabel: nextState ? "Kích hoạt" : "Khóa tài khoản",
+      isDestructive: !nextState,
+      action: async () => {
+        try {
+          await updateAdminUser(user.id, { is_active: nextState });
+          toast.success(
+            nextState
+              ? `Đã kích hoạt lại tài khoản ${user.email}.`
+              : `Đã khóa tài khoản ${user.email}.`
+          );
+          loadUsers();
+        } catch (err) {
+          toast.error("Không thể cập nhật trạng thái người dùng.");
+        }
+      },
+    });
   };
 
-  const handleToggleRole = async (user: AdminUserListItem) => {
+  const handleToggleRole = (user: AdminUserListItem) => {
     const nextRole = user.role === "admin" ? "user" : "admin";
-    const confirmMsg =
-      nextRole === "admin"
-        ? `CẢNH BÁO: Bạn có muốn thăng cấp tài khoản ${user.email} thành QUẢN TRỊ VIÊN (ADMIN)?`
-        : `Bạn có muốn hạ quyền quản trị viên của ${user.email} xuống người dùng thường?`;
-    if (!window.confirm(confirmMsg)) return;
-
-    try {
-      await updateAdminUser(user.id, { role: nextRole });
-      toast.success(`Đã đổi vai trò của ${user.email} thành "${nextRole}".`);
-      loadUsers();
-    } catch (err) {
-      toast.error("Không thể thay đổi quyền quản trị.");
-    }
+    const isPromote = nextRole === "admin";
+    setConfirmAction({
+      title: isPromote ? "Thăng cấp Quản trị viên" : "Hạ quyền Quản trị viên",
+      message: isPromote
+        ? `CẢNH BÁO: Bạn có muốn thăng cấp tài khoản ${user.email} thành QUẢN TRỊ VIÊN (ADMIN)? Tài khoản sẽ có toàn quyền can thiệp hệ thống.`
+        : `Bạn có muốn hạ quyền quản trị viên của ${user.email} xuống người dùng thường?`,
+      confirmLabel: isPromote ? "Thăng cấp Admin" : "Hạ quyền",
+      isDestructive: isPromote,
+      action: async () => {
+        try {
+          await updateAdminUser(user.id, { role: nextRole });
+          toast.success(`Đã đổi vai trò của ${user.email} thành "${nextRole}".`);
+          loadUsers();
+        } catch (err) {
+          toast.error("Không thể thay đổi quyền quản trị.");
+        }
+      },
+    });
   };
 
   const handleAdjustCredits = async (e: React.FormEvent) => {
@@ -527,6 +547,23 @@ export default function AdminUsersPage() {
           </div>
         </div>
       )}
+
+      {/* Confirmation Dialog for Role & Status Changes */}
+      <ConfirmationDialog
+        isOpen={Boolean(confirmAction)}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={async () => {
+          if (confirmAction?.action) {
+            await confirmAction.action();
+          }
+          setConfirmAction(null);
+        }}
+        title={confirmAction?.title || "Xác nhận"}
+        message={confirmAction?.message || ""}
+        confirmLabel={confirmAction?.confirmLabel || "Xác nhận"}
+        cancelLabel="Hủy"
+        isDestructive={confirmAction?.isDestructive || false}
+      />
     </div>
   );
 }

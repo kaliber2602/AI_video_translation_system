@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, MoreHorizontal, Plus, Search, Upload } from "lucide-react";
+import { ArrowLeft, Film, MoreHorizontal, Plus, Search, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import VideoCard from "../components/project/VideoCard";
 import FolderIcon from "../components/common/FolderIcon";
+import Button from "../components/common/Button";
+import EmptyState from "../components/common/EmptyState";
 import { getProject } from "../services/project.service";
 import type { Project } from "../types/project";
 
@@ -36,6 +38,7 @@ export default function ProjectDetail() {
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (!projectId) return;
@@ -166,21 +169,21 @@ export default function ProjectDetail() {
 
           {/* Project Actions */}
           <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
-            <button
-              type="button"
-              className="flex h-10 sm:h-11 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 sm:px-4 text-xs sm:text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+            <Button
+              variant="secondary"
+              size="md"
+              icon={<MoreHorizontal size={17} />}
             >
-              <MoreHorizontal size={17} />
               {t("common:more")}
-            </button>
+            </Button>
 
-            <button
-              type="button"
-              className="flex h-10 sm:h-11 items-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 sm:px-5 text-xs sm:text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)]"
+            <Button
+              variant="primary"
+              size="md"
+              icon={<Upload size={17} />}
             >
-              <Upload size={17} />
               {t("project:uploadVideo")}
-            </button>
+            </Button>
           </div>
         </section>
 
@@ -194,30 +197,74 @@ export default function ProjectDetail() {
 
             <input
               type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t("project:searchVideosPlaceholder")}
               className="h-10 sm:h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-10 pr-4 text-xs sm:text-sm text-[var(--color-text-primary)] outline-none transition placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:bg-[var(--color-surface)] focus:ring-2 focus:ring-[var(--color-primary)]/10"
             />
           </div>
 
-          <button
-            type="button"
-            className="flex h-10 sm:h-11 items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] px-4 text-xs sm:text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)]"
+          <Button
+            variant="secondary"
+            size="md"
+            icon={<Plus size={16} />}
           >
-            <Plus size={16} />
             {t("project:newFolder")}
-          </button>
+          </Button>
         </section>
 
         {/* Video List */}
-        <section className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-2">
-          {fallbackVideos.map((video) => (
-            <VideoCard
-              key={video.id}
-              video={video}
-              onOpen={() => handleOpenVideo(video.id)}
-            />
-          ))}
-        </section>
+        {(() => {
+          const filteredVideos = fallbackVideos.filter(
+            (v) =>
+              v.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              v.filename.toLowerCase().includes(searchQuery.toLowerCase())
+          );
+
+          if (filteredVideos.length === 0) {
+            return (
+              <EmptyState
+                icon={<Film size={28} />}
+                title={
+                  searchQuery
+                    ? t("workspace:empty.titleFiltered", "Không tìm thấy video")
+                    : t("project:noVideosTitle", "Chưa có video nào trong dự án")
+                }
+                description={
+                  searchQuery
+                    ? t("workspace:empty.descriptionFiltered", "Hãy thử tìm kiếm với từ khóa khác.")
+                    : t(
+                        "project:noVideosDesc",
+                        "Tải lên video đầu tiên để bắt đầu quy trình dịch thuật và lồng tiếng tự động."
+                      )
+                }
+                action={
+                  searchQuery ? (
+                    <Button variant="secondary" size="md" onClick={() => setSearchQuery("")}>
+                      {t("workspace:empty.clearFilters", "Xóa bộ lọc")}
+                    </Button>
+                  ) : (
+                    <Button variant="primary" size="md" icon={<Upload size={16} />}>
+                      {t("project:uploadVideo", "Tải video lên")}
+                    </Button>
+                  )
+                }
+              />
+            );
+          }
+
+          return (
+            <section className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-2">
+              {filteredVideos.map((video) => (
+                <VideoCard
+                  key={video.id}
+                  video={video}
+                  onOpen={() => handleOpenVideo(video.id)}
+                />
+              ))}
+            </section>
+          );
+        })()}
       </main>
     </div>
   );

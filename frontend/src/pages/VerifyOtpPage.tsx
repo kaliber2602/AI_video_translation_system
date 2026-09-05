@@ -20,7 +20,10 @@ export default function VerifyOtpPage() {
 
   if (!state?.email || !state?.resetToken) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f7fcfc] px-4">
+      <main
+        data-theme="default_theme"
+        className="flex min-h-screen items-center justify-center bg-[#f7fcfc] px-4"
+      >
         <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
           <h1 className="text-2xl font-bold text-slate-900">
             Reset session expired

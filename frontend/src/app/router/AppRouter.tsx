@@ -13,6 +13,7 @@ import Workspace from "../../pages/Workspace";
 import ProjectDetail from "../../pages/ProjectDetail";
 import VideoPipeline from "../../pages/VideoPipeline";
 import Setting from "../../pages/Settings";
+import NotificationsPage from "../../pages/NotificationsPage";
 import ResetPasswordPage from "../../pages/ResetPasswordPage";
 import VerifyOtpPage from "../../pages/VerifyOtpPage";
 import ForgotPasswordPage from "../../pages/ForgotPasswordPage";
@@ -128,6 +129,23 @@ export default function AppRouter() {
           <Route
             path="/workspace/settings"
             element={<Setting />}
+          />
+
+          <Route
+            path="/settings"
+            element={<Navigate to="/workspace/settings" replace />}
+          />
+
+          {/* Notifications */}
+
+          <Route
+            path="/workspace/notifications"
+            element={<NotificationsPage />}
+          />
+
+          <Route
+            path="/notifications"
+            element={<Navigate to="/workspace/notifications" replace />}
           />
 
         </Route>

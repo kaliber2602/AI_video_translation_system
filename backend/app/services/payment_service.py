@@ -585,6 +585,29 @@ def process_demo_success(transaction_id_or_code: Union[int, str], user_id: int) 
         connection.commit()
         updated_txn = _format_transaction_row(updated_row)
 
+        try:
+            from app.services.notification_service import create_notification
+            amount = updated_txn.get("amount", 0)
+            currency = updated_txn.get("currency", "USD")
+            txn_code = updated_txn.get("transaction_code", "")
+            create_notification(
+                user_id=user_id,
+                type="billing",
+                title="Payment Successful",
+                message=f"Your payment of {amount} {currency} ({txn_code}) was processed successfully.",
+                action_url="/settings?tab=billing",
+                target_type="transaction",
+                target_id=updated_txn.get("id"),
+                metadata={
+                    "event": "billing.payment.success",
+                    "transaction_code": txn_code,
+                    "amount": amount,
+                    "currency": currency,
+                },
+            )
+        except Exception as notif_err:
+            logger.error(f"[PaymentService] Failed to create payment notification: {notif_err}")
+
         return {
             "success": True,
             "message": "Payment completed successfully! Entitlements have been activated.",

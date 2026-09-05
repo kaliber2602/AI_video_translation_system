@@ -67,8 +67,8 @@ export default function DubbingStep() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[var(--color-border)] bg-[#17232D] p-6 text-white">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#9CAEB4]">
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)] transition-colors duration-200">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
             Audio Preview
           </p>
 
@@ -76,17 +76,17 @@ export default function DubbingStep() {
             <button
               type="button"
               aria-label="Play audio"
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary)]"
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-primary)] text-white shadow-sm transition hover:scale-105 active:scale-95 cursor-pointer"
             >
               <Play size={19} fill="currentColor" />
             </button>
 
             <div className="flex-1">
-              <div className="h-2 overflow-hidden rounded-full bg-white/15">
+              <div className="h-2 overflow-hidden rounded-full bg-[var(--color-surface-muted)]">
                 <div className="h-full w-[38%] rounded-full bg-[var(--color-primary)]" />
               </div>
 
-              <div className="mt-2 flex justify-between text-xs text-[#9CAEB4]">
+              <div className="mt-2 flex justify-between text-xs font-medium text-[var(--color-text-muted)]">
                 <span>00:04</span>
                 <span>00:12</span>
               </div>

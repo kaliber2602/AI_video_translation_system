@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 import socket
@@ -12,6 +13,8 @@ from fastapi import HTTPException, status
 
 from app.core.database import get_connection
 from app.core.config import UPLOAD_DIR, OUTPUT_DIR
+
+logger = logging.getLogger(__name__)
 from app.schemas.admin import (
     AdminJobResponse,
     AdminJobDetailResponse,
@@ -919,6 +922,28 @@ def adjust_user_credits(user_id: int, amount: int, reason: str, admin_id: int) -
                 ),
             )
             conn.commit()
+
+            try:
+                from app.services.notification_service import create_notification
+                sign_str = f"+{amount}" if amount > 0 else f"{amount}"
+                create_notification(
+                    user_id=user_id,
+                    type="system",
+                    title="Credit Balance Updated",
+                    message=f"Your credit balance was adjusted by {sign_str} credits. Reason: {reason}",
+                    action_url="/settings?tab=billing",
+                    target_type="credit_ledger",
+                    target_id=None,
+                    metadata={
+                        "event": "admin.credit.adjusted",
+                        "adjusted_by": admin_id,
+                        "amount": amount,
+                        "reason": reason,
+                    },
+                )
+            except Exception as notif_err:
+                logger.error(f"[AdminService] Failed to create credit adjustment notification: {notif_err}")
+
             return True
     finally:
         conn.close()

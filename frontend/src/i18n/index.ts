@@ -18,6 +18,7 @@ import enPipeline from "./locales/en/pipeline.json";
 import enSettings from "./locales/en/settings.json";
 import enPricing from "./locales/en/pricing.json";
 import enAdmin from "./locales/en/admin.json";
+import enNotifications from "./locales/en/notifications.json";
 
 // Vietnamese resources
 import viCommon from "./locales/vi/common.json";
@@ -30,6 +31,7 @@ import viPipeline from "./locales/vi/pipeline.json";
 import viSettings from "./locales/vi/settings.json";
 import viPricing from "./locales/vi/pricing.json";
 import viAdmin from "./locales/vi/admin.json";
+import viNotifications from "./locales/vi/notifications.json";
 
 export const resources = {
   en: {
@@ -43,6 +45,7 @@ export const resources = {
     settings: enSettings,
     pricing: enPricing,
     admin: enAdmin,
+    notifications: enNotifications,
   },
   vi: {
     common: viCommon,
@@ -55,6 +58,7 @@ export const resources = {
     settings: viSettings,
     pricing: viPricing,
     admin: viAdmin,
+    notifications: viNotifications,
   },
 } as const;
 
@@ -85,6 +89,7 @@ i18n
       "pipeline",
       "settings",
       "pricing",
+      "notifications",
     ],
     interpolation: {
       escapeValue: false, 

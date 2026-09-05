@@ -1,334 +1,439 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  Bell,
-  Zap,
+  CheckCircle2,
+  HardDrive,
+  MessageSquare,
+  Send,
   ShieldAlert,
   Users,
-  MessageSquare,
-  HardDrive,
-  CheckCircle2,
-  Send,
-  Sparkles,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "../../../lib/toast";
 import SettingCard from "../SettingCard";
 import SettingsSectionHeader from "../common/SettingsSectionHeader";
-import SettingsRow from "../common/SettingsRow";
-import SettingsBadge from "../common/SettingsBadge";
 import Toggle from "../Toggle";
-import { INITIAL_MOCK_SETTINGS } from "../mock/settingsMockData";
+import {
+  createTestAlert,
+  getPreferences,
+  updatePreferences,
+} from "../../../services/notification.service";
+import type {
+  NotificationPreferences,
+  NotificationPreferencesPatch,
+} from "../../../types/notification";
 
-export interface NotificationsSectionProps {
-  emailNotifications?: boolean;
-  processingUpdates?: boolean;
-  tipsNews?: boolean;
-  onEmailNotificationsChange?: (val: boolean) => void;
-  onProcessingUpdatesChange?: (val: boolean) => void;
-  onTipsNewsChange?: (val: boolean) => void;
-}
+const DEFAULT_PREFERENCES: NotificationPreferences = {
+  email_on_pipeline_success: true,
+  email_on_pipeline_failed: true,
+  email_on_quota_warning: true,
+  email_on_project_invitation: true,
+  email_on_comment_mention: true,
+  inapp_on_pipeline_success: true,
+  inapp_on_pipeline_failed: true,
+  inapp_on_quota_warning: true,
+  inapp_on_project_invitation: true,
+  inapp_on_comment_mention: true,
+};
 
-export default function NotificationsSection({
-  emailNotifications: propEmailNotifications,
-  processingUpdates: propProcessingUpdates,
-  tipsNews: propTipsNews,
-  onEmailNotificationsChange,
-  onProcessingUpdatesChange,
-  onTipsNewsChange,
-}: NotificationsSectionProps) {
-  const { t } = useTranslation(["settings", "common"]);
+export default function NotificationsSection() {
+  const { t } = useTranslation(["notifications", "settings", "common"]);
 
-  // Aligned with database user_notification_preferences
-  const [emailPipelineSuccess, setEmailPipelineSuccess] = useState(
-    propEmailNotifications ?? INITIAL_MOCK_SETTINGS.notifications.emailOnPipelineSuccess
-  );
-  const [emailPipelineFailed, setEmailPipelineFailed] = useState(
-    INITIAL_MOCK_SETTINGS.notifications.emailOnPipelineFailed
-  );
-  const [emailQuotaWarning, setEmailQuotaWarning] = useState(
-    INITIAL_MOCK_SETTINGS.notifications.emailOnQuotaWarning
-  );
-  const [emailProjectInvitation, setEmailProjectInvitation] = useState(
-    INITIAL_MOCK_SETTINGS.notifications.emailOnProjectInvitation
-  );
-  const [emailCommentMention, setEmailCommentMention] = useState(
-    INITIAL_MOCK_SETTINGS.notifications.emailOnCommentMention
-  );
+  const [preferences, setPreferences] =
+    useState<NotificationPreferences>(DEFAULT_PREFERENCES);
+  const [initialPreferences, setInitialPreferences] =
+    useState<NotificationPreferences>(DEFAULT_PREFERENCES);
 
-  const [inappPipelineSuccess, setInappPipelineSuccess] = useState(
-    propProcessingUpdates ?? INITIAL_MOCK_SETTINGS.notifications.inappOnPipelineSuccess
-  );
-  const [inappPipelineFailed, setInappPipelineFailed] = useState(
-    INITIAL_MOCK_SETTINGS.notifications.inappOnPipelineFailed
-  );
-  const [inappQuotaWarning, setInappQuotaWarning] = useState(
-    INITIAL_MOCK_SETTINGS.notifications.inappOnQuotaWarning
-  );
-  const [inappProjectInvitation, setInappProjectInvitation] = useState(
-    INITIAL_MOCK_SETTINGS.notifications.inappOnProjectInvitation
-  );
-  const [inappCommentMention, setInappCommentMention] = useState(
-    INITIAL_MOCK_SETTINGS.notifications.inappOnCommentMention
-  );
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isSendingTest, setIsSendingTest] = useState<boolean>(false);
+  const [isSaved, setIsSaved] = useState<boolean>(true);
 
-  const [productUpdates, setProductUpdates] = useState(
-    propTipsNews ?? INITIAL_MOCK_SETTINGS.notifications.productUpdates
-  );
-  const [browserPush, setBrowserPush] = useState(
-    INITIAL_MOCK_SETTINGS.notifications.browserPush
-  );
+  // 1. Fetch preferences from backend on mount
+  const loadPreferences = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const data = await getPreferences();
+      setPreferences(data);
+      setInitialPreferences(data);
+      setIsSaved(true);
+    } catch (err: any) {
+      console.error("[NotificationsSection] Failed to load preferences:", err);
+      toast.error(
+        t("common:error", "Error"),
+        t("notifications:preferences.loadError", "Could not load notification preferences.")
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [t]);
 
-  const [isSaved, setIsSaved] = useState(true);
+  useEffect(() => {
+    loadPreferences();
+  }, [loadPreferences]);
 
-  const markDirty = () => setIsSaved(false);
+  // 2. Handle partial toggle updates
+  const handleToggle = async (
+    key: keyof NotificationPreferences,
+    value: boolean
+  ) => {
+    const updated = { ...preferences, [key]: value };
+    setPreferences(updated);
+    setIsSaved(false);
 
-  const handleSave = () => {
-    setIsSaved(true);
-    toast.success(
-      t("settings:toast.settingsSaved", "Settings saved"),
-      t(
-        "settings:toast.notificationsSavedDesc",
-        "Notification delivery preferences and channel alerts updated."
-      )
-    );
+    // Persist change through real backend PATCH endpoint
+    try {
+      const patch: NotificationPreferencesPatch = { [key]: value };
+      const res = await updatePreferences(patch);
+      setPreferences(res);
+      setInitialPreferences(res);
+      setIsSaved(true);
+    } catch (err: any) {
+      console.error("[NotificationsSection] Failed to update preference:", err);
+      toast.error(
+        t("common:error", "Error"),
+        t("notifications:preferences.saveError", "Failed to update preference.")
+      );
+      // Rollback on error
+      setPreferences(initialPreferences);
+    }
   };
 
+  // 3. Handle explicit Save
+  const handleSaveAll = async () => {
+    if (isSaving || isSaved) return;
+
+    try {
+      setIsSaving(true);
+      const res = await updatePreferences(preferences);
+      setPreferences(res);
+      setInitialPreferences(res);
+      setIsSaved(true);
+      toast.success(
+        t("settings:toast.settingsSaved", "Settings saved"),
+        t(
+          "notifications:preferences.saveSuccess",
+          "Notification preferences updated successfully."
+        )
+      );
+    } catch (err: any) {
+      console.error("[NotificationsSection] Failed to save preferences:", err);
+      toast.error(
+        t("common:error", "Error"),
+        t("notifications:preferences.saveError", "Failed to update notification preferences.")
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 4. Handle Reset
   const handleReset = () => {
-    setEmailPipelineSuccess(true);
-    setEmailPipelineFailed(true);
-    setEmailQuotaWarning(true);
-    setEmailProjectInvitation(true);
-    setEmailCommentMention(true);
-    setInappPipelineSuccess(true);
-    setInappPipelineFailed(true);
-    setInappQuotaWarning(true);
-    setInappProjectInvitation(true);
-    setInappCommentMention(true);
-    setProductUpdates(true);
-    setBrowserPush(false);
+    setPreferences(initialPreferences);
     setIsSaved(true);
-    toast.info("Reset to defaults", "Notification preferences restored.");
+    toast.info(t("common:info", "Info"), t("settings:toast.resetDesc", "Preferences reset."));
   };
 
-  const handleTestAlert = () => {
-    toast.success(
-      "Test Notification Triggered",
-      "Pipeline Job #9a8f completed: 'Marketing Launch 2026' translated into Vietnamese."
-    );
+  // 5. Handle Test Alert (triggers real POST /api/notifications/test-alert)
+  const handleTestAlert = async () => {
+    if (isSendingTest) return;
+
+    try {
+      setIsSendingTest(true);
+      await createTestAlert({
+        type: "system",
+        title: "Test Notification",
+        message: "This is a simulated verification alert generated from Settings.",
+      });
+
+      toast.success(
+        t("notifications:preferences.testAlertSuccess", "Test notification generated in-app."),
+        t("notifications:centerSubtitle", "Check the notification bell in the topbar.")
+      );
+
+      // Dispatch event to trigger bell counter refresh across the app
+      window.dispatchEvent(new CustomEvent("notifications-updated"));
+    } catch (err: any) {
+      console.error("[NotificationsSection] Failed to send test alert:", err);
+      toast.error(
+        t("common:error", "Error"),
+        t("notifications:preferences.testAlertError", "Failed to generate test notification.")
+      );
+    } finally {
+      setIsSendingTest(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-16 rounded-2xl bg-[var(--color-surface-muted)] animate-pulse" />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="h-64 rounded-2xl bg-[var(--color-surface-muted)] animate-pulse" />
+          <div className="h-64 rounded-2xl bg-[var(--color-surface-muted)] animate-pulse" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <SettingsSectionHeader
-        title={t("settings:notifications.title", "Notifications & Alerts")}
+        title={t("notifications:preferences.title", "Notification Channels & Preferences")}
         subtitle={t(
-          "settings:notifications.subtitle",
-          "Configure granular Email and In-App notification channels for translation pipelines, quotas, and collaboration."
+          "notifications:preferences.subtitle",
+          "Choose which alerts reach your email inbox and which appear as in-app badges."
         )}
         isSaved={isSaved}
-        onSave={handleSave}
+        onSave={handleSaveAll}
         onReset={handleReset}
         actions={
           <button
             type="button"
             onClick={handleTestAlert}
-            className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-surface-muted)] active:scale-95 shadow-sm"
+            disabled={isSendingTest}
+            className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-surface-muted)] active:scale-95 shadow-xs disabled:opacity-50"
           >
-            <Send size={13} className="text-[var(--color-primary)]" />
-            <span>Send Test Alert</span>
+            <Send
+              size={13}
+              className={`text-[var(--color-primary)] ${isSendingTest ? "animate-spin" : ""}`}
+            />
+            <span>
+              {isSendingTest
+                ? t("common:loading", "Sending...")
+                : t("notifications:preferences.sendTestAlert", "Send Test Alert")}
+            </span>
           </button>
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* CARD 1: EMAIL NOTIFICATION CHANNELS (user_notification_preferences) */}
+      {/* Grid of Logical Groups: Pipeline, Quota, Collaboration */}
+      <div className="grid gap-6">
+        {/* =====================================================
+            1. VIDEO PIPELINE PROCESSING
+        ====================================================== */}
         <SettingCard
-          title="Email Notification Channels"
-          description="High-priority status updates delivered to alex.morgan@vidnova.ai."
+          title={t("notifications:preferences.pipelineGroup", "Video Pipeline Processing")}
+          description={t(
+            "notifications:preferences.pipelineGroupDesc",
+            "Granular alerts for automated speech recognition, neural translation, and voice dubbing."
+          )}
         >
           <div className="divide-y divide-[var(--color-border)]/60">
-            <SettingsRow
-              icon={<CheckCircle2 size={16} />}
-              title="Pipeline Success Alerts"
-              description="Receive an email when video transcription, translation, and dubbing finish."
-            >
-              <Toggle
-                checked={emailPipelineSuccess}
-                onChange={(val) => {
-                  setEmailPipelineSuccess(val);
-                  if (onEmailNotificationsChange) onEmailNotificationsChange(val);
-                  markDirty();
-                }}
-              />
-            </SettingsRow>
+            {/* Pipeline Success */}
+            <div className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
+                  <CheckCircle2 size={16} />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-[var(--color-text-primary)]">
+                    {t("notifications:preferences.pipelineSuccess", "Pipeline Completed Successfully")}
+                  </h4>
+                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                    {t(
+                      "notifications:preferences.pipelineSuccessDesc",
+                      "Alert when transcription, translation, and dubbing finish rendering."
+                    )}
+                  </p>
+                </div>
+              </div>
 
-            <SettingsRow
-              icon={<ShieldAlert size={16} />}
-              title="Pipeline Failure & Codec Errors"
-              description="Instant priority alert if video separation or voice synthesis fails."
-            >
-              <Toggle
-                checked={emailPipelineFailed}
-                onChange={(val) => {
-                  setEmailPipelineFailed(val);
-                  markDirty();
-                }}
-              />
-            </SettingsRow>
+              {/* In-App & Email Channel Toggles */}
+              <div className="flex items-center gap-4 shrink-0 sm:pl-4">
+                <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)] cursor-pointer">
+                  <span>{t("notifications:preferences.inAppChannel", "In-App")}</span>
+                  <Toggle
+                    checked={preferences.inapp_on_pipeline_success}
+                    onChange={(val) => handleToggle("inapp_on_pipeline_success", val)}
+                  />
+                </label>
 
-            <SettingsRow
-              icon={<HardDrive size={16} />}
-              title="Quota Warning (85% Limit)"
-              description="Alert when storage capacity or monthly AI credits reach 85%."
-            >
-              <Toggle
-                checked={emailQuotaWarning}
-                onChange={(val) => {
-                  setEmailQuotaWarning(val);
-                  markDirty();
-                }}
-              />
-            </SettingsRow>
+                <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)] cursor-pointer">
+                  <span>{t("notifications:preferences.emailChannel", "Email")}</span>
+                  <Toggle
+                    checked={preferences.email_on_pipeline_success}
+                    onChange={(val) => handleToggle("email_on_pipeline_success", val)}
+                  />
+                </label>
+              </div>
+            </div>
 
-            <SettingsRow
-              icon={<Users size={16} />}
-              title="Project Collaboration Invitations"
-              description="Email when invited to collaborate on a new video translation project."
-            >
-              <Toggle
-                checked={emailProjectInvitation}
-                onChange={(val) => {
-                  setEmailProjectInvitation(val);
-                  markDirty();
-                }}
-              />
-            </SettingsRow>
+            {/* Pipeline Failure */}
+            <div className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--color-danger-soft)] text-[var(--color-danger)]">
+                  <ShieldAlert size={16} />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-[var(--color-text-primary)]">
+                    {t("notifications:preferences.pipelineFailed", "Pipeline Errors & Processing Failures")}
+                  </h4>
+                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                    {t(
+                      "notifications:preferences.pipelineFailedDesc",
+                      "Immediate alert when an audio separation, translation, or codec step fails."
+                    )}
+                  </p>
+                </div>
+              </div>
 
-            <SettingsRow
-              icon={<MessageSquare size={16} />}
-              title="Timeline Comments & Mentions"
-              description="Notify when team members leave timecoded review comments on your video."
-            >
-              <Toggle
-                checked={emailCommentMention}
-                onChange={(val) => {
-                  setEmailCommentMention(val);
-                  markDirty();
-                }}
-              />
-            </SettingsRow>
+              <div className="flex items-center gap-4 shrink-0 sm:pl-4">
+                <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)] cursor-pointer">
+                  <span>{t("notifications:preferences.inAppChannel", "In-App")}</span>
+                  <Toggle
+                    checked={preferences.inapp_on_pipeline_failed}
+                    onChange={(val) => handleToggle("inapp_on_pipeline_failed", val)}
+                  />
+                </label>
+
+                <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)] cursor-pointer">
+                  <span>{t("notifications:preferences.emailChannel", "Email")}</span>
+                  <Toggle
+                    checked={preferences.email_on_pipeline_failed}
+                    onChange={(val) => handleToggle("email_on_pipeline_failed", val)}
+                  />
+                </label>
+              </div>
+            </div>
           </div>
         </SettingCard>
 
-        {/* CARD 2: IN-APP & REAL-TIME ALERTS (user_notification_preferences) */}
+        {/* =====================================================
+            2. STORAGE & USAGE QUOTAS
+        ====================================================== */}
         <SettingCard
-          title="In-App & Bell Center Alerts"
-          description="Real-time banner badges in the top application header and desktop push."
+          title={t("notifications:preferences.quotaGroup", "Storage & Credit Limits")}
+          description={t(
+            "notifications:preferences.quotaGroupDesc",
+            "Threshold warnings to prevent interrupted video processing jobs."
+          )}
+        >
+          <div className="py-1">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                  <HardDrive size={16} />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-[var(--color-text-primary)]">
+                    {t("notifications:preferences.quotaWarning", "Quota Warning Threshold (85%)")}
+                  </h4>
+                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                    {t(
+                      "notifications:preferences.quotaWarningDesc",
+                      "Alert when storage volume or monthly AI processing credits reach 85%."
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 shrink-0 sm:pl-4">
+                <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)] cursor-pointer">
+                  <span>{t("notifications:preferences.inAppChannel", "In-App")}</span>
+                  <Toggle
+                    checked={preferences.inapp_on_quota_warning}
+                    onChange={(val) => handleToggle("inapp_on_quota_warning", val)}
+                  />
+                </label>
+
+                <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)] cursor-pointer">
+                  <span>{t("notifications:preferences.emailChannel", "Email")}</span>
+                  <Toggle
+                    checked={preferences.email_on_quota_warning}
+                    onChange={(val) => handleToggle("email_on_quota_warning", val)}
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+        </SettingCard>
+
+        {/* =====================================================
+            3. TEAM & COLLABORATION
+        ====================================================== */}
+        <SettingCard
+          title={t("notifications:preferences.collaborationGroup", "Projects & Collaboration")}
+          description={t(
+            "notifications:preferences.collaborationGroupDesc",
+            "Notifications regarding team invitations, shared workspaces, and video comments."
+          )}
         >
           <div className="divide-y divide-[var(--color-border)]/60">
-            <SettingsRow
-              icon={<Zap size={16} />}
-              title="In-App Pipeline Progress Updates"
-              description="Live toast notification when background rendering step changes."
-            >
-              <Toggle
-                checked={inappPipelineSuccess}
-                onChange={(val) => {
-                  setInappPipelineSuccess(val);
-                  if (onProcessingUpdatesChange) onProcessingUpdatesChange(val);
-                  markDirty();
-                }}
-              />
-            </SettingsRow>
+            {/* Project Invitation */}
+            <div className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400">
+                  <Users size={16} />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-[var(--color-text-primary)]">
+                    {t("notifications:preferences.projectInvitation", "Project Invitation")}
+                  </h4>
+                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                    {t(
+                      "notifications:preferences.projectInvitationDesc",
+                      "Notify when team members invite you to collaborate on a video project."
+                    )}
+                  </p>
+                </div>
+              </div>
 
-            <SettingsRow
-              icon={<ShieldAlert size={16} />}
-              title="In-App Failure Warnings"
-              description="Show red error toasts in notification tray on job failure."
-            >
-              <Toggle
-                checked={inappPipelineFailed}
-                onChange={(val) => {
-                  setInappPipelineFailed(val);
-                  markDirty();
-                }}
-              />
-            </SettingsRow>
+              <div className="flex items-center gap-4 shrink-0 sm:pl-4">
+                <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)] cursor-pointer">
+                  <span>{t("notifications:preferences.inAppChannel", "In-App")}</span>
+                  <Toggle
+                    checked={preferences.inapp_on_project_invitation}
+                    onChange={(val) => handleToggle("inapp_on_project_invitation", val)}
+                  />
+                </label>
 
-            <SettingsRow
-              icon={<HardDrive size={16} />}
-              title="In-App Storage Warning"
-              description="Badge notification when cloud storage exceeds 85%."
-            >
-              <Toggle
-                checked={inappQuotaWarning}
-                onChange={(val) => {
-                  setInappQuotaWarning(val);
-                  markDirty();
-                }}
-              />
-            </SettingsRow>
+                <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)] cursor-pointer">
+                  <span>{t("notifications:preferences.emailChannel", "Email")}</span>
+                  <Toggle
+                    checked={preferences.email_on_project_invitation}
+                    onChange={(val) => handleToggle("email_on_project_invitation", val)}
+                  />
+                </label>
+              </div>
+            </div>
 
-            <SettingsRow
-              icon={<Users size={16} />}
-              title="In-App Team Activity"
-              description="Notify when members accept project invitations or edit glossaries."
-            >
-              <Toggle
-                checked={inappProjectInvitation}
-                onChange={(val) => {
-                  setInappProjectInvitation(val);
-                  markDirty();
-                }}
-              />
-            </SettingsRow>
+            {/* Comment Mention */}
+            <div className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400">
+                  <MessageSquare size={16} />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-[var(--color-text-primary)]">
+                    {t("notifications:preferences.commentMention", "Timeline Review Comments & Mentions")}
+                  </h4>
+                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                    {t(
+                      "notifications:preferences.commentMentionDesc",
+                      "Notify when collaborators leave timecoded feedback or mention your account."
+                    )}
+                  </p>
+                </div>
+              </div>
 
-            <SettingsRow
-              icon={<MessageSquare size={16} />}
-              title="In-App Comment Mentions"
-              description="Show unread indicator when mentioned in timeline annotations."
-            >
-              <Toggle
-                checked={inappCommentMention}
-                onChange={(val) => {
-                  setInappCommentMention(val);
-                  markDirty();
-                }}
-              />
-            </SettingsRow>
+              <div className="flex items-center gap-4 shrink-0 sm:pl-4">
+                <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)] cursor-pointer">
+                  <span>{t("notifications:preferences.inAppChannel", "In-App")}</span>
+                  <Toggle
+                    checked={preferences.inapp_on_comment_mention}
+                    onChange={(val) => handleToggle("inapp_on_comment_mention", val)}
+                  />
+                </label>
 
-            <SettingsRow
-              icon={<Sparkles size={16} />}
-              title="Product Releases & Model Updates"
-              description="Receive notifications about newly released AI models and features."
-            >
-              <Toggle
-                checked={productUpdates}
-                onChange={(val) => {
-                  setProductUpdates(val);
-                  if (onTipsNewsChange) onTipsNewsChange(val);
-                  markDirty();
-                }}
-              />
-            </SettingsRow>
-
-            <SettingsRow
-              icon={<Bell size={16} />}
-              title="Browser Desktop Push Notifications"
-              description="Enable Web Push alerts even when the VidNova tab is in background."
-              badge={browserPush ? <SettingsBadge variant="success" size="sm">Active</SettingsBadge> : undefined}
-            >
-              <Toggle
-                checked={browserPush}
-                onChange={(val) => {
-                  setBrowserPush(val);
-                  markDirty();
-                  if (val) {
-                    toast.info("Browser Push", "Simulated browser push permission granted.");
-                  }
-                }}
-              />
-            </SettingsRow>
+                <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)] cursor-pointer">
+                  <span>{t("notifications:preferences.emailChannel", "Email")}</span>
+                  <Toggle
+                    checked={preferences.email_on_comment_mention}
+                    onChange={(val) => handleToggle("email_on_comment_mention", val)}
+                  />
+                </label>
+              </div>
+            </div>
           </div>
         </SettingCard>
       </div>

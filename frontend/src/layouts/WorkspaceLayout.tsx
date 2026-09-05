@@ -1,4 +1,4 @@
-import { ChevronDown, Trash2 } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -38,6 +38,7 @@ import ProjectPagination from "../components/workspace/ProjectPagination";
 import ProjectModal from "../components/workspace/ProjectModal";
 import DeleteProjectModal from "../components/workspace/DeleteProjectModal";
 import ShareProjectModal from "../components/workspace/ShareProjectModal";
+import ConfirmationDialog from "../components/common/ConfirmationDialog";
 
 const VIEW_MODE_STORAGE_KEY = "vidnova_workspace_view_mode";
 
@@ -585,50 +586,28 @@ export default function WorkspaceLayout() {
       />
 
       {/* Empty Trash Confirmation Modal */}
-      {isEmptyTrashConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay)] p-3 sm:p-4 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 sm:p-6 shadow-[var(--shadow-card)] transition-colors duration-200 animate-scale-in">
-            <div className="flex items-start gap-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-[var(--color-danger)]">
-                <Trash2 size={19} />
-              </div>
-
-              <div>
-                <h2 className="text-lg font-bold text-[var(--color-text-primary)]">
-                  {t("workspace:trash.emptyTrashTitle", "Dọn sạch thùng rác?")}
-                </h2>
-
-                <p className="mt-2 text-xs leading-5 text-[var(--color-text-muted)]">
-                  {t("workspace:trash.emptyTrashConfirm", "Tất cả các dự án trong thùng rác sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.")}
-                </p>
-
-                <p className="mt-1.5 text-[11px] font-semibold text-[var(--color-danger)]">
-                  {t("common:cannotBeUndone", "Hành động này không thể hoàn tác.")}
-                </p>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="mt-6 flex justify-end gap-3 border-t border-[var(--color-border)] pt-4">
-              <button
-                type="button"
-                onClick={() => setIsEmptyTrashConfirmOpen(false)}
-                className="rounded-xl px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] cursor-pointer"
-              >
-                {t("common:cancel")}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleConfirmEmptyTrash}
-                className="rounded-xl bg-red-600 px-5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 cursor-pointer"
-              >
-                {t("workspace:trash.emptyTrashButton", "Dọn sạch thùng rác")}
-              </button>
-            </div>
+      <ConfirmationDialog
+        isOpen={isEmptyTrashConfirmOpen}
+        onClose={() => setIsEmptyTrashConfirmOpen(false)}
+        onConfirm={handleConfirmEmptyTrash}
+        title={t("workspace:trash.emptyTrashTitle", "Dọn sạch thùng rác?")}
+        message={
+          <div>
+            <p>
+              {t(
+                "workspace:trash.emptyTrashConfirm",
+                "Tất cả các dự án trong thùng rác sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác."
+              )}
+            </p>
+            <p className="mt-2 text-xs font-semibold text-[var(--color-danger)]">
+              {t("common:cannotBeUndone", "Hành động này không thể hoàn tác.")}
+            </p>
           </div>
-        </div>
-      )}
+        }
+        confirmLabel={t("workspace:trash.emptyTrashButton", "Dọn sạch thùng rác")}
+        cancelLabel={t("common:cancel")}
+        isDestructive
+      />
     </div>
   );
 }

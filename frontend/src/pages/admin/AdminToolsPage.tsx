@@ -25,6 +25,7 @@ import type {
   AdminDatabaseStatsResponse,
   AdminDiagnosticsResponse,
 } from "../../types/admin";
+import ConfirmationDialog from "../../components/common/ConfirmationDialog";
 
 export default function AdminToolsPage() {
   const { t } = useTranslation(["admin", "common"]);
@@ -35,6 +36,7 @@ export default function AdminToolsPage() {
   const [cleanupTarget, setCleanupTarget] = useState("temp");
   const [cleanupDays, setCleanupDays] = useState(7);
   const [cleaning, setCleaning] = useState(false);
+  const [isCleanupConfirmOpen, setIsCleanupConfirmOpen] = useState(false);
 
   // Database stats state
   const [dbStats, setDbStats] = useState<AdminDatabaseStatsResponse | null>(null);
@@ -66,11 +68,12 @@ export default function AdminToolsPage() {
     }
   };
 
-  const handleRunCleanup = async (e: React.FormEvent) => {
+  const handleRunCleanup = (e: React.FormEvent) => {
     e.preventDefault();
-    const confirmMsg = `Bạn có chắc chắn muốn dọn dẹp các tệp tạm trong mục "${cleanupTarget}" cũ hơn ${cleanupDays} ngày không?`;
-    if (!window.confirm(confirmMsg)) return;
+    setIsCleanupConfirmOpen(true);
+  };
 
+  const handleExecuteCleanup = async () => {
     try {
       setCleaning(true);
       const res = await runAdminCleanup({
@@ -85,6 +88,7 @@ export default function AdminToolsPage() {
       toast.error("Lỗi khi dọn dẹp file tạm.");
     } finally {
       setCleaning(false);
+      setIsCleanupConfirmOpen(false);
     }
   };
 
@@ -336,6 +340,18 @@ export default function AdminToolsPage() {
           </table>
         </div>
       </div>
+
+      <ConfirmationDialog
+        isOpen={isCleanupConfirmOpen}
+        onClose={() => setIsCleanupConfirmOpen(false)}
+        onConfirm={handleExecuteCleanup}
+        title="Dọn dẹp hệ thống lưu trữ"
+        message={`Bạn có chắc chắn muốn dọn dẹp các tệp tạm trong mục "${cleanupTarget}" cũ hơn ${cleanupDays} ngày không? Hành động này sẽ giải phóng dung lượng đĩa.`}
+        confirmLabel="Bắt đầu dọn dẹp"
+        cancelLabel="Hủy"
+        isDestructive
+        isLoading={cleaning}
+      />
     </div>
   );
 }

@@ -1,12 +1,10 @@
 import {
-  Bell,
   ChevronDown,
   ChevronUp,
   CreditCard,
   Crown,
   LogOut,
   Menu,
-  Search,
   Settings,
   Sparkles,
   User,
@@ -26,6 +24,7 @@ import { getMySubscriptionSummary } from "../../services/subscription.service";
 import { toast } from "../../lib/toast";
 
 import { clearTokens } from "../../services/api/token";
+import NotificationBell from "../notifications/NotificationBell";
 
 import type { UserResponse } from "../../types/auth";
 import type { UserSubscriptionSummary } from "../../types/subscription";
@@ -315,23 +314,6 @@ export default function WorkspaceTopbar({
       </button>
 
       {/* =====================================================
-          GLOBAL SEARCH
-      ====================================================== */}
-
-      <div className="mx-3 sm:mx-auto hidden md:flex w-full max-w-[540px] items-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-4 py-2 sm:py-2.5 shadow-sm">
-        <Search
-          size={18}
-          className="text-[var(--color-text-muted)] shrink-0"
-        />
-
-        <input
-          type="text"
-          placeholder={t("common:searchPlaceholder")}
-          className="flex-1 bg-transparent px-3 text-xs sm:text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
-        />
-      </div>
-
-      {/* =====================================================
           ACTIONS
       ====================================================== */}
 
@@ -352,20 +334,8 @@ export default function WorkspaceTopbar({
           </button>
         )}
 
-        {/* NOTIFICATION */}
-
-        <button
-          type="button"
-          className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm transition hover:bg-[var(--color-surface-muted)]"
-          aria-label="Notifications"
-        >
-          <Bell
-            size={19}
-            className="text-[var(--color-text-secondary)]"
-          />
-
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[var(--color-primary)]" />
-        </button>
+        {/* NOTIFICATION BELL */}
+        <NotificationBell />
 
         {/* =================================================
             PROFILE

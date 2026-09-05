@@ -15,6 +15,7 @@ from app.api.subscription_routes import router as subscription_router
 from app.api.payment_routes import router as payment_router
 from app.api.contact_routes import router as contact_router
 from app.api.admin_routes import router as admin_router
+from app.api.notification_routes import router as notification_router
 
 logger = logging.getLogger("app.api.routes")
 
@@ -27,6 +28,7 @@ router.include_router(subscription_router)
 router.include_router(payment_router)
 router.include_router(contact_router)
 router.include_router(admin_router)
+router.include_router(notification_router)
 
 @router.get("/health")
 def health_check():

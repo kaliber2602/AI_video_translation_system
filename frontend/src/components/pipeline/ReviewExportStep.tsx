@@ -12,6 +12,7 @@ import {
   Volume2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import Button from "../common/Button";
 
 const timelineTracks = [
   {
@@ -187,21 +188,21 @@ export default function ReviewExportStep() {
 
       {/* Bottom Actions */}
       <div className="flex flex-col-reverse justify-between gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 sm:p-5 sm:flex-row sm:items-center">
-        <button
-          type="button"
-          className="flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] px-4 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+        <Button
+          variant="secondary"
+          size="md"
+          icon={<ChevronLeft size={16} />}
         >
-          <ChevronLeft size={16} />
           {t("pipeline:steps.reviewExport.backToEditing")}
-        </button>
+        </Button>
 
-        <button
-          type="button"
-          className="flex items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold text-white shadow-[0_8px_20px_rgba(24,195,170,0.2)] transition hover:bg-[var(--color-primary-hover)]"
+        <Button
+          variant="primary"
+          size="md"
+          icon={<Download size={16} />}
         >
-          <Download size={16} />
           {t("pipeline:steps.reviewExport.exportSelected")}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -348,8 +349,8 @@ function TimelineEditor() {
         </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="min-w-[900px] p-5">
+      <div className="overflow-x-auto scrollbar-thin">
+        <div className="min-w-[960px] p-5">
           <div className="ml-[150px] mb-4 flex justify-between text-[11px] text-[var(--color-text-muted)]">
             <span>00:00</span>
             <span>00:30</span>
