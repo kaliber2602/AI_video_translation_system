@@ -2,11 +2,10 @@ import {
   Check,
   FileText,
   MoreHorizontal,
-  Play,
   Settings,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-
+import image from "../../assets/1.png";
 const outputFiles = [
   {
     label: "SRT",
@@ -128,36 +127,12 @@ export default function HomeProductPreview() {
 
             {/* Video */}
             <div className="relative aspect-video overflow-hidden rounded-xl bg-gradient-to-br from-[#14201D] via-[#33483F] to-[#728C80]">
-              {/* Simulated video background */}
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_25%,rgba(255,255,255,0.20),transparent_20%),linear-gradient(145deg,#15221E,#526C61)]" />
-
-              {/* Person silhouette */}
-              <div className="absolute bottom-[18%] left-1/2 h-[48%] w-[28%] -translate-x-1/2 rounded-[45%_45%_20%_20%] bg-gradient-to-b from-[#D7A27E] via-[#A86F54] to-[#3D3936]" />
-
-              <div className="absolute left-1/2 top-[26%] h-[18%] w-[17%] -translate-x-1/2 rounded-full bg-[#D8A17C]" />
-
-              {/* Subtitle */}
-              <div className="absolute bottom-8 left-1/2 w-[90%] -translate-x-1/2 text-center text-[10px] font-medium text-white drop-shadow-md">
-                Today, we'll explore the future
-                <br />
-                of artificial intelligence.
-              </div>
-
-              {/* Play */}
-              <button
-                type="button"
-                aria-label="Play video"
-                className="absolute left-3 bottom-3 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 text-[var(--color-primary)]"
-              >
-                <Play size={10} fill="currentColor" />
-              </button>
-
-              {/* Timeline */}
-              <div className="absolute bottom-3 left-11 right-3">
-                <div className="h-1 rounded-full bg-white/30">
-                  <div className="h-full w-[17%] rounded-full bg-[var(--color-primary)]" />
-                </div>
-              </div>
+              
+              <img
+                src={image}
+                alt="Preview video"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
             </div>
           </div>
 

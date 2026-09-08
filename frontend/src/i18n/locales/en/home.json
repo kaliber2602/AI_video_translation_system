@@ -202,7 +202,9 @@
       "errors": {
         "nameRequired": "Please enter your name",
         "emailRequired": "Please enter a valid email address",
-        "messageRequired": "Please enter your message (min. 10 characters)"
+        "messageRequired": "Please enter your message (min. 10 characters)",
+        "serverError": "Unable to send message at this moment. Please try again later.",
+        "networkError": "Network connection error. Please check your internet connection."
       }
     }
   },

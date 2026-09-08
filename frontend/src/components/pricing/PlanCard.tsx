@@ -13,6 +13,7 @@ export default function PlanCard({
   plan,
   billingCycle,
   isCurrentPlan = false,
+  onSelectPlan,
 }: PlanCardProps) {
   const { t } = useTranslation(["pricing", "common"]);
 
@@ -231,17 +232,18 @@ export default function PlanCard({
         </div>
       </div>
 
-      {/* Action Button (Static pricing presentation) */}
+      {/* Action Button */}
       <div className="mt-8">
         <button
           type="button"
           disabled={isCurrentPlan}
+          onClick={() => onSelectPlan && onSelectPlan(plan)}
           className={`w-full rounded-2xl py-3.5 text-sm font-bold transition-all duration-200 ${
             isCurrentPlan
               ? "border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text-muted)] cursor-default"
               : isPopular
-              ? "bg-[var(--color-primary)] text-white shadow-[0_8px_20px_rgba(21,194,168,0.3)] hover:bg-[var(--color-primary-hover)] hover:shadow-lg hover:-translate-y-0.5"
-              : "border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+              ? "bg-[var(--color-primary)] text-white shadow-[0_8px_20px_rgba(21,194,168,0.3)] hover:bg-[var(--color-primary-hover)] hover:shadow-lg hover:-translate-y-0.5 cursor-pointer"
+              : "border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] cursor-pointer"
           }`}
         >
           {isCurrentPlan

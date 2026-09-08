@@ -2,10 +2,13 @@ import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Project } from "../../types/project";
+import Dialog from "../common/Dialog";
+import Button from "../common/Button";
 
 interface DeleteProjectModalProps {
   project: Project | null;
   isOpen: boolean;
+  mode?: "soft" | "permanent";
   onClose: () => void;
   onConfirm: (projectId: number) => Promise<void>;
 }
@@ -13,13 +16,16 @@ interface DeleteProjectModalProps {
 export default function DeleteProjectModal({
   project,
   isOpen,
+  mode = "soft",
   onClose,
   onConfirm,
 }: DeleteProjectModalProps) {
   const { t } = useTranslation(["workspace", "common"]);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  if (!isOpen || !project) return null;
+  if (!project) return null;
+
+  const isPermanent = mode === "permanent";
 
   const handleDelete = async () => {
     try {
@@ -34,49 +40,77 @@ export default function DeleteProjectModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay)] px-4 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)] transition-colors duration-200 animate-scale-in">
-        <div className="flex items-start gap-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-[var(--color-danger)]">
-            <Trash2 size={19} />
-          </div>
-
-          <div>
-            <h2 className="text-lg font-bold text-[var(--color-text-primary)]">
-              {t("workspace:project.deleteTitle")}
-            </h2>
-
-            <p className="mt-2 text-xs leading-5 text-[var(--color-text-muted)]">
-              {t("workspace:project.deleteConfirm", { name: project.name })}
-            </p>
-
-            <p className="mt-1 text-[11px] font-medium text-[var(--color-danger)]">
-              {t("common:cannotBeUndone")}
-            </p>
-          </div>
+    <Dialog
+      isOpen={isOpen}
+      onClose={() => {
+        if (!isDeleting) onClose();
+      }}
+      maxWidth="md"
+      showCloseButton={!isDeleting}
+    >
+      <div className="flex items-start gap-4">
+        <div
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+            isPermanent
+              ? "bg-red-500/10 text-[var(--color-danger)]"
+              : "bg-amber-500/10 text-amber-500"
+          }`}
+        >
+          <Trash2 size={20} />
         </div>
 
-        {/* Actions */}
-        <div className="mt-6 flex justify-end gap-3 border-t border-[var(--color-border)] pt-4">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isDeleting}
-            className="rounded-xl px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] disabled:opacity-50"
-          >
-            {t("common:cancel")}
-          </button>
+        <div className="flex-1">
+          <h2 className="text-lg font-bold text-[var(--color-text-primary)]">
+            {isPermanent
+              ? t("workspace:trash.permanentDeleteTitle", "Xóa vĩnh viễn dự án")
+              : t("workspace:trash.moveToTrashTitle", "Chuyển vào thùng rác")}
+          </h2>
 
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className="rounded-xl bg-red-500 px-5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isDeleting ? t("common:deleting") : t("common:delete")}
-          </button>
+          <p className="mt-2 text-xs sm:text-sm leading-relaxed text-[var(--color-text-secondary)]">
+            {isPermanent
+              ? t("workspace:trash.permanentDeleteConfirm", {
+                  name: project.name,
+                  defaultValue: `Bạn có chắc chắn muốn xóa vĩnh viễn dự án "${project.name}"? Dữ liệu sẽ không thể khôi phục.`,
+                })
+              : t("workspace:trash.moveToTrashConfirm", {
+                  name: project.name,
+                  defaultValue: `Dự án "${project.name}" sẽ được đưa vào hàng chờ xóa tạm thời. Bạn có thể khôi phục lại bất kỳ lúc nào từ mục Thùng rác.`,
+                })}
+          </p>
+
+          {isPermanent ? (
+            <p className="mt-2 text-xs font-semibold text-[var(--color-danger)]">
+              {t("common:cannotBeUndone", "Hành động này không thể hoàn tác.")}
+            </p>
+          ) : (
+            <p className="mt-2 text-xs font-semibold text-[var(--color-primary)]">
+              {t("workspace:trash.canBeRestored", "Dự án có thể khôi phục lại từ Thùng rác.")}
+            </p>
+          )}
         </div>
       </div>
-    </div>
+
+      <div className="mt-6 flex justify-end gap-3 border-t border-[var(--color-border)] pt-4">
+        <Button
+          variant="secondary"
+          size="md"
+          onClick={onClose}
+          disabled={isDeleting}
+        >
+          {t("common:cancel")}
+        </Button>
+
+        <Button
+          variant={isPermanent ? "danger" : "primary"}
+          size="md"
+          onClick={handleDelete}
+          isLoading={isDeleting}
+        >
+          {isPermanent
+            ? t("workspace:trash.permanentDeleteBtn", "Xóa vĩnh viễn")
+            : t("workspace:trash.moveToTrashBtn", "Chuyển vào thùng rác")}
+        </Button>
+      </div>
+    </Dialog>
   );
 }

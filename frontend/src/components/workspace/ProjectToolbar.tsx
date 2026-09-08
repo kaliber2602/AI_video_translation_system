@@ -5,11 +5,13 @@ import {
   FolderPlus,
   Search,
   SlidersHorizontal,
+  Trash2,
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TagResponse } from "../../types/tag";
 import ViewSwitcher, { type ViewMode } from "./ViewSwitcher";
+import Button from "../common/Button";
 
 export type SortOption =
   | "updated-recent"
@@ -30,6 +32,9 @@ interface ProjectToolbarProps {
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
   onNewProject?: () => void;
+  isTrashMode?: boolean;
+  onEmptyTrash?: () => void;
+  trashCount?: number;
 }
 
 export default function ProjectToolbar({
@@ -43,7 +48,11 @@ export default function ProjectToolbar({
   viewMode,
   onViewModeChange,
   onNewProject,
+  isTrashMode = false,
+  onEmptyTrash,
+  trashCount = 0,
 }: ProjectToolbarProps) {
+
   const { t } = useTranslation(["workspace", "common"]);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
@@ -234,18 +243,31 @@ export default function ProjectToolbar({
           onViewModeChange={onViewModeChange}
         />
 
-        {/* New Project CTA Button */}
-        {onNewProject && (
-          <button
-            type="button"
-            onClick={onNewProject}
-            className="flex h-11 items-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 text-xs font-bold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)] hover:shadow-md"
+        {/* Empty Trash Button in Trash mode */}
+        {isTrashMode && onEmptyTrash && (
+          <Button
+            variant="danger"
+            size="md"
+            onClick={onEmptyTrash}
+            disabled={trashCount === 0}
+            icon={<Trash2 size={16} />}
           >
-            <FolderPlus size={16} />
+            <span className="hidden sm:inline">{t("workspace:trash.emptyTrashButton", "Dọn sạch thùng rác")}</span>
+          </Button>
+        )}
+
+        {/* New Project CTA Button in normal modes */}
+        {!isTrashMode && onNewProject && (
+          <Button
+            variant="primary"
+            size="md"
+            onClick={onNewProject}
+            icon={<FolderPlus size={16} />}
+          >
             <span className="hidden md:inline">{t("workspace:newProject")}</span>
-          </button>
+          </Button>
         )}
       </div>
     </section>
   );
-}
+}

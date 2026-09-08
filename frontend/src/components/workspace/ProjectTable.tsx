@@ -3,7 +3,11 @@ import {
   Edit,
   MoreHorizontal,
   PlaySquare,
+  RotateCcw,
+  Share2,
+  Star,
   Trash2,
+  Users,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import FolderIcon from "../common/FolderIcon";
@@ -14,6 +18,10 @@ interface ProjectTableProps {
   onProjectClick: (projectId: number) => void;
   onEditProject: (project: Project) => void;
   onDeleteProject: (project: Project) => void;
+  onToggleFavorite?: (project: Project) => void;
+  onShareProject?: (project: Project) => void;
+  onRestoreProject?: (project: Project) => void;
+  isTrashMode?: boolean;
 }
 
 export default function ProjectTable({
@@ -21,7 +29,12 @@ export default function ProjectTable({
   onProjectClick,
   onEditProject,
   onDeleteProject,
+  onToggleFavorite,
+  onShareProject,
+  onRestoreProject,
+  isTrashMode = false,
 }: ProjectTableProps) {
+
   const { t, i18n } = useTranslation(["workspace", "common"]);
   const [activeDropdownId, setActiveDropdownId] = useState<number | null>(null);
 
@@ -72,25 +85,40 @@ export default function ProjectTable({
               key={project.id}
               role="button"
               tabIndex={0}
-              onClick={() => onProjectClick(project.id)}
+              onClick={() => {
+                if (!isTrashMode) onProjectClick(project.id);
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
-                  onProjectClick(project.id);
+                  if (!isTrashMode) onProjectClick(project.id);
                 }
               }}
-              className={`group relative grid w-full cursor-pointer grid-cols-[40px_1.4fr_1.5fr_100px_140px_100px_180px_40px] items-center gap-4 px-5 py-4 text-left transition-colors duration-180 hover:bg-[var(--color-surface-muted)] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)] animate-fade-up ${getStaggerClass(
-                index
-              )}`}
+              className={`group relative grid w-full cursor-pointer grid-cols-[56px_1.4fr_1.5fr_100px_140px_100px_180px_60px] items-center gap-4 px-5 py-4 text-left transition-colors duration-180 hover:bg-[var(--color-surface-muted)] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)] animate-fade-up ${
+                isTrashMode ? "opacity-90" : ""
+              } ${getStaggerClass(index)}`}
             >
-              {/* Checkbox */}
-              <div>
+              {/* Checkbox + Star */}
+              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                 <input
                   type="checkbox"
-                  onClick={(event) => event.stopPropagation()}
                   className="h-4 w-4 rounded border-[var(--color-border)] accent-[var(--color-primary)]"
                   aria-label={`Select ${project.name}`}
                 />
+                {!isTrashMode && onToggleFavorite && (
+                  <button
+                    type="button"
+                    onClick={() => onToggleFavorite(project)}
+                    title={project.is_favorite ? t("workspace:favorite.removeFromFavorites") : t("workspace:favorite.addToFavorites")}
+                    className={`flex h-6 w-6 items-center justify-center rounded transition ${
+                      project.is_favorite
+                        ? "text-amber-500 fill-amber-500"
+                        : "text-[var(--color-text-muted)] hover:text-amber-500"
+                    }`}
+                  >
+                    <Star size={14} className={project.is_favorite ? "fill-amber-500" : ""} />
+                  </button>
+                )}
               </div>
 
               {/* Project Name */}
@@ -98,8 +126,19 @@ export default function ProjectTable({
                 <FolderIcon size="md" />
 
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-bold text-[var(--color-text-primary)] group-hover:text-[var(--color-primary)] transition-colors duration-180">
-                    {project.name}
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-sm font-bold text-[var(--color-text-primary)] group-hover:text-[var(--color-primary)] transition-colors duration-180">
+                      {project.name}
+                    </span>
+                    {project.is_shared && (
+                      <span
+                        title={t("workspace:share.sharedBy", { name: project.owner_name || "đồng nghiệp" })}
+                        className="inline-flex shrink-0 items-center gap-1 rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400"
+                      >
+                        <Users size={10} />
+                        <span className="max-w-[60px] truncate">{project.owner_name || t("workspace:share.sharedWithMe")}</span>
+                      </span>
+                    )}
                   </div>
 
                   <div className="mt-0.5 text-xs text-[var(--color-text-muted)]">
@@ -110,7 +149,7 @@ export default function ProjectTable({
 
               {/* Recent Video */}
               <div className="min-w-0">
-                {project.recent_project ? (
+                {project.recent_project && !isTrashMode ? (
                   <div className="flex items-center gap-2">
                     <PlaySquare size={15} className="shrink-0 text-[var(--color-primary)]" />
                     <span className="truncate text-xs font-semibold text-[var(--color-text-secondary)]">
@@ -129,9 +168,11 @@ export default function ProjectTable({
                 </span>
               </div>
 
-              {/* Updated At */}
+              {/* Updated At / Deleted At */}
               <div className="text-xs text-[var(--color-text-muted)]">
-                {formatDate(project.updated_at)}
+                {isTrashMode && project.deleted_at
+                  ? t("workspace:trash.deletedAt", { date: formatDate(project.deleted_at) })
+                  : formatDate(project.updated_at)}
               </div>
 
               {/* Size */}
@@ -166,63 +207,98 @@ export default function ProjectTable({
                 )}
               </div>
 
-              {/* Actions Dropdown */}
-              <div className="relative text-right">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActiveDropdownId(
-                      activeDropdownId === project.id ? null : project.id
-                    );
-                  }}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--color-text-muted)] transition hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)]"
-                  aria-label="More options"
-                >
-                  <MoreHorizontal size={18} />
-                </button>
-
-                {activeDropdownId === project.id && (
+              {/* Actions */}
+              <div className="relative text-right" onClick={(e) => e.stopPropagation()}>
+                {isTrashMode ? (
+                  <div className="flex items-center justify-end gap-1.5">
+                    {onRestoreProject && (
+                      <button
+                        type="button"
+                        onClick={() => onRestoreProject(project)}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)] text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition"
+                        title={t("workspace:trash.restore", "Khôi phục")}
+                      >
+                        <RotateCcw size={13} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onDeleteProject(project)}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-red-200 bg-red-500/10 text-red-600 hover:bg-red-500 hover:text-white transition"
+                      title={t("workspace:trash.permanentDelete", "Xóa vĩnh viễn")}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ) : (
                   <>
-                    <div
-                      className="fixed inset-0 z-30 cursor-default"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveDropdownId(null);
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveDropdownId(
+                          activeDropdownId === project.id ? null : project.id
+                        );
                       }}
-                    />
-                    <div className="absolute right-0 top-9 z-40 w-36 overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-1 shadow-[var(--shadow-card)] animate-dropdown-reveal">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveDropdownId(null);
-                          onEditProject(project);
-                        }}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
-                      >
-                        <Edit size={13} />
-                        <span>{t("common:edit")}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveDropdownId(null);
-                          onDeleteProject(project);
-                        }}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--color-danger)] transition hover:bg-red-500/10"
-                      >
-                        <Trash2 size={13} />
-                        <span>{t("common:delete")}</span>
-                      </button>
-                    </div>
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--color-text-muted)] transition hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)]"
+                      aria-label="More options"
+                    >
+                      <MoreHorizontal size={18} />
+                    </button>
+
+                    {activeDropdownId === project.id && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-30 cursor-default"
+                          onClick={() => {
+                            setActiveDropdownId(null);
+                          }}
+                        />
+                        <div className="absolute right-0 top-9 z-40 w-40 overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-1 shadow-[var(--shadow-card)] animate-dropdown-reveal">
+                          {onShareProject && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveDropdownId(null);
+                                onShareProject(project);
+                              }}
+                              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
+                            >
+                              <Share2 size={13} />
+                              <span>{t("workspace:share.action", "Chia sẻ")}</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveDropdownId(null);
+                              onEditProject(project);
+                            }}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
+                          >
+                            <Edit size={13} />
+                            <span>{t("common:edit")}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveDropdownId(null);
+                              onDeleteProject(project);
+                            }}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--color-danger)] transition hover:bg-red-500/10"
+                          >
+                            <Trash2 size={13} />
+                            <span>{t("workspace:trash.moveToTrashBtn", "Chuyển vào thùng rác")}</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
               </div>
             </div>
           ))}
         </div>
+
       </div>
     </div>
   );

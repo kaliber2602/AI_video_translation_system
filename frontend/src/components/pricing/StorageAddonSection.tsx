@@ -5,11 +5,13 @@ import type { BillingCycle, StorageAddon } from "../../types/subscription";
 export interface StorageAddonSectionProps {
   addons: StorageAddon[];
   billingCycle: BillingCycle;
+  onSelectAddon?: (addon: StorageAddon) => void;
 }
 
 export default function StorageAddonSection({
   addons,
   billingCycle,
+  onSelectAddon,
 }: StorageAddonSectionProps) {
   const { t } = useTranslation(["pricing"]);
 
@@ -81,6 +83,14 @@ export default function StorageAddonSection({
                       ${addon.price_yearly} {t("pricing:storageAddons.pricePerYear")}
                     </div>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={() => onSelectAddon && onSelectAddon(addon)}
+                    className="mt-4 w-full rounded-xl bg-[var(--color-surface)] py-2 text-xs font-bold text-[var(--color-primary)] border border-[var(--color-primary)]/40 hover:bg-[var(--color-primary)] hover:text-white transition cursor-pointer"
+                  >
+                    + Add to Workspace
+                  </button>
                 </div>
               </div>
             );

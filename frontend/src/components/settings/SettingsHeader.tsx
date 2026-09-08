@@ -1,8 +1,9 @@
-import { ArrowLeft, Bell } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import type { UserResponse } from "../../types/auth";
 import { getAvatarSrc, getInitials } from "./helpers";
+import NotificationBell from "../notifications/NotificationBell";
 
 export interface SettingsHeaderProps {
   user: UserResponse | null;
@@ -59,16 +60,7 @@ export default function SettingsHeader({
           + {t("navigation:newProject")}
         </button>
 
-        <button
-          type="button"
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-muted)]"
-          aria-label="Notifications"
-        >
-          <Bell
-            size={18}
-            className="text-[var(--color-text-secondary)]"
-          />
-        </button>
+        <NotificationBell />
 
         {/* Topbar Avatar */}
         <button

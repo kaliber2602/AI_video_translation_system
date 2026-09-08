@@ -150,6 +150,14 @@ export default function VideoCard({
         const rawDx = moveEvent.clientX - startPosRef.current.x;
         const rawDy = moveEvent.clientY - startPosRef.current.y;
 
+        // If on touch device and user is scrolling vertically more than horizontally, cancel dragging to allow native scroll
+        if (moveEvent.pointerType === "touch" && !hasMovedRef.current) {
+          if (Math.abs(rawDy) > Math.abs(rawDx) && Math.abs(rawDy) > 8) {
+            isDraggingRef.current = false;
+            return;
+          }
+        }
+
         if (Math.abs(rawDx) > 3 || Math.abs(rawDy) > 3) {
           hasMovedRef.current = true;
         }
@@ -242,7 +250,7 @@ export default function VideoCard({
       ref={cardRef}
       onClick={handleCardClick}
       style={{
-        touchAction: "none",
+        touchAction: "pan-y",
         userSelect: "none",
         WebkitUserSelect: "none",
         cursor: "grab",
@@ -251,7 +259,7 @@ export default function VideoCard({
       className="group relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)] transition-all duration-220 ease-out hover:shadow-lg animate-fade-up select-none"
     >
       {/* Thumbnail */}
-      <div className="relative h-[190px] overflow-hidden bg-gradient-to-br from-[#15212B] via-[#334854] to-[#78919A]">
+      <div className="relative h-[165px] sm:h-[190px] overflow-hidden bg-gradient-to-br from-[#15212B] via-[#334854] to-[#78919A]">
         {/* Background Gradient */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,189,0.3),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(255,255,255,0.14),transparent_30%)]" />
 

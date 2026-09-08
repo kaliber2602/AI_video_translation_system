@@ -13,12 +13,25 @@ import Workspace from "../../pages/Workspace";
 import ProjectDetail from "../../pages/ProjectDetail";
 import VideoPipeline from "../../pages/VideoPipeline";
 import Setting from "../../pages/Settings";
+import NotificationsPage from "../../pages/NotificationsPage";
 import ResetPasswordPage from "../../pages/ResetPasswordPage";
 import VerifyOtpPage from "../../pages/VerifyOtpPage";
 import ForgotPasswordPage from "../../pages/ForgotPasswordPage";
 import { PipelineProvider } from "../../contexts/PipelineContext";
+import VNPayReturnPage from "../../pages/VNPayReturnPage";
+import StripeReturnPage from "../../pages/StripeReturnPage";
 
 import ProtectedRoute from "./ProtectedRoute";
+import AdminRoute from "./AdminRoute";
+import AdminLayout from "../../layouts/AdminLayout";
+import AdminDashboard from "../../pages/admin/AdminDashboard";
+import AdminJobsPage from "../../pages/admin/AdminJobsPage";
+import AdminModelsPage from "../../pages/admin/AdminModelsPage";
+import AdminUsersPage from "../../pages/admin/AdminUsersPage";
+import AdminFinancePage from "../../pages/admin/AdminFinancePage";
+import AdminLogsPage from "../../pages/admin/AdminLogsPage";
+import AdminContactsPage from "../../pages/admin/AdminContactsPage";
+import AdminToolsPage from "../../pages/admin/AdminToolsPage";
 
 export default function AppRouter() {
   return (
@@ -41,6 +54,20 @@ export default function AppRouter() {
         <Route
           path="/pricing"
           element={<PricingPage />}
+        />
+
+        {/* VNPay Gateway Return Page */}
+
+        <Route
+          path="/payments/vnpay/return"
+          element={<VNPayReturnPage />}
+        />
+
+        {/* Stripe Gateway Return Page */}
+
+        <Route
+          path="/payments/stripe/return"
+          element={<StripeReturnPage />}
         />
 
         {/* Authentication */}
@@ -105,8 +132,42 @@ export default function AppRouter() {
             element={<Setting />}
           />
 
+          <Route
+            path="/settings"
+            element={<Navigate to="/workspace/settings" replace />}
+          />
+
+          {/* Notifications */}
+
+          <Route
+            path="/workspace/notifications"
+            element={<NotificationsPage />}
+          />
+
+          <Route
+            path="/notifications"
+            element={<Navigate to="/workspace/notifications" replace />}
+          />
+
         </Route>
 
+        {/* ================================================== */}
+        {/* ADMIN ROUTES */}
+        {/* ================================================== */}
+
+        <Route element={<AdminRoute />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="jobs" element={<AdminJobsPage />} />
+            <Route path="models" element={<AdminModelsPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+            <Route path="finance" element={<AdminFinancePage />} />
+            <Route path="logs" element={<AdminLogsPage />} />
+            <Route path="contacts" element={<AdminContactsPage />} />
+            <Route path="tools" element={<AdminToolsPage />} />
+          </Route>
+        </Route>
 
         {/* ================================================== */}
         {/* FALLBACK */}

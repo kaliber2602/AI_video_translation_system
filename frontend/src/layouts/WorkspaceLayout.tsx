@@ -8,8 +8,12 @@ import {
   addProjectTag,
   createProject,
   deleteProject,
+  emptyTrash,
   getProjects,
+  permanentDeleteProject,
   removeProjectTag,
+  restoreProject,
+  toggleProjectFavorite,
   updateProject,
 } from "../services/project.service";
 import { getTags } from "../services/tag.service";
@@ -19,7 +23,7 @@ import type { Project, ProjectCreateRequest, ProjectUpdateRequest } from "../typ
 import type { TagResponse } from "../types/tag";
 
 import WorkspaceTopbar from "../components/workspace/WorkspaceTopbar";
-import WorkspaceSidebar from "../components/workspace/WorkspaceSidebar";
+import WorkspaceSidebar, { type WorkspaceTab } from "../components/workspace/WorkspaceSidebar";
 import WorkspaceHeader from "../components/workspace/WorkspaceHeader";
 import ProjectToolbar, { type SortOption } from "../components/workspace/ProjectToolbar";
 import type { ViewMode } from "../components/workspace/ViewSwitcher";
@@ -33,6 +37,8 @@ import ProjectErrorState from "../components/workspace/ProjectErrorState";
 import ProjectPagination from "../components/workspace/ProjectPagination";
 import ProjectModal from "../components/workspace/ProjectModal";
 import DeleteProjectModal from "../components/workspace/DeleteProjectModal";
+import ShareProjectModal from "../components/workspace/ShareProjectModal";
+import ConfirmationDialog from "../components/common/ConfirmationDialog";
 
 const VIEW_MODE_STORAGE_KEY = "vidnova_workspace_view_mode";
 
@@ -44,14 +50,32 @@ function getInitialViewMode(): ViewMode {
   return "grid";
 }
 
+const getBackendScope = (tab: WorkspaceTab): "all" | "favorites" | "shared" | "trash" => {
+  switch (tab) {
+    case "favorites":
+      return "favorites";
+    case "sharedWithMe":
+      return "shared";
+    case "trash":
+      return "trash";
+    case "allProjects":
+    default:
+      return "all";
+  }
+};
+
 export default function WorkspaceLayout() {
   const { t } = useTranslation(["workspace", "common"]);
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Navigation Tab State
+  const [currentTab, setCurrentTab] = useState<WorkspaceTab>("allProjects");
+
   // Data State
   const [projects, setProjects] = useState<Project[]>([]);
   const [tags, setTags] = useState<TagResponse[]>([]);
+  const [trashCount, setTrashCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,11 +85,15 @@ export default function WorkspaceLayout() {
   const [sortOption, setSortOption] = useState<SortOption>("updated-recent");
   const [viewMode, setViewModeState] = useState<ViewMode>(getInitialViewMode);
   const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Modals
   const [projectModalMode, setProjectModalMode] = useState<"create" | "edit" | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
+  const [deleteModalMode, setDeleteModalMode] = useState<"soft" | "permanent">("soft");
+  const [sharingProject, setSharingProject] = useState<Project | null>(null);
+  const [isEmptyTrashConfirmOpen, setIsEmptyTrashConfirmOpen] = useState(false);
 
   // Change and persist View Mode
   const handleViewModeChange = (newMode: ViewMode) => {
@@ -79,6 +107,7 @@ export default function WorkspaceLayout() {
       const customEvent = e as CustomEvent<{ project: Project }>;
       if (customEvent.detail?.project) {
         setDeletingProject(customEvent.detail.project);
+        setDeleteModalMode("soft");
       }
     };
 
@@ -122,12 +151,23 @@ export default function WorkspaceLayout() {
     }
   }, []);
 
-  // Load Projects
-  const loadProjects = useCallback(async () => {
+  // Update Trash Count
+  const updateTrashCount = useCallback(async () => {
+    try {
+      const trashList = await getProjects({ scope: "trash" });
+      setTrashCount(trashList.length);
+    } catch (err) {
+      console.error("[WorkspaceLayout] Failed to load trash count:", err);
+    }
+  }, []);
+
+  // Load Projects for given tab
+  const loadProjects = useCallback(async (tab: WorkspaceTab = currentTab) => {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await getProjects();
+      const scope = getBackendScope(tab);
+      const data = await getProjects({ scope });
       setProjects(data);
     } catch (err) {
       console.error("[WorkspaceLayout] Failed to load projects:", err);
@@ -136,21 +176,30 @@ export default function WorkspaceLayout() {
     } finally {
       setIsLoading(false);
     }
-  }, [t]);
+  }, [currentTab, t]);
+
+  const handleTabChange = (tab: WorkspaceTab) => {
+    setCurrentTab(tab);
+    loadProjects(tab);
+    updateTrashCount();
+  };
+
 
   useEffect(() => {
     let ignore = false;
     const fetchInitialData = async () => {
       try {
-        const [tagsData, projectsData] = await Promise.all([
+        const [tagsData, projectsData, trashData] = await Promise.all([
           getTags().catch(() => []),
-          getProjects().catch((err) => {
+          getProjects({ scope: "all" }).catch((err) => {
             throw err;
           }),
+          getProjects({ scope: "trash" }).catch(() => []),
         ]);
         if (!ignore) {
           setTags(tagsData);
           setProjects(projectsData);
+          setTrashCount(trashData.length);
           setError(null);
         }
       } catch (err) {
@@ -166,6 +215,7 @@ export default function WorkspaceLayout() {
       ignore = true;
     };
   }, [t]);
+
 
   // Combined Search + Tag Filter + Sort Pipeline
   const processedProjects = useMemo(() => {
@@ -281,6 +331,7 @@ export default function WorkspaceLayout() {
   // Delete Project Actions
   const handleOpenDeleteModal = (project: Project) => {
     setDeletingProject(project);
+    setDeleteModalMode(currentTab === "trash" ? "permanent" : "soft");
   };
 
   const handleCloseDeleteModal = () => {
@@ -289,12 +340,77 @@ export default function WorkspaceLayout() {
 
   const handleConfirmDelete = async (projectId: number) => {
     const deletedName = deletingProject?.name || "";
-    await deleteProject(projectId);
-    toast.success(
-      t("workspace:project.deletedTitle"),
-      t("workspace:project.deletedDesc", { name: deletedName })
-    );
-    setProjects((prev) => prev.filter((p) => p.id !== projectId));
+    if (deleteModalMode === "permanent") {
+      await permanentDeleteProject(projectId);
+      toast.success(
+        t("workspace:trash.permanentSuccess", { name: deletedName, defaultValue: `Đã xóa vĩnh viễn dự án "${deletedName}".` })
+      );
+      setProjects((prev) => prev.filter((p) => p.id !== projectId));
+      setTrashCount((prev) => Math.max(0, prev - 1));
+    } else {
+      await deleteProject(projectId);
+      toast.success(
+        t("workspace:trash.moveToTrashTitle", "Chuyển vào thùng rác"),
+        t("workspace:project.deletedDesc", { name: deletedName })
+      );
+      setProjects((prev) => prev.filter((p) => p.id !== projectId));
+      setTrashCount((prev) => prev + 1);
+    }
+  };
+
+  // Favorite Action
+  const handleToggleFavorite = async (project: Project) => {
+    try {
+      const nextFav = !project.is_favorite;
+      setProjects((prev) =>
+        prev
+          .map((p) => (p.id === project.id ? { ...p, is_favorite: nextFav } : p))
+          .filter((p) => !(currentTab === "favorites" && p.id === project.id && !nextFav))
+      );
+
+      const res = await toggleProjectFavorite(project.id);
+      toast.success(
+        res.is_favorite
+          ? t("workspace:favorite.added", "Đã thêm vào mục yêu thích")
+          : t("workspace:favorite.removed", "Đã bỏ khỏi mục yêu thích")
+      );
+    } catch (err) {
+      console.error("[WorkspaceLayout] Toggle favorite error:", err);
+      await loadProjects();
+    }
+  };
+
+  // Restore Project Action
+  const handleRestoreProject = async (project: Project) => {
+    try {
+      await restoreProject(project.id);
+      toast.success(
+        t("workspace:trash.restoredSuccess", { name: project.name, defaultValue: `Đã khôi phục dự án "${project.name}" thành công.` })
+      );
+      setProjects((prev) => prev.filter((p) => p.id !== project.id));
+      setTrashCount((prev) => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error("[WorkspaceLayout] Restore project error:", err);
+      toast.error(t("workspace:trash.restoredError", "Không thể khôi phục dự án"));
+    }
+  };
+
+  // Empty Trash Action
+  const handleConfirmEmptyTrash = async () => {
+    try {
+      const res = await emptyTrash();
+      toast.success(
+        t("workspace:trash.emptyTrashSuccess", { count: res.deleted_count, defaultValue: `Đã dọn sạch thùng rác (${res.deleted_count} dự án).` })
+      );
+      if (currentTab === "trash") {
+        setProjects([]);
+      }
+      setTrashCount(0);
+      setIsEmptyTrashConfirmOpen(false);
+    } catch (err) {
+      console.error("[WorkspaceLayout] Empty trash error:", err);
+      toast.error(t("workspace:trash.emptyTrashError", "Không thể dọn sạch thùng rác"));
+    }
   };
 
   // Navigation to Project Detail
@@ -313,6 +429,7 @@ export default function WorkspaceLayout() {
         <WorkspaceTopbar
           isCollapsed={isNavbarCollapsed}
           onToggleCollapse={() => setIsNavbarCollapsed(!isNavbarCollapsed)}
+          onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         />
       </div>
 
@@ -334,16 +451,22 @@ export default function WorkspaceLayout() {
 
       <div className="flex">
         <WorkspaceSidebar
+          currentTab={currentTab}
+          onTabChange={handleTabChange}
           selectedTagId={selectedTagId}
           onTagSelect={setSelectedTagId}
           isNavbarCollapsed={isNavbarCollapsed}
+          isOpenMobile={isMobileSidebarOpen}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+          trashCount={trashCount}
         />
 
-        <main className="min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-8 transition-all duration-300 page-enter">
+        <main className="min-w-0 flex-1 px-3.5 py-6 sm:px-6 lg:px-8 transition-all duration-300 page-enter">
           <WorkspaceHeader
             totalProjects={projects.length}
             matchingCount={processedProjects.length}
             isFiltered={isFilteringActive}
+            currentTab={currentTab}
           />
 
           <ProjectToolbar
@@ -357,6 +480,9 @@ export default function WorkspaceLayout() {
             viewMode={viewMode}
             onViewModeChange={handleViewModeChange}
             onNewProject={handleOpenCreateModal}
+            isTrashMode={currentTab === "trash"}
+            onEmptyTrash={() => setIsEmptyTrashConfirmOpen(true)}
+            trashCount={trashCount}
           />
 
           {/* View Content States */}
@@ -378,6 +504,10 @@ export default function WorkspaceLayout() {
                   onProjectClick={handleProjectClick}
                   onEditProject={handleOpenEditModal}
                   onDeleteProject={handleOpenDeleteModal}
+                  onToggleFavorite={handleToggleFavorite}
+                  onShareProject={(p) => setSharingProject(p)}
+                  onRestoreProject={handleRestoreProject}
+                  isTrashMode={currentTab === "trash"}
                 />
               )}
 
@@ -387,6 +517,10 @@ export default function WorkspaceLayout() {
                   onProjectClick={handleProjectClick}
                   onEditProject={handleOpenEditModal}
                   onDeleteProject={handleOpenDeleteModal}
+                  onToggleFavorite={handleToggleFavorite}
+                  onShareProject={(p) => setSharingProject(p)}
+                  onRestoreProject={handleRestoreProject}
+                  isTrashMode={currentTab === "trash"}
                 />
               )}
 
@@ -396,6 +530,10 @@ export default function WorkspaceLayout() {
                   onProjectClick={handleProjectClick}
                   onEditProject={handleOpenEditModal}
                   onDeleteProject={handleOpenDeleteModal}
+                  onToggleFavorite={handleToggleFavorite}
+                  onShareProject={(p) => setSharingProject(p)}
+                  onRestoreProject={handleRestoreProject}
+                  isTrashMode={currentTab === "trash"}
                 />
               )}
 
@@ -405,6 +543,10 @@ export default function WorkspaceLayout() {
                   onProjectClick={handleProjectClick}
                   onEditProject={handleOpenEditModal}
                   onDeleteProject={handleOpenDeleteModal}
+                  onToggleFavorite={handleToggleFavorite}
+                  onShareProject={(p) => setSharingProject(p)}
+                  onRestoreProject={handleRestoreProject}
+                  isTrashMode={currentTab === "trash"}
                 />
               )}
 
@@ -428,9 +570,44 @@ export default function WorkspaceLayout() {
       <DeleteProjectModal
         project={deletingProject}
         isOpen={deletingProject !== null}
+        mode={deleteModalMode}
         onClose={handleCloseDeleteModal}
         onConfirm={handleConfirmDelete}
       />
+
+      {/* Share Project Modal */}
+      <ShareProjectModal
+        project={sharingProject}
+        isOpen={sharingProject !== null}
+        onClose={() => setSharingProject(null)}
+        onMembersChange={() => {
+          loadProjects();
+        }}
+      />
+
+      {/* Empty Trash Confirmation Modal */}
+      <ConfirmationDialog
+        isOpen={isEmptyTrashConfirmOpen}
+        onClose={() => setIsEmptyTrashConfirmOpen(false)}
+        onConfirm={handleConfirmEmptyTrash}
+        title={t("workspace:trash.emptyTrashTitle", "Dọn sạch thùng rác?")}
+        message={
+          <div>
+            <p>
+              {t(
+                "workspace:trash.emptyTrashConfirm",
+                "Tất cả các dự án trong thùng rác sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác."
+              )}
+            </p>
+            <p className="mt-2 text-xs font-semibold text-[var(--color-danger)]">
+              {t("common:cannotBeUndone", "Hành động này không thể hoàn tác.")}
+            </p>
+          </div>
+        }
+        confirmLabel={t("workspace:trash.emptyTrashButton", "Dọn sạch thùng rác")}
+        cancelLabel={t("common:cancel")}
+        isDestructive
+      />
     </div>
   );
-}
+}

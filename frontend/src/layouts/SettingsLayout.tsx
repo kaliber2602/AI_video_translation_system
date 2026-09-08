@@ -175,14 +175,7 @@ export default function SettingsLayout({
             )}
 
             {activeSection === "notifications" && (
-              <NotificationsSection
-                emailNotifications={emailNotifications}
-                processingUpdates={processingUpdates}
-                tipsNews={tipsNews}
-                onEmailNotificationsChange={onEmailNotificationsChange}
-                onProcessingUpdatesChange={onProcessingUpdatesChange}
-                onTipsNewsChange={onTipsNewsChange}
-              />
+              <NotificationsSection />
             )}
 
             {activeSection === "integrations" && (

@@ -1,4 +1,5 @@
-import { Globe } from "lucide-react";
+import { Globe, Menu, X } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "../../app/providers/LanguageContext";
@@ -8,6 +9,7 @@ export default function HomeNavbar() {
   const { t } = useTranslation(["navigation", "common"]);
   const { language, changeLanguage } = useLanguage();
   const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLanguageToggle = () => {
     const nextLang = language === "en" ? "vi" : "en";
@@ -168,18 +170,105 @@ export default function HomeNavbar() {
               {t("navigation:login")}
             </Link>
 
-            {/* Sign Up / Get Started Pill Button */}
+            {/* Mobile Menu Toggle Button */}
             <button
               type="button"
-              onClick={() => navigate("/register")}
-              className="flex h-8 sm:h-9 items-center gap-1.5 rounded-full bg-[var(--color-text-primary)] hover:opacity-90 text-white px-4 sm:px-5 text-xs font-bold shadow-md transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle navigation menu"
+              className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/40 text-[var(--color-text-secondary)] shadow-xs transition hover:text-[var(--color-primary)] lg:hidden"
             >
-              <span>{t("navigation:register")}</span>
-              <span className="text-[10px]">→</span>
+              {mobileMenuOpen ? <X size={17} /> : <Menu size={17} />}
             </button>
           </div>
         </div>
       </div>
+
+      {/* ======================================================== */}
+      {/* MOBILE NAVIGATION DROPDOWN SHEET (Visible on < lg when open) */}
+      {/* ======================================================== */}
+      {mobileMenuOpen && (
+        <div className="mx-auto mt-2 max-w-[1320px] rounded-3xl border border-[var(--color-border)]/60 bg-[var(--color-surface)]/95 p-5 shadow-2xl backdrop-blur-2xl transition-all duration-200 animate-dropdown-reveal lg:hidden">
+          <nav className="flex flex-col space-y-1">
+            <a
+              href="#home"
+              onClick={() => setMobileMenuOpen(false)}
+              className="rounded-xl px-4 py-2.5 text-xs font-bold text-[var(--color-text-primary)] transition hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)]"
+            >
+              {t("navigation:home")}
+            </a>
+
+            <a
+              href="#features"
+              onClick={() => setMobileMenuOpen(false)}
+              className="rounded-xl px-4 py-2.5 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)]"
+            >
+              {t("navigation:features")}
+            </a>
+
+            <a
+              href="#how-it-works"
+              onClick={() => setMobileMenuOpen(false)}
+              className="rounded-xl px-4 py-2.5 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)]"
+            >
+              {t("navigation:howItWorks")}
+            </a>
+
+            <a
+              href="#semantic-search"
+              onClick={() => setMobileMenuOpen(false)}
+              className="rounded-xl px-4 py-2.5 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)]"
+            >
+              {t("navigation:semanticSearch")}
+            </a>
+
+            <a
+              href="#pricing"
+              onClick={() => setMobileMenuOpen(false)}
+              className="rounded-xl px-4 py-2.5 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)]"
+            >
+              {t("navigation:pricing")}
+            </a>
+
+            <a
+              href="#about"
+              onClick={() => setMobileMenuOpen(false)}
+              className="rounded-xl px-4 py-2.5 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)]"
+            >
+              {t("navigation:about")}
+            </a>
+
+            <a
+              href="#contact"
+              onClick={() => setMobileMenuOpen(false)}
+              className="rounded-xl px-4 py-2.5 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)]"
+            >
+              {t("navigation:contact")}
+            </a>
+          </nav>
+
+          <div className="mt-4 flex items-center gap-3 border-t border-[var(--color-border)] pt-4">
+            <Link
+              to="/login"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex-1 flex h-10 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-xs font-bold text-[var(--color-text-primary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+            >
+              {t("navigation:login")}
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                navigate("/register");
+              }}
+              className="flex-1 flex h-10 items-center justify-center gap-1 rounded-xl bg-[var(--color-primary)] text-xs font-bold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)]"
+            >
+              <span>{t("navigation:register")}</span>
+              <span>→</span>
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

@@ -9,6 +9,12 @@ services:
     volumes:
       - ./backend:/app
       - ./model-cache:/opt/model-cache
+
+    command:
+      - sh
+      - -c
+      - python scripts/prefetch_models.py all && python scripts/seed_users.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
     ports:
       - "8000:8000"
     environment:
@@ -70,6 +76,35 @@ services:
         condition: service_started
 
   frontend:
+    environment:
+      PYTHONUNBUFFERED: "1"
+      TRANSLATION_BACKEND: nllb
+      HF_TOKEN:
+      TTS_API_URL: http://tts-service:8001/generate_tts
+      WHISPER_DEVICE: cpu
+      WHISPER_MODEL: small
+      DATABASE_URL: "postgresql://ai_video:ai_video@db:5432/ai_video"
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      MAIL_FROM: ${MAIL_FROM}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REFRESH_TOKEN: ${GOOGLE_REFRESH_TOKEN}
+
+      VNPAY_TMN_CODE: ${VNPAY_TMN_CODE}
+      VNPAY_HASH_SECRET: ${VNPAY_HASH_SECRET}
+      VNPAY_URL: ${VNPAY_URL}
+      VNPAY_RETURN_URL: ${VNPAY_RETURN_URL}
+      VNPAY_EXCHANGE_RATE_USD_VND: ${VNPAY_EXCHANGE_RATE_USD_VND}
+
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
+      STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL}
+      STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL}
+
+  tts-service:
     build:
       context: ./frontend
       dockerfile: Dockerfile

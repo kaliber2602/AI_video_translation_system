@@ -97,3 +97,30 @@ export interface UserSubscriptionSummary {
   addons: UserStorageAddon[];
   effective_quota: EffectiveQuota;
 }
+
+export interface UserConsumableUsage {
+  user_id: number;
+  credits_allocated: number;
+  credits_used: number;
+  credits_remaining: number;
+  storage_bytes_allocated: number;
+  storage_bytes_used: number;
+  storage_bytes_remaining: number;
+}
+
+export interface CreditAuditLog {
+  id: number;
+  user_id: number;
+  video_id: number | null;
+  job_id: string | null;
+  service_type: string;
+  credits_deducted: number;
+  balance_after: number | null;
+  description: string | null;
+  created_at: string;
+}
+
+export interface CreditAuditLogListResponse {
+  logs: CreditAuditLog[];
+  total: number;
+}

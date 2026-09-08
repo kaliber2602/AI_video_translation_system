@@ -56,7 +56,7 @@ export default function ViewSwitcher({
             aria-label={mode.label}
             title={mode.label}
             onClick={() => onViewModeChange(mode.id)}
-            className={`group relative flex h-9 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold spring-pill ${
+            className={`group relative flex h-9 items-center gap-1.5 rounded-xl px-2 sm:px-3 text-xs font-semibold spring-pill ${
               isActive
                 ? "bg-[var(--color-primary)] text-white shadow-[0_4px_14px_-4px_color-mix(in_srgb,var(--color-primary)_65%,transparent)] font-bold scale-[1.02]"
                 : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface)]/80 hover:text-[var(--color-text-primary)]"
