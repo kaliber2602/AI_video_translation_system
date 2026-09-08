@@ -5,7 +5,6 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: sh -c "python scripts/prefetch_models.py all && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     volumes:
       - ./backend:/app
       - ./model-cache:/opt/model-cache
@@ -76,7 +75,19 @@ services:
         condition: service_started
 
   frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development  # Use development stage
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
     environment:
+      VITE_S3_BUCKET_URL: ${VITE_S3_BUCKET_URL:-http://localhost:9000}
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+      VITE_MINIO_ENDPOINT: ${VITE_MINIO_ENDPOINT:-http://localhost:9000}
       PYTHONUNBUFFERED: "1"
       TRANSLATION_BACKEND: nllb
       HF_TOKEN:
@@ -103,21 +114,6 @@ services:
       STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
       STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL}
       STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL}
-
-  tts-service:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      target: development  # Use development stage
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    ports:
-      - "5173:5173"
-    environment:
-      VITE_S3_BUCKET_URL: ${VITE_S3_BUCKET_URL:-http://localhost:9000}
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
-      VITE_MINIO_ENDPOINT: ${VITE_MINIO_ENDPOINT:-http://localhost:9000}
     depends_on:
       - backend
     stdin_open: true
