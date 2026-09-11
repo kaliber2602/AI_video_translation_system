@@ -35,7 +35,16 @@
     },
     "subtitle": {
       "title": "Phụ đề",
-      "description": "Tạo phụ đề tự động chuẩn xác theo thời gian, sẵn sàng xem trước và tùy chỉnh."
+      "description": "Tạo phụ đề tự động chuẩn xác theo thời gian, sẵn sàng xem trước và tùy chỉnh.",
+      "pageTitle": "Tạo Phụ đề",
+      "pageDescription": "Tùy chỉnh định dạng phụ đề và xem trước phụ đề đã dịch trước khi xuất tệp.",
+      "previewTitle": "Xem trước Phụ đề",
+      "previewSubtitle": "Phụ đề đã dịch",
+      "downloadSrt": "Tải về SRT",
+      "format": "Định dạng",
+      "fontSize": "Cỡ chữ",
+      "position": "Vị trí",
+      "settingsSaved": "Đã lưu cài đặt phụ đề"
     },
     "dubbing": {
       "title": "Lồng tiếng",

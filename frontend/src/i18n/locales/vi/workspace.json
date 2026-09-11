@@ -115,7 +115,8 @@
   "quota": {
     "title": "Hạn mức không gian",
     "storage": "Bộ nhớ đám mây",
-    "credits": "Điểm xử lý AI",
+    "credits": "Quota từ AI (Words)",
+    "words": "Quota từ AI (Words)",
     "used": "Đã dùng",
     "remaining": "Còn lại",
     "addStorage": "+ Thêm dung lượng",

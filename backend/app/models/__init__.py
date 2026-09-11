@@ -1,36 +1,33 @@
-# app/models/__init__.py
-from sqlalchemy.ext.automap import automap_base
-from app.core.database import engine
+# app/models/__init__.py - Pure Python Domain Table Models (Zero SQLAlchemy)
+from app.core.database import TableModel, Base
 
-# Auto-generate models from existing database tables
-Base = automap_base()
-Base.prepare(autoload_with=engine)
-
-# Map your tables to model names
-Video = Base.classes.videos
-VideoPipelineConfig = Base.classes.video_pipeline_configs
-PipelineJob = Base.classes.pipeline_jobs
-PipelineTaskLog = Base.classes.pipeline_task_logs
-User = Base.classes.users
-UserSettings = Base.classes.user_settings
-Project = Base.classes.projects
-ProjectMember = Base.classes.project_members
-ProjectGlossary = Base.classes.project_glossary
-Tag = Base.classes.tags
-ProjectTag = Base.classes.project_tags
-Plan = Base.classes.plans
-PlanResource = Base.classes.plan_resources
-UserSubscription = Base.classes.user_subscriptions
-StorageAddon = Base.classes.storage_addons
-UserStorageAddon = Base.classes.user_storage_addons
-SpeakerProfile = Base.classes.speaker_profiles
-TranscriptSegment = Base.classes.transcript_segments
-TranslationSegment = Base.classes.translation_segments
-SubtitleSegment = Base.classes.subtitle_segments
-VideoChapter = Base.classes.video_chapters
-VideoDocument = Base.classes.video_documents
-VideoEmbedding = Base.classes.video_embeddings
-AIModel = Base.classes.ai_models
+# Model descriptors mapping table names to domain entities
+Video = TableModel("videos")
+VideoPipelineConfig = TableModel("video_pipeline_configs")
+PipelineJob = TableModel("pipeline_jobs")
+PipelineTaskLog = TableModel("pipeline_task_logs")
+User = TableModel("users")
+UserSettings = TableModel("user_settings")
+Project = TableModel("projects")
+ProjectFolder = TableModel("project_folders")
+ProjectMember = TableModel("project_members")
+ProjectGlossary = TableModel("project_glossary")
+Tag = TableModel("tags")
+ProjectTag = TableModel("project_tags")
+Plan = TableModel("plans")
+PlanResource = TableModel("plan_resources")
+UserSubscription = TableModel("user_subscriptions")
+StorageAddon = TableModel("storage_addons")
+UserStorageAddon = TableModel("user_storage_addons")
+SpeakerProfile = TableModel("speaker_profiles")
+TranscriptSegment = TableModel("transcript_segments")
+TranslationSegment = TableModel("translation_segments")
+SubtitleSegment = TableModel("subtitle_segments")
+VideoChapter = TableModel("video_chapters")
+VideoDocument = TableModel("video_documents")
+VideoEmbedding = TableModel("video_embeddings")
+AIModel = TableModel("ai_models")
+VideoRenderOutput = TableModel("video_render_outputs")
 
 __all__ = [
     'Base',
@@ -41,6 +38,7 @@ __all__ = [
     'User',
     'UserSettings',
     'Project',
+    'ProjectFolder',
     'ProjectMember',
     'ProjectGlossary',
     'Tag',
@@ -58,4 +56,5 @@ __all__ = [
     'VideoDocument',
     'VideoEmbedding',
     'AIModel',
+    'VideoRenderOutput',
 ]

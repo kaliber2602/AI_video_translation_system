@@ -41,6 +41,7 @@ class SystemMetricsResponse(BaseModel):
     jobs_by_status: Dict[str, int]
     total_revenue_usd: float
     total_credits_consumed: int
+    total_words_consumed: Optional[int] = 0
     timestamp: datetime
 
 
@@ -128,6 +129,7 @@ class AdminUserListItem(BaseModel):
     projects_count: int = 0
     videos_count: int = 0
     credits_used: int = 0
+    words_used: Optional[int] = 0
     created_at: datetime
 
 
@@ -148,6 +150,7 @@ class AdminUserDetailResponse(BaseModel):
     projects_count: int = 0
     videos_count: int = 0
     total_credits_used: int = 0
+    total_words_used: Optional[int] = 0
     recent_jobs: List[AdminJobResponse] = []
 
 
@@ -213,6 +216,7 @@ class AdminCreditAuditResponse(BaseModel):
     job_id: Optional[str] = None
     service_type: str
     credits_deducted: int
+    words_deducted: Optional[int] = 0
     balance_after: Optional[int] = None
     description: Optional[str] = None
     created_at: datetime

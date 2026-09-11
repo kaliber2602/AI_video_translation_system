@@ -7,8 +7,12 @@ import tempfile
 from typing import List, Dict, Any, Optional
 import logging
 import numpy as np
-import soundfile as sf
 from pydub import AudioSegment
+
+try:
+    import soundfile as sf
+except Exception:
+    sf = None
 
 logger = logging.getLogger("app.services.tts_aligner_service")
 
@@ -215,28 +219,32 @@ class TTSAlignerService:
             return None
         
         try:
-            # Read vocal audio
-            audio, sr = sf.read(vocal_path)
-            
-            # Convert to mono if stereo
-            if len(audio.shape) > 1:
-                audio = np.mean(audio, axis=1)
-            
-            # ✅ Trim to first 5-10 seconds for voice sample
-            sample_duration = min(10, len(audio) / sr)
-            sample_samples = int(sample_duration * sr)
-            audio_sample = audio[:sample_samples]
-            
-            # Save as temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
-                sf.write(f.name, audio_sample, sr)
-                with open(f.name, "rb") as audio_file:
-                    audio_data = audio_file.read()
-                os.unlink(f.name)
-                
-            logger.info(f"Extracted speaker sample: {sample_duration:.1f}s, {len(audio_data)} bytes")
-            return audio_data
-                
+            if sf is not None:
+                # Read vocal audio via soundfile
+                audio, sr = sf.read(vocal_path)
+                if len(audio.shape) > 1:
+                    audio = np.mean(audio, axis=1)
+                sample_duration = min(10, len(audio) / sr)
+                sample_samples = int(sample_duration * sr)
+                audio_sample = audio[:sample_samples]
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+                    sf.write(f.name, audio_sample, sr)
+                    with open(f.name, "rb") as audio_file:
+                        audio_data = audio_file.read()
+                    os.unlink(f.name)
+                logger.info(f"Extracted speaker sample: {sample_duration:.1f}s, {len(audio_data)} bytes")
+                return audio_data
+            else:
+                # Read vocal audio via pydub fallback
+                seg = AudioSegment.from_file(vocal_path)
+                sample_seg = seg[:10000]
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+                    sample_seg.export(f.name, format="wav")
+                    with open(f.name, "rb") as audio_file:
+                        audio_data = audio_file.read()
+                    os.unlink(f.name)
+                logger.info(f"Extracted speaker sample via pydub: {len(sample_seg)/1000:.1f}s, {len(audio_data)} bytes")
+                return audio_data
         except Exception as e:
             logger.error(f"Failed to extract voice profile: {e}")
             return None

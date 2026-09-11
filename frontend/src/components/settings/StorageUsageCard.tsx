@@ -1,65 +1,149 @@
+import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
+import { HardDrive, Loader2, ArrowRight } from "lucide-react";
 import SettingCard from "./SettingCard";
+import { getStorageBreakdown } from "../../services/subscription.service";
+import type { StorageBreakdownResponse } from "../../types/subscription";
 
-export default function StorageUsageCard() {
-  const { t } = useTranslation(["settings"]);
+interface StorageUsageCardProps {
+  onManageStorage?: () => void;
+}
+
+export default function StorageUsageCard({ onManageStorage }: StorageUsageCardProps) {
+  const { t } = useTranslation(["settings", "common"]);
+  const navigate = useNavigate();
+
+  const [breakdown, setBreakdown] = useState<StorageBreakdownResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const data = await getStorageBreakdown();
+      setBreakdown(data);
+    } catch (err) {
+      console.error("[StorageUsageCard] Failed to fetch storage breakdown:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+
+    const handleSync = () => {
+      loadData();
+    };
+
+    window.addEventListener("subscription-updated", handleSync);
+    return () => {
+      window.removeEventListener("subscription-updated", handleSync);
+    };
+  }, [loadData]);
+
+  const handleManage = () => {
+    if (onManageStorage) {
+      onManageStorage();
+    } else {
+      navigate("/settings?tab=privacy");
+    }
+  };
+
+  const usedFormatted = breakdown
+    ? breakdown.plan.used_bytes < 1024 * 1024 * 1024
+      ? `${(breakdown.plan.used_bytes / (1024 * 1024)).toFixed(1)} MB`
+      : `${breakdown.plan.used_gb} GB`
+    : "0 MB";
+
+  const totalFormatted = `${breakdown?.plan.total_gb ?? 5} GB`;
+  const usagePercent = breakdown?.plan.usage_percent ?? 0;
 
   return (
     <SettingCard
-      title={t("settings:storage.title")}
-      description={t("settings:storage.description")}
+      title={t("settings:storage.title", "Storage & Cloud Usage")}
+      description={t(
+        "settings:storage.description",
+        "Monitor your project storage, vocal stems, cache, and uploaded source media."
+      )}
     >
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-bold text-[var(--color-text-primary)]">
-          72.4 GB / 100 GB
-        </span>
+      {isLoading && !breakdown ? (
+        <div className="flex flex-col items-center justify-center py-6 text-[var(--color-text-muted)] space-y-2">
+          <Loader2 size={24} className="animate-spin text-[var(--color-primary)]" />
+          <span className="text-xs">Loading live storage usage...</span>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-1.5">
+              <HardDrive size={15} className="text-[var(--color-primary)]" />
+              {usedFormatted} / {totalFormatted}
+            </span>
 
-        <span className="text-xs font-semibold text-[var(--color-primary)]">
-          72.4%
-        </span>
-      </div>
+            <span className="text-xs font-semibold text-[var(--color-primary)]">
+              {usagePercent}%
+            </span>
+          </div>
 
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--color-border)] flex">
-        <div className="h-full w-[42.5%] bg-[var(--color-primary)]" title="Source Videos" />
-        <div className="h-full w-[18.2%] bg-blue-500" title="Dubbed Videos" />
-        <div className="h-full w-[7.4%] bg-purple-500" title="Audio Tracks" />
-        <div className="h-full w-[1.8%] bg-pink-500" title="Subtitles & Docs" />
-        <div className="h-full w-[2.5%] bg-slate-400" title="Pipeline Cache" />
-      </div>
+          {/* Segmented Color Bar */}
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--color-border)] flex">
+            {breakdown && breakdown.storage_by_type && breakdown.storage_by_type.length > 0 ? (
+              breakdown.storage_by_type.map((cat) =>
+                cat.percentage > 0 ? (
+                  <div
+                    key={cat.key}
+                    className="h-full transition-all duration-500"
+                    style={{
+                      width: `${cat.percentage}%`,
+                      backgroundColor: cat.color.startsWith("var")
+                        ? "var(--color-primary)"
+                        : cat.color,
+                    }}
+                    title={`${cat.label}: ${cat.size_formatted} (${cat.percentage}%)`}
+                  />
+                ) : null
+              )
+            ) : null}
+            {(!breakdown || breakdown.plan.used_bytes === 0) && (
+              <div className="h-full w-full bg-[var(--color-border)]/40" title="0 B used" />
+            )}
+          </div>
 
-      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-[var(--color-text-muted)]">
-        <span>
-          <b className="text-[var(--color-primary)]">●</b>{" "}
-          {t("settings:storage.sourceVideos", "Source Videos")} 42.5 GB
-        </span>
+          {/* Categories Legend */}
+          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-[var(--color-text-muted)]">
+            {breakdown?.storage_by_type && breakdown.storage_by_type.length > 0 ? (
+              breakdown.storage_by_type.map((item) => (
+                <span key={item.key} className="flex items-center gap-1">
+                  <span
+                    className="inline-block h-2 w-2 rounded-full shrink-0"
+                    style={{
+                      backgroundColor: item.color.startsWith("var")
+                        ? "var(--color-primary)"
+                        : item.color,
+                    }}
+                  />
+                  <span>{item.label}</span>
+                  <span className="font-semibold text-[var(--color-text-secondary)]">
+                    {item.size_formatted}
+                  </span>
+                </span>
+              ))
+            ) : (
+              <span>No storage data available.</span>
+            )}
+          </div>
 
-        <span>
-          <b className="text-blue-500">●</b>{" "}
-          {t("settings:storage.dubbedVideos", "Dubbed Videos")} 18.2 GB
-        </span>
-
-        <span>
-          <b className="text-purple-500">●</b>{" "}
-          {t("settings:storage.audioTracks", "Audio Tracks")} 7.4 GB
-        </span>
-
-        <span>
-          <b className="text-pink-500">●</b>{" "}
-          {t("settings:storage.subtitlesDocs", "Subtitles & Docs")} 1.8 GB
-        </span>
-
-        <span>
-          <b className="text-slate-400">●</b>{" "}
-          {t("settings:storage.pipelineCache", "Cache")} 2.5 GB
-        </span>
-      </div>
-
-      <button
-        type="button"
-        className="mt-5 h-10 w-full rounded-lg border border-[var(--color-primary)] text-sm font-semibold text-[var(--color-primary)] transition hover:bg-[var(--color-primary-soft)]"
-      >
-        {t("settings:storage.manageStorage")}
-      </button>
+          <button
+            type="button"
+            onClick={handleManage}
+            className="mt-5 flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[var(--color-primary)] text-sm font-semibold text-[var(--color-primary)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.99] cursor-pointer"
+          >
+            <span>{t("settings:storage.manageStorage", "Manage Storage & Cache")}</span>
+            <ArrowRight size={14} />
+          </button>
+        </>
+      )}
     </SettingCard>
   );
 }
+

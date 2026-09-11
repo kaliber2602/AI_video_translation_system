@@ -110,6 +110,15 @@ export default function SemanticSearchDemo() {
       <div className="overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)] transition-colors">
         {/* Top Search Interface Bar */}
         <div className="border-b border-[var(--color-border)] bg-[var(--color-background)]/70 p-6 sm:p-8">
+          <div className="flex items-center justify-between mb-3">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 text-[11px] font-bold text-amber-600">
+              <Sparkles size={12} />
+              <span>Interactive RAG Preview Demo</span>
+            </div>
+            <span className="text-[11px] text-[var(--color-text-muted)]">
+              Simulated Vector Search & LLM Grounding
+            </span>
+          </div>
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-[var(--color-primary)]">
               <Search size={20} />

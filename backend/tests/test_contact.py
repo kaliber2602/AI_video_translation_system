@@ -96,7 +96,13 @@ def test_submit_contact_success(monkeypatch):
     assert body["data"]["id"] == 101
 
 
+def test_list_contacts_unauthorized():
+    response = client.get("/api/contact?limit=10&offset=0")
+    assert response.status_code in (401, 403)
+
+
 def test_list_contacts(monkeypatch):
+    from app.core.admin_guard import require_admin
     fake_list = [
         {
             "id": 1,
@@ -115,8 +121,13 @@ def test_list_contacts(monkeypatch):
         lambda limit, offset: fake_list,
     )
 
-    response = client.get("/api/contact?limit=10&offset=0")
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data) == 1
-    assert data[0]["name"] == "John Smith"
+    app.dependency_overrides[require_admin] = lambda: {"id": 1, "role": "admin"}
+    try:
+        response = client.get("/api/contact?limit=10&offset=0")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["name"] == "John Smith"
+    finally:
+        app.dependency_overrides.pop(require_admin, None)
+

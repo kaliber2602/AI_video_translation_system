@@ -60,3 +60,59 @@ export interface ProjectUpdateRequest {
   cover_path?: string | null;
   status?: string | null;
 }
+
+export interface ProjectFolder {
+  id: number;
+  project_id: number;
+  parent_id?: number | null;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FolderCreateRequest {
+  name: string;
+  parent_id?: number | null;
+}
+
+export interface FolderUpdateRequest {
+  name?: string;
+  parent_id?: number | null;
+}
+
+export type AssetCategory =
+  | "all"
+  | "video"
+  | "audio"
+  | "subtitle"
+  | "transcript"
+  | "document"
+  | "speaker_voice";
+
+export interface ProjectAssetItem {
+  id: string;
+  name: string;
+  category: "video" | "audio" | "subtitle" | "transcript" | "document" | "speaker_voice" | string;
+  format?: string;
+  size_bytes?: number;
+  size_display?: string;
+  storage_location?: string;
+  storage_type?: string;
+  path_or_key: string;
+  download_url?: string | null;
+  preview_url?: string | null;
+  created_at?: string | null;
+  folder_id?: number | null;
+  folder_name?: string | null;
+  video_id?: number | string | null;
+  video_title?: string | null;
+}
+
+export interface ProjectAssetsResponse {
+  project_id: number;
+  total_files: number;
+  total_size_bytes: number;
+  category_counts: Record<string, number>;
+  assets: ProjectAssetItem[];
+}
+

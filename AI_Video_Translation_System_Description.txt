@@ -1,97 +1,3173 @@
-AI VIDEO TRANSLATION & VIDEO UNDERSTANDING PLATFORM
+# AI VIDEO TRANSLATION & VIDEO UNDERSTANDING PLATFORM
 
-1. MỤC TIÊU
-Xây dựng hệ thống AI tự động dịch video, tạo phụ đề, lồng tiếng, hiểu nội dung video (cho phép chuyển âm thanh video thành văn bản), sinh tài liệu có cấu trúc và hỗ trợ tìm kiếm nội dung theo ngữ nghĩa.
+## FULL SYSTEM SPECIFICATION
 
-2. CHỨC NĂNG
-- Upload video (MP4/MKV/MOV/AVI)
-- Tách audio bằng FFmpeg
-- Speech-to-Text (WhisperX)
-- Speaker Diarization (Pyannote)
-- Dịch đa ngôn ngữ (NLLB-200 hoặc GPT)
-- Xuất TXT, SRT, VTT, JSON
-- Text-to-Speech (XTTS v2 hoặc Qwen3-TTS)
-- Voice Cloning
-- Ghép video bằng FFmpeg
-- Sinh Markdown theo timeline
-- Chia Chapter theo chủ đề
-- Chuyển TXT sang DOCX có cấu trúc
-- Sinh PDF, HTML.
-- Semantic Search: Xây dựng chỉ mục ngữ nghĩa (Semantic Index) từ transcript, hỗ trợ tìm kiếm nội dung bằng ngôn ngữ tự nhiên và tự động điều hướng người dùng đến đúng mốc thời gian (timestamp) trên video.
+---
 
-3. PIPELINE
+# 1. MỤC TIÊU
 
-Upload Video
-    |
-Validate
-    |
-FFmpeg Extract Audio
-    |
+Xây dựng một nền tảng AI xử lý, dịch, lồng tiếng, hiểu và tìm kiếm nội dung video theo mô hình end-to-end.
+
+Hệ thống cho phép người dùng:
+
+* Upload video.
+* Quản lý project.
+* Quản lý file và folder.
+* Xử lý video bằng AI.
+* Chuyển speech thành text.
+* Nhận diện speaker.
+* Dịch nội dung.
+* Tạo subtitle.
+* Text-to-Speech.
+* Voice Cloning.
+* Tạo video lồng tiếng.
+* Phân tích nội dung video.
+* Tự động chia chapter.
+* Sinh summary.
+* Sinh Markdown/DOCX/PDF/HTML.
+* Tìm kiếm semantic.
+* Hỏi đáp với nội dung video bằng RAG + LLM.
+* Tìm chính xác timestamp liên quan trong video.
+* Quản lý subscription.
+* Quản lý quota.
+* Quản lý AI processing credits.
+* Quản lý storage.
+* Quản lý notification.
+* Quản lý settings.
+
+Kiến trúc được thiết kế theo hướng:
+
+```text
+Frontend
+    ↓
+API
+    ↓
+Business Services
+    ↓
+PostgreSQL
+    ↓
+Redis / Queue
+    ↓
+AI Workers
+    ↓
+MinIO
+```
+
+với hai lớp AI chính:
+
+```text
+USER PROCESSING LAYER
+```
+
+và
+
+```text
+PLATFORM INTELLIGENCE LAYER
+```
+
+---
+
+# 2. PLATFORM ARCHITECTURE
+
+## 2.1. Tổng quan
+
+```text
+                              USER
+                                │
+                                ▼
+                    ┌──────────────────────┐
+                    │      FRONTEND        │
+                    │ React + TypeScript   │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │      FASTAPI         │
+                    │    REST / API        │
+                    └──────────┬───────────┘
+                               │
+             ┌─────────────────┼─────────────────┐
+             │                 │                 │
+             ▼                 ▼                 ▼
+        PostgreSQL           Redis            MinIO
+             │                 │                 │
+             │                 ▼                 │
+             │             Celery/Worker         │
+             │                 │                 │
+             │                 ▼                 │
+             │           AI PROCESSING           │
+             │                 │                 │
+             │      ┌──────────┼──────────┐      │
+             │      ▼          ▼          ▼      │
+             │     STT     Translation     TTS    │
+             │      │          │          │       │
+             │      └──────────┼──────────┘       │
+             │                 ▼                  │
+             │              FFmpeg                │
+             │                 │                  │
+             │                 ▼                  │
+             │            Generated Assets        │
+             │                                    │
+             └────────────────────────────────────┘
+                               │
+                               ▼
+                    PLATFORM INTELLIGENCE
+                               │
+              ┌────────────────┼────────────────┐
+              ▼                ▼                ▼
+          Embedding         Vector DB          LLM
+              │                │                │
+              └────────────────┼────────────────┘
+                               ▼
+                          RAG / Search
+```
+
+---
+
+# 3. HAI LỚP RESOURCE
+
+Hệ thống phải phân biệt tuyệt đối hai loại resource.
+
+## 3.1. User-Consumable Resource
+
+Đây là các tài nguyên được tính vào subscription/quota của người dùng.
+
+Bao gồm:
+
+```text
+STORAGE
+AI_PROCESSING_CREDITS
+VIDEO_DURATION
+CONCURRENT_JOBS
+RESOLUTION
+PREMIUM_PROCESSING_FEATURES
+```
+
+Các processing operation có thể tiêu thụ:
+
+```text
+FFmpeg Processing
+STT
+Diarization
+Translation
+TTS
+Voice Cloning
+Video Dubbing
+Video Export
+```
+
+---
+
+# 4. PLATFORM INTELLIGENCE RESOURCE
+
+Các chức năng sau **KHÔNG khấu trừ User AI Credits**:
+
+```text
+RAG
+Semantic Search
+Embedding
+Query Embedding
+Vector Search
+LLM Reasoning
+Question Answering
+Transcript Understanding
+Topic Detection
+Chapter Detection
+Summary
+Context Retrieval
+Semantic Navigation
+```
+
+Nguyên tắc:
+
+```text
+USER AI CREDIT CONSUMED = 0
+```
+
+cho các hoạt động trên.
+
+Tuy nhiên hệ thống vẫn phải tracking:
+
+```text
+LLM requests
+LLM tokens
+Embedding requests
+Embedding tokens
+Vector searches
+Latency
+Model
+Provider
+Error rate
+Concurrency
+System cost
+```
+
+Điều này nhằm phục vụ:
+
+* monitoring;
+* capacity planning;
+* cost analysis;
+* optimization;
+* abuse detection;
+* system administration.
+
+### Quan trọng
+
+```text
+SYSTEM RESOURCE TRACKING
+        ≠
+USER QUOTA CONSUMPTION
+```
+
+---
+
+# 5. AUTHENTICATION & ACCOUNT
+
+Hệ thống hỗ trợ:
+
+* Register.
+* Login.
+* Logout.
+* JWT authentication.
+* Refresh token.
+* Forgot password.
+* Reset password.
+* OTP/email verification nếu được sử dụng.
+* User profile.
+* Avatar.
+* Account settings.
+* Session management.
+
+Mọi resource phải được kiểm tra ownership.
+
+Ví dụ:
+
+```text
+User A
+  ↓
+Project A
+  ↓
+Files A
+```
+
+không được truy cập:
+
+```text
+Project B
+Files B
+```
+
+---
+
+# 6. PROJECT MANAGEMENT
+
+User có thể tạo nhiều project.
+
+## Project operations
+
+* Create.
+* Open.
+* Rename.
+* Delete.
+* Archive nếu hỗ trợ.
+* Search.
+* Sort.
+* Filter.
+
+Thông tin project:
+
+```text
+project_id
+name
+description
+owner
+created_at
+updated_at
+storage_used
+file_count
+processing_count
+status
+```
+
+Route:
+
+```text
+/workspace/project/:projectId
+```
+
+Ví dụ:
+
+```text
+/workspace/project/1
+```
+
+---
+
+# 7. WORKSPACE
+
+Workspace là trung tâm của hệ thống.
+
+Bao gồm:
+
+```text
+Project Header
+Project Navigation
+File Manager
+Folder Manager
+Upload
+Processing
+Video Player
+Transcript
+Translation
+Subtitles
+Generated Assets
+Semantic Search
+RAG Chat
+Documents
+Usage
+```
+
+---
+
+# 8. FILE MANAGEMENT
+
+Hệ thống hỗ trợ quản lý file thực tế.
+
+## Upload
+
+* Single upload.
+* Multiple upload.
+* Drag & Drop.
+* Upload progress.
+* Cancel upload.
+* Retry upload.
+* Validation.
+* File type validation.
+* File size validation.
+* Duplicate detection nếu cần.
+* Storage quota check.
+
+Video formats:
+
+```text
+MP4
+MKV
+MOV
+AVI
+WebM
+```
+
+Có thể mở rộng thêm.
+
+---
+
+# 9. FOLDER MANAGEMENT
+
+Hỗ trợ:
+
+* Create folder.
+* Rename folder.
+* Delete folder.
+* Move file.
+* Move folder.
+* Nested folder.
+* Breadcrumb.
+* Folder tree.
+* Empty state.
+* Sorting.
+* Filtering.
+
+Ví dụ:
+
+```text
+Project
+│
+├── Videos
+│   ├── lecture.mp4
+│   └── interview.mp4
+│
+├── Transcripts
+│
+├── Subtitles
+│
+└── Documents
+```
+
+---
+
+# 10. FILE LIFECYCLE
+
+```text
+Upload
+   ↓
+Validation
+   ↓
+Storage Reservation
+   ↓
+Object Upload
+   ↓
+Database Registration
+   ↓
+READY
+   ↓
+PROCESSING
+   ↓
+COMPLETED
+   ↓
+Generated Assets
+   ↓
+Download / Search / Playback
+```
+
+Khi delete:
+
+```text
+Delete Request
+   ↓
+Authorization
+   ↓
+Database
+   ↓
+Object Storage
+   ↓
+Generated Assets
+   ↓
+Semantic Index
+   ↓
+Storage Accounting
+```
+
+---
+
+# 11. STORAGE MANAGEMENT
+
+Storage sử dụng MinIO/Object Storage.
+
+Các object có thể bao gồm:
+
+```text
+Original Video
+Extracted Audio
+Transcript
+Subtitle
+Generated Audio
+Generated Video
+Proxy Video
+HLS Segments
+Thumbnail
+Markdown
+DOCX
+PDF
+HTML
+Temporary Assets
+Embedding Metadata
+```
+
+Storage phải được phân loại:
+
+```text
+ORIGINAL
+GENERATED
+INTERMEDIATE
+TEMPORARY
+```
+
+---
+
+# 12. STORAGE QUOTA
+
+Mỗi user có:
+
+```text
+Storage Limit
+Storage Used
+Storage Available
+```
+
+Công thức:
+
+```text
+Storage Available
+=
+Storage Limit - Storage Used
+```
+
+Phải đảm bảo:
+
+```text
+storage_used >= 0
+storage_used <= storage_limit
+```
+
+---
+
+# 13. STORAGE RESERVATION
+
+Upload phải có cơ chế reservation.
+
+```text
+Upload Request
+      ↓
+Check Available Storage
+      ↓
+Reserve Storage
+      ↓
+Upload Object
+      ↓
+Verify Upload
+      ↓
+Commit Storage
+```
+
+Nếu upload thất bại:
+
+```text
+Release Reservation
+```
+
+Không được để storage bị trừ vĩnh viễn bởi upload thất bại.
+
+---
+
+# 14. AI CREDIT MANAGEMENT
+
+Các processing operation có thể tiêu thụ AI credits.
+
+Ví dụ:
+
+```text
+STT
+Translation
+TTS
+Voice Cloning
+Diarization
+Video Processing
+```
+
+Lifecycle:
+
+```text
+Request
+   ↓
+Estimate
+   ↓
+Check Credit
+   ↓
+Reserve
+   ↓
+Process
+   ↓
+Success / Failure
+   ↓
+Finalize
+   ↓
+Refund nếu cần
+```
+
+Không được double deduction khi retry.
+
+---
+
+# 15. AI CREDIT VS INTELLIGENCE
+
+Ví dụ:
+
+User chạy:
+
+```text
+STT
+```
+
+có thể:
+
+```text
+AI Credits = -100
+```
+
+Nhưng sau đó user thực hiện:
+
+```text
+Semantic Search
+```
+
+thì:
+
+```text
+AI Credits = 0
+```
+
+RAG:
+
+```text
+AI Credits = 0
+```
+
+Embedding:
+
+```text
+AI Credits = 0
+```
+
+LLM Question Answering:
+
+```text
+AI Credits = 0
+```
+
+---
+
+# 16. SUBSCRIPTION
+
+Plans:
+
+```text
+FREE
+PRO
+BUSINESS
+```
+
+Các resource có thể khác nhau:
+
+```text
+Storage
+AI Processing Credits
+Video Duration
+Concurrent Jobs
+Maximum Resolution
+Premium Models
+Premium Features
+Retention
+```
+
+---
+
+# 17. STORAGE ADD-ONS
+
+Hỗ trợ:
+
+```text
++50GB
++200GB
++500GB
++1TB
+```
+
+Flow:
+
+```text
+Purchase
+ ↓
+Payment Verification
+ ↓
+Activate Add-on
+ ↓
+Increase Storage Limit
+```
+
+---
+
+# 18. PAYMENT
+
+Payment provider có thể sử dụng:
+
+```text
+VNPay
+```
+
+Flow:
+
+```text
+Create Transaction
+ ↓
+Payment
+ ↓
+Callback / IPN
+ ↓
+Signature Verification
+ ↓
+Transaction Update
+ ↓
+Subscription / Add-on Activation
+ ↓
+Resource Update
+```
+
+Phải chống:
+
+* duplicate callback;
+* invalid signature;
+* replay;
+* transaction mismatch;
+* payment state inconsistency.
+
+---
+
+# 19. MODEL PROVIDER ARCHITECTURE
+
+Không khóa hệ thống vào một model duy nhất.
+
+Mỗi pipeline stage có:
+
+```text
+Provider
+Model
+Configuration
+Capability
+Availability
+Cost Policy
+```
+
+Kiến trúc:
+
+```text
+Pipeline Stage
+      ↓
+Model Provider Manager
+      ↓
+┌──────────┬──────────┬──────────┐
+Provider A Provider B Provider C
+```
+
+---
+
+# 20. MODEL SELECTION
+
+Có thể có các cấp cấu hình:
+
+```text
+System Default
+User Default
+Project Default
+Job Override
+```
+
+Priority:
+
+```text
+Job Override
+      ↓
+Project Default
+      ↓
+User Default
+      ↓
+System Default
+```
+
+---
+
+# 21. STT
+
+Provider/model có thể bao gồm:
+
+```text
 WhisperX
-    |
-Transcript + Timeline
-    |
-+--> TXT/SRT/JSON
-|
-+--> Translation (NLLB/GPT)
-|       |
-|       +--> Subtitle
-|       +--> TTS
-|               |
-|         Voice Clone
-|               |
-|         Audio Sync
-|               |
-|        FFmpeg Merge
-|               |
-|         Final Video
-|
-+--> [Song song 1]: AI Intelligence Sync
-|       |
-|     LLM Understanding
-|       |
-|     Topic Detection
-|       |
-|     Timeline Chapters
-|       |
-|     Markdown Generator
-|       |
-|     DOCX/PDF/HTML
-|
-+--> [Song song 2]: Semantic Search
-        |
-      Qwen3-Embedding (Lấy Text + Metadata)
-        |
-      FAISS Vector DB
-        |
-      Semantic Search API (Trả về Timestamp)
+Faster-Whisper
+Whisper
+```
 
-4. KIẾN TRÚC
-Frontend: React
-Backend: FastAPI
-DB: PostgreSQL
-Queue: Redis + Celery
-Storage: MinIO
-Container: Docker
-Dùng Docker để chạy thử
+Configuration:
 
-5. MODEL ĐỀ XUẤT
-STT: WhisperX
-Diarization: Pyannote Audio
-Translation: NLLB-200 (local)
-TTS: Qwen3-TTS
-Voice Clone: Qwen3-TTS 
-Source Separation: Demucs
-Video: FFmpeg
-Embedding Model: Qwen3 Embedding 
-Vector Database: FAISS 
-Semantic Search: LangChain / LlamaIndex 
+```text
+Model Size
+Language
+Device
+Compute Type
+Beam Size
+VAD
+Word Timestamp
+Temperature
+```
 
-6. ĐIỂM KHÁC BIỆT
-- Dịch phụ đề và lồng tiếng.
-- Clone giọng người nói.
-- Hiểu nội dung video.
-- Chia chương theo ngữ nghĩa.
-- Sinh Markdown theo timeline.
-- Chuyển transcript thành DOCX có cấu trúc.
-- Tìm kiếm ngữ nghĩa (Semantic Search): Khả năng truy vấn nội dung video bằng ngôn ngữ tự nhiên và tự động nhảy đến đúng phân cảnh (timestamp) tương ứng thay vì chỉ tìm theo từ khóa chính xác.
+Model options:
+
+```text
+tiny
+base
+small
+medium
+large
+```
+
+Tùy hardware và deployment.
+
+---
+
+# 22. DIARIZATION
+
+Provider:
+
+```text
+Pyannote Audio
+```
+
+Chức năng:
+
+* Speaker detection.
+* Speaker segmentation.
+* Speaker labeling.
+* Speaker timeline.
+
+Output:
+
+```text
+Speaker 1
+Speaker 2
+Speaker 3
+```
+
+với:
+
+```text
+start_time
+end_time
+speaker
+text
+```
+
+---
+
+# 23. TRANSLATION
+
+Provider/model có thể:
+
+```text
+NLLB-200
+GPT
+Other Translation Providers
+```
+
+Configuration:
+
+```text
+Source Language
+Target Language
+Provider
+Model
+Quality
+```
+
+Preset:
+
+```text
+Fast
+Balanced
+Quality
+```
+
+---
+
+# 24. TTS
+
+Provider/model có thể:
+
+```text
+Qwen3-TTS
+Edge TTS
+ElevenLabs
+Piper
+Windows SAPI
+```
+
+TTS Manager:
+
+```text
+TTS Manager
+ ├── Qwen3-TTS
+ ├── Edge TTS
+ ├── ElevenLabs
+ ├── Piper
+ └── SAPI
+```
+
+Configuration:
+
+```text
+Provider
+Model
+Voice
+Language
+Speed
+Pitch
+Quality
+Online/Offline
+```
+
+---
+
+# 25. VOICE CLONING
+
+Pipeline:
+
+```text
+Reference Audio
+      ↓
+Validation
+      ↓
+Voice Profile
+      ↓
+TTS
+      ↓
+Generated Speech
+```
+
+Validation:
+
+* Format.
+* Duration.
+* Quality.
+* Speaker clarity.
+* Supported language.
+
+---
+
+# 26. SOURCE SEPARATION
+
+Provider:
+
+```text
+Demucs
+```
+
+Pipeline:
+
+```text
+Audio
+ ↓
+Source Separation
+ ├── Voice
+ ├── Music
+ └── Other
+```
+
+Phục vụ:
+
+* voice isolation;
+* cleaner STT;
+* dubbing;
+* background music preservation.
+
+---
+
+# 27. FFMPEG
+
+FFmpeg xử lý:
+
+* Extract audio.
+* Audio conversion.
+* Video conversion.
+* Subtitle integration.
+* Audio synchronization.
+* Video merge.
+* Export.
+* Proxy generation.
+* HLS generation nếu cần.
+
+---
+
+# 28. SPEECH-TO-TEXT PIPELINE
+
+```text
+Video
+ ↓
+FFmpeg
+ ↓
+Audio
+ ↓
+STT
+ ↓
+Transcript
+ ↓
+Timeline
+```
+
+Transcript segment:
+
+```text
+segment_id
+start_time
+end_time
+speaker
+language
+text
+confidence
+```
+
+---
+
+# 29. TRANSLATION PIPELINE
+
+```text
+Transcript
+ ↓
+Translation Model
+ ↓
+Translated Transcript
+ ↓
+Subtitle
+```
+
+Output:
+
+```text
+TXT
+SRT
+VTT
+JSON
+```
+
+---
+
+# 30. VIDEO DUBBING
+
+```text
+Transcript
+ ↓
+Translation
+ ↓
+TTS
+ ↓
+Voice / Voice Clone
+ ↓
+Audio Alignment
+ ↓
+FFmpeg
+ ↓
+Final Video
+```
+
+---
+
+# 31. PROCESSING JOB
+
+Mỗi processing operation là một Job.
+
+Thông tin:
+
+```text
+job_id
+user_id
+project_id
+file_id
+job_type
+status
+progress
+current_step
+started_at
+completed_at
+error
+resource_usage
+```
+
+Status:
+
+```text
+QUEUED
+VALIDATING
+PROCESSING
+COMPLETED
+FAILED
+CANCELLED
+```
+
+---
+
+# 32. PROCESSING STEP
+
+Một job có nhiều step:
+
+```text
+Upload
+ ↓
+Validation
+ ↓
+Audio Extraction
+ ↓
+STT
+ ↓
+Diarization
+ ↓
+Translation
+ ↓
+TTS
+ ↓
+Video Merge
+ ↓
+Export
+```
+
+Frontend phải hiển thị trạng thái thực tế.
+
+Không sử dụng fake progress.
+
+---
+
+# 33. PROCESSING UI
+
+Ví dụ:
+
+```text
+Video Translation
+
+✓ Upload
+✓ Audio Extraction
+✓ Transcription
+● Translation
+○ TTS
+○ Video Merge
+○ Export
+```
+
+Hiển thị:
+
+```text
+Current Step
+Progress
+Status
+Error
+Retry
+Cancel
+```
+
+---
+
+# 34. AI VIDEO UNDERSTANDING
+
+Input:
+
+```text
+Transcript
+Timeline
+Speaker
+Metadata
+```
+
+AI có thể thực hiện:
+
+* Summary.
+* Topic Detection.
+* Topic Classification.
+* Chapter Detection.
+* Key Points.
+* Keyword Extraction.
+* Entity Extraction.
+* Timeline Understanding.
+
+---
+
+# 35. CHAPTER DETECTION
+
+Output:
+
+```text
+Chapter
+ ├── title
+ ├── start_time
+ ├── end_time
+ ├── summary
+ └── keywords
+```
+
+Ví dụ:
+
+```text
+00:00 Introduction
+03:25 Authentication
+12:40 Database
+25:10 API
+42:30 Conclusion
+```
+
+---
+
+# 36. DOCUMENT GENERATION
+
+Output:
+
+```text
+TXT
+Markdown
+DOCX
+PDF
+HTML
+JSON
+```
+
+Markdown:
+
+```text
+# Video Title
+
+## 00:00 Introduction
+
+## 05:20 Main Topic
+
+## 15:30 Conclusion
+```
+
+DOCX/PDF có thể bao gồm:
+
+```text
+Title
+Metadata
+Table of Contents
+Chapters
+Transcript
+Speakers
+Timestamp
+Summary
+Key Points
+```
+
+---
+
+# 37. PLATFORM INTELLIGENCE LAYER
+
+Platform Intelligence bắt đầu sau khi transcript có dữ liệu.
+
+```text
+Transcript
+      ↓
+Chunking
+      ↓
+Embedding
+      ↓
+Vector Index
+      ↓
+Semantic Search
+      ↓
+RAG
+      ↓
+LLM
+```
+
+---
+
+# 38. EMBEDDING
+
+Embedding model:
+
+```text
+Qwen3 Embedding
+```
+
+có thể được thay thế bằng model tương thích trong tương lai.
+
+Metadata:
+
+```text
+user_id
+project_id
+file_id
+transcript_id
+segment_id
+speaker
+chapter
+language
+start_time
+end_time
+content
+```
+
+---
+
+# 39. EMBEDDING RESOURCE POLICY
+
+Embedding:
+
+```text
+User AI Credits = 0
+User Quota = 0
+```
+
+Không được gọi:
+
+```text
+reserve_ai_credit()
+```
+
+cho embedding.
+
+Nhưng system phải tracking:
+
+```text
+Embedding Requests
+Tokens
+Latency
+Model
+Provider
+Failure
+System Cost
+```
+
+---
+
+# 40. VECTOR DATABASE
+
+Vector backend có thể sử dụng:
+
+```text
+FAISS
+```
+
+hoặc vector database tương thích khác khi architecture mở rộng.
+
+Index phải hỗ trợ metadata filtering.
+
+Ví dụ:
+
+```text
+user_id
+project_id
+file_id
+language
+speaker
+chapter
+```
+
+---
+
+# 41. SEMANTIC SEARCH
+
+User nhập:
+
+```text
+"What was discussed about authentication?"
+```
+
+Pipeline:
+
+```text
+Query
+ ↓
+Query Embedding
+ ↓
+Vector Search
+ ↓
+Metadata Filtering
+ ↓
+Relevant Chunks
+ ↓
+Timestamp
+```
+
+Kết quả:
+
+```text
+Score
+Text
+Speaker
+Chapter
+Timestamp
+File
+```
+
+---
+
+# 42. SEMANTIC SEARCH QUOTA
+
+Semantic Search:
+
+```text
+AI Credits = 0
+```
+
+Query Embedding:
+
+```text
+AI Credits = 0
+```
+
+Vector Search:
+
+```text
+AI Credits = 0
+```
+
+Không giới hạn theo AI credit của user.
+
+Có thể áp dụng system-level rate limiting để bảo vệ infrastructure, nhưng rate limit này **không được coi là AI credit quota**.
+
+---
+
+# 43. RAG
+
+RAG sử dụng semantic index.
+
+Pipeline:
+
+```text
+User Question
+      ↓
+Query Understanding
+      ↓
+Query Embedding
+      ↓
+Vector Search
+      ↓
+Top-K Chunks
+      ↓
+Context Builder
+      ↓
+LLM
+      ↓
+Grounded Answer
+```
+
+Answer có thể bao gồm:
+
+```text
+Answer
+Sources
+Speaker
+Chapter
+Timestamp
+```
+
+---
+
+# 44. RAG QUOTA
+
+RAG:
+
+```text
+User AI Credits = 0
+```
+
+LLM:
+
+```text
+User AI Credits = 0
+```
+
+Embedding:
+
+```text
+User AI Credits = 0
+```
+
+Retrieval:
+
+```text
+User AI Credits = 0
+```
+
+---
+
+# 45. LLM
+
+LLM được sử dụng cho:
+
+* RAG.
+* Question Answering.
+* Summary.
+* Topic Detection.
+* Chapter Detection.
+* Transcript Understanding.
+* Contextual Search.
+* Document Understanding.
+
+LLM provider/model có thể được system quản lý.
+
+Ví dụ:
+
+```text
+Qwen
+Compatible LLM
+```
+
+---
+
+# 46. LLM SYSTEM TRACKING
+
+Mặc dù không tính quota user, hệ thống vẫn ghi:
+
+```text
+request_id
+user_id
+project_id
+operation
+model
+provider
+input_tokens
+output_tokens
+latency
+status
+error
+created_at
+```
+
+Mục đích:
+
+```text
+Monitoring
+Analytics
+Optimization
+Capacity Planning
+Cost Control
+Abuse Prevention
+```
+
+---
+
+# 47. RAG SECURITY
+
+RAG phải áp dụng authorization trước retrieval.
+
+Flow:
+
+```text
+User
+ ↓
+Authorized Projects
+ ↓
+Authorized Files
+ ↓
+Vector Filter
+ ↓
+Relevant Chunks
+ ↓
+LLM
+```
+
+Không được search toàn bộ vector database mà không filter ownership.
+
+---
+
+# 48. LLM SECURITY
+
+Transcript và retrieved content là **DATA**, không phải system instruction.
+
+Phải chống:
+
+* Prompt injection.
+* Instruction hijacking.
+* Cross-user leakage.
+* Malicious transcript.
+* Unauthorized context retrieval.
+
+---
+
+# 49. SEMANTIC SEARCH FRONTEND
+
+Trong:
+
+```text
+/workspace/project/:projectId
+```
+
+có:
+
+```text
+Semantic Search
+```
+
+UI:
+
+```text
+┌─────────────────────────────────────┐
+│ Search this project...              │
+└─────────────────────────────────────┘
+
+Results
+
+00:03:24
+Authentication with JWT
+
+00:12:41
+OAuth and access tokens
+
+00:25:10
+Security middleware
+```
+
+Click:
+
+```text
+Search Result
+ ↓
+Video Player
+ ↓
+Seek(timestamp)
+```
+
+---
+
+# 50. RAG CHAT FRONTEND
+
+Workspace có thể có:
+
+```text
+Ask about this video
+```
+
+Ví dụ:
+
+```text
+User:
+"What are the main authentication methods?"
+
+AI:
+Answer...
+
+Sources:
+00:03:24
+00:12:41
+00:25:10
+```
+
+Mỗi source có thể click để seek video.
+
+---
+
+# 51. RESOURCE DASHBOARD
+
+Frontend phải hiển thị:
+
+```text
+Storage
+AI Processing Credits
+Plan
+Concurrent Jobs
+Video Limits
+```
+
+Ví dụ:
+
+```text
+Storage
+████████░░ 82 GB / 100 GB
+
+AI Processing Credits
+██████░░░░ 6,200 / 10,000
+```
+
+Không hiển thị:
+
+```text
+Semantic Search Credits
+RAG Credits
+Embedding Credits
+LLM Credits
+```
+
+vì các chức năng này không khấu trừ user quota.
+
+---
+
+# 52. SETTINGS
+
+## General
+
+* Language.
+* Theme.
+* Default preferences.
+
+## Profile
+
+* Name.
+* Avatar.
+* Account information.
+
+## Processing
+
+* Default STT model.
+* Default translation model.
+* Default TTS provider.
+* Default voice.
+* Output format.
+* Processing quality.
+
+## Storage
+
+* Storage usage.
+* Storage limit.
+* Add-ons.
+* Retention.
+
+## Notifications
+
+* Pipeline completed.
+* Pipeline failed.
+* Storage warning.
+* Quota warning.
+* Payment.
+* Subscription.
+* System notifications.
+
+## Security
+
+* Password.
+* Sessions.
+* Authentication settings.
+
+---
+
+# 53. MODEL SETTINGS
+
+User có thể cấu hình default model nếu feature/plan cho phép:
+
+```text
+STT
+Translation
+TTS
+Voice
+Output Quality
+```
+
+System configuration:
+
+```text
+Embedding
+LLM
+RAG
+Vector Database
+Reranker
+Chunking
+```
+
+không nhất thiết phải expose toàn bộ cho user.
+
+---
+
+# 54. MODEL AVAILABILITY
+
+Backend quyết định model nào user được phép sử dụng.
+
+Frontend không được tự quyết định permission.
+
+Ví dụ:
+
+```text
+FREE
+ ├── Basic STT
+ ├── Basic Translation
+ └── Basic TTS
+
+PRO
+ ├── Advanced STT
+ ├── Advanced Translation
+ └── Advanced TTS
+
+BUSINESS
+ └── Full processing options
+```
+
+---
+
+# 55. NOTIFICATION SYSTEM
+
+Notification types:
+
+```text
+pipeline
+system
+billing
+storage
+quota
+security
+```
+
+Events:
+
+```text
+video.pipeline.completed
+video.pipeline.failed
+storage.limit.warning
+quota.exceeded
+payment.completed
+subscription.updated
+```
+
+---
+
+# 56. NOTIFICATION API
+
+```text
+GET    /api/notifications
+GET    /api/notifications/unread-count
+PATCH  /api/notifications/{id}/read
+POST   /api/notifications/mark-all-read
+DELETE /api/notifications/{id}
+
+GET    /api/notifications/preferences
+PATCH  /api/notifications/preferences
+```
+
+Frontend:
+
+```text
+Notification Center
+Unread Count
+Mark as Read
+Mark All Read
+Delete
+Preferences
+```
+
+Notification phải đến từ business event thực tế.
+
+Không sử dụng fake production notification.
+
+---
+
+# 57. REALTIME PROCESSING
+
+Có thể sử dụng:
+
+```text
+WebSocket
+SSE
+Polling
+```
+
+để cập nhật:
+
+```text
+Job Status
+Progress
+Current Step
+Generated Assets
+Notifications
+```
+
+Frontend không cần reload toàn bộ page.
+
+---
+
+# 58. EVENT-DRIVEN ARCHITECTURE
+
+Các event:
+
+```text
+FILE_UPLOADED
+FILE_DELETED
+
+JOB_CREATED
+JOB_STARTED
+JOB_PROGRESS
+JOB_COMPLETED
+JOB_FAILED
+JOB_CANCELLED
+
+TRANSCRIPT_READY
+TRANSLATION_READY
+TTS_READY
+VIDEO_EXPORT_READY
+
+EMBEDDING_INDEX_UPDATED
+SEMANTIC_INDEX_READY
+
+STORAGE_UPDATED
+QUOTA_UPDATED
+
+PAYMENT_COMPLETED
+SUBSCRIPTION_UPDATED
+
+NOTIFICATION_CREATED
+```
+
+Event giúp giảm coupling giữa:
+
+```text
+Processing
+Storage
+Quota
+Notification
+Search
+Frontend
+```
+
+---
+
+# 59. RESOURCE AUDIT
+
+User resource operations phải được ghi log:
+
+```text
+Storage Added
+Storage Removed
+Credit Reserved
+Credit Consumed
+Credit Refunded
+Quota Updated
+```
+
+Ví dụ:
+
+```text
+resource_type
+amount
+operation
+reference_id
+user_id
+created_at
+```
+
+---
+
+# 60. SYSTEM INTELLIGENCE TELEMETRY
+
+Đối với RAG/LLM/Embedding:
+
+```text
+request_id
+user_id
+project_id
+operation
+model
+provider
+tokens
+latency
+status
+system_cost
+created_at
+```
+
+Nhưng:
+
+```text
+User AI Credit = 0
+```
+
+---
+
+# 61. DATA LIFECYCLE
+
+```text
+Uploaded
+ ↓
+Validated
+ ↓
+Stored
+ ↓
+Processing
+ ↓
+Completed
+ ↓
+Indexed
+ ↓
+Searchable
+ ↓
+Generated Assets
+ ↓
+Archived
+ ↓
+Deleted
+```
+
+Khi delete:
+
+```text
+Database
++
+MinIO
++
+Generated Assets
++
+Vector Index
++
+Metadata
++
+Storage Accounting
+```
+
+phải được xử lý nhất quán.
+
+---
+
+# 62. INDEX LIFECYCLE
+
+```text
+Transcript Ready
+ ↓
+Chunk
+ ↓
+Embed
+ ↓
+Index
+ ↓
+Semantic Search Ready
+```
+
+Nếu transcript thay đổi:
+
+```text
+Transcript Updated
+ ↓
+Invalidate Index
+ ↓
+Re-embed
+ ↓
+Update Index
+```
+
+Nếu file bị xóa:
+
+```text
+File Deleted
+ ↓
+Delete Embeddings
+ ↓
+Update Vector Index
+```
+
+Không tính các operation này vào user AI credits.
+
+---
+
+# 63. ERROR HANDLING
+
+Phân loại:
+
+```text
+Validation Error
+Authentication Error
+Authorization Error
+Quota Error
+Storage Error
+Processing Error
+AI Provider Error
+Network Error
+Payment Error
+System Error
+```
+
+Processing phải hỗ trợ:
+
+```text
+Retry
+Cancel
+Failure
+Recovery
+```
+
+Không retry vô hạn.
+
+---
+
+# 64. IDEMPOTENCY
+
+Phải chống duplicate operation cho:
+
+```text
+Upload
+Delete
+Job Creation
+Credit Deduction
+Storage Reservation
+Payment Callback
+Subscription Activation
+```
+
+Ví dụ:
+
+```text
+Payment callback x2
+```
+
+không được activate subscription x2.
+
+---
+
+# 65. ACTION VERIFICATION
+
+Business operation quan trọng phải có:
+
+```text
+ACTION
+ ↓
+OBSERVE
+ ↓
+VERIFY
+ ↓
+SUCCESS?
+ ↓
+Continue / Retry / Re-plan
+```
+
+Ví dụ upload:
+
+```text
+Upload
+ ↓
+API Response
+ ↓
+Verify DB
+ ↓
+Verify MinIO
+ ↓
+Verify Storage
+```
+
+Processing:
+
+```text
+Job Completed
+ ↓
+Verify Output
+ ↓
+Verify Database Asset
+ ↓
+Verify Storage
+ ↓
+Notify
+```
+
+---
+
+# 66. FRONTEND INTEGRATION REQUIREMENT
+
+Mọi component/element đã được thiết kế cho một chức năng nhưng chưa kết nối backend phải được audit và hoàn thiện.
+
+Ví dụ:
+
+```text
+/workspace/project/1
+```
+
+nếu frontend đã có:
+
+```text
+File Manager
+Folder Tree
+Upload
+Progress
+Search
+Processing Panel
+Usage
+Settings
+Notification
+```
+
+thì phải kiểm tra:
+
+```text
+UI
+ ↓
+State
+ ↓
+API
+ ↓
+Backend
+ ↓
+Database
+ ↓
+Storage
+ ↓
+Actual Business Logic
+```
+
+Không được để:
+
+```text
+UI có
+nhưng API chưa có
+
+API có
+nhưng frontend chưa kết nối
+
+Button có
+nhưng không thực hiện business operation
+
+Progress có
+nhưng fake
+
+Quota UI có
+nhưng backend không kiểm tra
+
+Storage UI có
+nhưng số liệu hardcode
+```
+
+---
+
+# 67. FRONTEND FILE MANAGER REQUIREMENT
+
+File Manager phải hỗ trợ thực tế:
+
+```text
+Upload
+Rename
+Delete
+Move
+Create Folder
+Rename Folder
+Delete Folder
+Search
+Sort
+Filter
+Download
+Preview
+Processing Status
+```
+
+UI phải có state:
+
+```text
+Loading
+Empty
+Ready
+Uploading
+Processing
+Completed
+Failed
+Deleting
+Error
+```
+
+---
+
+# 68. FRONTEND RESOURCE INTEGRATION
+
+Các UI:
+
+```text
+Storage
+AI Credits
+Quota
+Plan
+Usage
+```
+
+phải lấy dữ liệu backend.
+
+Không hardcode:
+
+```text
+100 GB
+10,000 credits
+```
+
+trong frontend.
+
+Flow:
+
+```text
+Backend Resource API
+ ↓
+API Client
+ ↓
+React Query / State
+ ↓
+UI
+```
+
+---
+
+# 69. FRONTEND PROCESSING INTEGRATION
+
+Frontend phải lấy:
+
+```text
+job_id
+status
+progress
+current_step
+error
+output_assets
+```
+
+từ backend.
+
+Không giả lập:
+
+```text
+0 → 20 → 40 → 60 → 80 → 100
+```
+
+nếu backend chưa thực sự báo progress.
+
+---
+
+# 70. FRONTEND MODEL OPTION
+
+UI có thể cho phép:
+
+```text
+STT Model
+Translation Model
+TTS Provider
+TTS Voice
+Quality
+Output Format
+```
+
+Nhưng danh sách option phải lấy từ backend capability/config API khi cần.
+
+Backend quyết định:
+
+```text
+available
+enabled
+permission
+quota requirement
+```
+
+---
+
+# 71. USER PROCESSING FLOW
+
+```text
+Create Project
+      ↓
+Upload Video
+      ↓
+Storage Check
+      ↓
+Select Processing Options
+      ↓
+Estimate Resource
+      ↓
+Confirm
+      ↓
+Reserve Resource
+      ↓
+Create Job
+      ↓
+Queue
+      ↓
+Worker
+      ↓
+Processing
+      ↓
+Generated Assets
+      ↓
+Storage Commit
+      ↓
+Resource Finalization
+      ↓
+Notification
+      ↓
+Workspace Updated
+```
+
+---
+
+# 72. INTELLIGENCE FLOW
+
+Sau khi transcript hoàn thành:
+
+```text
+Transcript
+      ↓
+Embedding
+      ↓
+Vector Index
+      ↓
+Semantic Search Ready
+      ↓
+RAG Ready
+```
+
+User sử dụng:
+
+```text
+Semantic Search
+```
+
+hoặc:
+
+```text
+Ask AI
+```
+
+thì:
+
+```text
+Query
+ ↓
+Embedding
+ ↓
+Retrieval
+ ↓
+Context
+ ↓
+LLM
+ ↓
+Answer
+```
+
+và:
+
+```text
+User AI Credits = 0
+```
+
+---
+
+# 73. COMPLETE SYSTEM FLOW
+
+```text
+USER
+ │
+ ▼
+AUTHENTICATION
+ │
+ ▼
+PROJECT
+ │
+ ▼
+WORKSPACE
+ │
+ ├────────────── FILES / FOLDERS
+ │
+ ├────────────── STORAGE
+ │
+ ├────────────── PROCESSING
+ │
+ ├────────────── TRANSCRIPT
+ │
+ ├────────────── TRANSLATION
+ │
+ ├────────────── SUBTITLE
+ │
+ ├────────────── TTS
+ │
+ ├────────────── VIDEO DUBBING
+ │
+ ├────────────── DOCUMENTS
+ │
+ ├────────────── SEMANTIC SEARCH
+ │
+ └────────────── RAG CHAT
+ │
+ ▼
+RESOURCE MANAGEMENT
+ │
+ ├── Subscription
+ ├── Storage
+ ├── AI Processing Credits
+ └── Concurrent Jobs
+ │
+ ▼
+PLATFORM INTELLIGENCE
+ │
+ ├── Embedding
+ ├── Vector Search
+ ├── RAG
+ └── LLM
+ │
+ ▼
+NOTIFICATION
+ │
+ ▼
+USER
+```
+
+---
+
+# 74. DATABASE
+
+PostgreSQL là database chính.
+
+Các nhóm table chính:
+
+```text
+users
+refresh_tokens
+user_settings
+
+projects
+
+files
+folders
+project_files
+
+processing_jobs
+processing_steps
+
+transcripts
+transcript_segments
+
+translations
+subtitles
+
+generated_assets
+
+notifications
+user_notification_preferences
+
+plans
+plan_resources
+
+user_subscriptions
+
+storage_addons
+user_storage_addons
+
+user_consumable_usage
+credit_audit_logs
+
+payment_transactions
+```
+
+Semantic index metadata có thể được quản lý riêng tùy vector architecture.
+
+---
+
+# 75. REDIS + CELERY
+
+Redis:
+
+```text
+Queue
+Cache
+Temporary State
+Rate Limiting
+Job Coordination
+```
+
+Celery/Workers:
+
+```text
+FFmpeg
+STT
+Diarization
+Translation
+TTS
+Voice Cloning
+Video Merge
+Document Generation
+Embedding
+Indexing
+```
+
+Các tác vụ dài không chạy synchronous trong API request.
+
+---
+
+# 76. MINIO
+
+Object storage:
+
+```text
+users/{user_id}/projects/{project_id}/...
+```
+
+Các loại:
+
+```text
+original/
+audio/
+transcript/
+subtitle/
+tts/
+video/
+documents/
+thumbnail/
+temporary/
+```
+
+Không expose object path không cần thiết.
+
+---
+
+# 77. SECURITY
+
+Phải bảo vệ:
+
+```text
+JWT
+Refresh Token
+User Ownership
+Project Ownership
+File Ownership
+Object Storage
+Upload
+API
+WebSocket
+Payment
+Secrets
+```
+
+Kiểm tra:
+
+```text
+Path Traversal
+MIME Validation
+File Size
+File Extension
+Authorization
+Rate Limiting
+CORS
+```
+
+---
+
+# 78. ADMIN
+
+Admin có thể quản lý:
+
+```text
+Users
+Plans
+Resources
+Subscriptions
+Payments
+Storage
+Processing Jobs
+Notifications
+System Settings
+Usage
+Audit Logs
+AI Providers
+AI Models
+```
+
+Admin có thể theo dõi:
+
+```text
+LLM Usage
+Embedding Usage
+RAG Requests
+Semantic Search
+System Cost
+Worker Load
+Processing Failure
+Storage
+```
+
+Các usage này là **system-level monitoring**, không phải user billing.
+
+---
+
+# 79. DOCKER
+
+Các service chính:
+
+```text
+frontend
+backend
+db
+redis
+worker
+minio
+```
+
+Có thể có:
+
+```text
+tts-service
+```
+
+hoặc AI services riêng tùy deployment.
+
+---
+
+# 80. TESTING
+
+## Unit Test
+
+Test:
+
+```text
+Quota
+Storage
+Credit
+Model Selection
+File Validation
+Processing State
+Notification
+RAG
+Search
+Authorization
+```
+
+## Integration Test
+
+```text
+Frontend
+ ↓
+API
+ ↓
+Backend
+ ↓
+PostgreSQL
+ ↓
+Redis
+ ↓
+Worker
+ ↓
+MinIO
+```
+
+## E2E
+
+```text
+Register
+ ↓
+Login
+ ↓
+Create Project
+ ↓
+Upload
+ ↓
+Process
+ ↓
+Transcript
+ ↓
+Translation
+ ↓
+TTS
+ ↓
+Export
+ ↓
+Download
+```
+
+## Semantic E2E
+
+```text
+Transcript
+ ↓
+Embedding
+ ↓
+Index
+ ↓
+Semantic Search
+ ↓
+Timestamp
+ ↓
+Video Seek
+```
+
+## RAG E2E
+
+```text
+Question
+ ↓
+Retrieval
+ ↓
+LLM
+ ↓
+Answer
+ ↓
+Sources
+ ↓
+Timestamp
+```
+
+Phải xác nhận:
+
+```text
+AI Credits Consumed = 0
+```
+
+---
+
+# 81. RESOURCE E2E
+
+## Upload
+
+```text
+Upload
+ ↓
+Storage +X
+```
+
+## Delete
+
+```text
+Delete
+ ↓
+Storage -X
+```
+
+## Failed Upload
+
+```text
+Failed
+ ↓
+Storage Reservation Released
+```
+
+## Processing
+
+```text
+Job
+ ↓
+Credit Reservation
+ ↓
+Processing
+ ↓
+Finalize / Refund
+```
+
+## RAG
+
+```text
+RAG
+ ↓
+AI Credits = 0
+```
+
+## Semantic Search
+
+```text
+Search
+ ↓
+AI Credits = 0
+```
+
+## Embedding
+
+```text
+Embedding
+ ↓
+AI Credits = 0
+```
+
+---
+
+# 82. CORE BUSINESS INVARIANTS
+
+Bắt buộc:
+
+```text
+storage_used >= 0
+```
+
+```text
+storage_available >= 0
+```
+
+```text
+credits_used >= 0
+```
+
+```text
+credits_remaining >= 0
+```
+
+Và:
+
+```text
+Successful Upload
+→ Storage increases exactly once
+```
+
+```text
+Delete
+→ Storage decreases exactly once
+```
+
+```text
+Failed Upload
+→ Reservation released
+```
+
+```text
+Processing Failure
+→ Credit follows refund policy
+```
+
+```text
+RAG
+→ User Credit = 0
+```
+
+```text
+Semantic Search
+→ User Credit = 0
+```
+
+```text
+Embedding
+→ User Credit = 0
+```
+
+```text
+LLM Intelligence
+→ User Credit = 0
+```
+
+```text
+Duplicate Request
+→ No unintended double deduction
+```
+
+```text
+User A
+→ Cannot access User B data
+```
+
+---
+
+# 83. RESOURCE CLASSIFICATION TABLE
+
+| Resource / Function | User Quota | System Tracking |
+| ------------------- | ---------: | --------------: |
+| Storage             |         Có |              Có |
+| Upload              |         Có |              Có |
+| STT                 |         Có |              Có |
+| Diarization         |         Có |              Có |
+| Translation         |         Có |              Có |
+| TTS                 |         Có |              Có |
+| Voice Cloning       |         Có |              Có |
+| Video Processing    |         Có |              Có |
+| Video Export        |         Có |              Có |
+| Concurrent Jobs     |         Có |              Có |
+| Embedding           |  **Không** |              Có |
+| Query Embedding     |  **Không** |              Có |
+| Vector Search       |  **Không** |              Có |
+| Semantic Search     |  **Không** |              Có |
+| RAG                 |  **Không** |              Có |
+| LLM                 |  **Không** |              Có |
+| Question Answering  |  **Không** |              Có |
+| Summary             |  **Không** |              Có |
+| Topic Detection     |  **Không** |              Có |
+| Chapter Detection   |  **Không** |              Có |
+
+---
+
+# 84. MODEL ARCHITECTURE SUMMARY
+
+```text
+                    AI MODEL LAYER
+                          │
+       ┌──────────────────┼──────────────────┐
+       │                  │                  │
+       ▼                  ▼                  ▼
+      STT            Translation            TTS
+       │                  │                  │
+       ▼                  ▼                  ▼
+ WhisperX/Faster       NLLB/GPT        Qwen3/Edge/
+ Whisper                                  ElevenLabs
+       │
+       ▼
+ Diarization
+       │
+   Pyannote
+       │
+       └──────────────────────────┐
+                                  ▼
+                         PLATFORM INTELLIGENCE
+                                  │
+                    ┌─────────────┼─────────────┐
+                    ▼             ▼             ▼
+                Embedding      Vector DB       LLM
+                    │             │             │
+                    └─────────────┼─────────────┘
+                                  ▼
+                            RAG / Search
+```
+
+---
+
+# 85. DIFFERENTIATING FEATURES
+
+## AI Video Translation
+
+* Speech-to-Text.
+* Translation.
+* Subtitle.
+* TTS.
+* Voice Cloning.
+* Video Dubbing.
+
+## AI Video Understanding
+
+* Transcript.
+* Speaker Diarization.
+* Summary.
+* Topic Detection.
+* Chapter Detection.
+* Timeline Understanding.
+* Structured Documents.
+
+## RAG & Semantic Search
+
+* Natural Language Search.
+* Semantic Index.
+* Embedding.
+* Vector Search.
+* RAG.
+* LLM Question Answering.
+* Source-aware Answer.
+* Timestamp Navigation.
+* Video Auto Seek.
+
+## Intelligent Workspace
+
+* Projects.
+* Files.
+* Folders.
+* Processing Jobs.
+* Generated Assets.
+* Search.
+* RAG Chat.
+
+## Resource Management
+
+* Subscription.
+* Plans.
+* Storage.
+* Storage Add-ons.
+* AI Processing Credits.
+* Quota.
+* Usage Tracking.
+* Audit Logs.
+
+## Platform Intelligence Policy
+
+* RAG không trừ quota.
+* Semantic Search không trừ quota.
+* Embedding không trừ quota.
+* LLM không trừ quota.
+* System vẫn tracking infrastructure usage.
+
+---
+
+# 86. FINAL ARCHITECTURAL PRINCIPLE
+
+Hệ thống được chia thành:
+
+```text
+┌────────────────────────────────────────────┐
+│          USER PROCESSING LAYER             │
+│                                            │
+│ Upload → STT → Translate → TTS → Video   │
+│                                            │
+│ USER QUOTA / STORAGE / CREDITS            │
+└─────────────────────┬──────────────────────┘
+                      │
+                      ▼
+┌────────────────────────────────────────────┐
+│       PLATFORM INTELLIGENCE LAYER          │
+│                                            │
+│ Transcript → Embedding → Vector Search    │
+│                    ↓                       │
+│                   RAG → LLM                │
+│                    ↓                       │
+│ Search / QA / Summary / Chapters          │
+│                                            │
+│        NO USER AI CREDIT DEDUCTION         │
+└────────────────────────────────────────────┘
+```
+
+Nguyên tắc:
+
+> **User quota được dùng để giới hạn các tài nguyên processing, storage và các tính năng tiêu thụ trực tiếp tài nguyên có thể quy đổi thành consumption của người dùng.**
+
+> **RAG, Semantic Search, Embedding và LLM Intelligence là năng lực cốt lõi của nền tảng và không khấu trừ AI credits của người dùng.**
+
+> **Tuy không tính quota, toàn bộ system-level usage vẫn phải được tracking, monitoring và audit để kiểm soát chi phí, hiệu năng, capacity và bảo mật.**
+
+---
+
+# 87. FINAL SYSTEM VISION
+
+```text
+                    AI VIDEO PLATFORM
+                           │
+          ┌────────────────┼────────────────┐
+          │                │                │
+          ▼                ▼                ▼
+      PROCESSING       WORKSPACE        INTELLIGENCE
+          │                │                │
+          ▼                ▼                ▼
+     STT / TTS          FILES / FOLDERS   EMBEDDING
+     TRANSLATION        PROJECTS          VECTOR SEARCH
+     DIARIZATION        JOBS              RAG
+     VOICE CLONE        ASSETS            LLM
+     DUBBING            SEARCH            SEMANTIC SEARCH
+          │                │                │
+          └────────────────┼────────────────┘
+                           ▼
+                    USER EXPERIENCE
+                           │
+       ┌───────────────────┼───────────────────┐
+       ▼                   ▼                   ▼
+   SETTINGS           NOTIFICATIONS       BILLING
+                                               │
+                                    ┌──────────┼──────────┐
+                                    ▼          ▼          ▼
+                                PLAN       QUOTA      STORAGE
+                                    │
+                                    ▼
+                              AI CREDITS
+```
+
+Mục tiêu cuối cùng:
+
+```text
+USER
+ ↓
+PROJECT
+ ↓
+FILES / FOLDERS
+ ↓
+PROCESSING
+ ↓
+AI
+ ↓
+RESULTS
+ ↓
+STORAGE
+ ↓
+INDEX
+ ↓
+SEMANTIC SEARCH / RAG
+ ↓
+TIMESTAMP NAVIGATION
+ ↓
+DOWNLOAD / DOCUMENT / VIDEO
+```
+
+Toàn bộ lifecycle phải được kết nối và đồng bộ giữa:
+
+```text
+Frontend
+Backend
+PostgreSQL
+Redis
+Celery
+AI Models
+Vector Index
+MinIO
+Subscription
+Quota
+Storage
+Notification
+```
+
+Hệ thống phải tránh hoàn toàn tình trạng:
+
+```text
+UI có nhưng không có API
+API có nhưng frontend không dùng
+Button có nhưng không có business logic
+Progress giả
+Quota giả
+Storage giả
+Notification giả
+Model option giả
+Search giả
+RAG giả
+```
+
+Mọi chức năng đã xuất hiện trên frontend phải được kiểm tra xem đã có:
+
+```text
+UI
+ ↓
+State
+ ↓
+API
+ ↓
+Backend Service
+ ↓
+Database
+ ↓
+Worker / AI
+ ↓
+Storage / Index
+ ↓
+Business Accounting
+ ↓
+Notification
+```
+
+hay chưa.
+
+Đây là nền tảng cho một hệ thống **AI Video Translation + Dubbing + Video Understanding + RAG + Semantic Search + Intelligent Workspace + Resource Management** hoàn chỉnh.

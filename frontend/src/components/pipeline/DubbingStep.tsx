@@ -8,14 +8,14 @@ import {
   Loader2, 
   CheckCircle2, 
   AlertCircle,
-  Settings,
   FileVideo,
   Music,
   Mic,
   Sparkles,
   User,
   Gauge,
-  Waves
+  Waves,
+  Captions
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePipeline } from "../../hooks/usePipeline";
@@ -39,6 +39,12 @@ export default function DubbingStep() {
   const [ttsStyle, setTtsStyle] = useState("neutral");
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
   
+  // Speaker Clone Voice Sample State
+  const activeSpeakerAudio = useRef<HTMLAudioElement | null>(null);
+  const [speakerAudioUrl, setSpeakerAudioUrl] = useState<string | null>(null);
+  const [isPlayingSpeaker, setIsPlayingSpeaker] = useState(false);
+  const [isLoadingSpeakerAudio, setIsLoadingSpeakerAudio] = useState(false);
+  
   // Dubbing State
   const [dubbingStatus, setDubbingStatus] = useState<string | null>(null);
   const [dubbingError, setDubbingError] = useState<string | null>(null);
@@ -47,6 +53,8 @@ export default function DubbingStep() {
   const [selectedQuality, setSelectedQuality] = useState("1080p");
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [dubbedVideo, setDubbedVideo] = useState<any>(null);
+  const [burnSubtitles, setBurnSubtitles] = useState(true);
+  const [hasSubtitles, setHasSubtitles] = useState(false);
 
   // Audio player for preview
   const [audioDuration, setAudioDuration] = useState(0);
@@ -54,6 +62,24 @@ export default function DubbingStep() {
 
   useEffect(() => {
     loadDubbingStatus();
+    checkSubtitles();
+  }, [state.video?.videoId, selectedLanguage]);
+
+  const checkSubtitles = async () => {
+    if (!state.video?.videoId) return;
+    try {
+      const data = await videoService.getSubtitles(state.video.videoId, selectedLanguage, "srt");
+      if (data && (data.content || data.path)) {
+        setHasSubtitles(true);
+      } else {
+        setHasSubtitles(false);
+      }
+    } catch {
+      setHasSubtitles(false);
+    }
+  };
+
+  useEffect(() => {
     loadSpeakers();
   }, [state.video?.videoId]);
 
@@ -64,64 +90,168 @@ export default function DubbingStep() {
     }
   }, [state.targetLanguage]);
 
-const loadDubbingStatus = async () => {
-    if (!state.video?.videoId) {
-        setIsLoading(false);
+  useEffect(() => {
+    return () => {
+      if (activeSpeakerAudio.current) {
+        activeSpeakerAudio.current.pause();
+        activeSpeakerAudio.current = null;
+      }
+      if (ttsAudioUrl && ttsAudioUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(ttsAudioUrl);
+      }
+      if (videoUrl && videoUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(videoUrl);
+      }
+      if (speakerAudioUrl && speakerAudioUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(speakerAudioUrl);
+      }
+    };
+  }, [ttsAudioUrl, videoUrl, speakerAudioUrl]);
+
+  const playSpeakerSample = async (speakerId: number) => {
+    if (!state.video?.videoId) return;
+    
+    // If already playing, toggle pause
+    if (activeSpeakerAudio.current && !activeSpeakerAudio.current.paused) {
+      activeSpeakerAudio.current.pause();
+      setIsPlayingSpeaker(false);
+      return;
+    }
+
+    if (activeSpeakerAudio.current && speakerAudioUrl) {
+      try {
+        await activeSpeakerAudio.current.play();
+        setIsPlayingSpeaker(true);
         return;
+      } catch (e) {
+        console.warn("Retrying speaker audio playback...", e);
+      }
+    }
+
+    setIsLoadingSpeakerAudio(true);
+    try {
+      const blob = await videoService.getSpeakerSampleBlob(state.video.videoId, speakerId);
+      const url = URL.createObjectURL(blob);
+      setSpeakerAudioUrl((prev) => {
+        if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+        return url;
+      });
+
+      const audio = new Audio(url);
+      activeSpeakerAudio.current = audio;
+
+      audio.onplay = () => setIsPlayingSpeaker(true);
+      audio.onpause = () => setIsPlayingSpeaker(false);
+      audio.onended = () => {
+        setIsPlayingSpeaker(false);
+        activeSpeakerAudio.current = null;
+      };
+      audio.onerror = (e) => {
+        console.warn("Speaker audio playback event error:", e);
+        setIsPlayingSpeaker(false);
+      };
+
+      try {
+        await audio.play();
+        setIsPlayingSpeaker(true);
+      } catch (playErr) {
+        console.warn("Autoplay or audio play interrupted:", playErr);
+        setIsPlayingSpeaker(false);
+      }
+    } catch (err: any) {
+      console.warn("Could not load original voice sample for this speaker:", err);
+      setIsPlayingSpeaker(false);
+    } finally {
+      setIsLoadingSpeakerAudio(false);
+    }
+  };
+
+  const handleSpeakerChange = (id: number) => {
+    setSelectedSpeaker(id);
+    if (activeSpeakerAudio.current) {
+      activeSpeakerAudio.current.pause();
+      activeSpeakerAudio.current = null;
+    }
+    if (speakerAudioUrl && speakerAudioUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(speakerAudioUrl);
+      setSpeakerAudioUrl(null);
+    }
+    setIsPlayingSpeaker(false);
+  };
+
+  const loadDubbingStatus = async () => {
+    if (!state.video?.videoId) {
+      setIsLoading(false);
+      return;
     }
     setIsLoading(true);
     setDubbingError(null);
 
     try {
-        // Check TTS status
-        try {
-            const ttsData = await videoService.getTTS(state.video.videoId, selectedLanguage);
-            if (ttsData && ttsData.status === "available") {
-                setTtsStatus("completed");
-                const url = `/api/videos/${state.video.videoId}/tts/${selectedLanguage}?preview=true`;
-                setTtsAudioUrl(url);
-            } else {
-                setTtsStatus("not_generated");
-            }
-        } catch (error) {
-            setTtsStatus("not_generated");
+      // Check TTS status and load audio blob for preview
+      try {
+        const ttsData = await videoService.getTTS(state.video.videoId, selectedLanguage);
+        if (ttsData && (ttsData.status === "available" || ttsData.status === "completed")) {
+          setTtsStatus("completed");
+          try {
+            const blob = await videoService.getTTSBlob(state.video.videoId, selectedLanguage);
+            const blobUrl = URL.createObjectURL(blob);
+            setTtsAudioUrl((prev) => {
+              if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+              return blobUrl;
+            });
+          } catch (audioErr) {
+            console.error("Failed to load TTS preview blob:", audioErr);
+          }
+        } else {
+          setTtsStatus("not_generated");
+          setTtsAudioUrl((prev) => {
+            if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+            return null;
+          });
         }
+      } catch (error) {
+        setTtsStatus("not_generated");
+        setTtsAudioUrl((prev) => {
+          if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+          return null;
+        });
+      }
 
-        // Check dubbing status - ✅ UPDATE THIS SECTION
-        try {
-            const status = await videoService.getDubbingStatus(state.video.videoId);
-            setDubbingStatus(status.status);
-            
-            if (status.status === "completed" && status.output_path) {
-                setDubbedVideo(status);
-                try {
-                    // ✅ Get the actual preview URL from S3
-                    const previewUrl = await videoService.getDubbedVideoPreview(
-                        state.video.videoId,
-                        selectedLanguage
-                    );
-                    setVideoUrl(previewUrl);
-                    console.log("✅ Video preview URL loaded:", previewUrl);
-                } catch (error) {
-                    console.error("Failed to get preview URL:", error);
-                    // Fallback
-                    const url = `/api/videos/${state.video.videoId}/dub/${selectedLanguage}/download?video_format=${selectedFormat}`;
-                    setVideoUrl(url);
-                }
-            }
-        } catch (error: any) {
-            if (error.message?.includes("404")) {
-                setDubbingStatus("not_started");
-            } else {
-                setDubbingError(error.message || "Failed to load dubbing status");
-            }
+      // Check dubbing status
+      try {
+        const status = await videoService.getDubbingStatus(state.video.videoId);
+        setDubbingStatus(status.status);
+        
+        if (status.status === "completed" && status.output_path) {
+          setDubbedVideo(status);
+          try {
+            const previewUrl = await videoService.getDubbedVideoPreview(
+              state.video.videoId,
+              selectedLanguage
+            );
+            setVideoUrl((prev) => {
+              if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+              return previewUrl;
+            });
+            console.log("✅ Video preview URL loaded:", previewUrl);
+          } catch (error) {
+            console.error("Failed to get preview URL:", error);
+          }
         }
+      } catch (error: any) {
+        if (error.message?.includes("404")) {
+          setDubbingStatus("not_started");
+        } else {
+          setDubbingError(error.message || "Failed to load dubbing status");
+        }
+      }
     } catch (error: any) {
-        console.error("Failed to load status:", error);
+      console.error("Failed to load status:", error);
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
-};
+  };
   const loadSpeakers = async () => {
     if (!state.video?.videoId) return;
     try {
@@ -160,15 +290,25 @@ const loadDubbingStatus = async () => {
       );
       
       setTtsStatus("completed");
-      const url = `/api/videos/${state.video.videoId}/tts/${selectedLanguage}?preview=true`;
-      setTtsAudioUrl(url);
+      try {
+        const blob = await videoService.getTTSBlob(state.video.videoId, selectedLanguage);
+        const blobUrl = URL.createObjectURL(blob);
+        setTtsAudioUrl((prev) => {
+          if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+          return blobUrl;
+        });
+      } catch (audioErr) {
+        console.error("Failed to load TTS preview blob after generation:", audioErr);
+      }
       
       // Update context
       dispatch({
         type: "SET_TTS",
         payload: result,
       });
-      
+
+      // Notify sidebar & settings to update credit balance
+      window.dispatchEvent(new CustomEvent("subscription-updated"));
     } catch (error: any) {
       console.error("TTS generation failed:", error);
       setDubbingError(error.message || "Failed to generate TTS");
@@ -194,20 +334,34 @@ const loadDubbingStatus = async () => {
         state.video.videoId,
         selectedLanguage,
         selectedFormat,
-        selectedQuality
+        selectedQuality,
+        burnSubtitles
       );
       
       setDubbedVideo(result);
       setDubbingStatus("completed");
       
-      const url = `/api/videos/${state.video.videoId}/dub/${selectedLanguage}/download?video_format=${selectedFormat}`;
-      setVideoUrl(url);
+      try {
+        const previewUrl = await videoService.getDubbedVideoPreview(
+          state.video.videoId,
+          selectedLanguage
+        );
+        setVideoUrl((prev) => {
+          if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+          return previewUrl;
+        });
+      } catch (previewErr) {
+        console.error("Failed to load dubbed video preview:", previewErr);
+      }
       
       dispatch({
         type: "SET_DUBBED_VIDEO",
         payload: result,
       });
-      
+
+      // Notify sidebar & settings to update credit balance
+      window.dispatchEvent(new CustomEvent("subscription-updated"));
+
       // Auto-advance to review step
       setTimeout(() => {
         dispatch({ type: "SET_STEP", payload: 6 });
@@ -236,23 +390,6 @@ const loadDubbingStatus = async () => {
               selectedFormat
           );
           
-          // ✅ If response is a presigned URL object
-          if (response && response.url) {
-              // Download directly from S3 presigned URL
-              const downloadResponse = await fetch(response.url);
-              const blob = await downloadResponse.blob();
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `dubbed_${selectedLanguage}_${selectedQuality}.${selectedFormat}`;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              URL.revokeObjectURL(url);
-              return;
-          }
-          
-          // If response is a Blob (old format)
           if (response instanceof Blob) {
               const url = URL.createObjectURL(response);
               const a = document.createElement("a");
@@ -270,14 +407,20 @@ const loadDubbingStatus = async () => {
       }
   };
 
-  const togglePlay = () => {
+  const togglePlay = async () => {
     if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
+      try {
+        if (isPlaying) {
+          audioRef.current.pause();
+          setIsPlaying(false);
+        } else {
+          await audioRef.current.play();
+          setIsPlaying(true);
+        }
+      } catch (err) {
+        console.error("Audio playback error:", err);
+        setIsPlaying(false);
       }
-      setIsPlaying(!isPlaying);
     }
   };
 
@@ -313,7 +456,7 @@ const loadDubbingStatus = async () => {
     );
   }
 
-  const isTTSReady = ttsStatus === "completed";
+  const isTTSReady = ttsStatus === "completed" || ttsStatus === "available";
   const isDubReady = dubbingStatus === "completed";
 
   return (
@@ -392,13 +535,36 @@ const loadDubbingStatus = async () => {
         {/* TTS Settings */}
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <label className="mb-1.5 block text-xs font-semibold text-[var(--color-text-secondary)]">
-              <User size={14} className="inline mr-1" />
-              Speaker
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-[var(--color-text-secondary)]">
+                <User size={14} className="inline mr-1" />
+                Speaker
+              </label>
+              <button
+                type="button"
+                onClick={() => playSpeakerSample(selectedSpeaker)}
+                disabled={isLoadingSpeakerAudio}
+                className="flex items-center gap-1 text-[11px] font-medium text-[var(--color-primary)] hover:underline"
+                title="Nghe mẫu giọng clone gốc"
+              >
+                {isLoadingSpeakerAudio ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : isPlayingSpeaker ? (
+                  <>
+                    <Pause size={12} />
+                    Dừng mẫu
+                  </>
+                ) : (
+                  <>
+                    <Play size={12} />
+                    Nghe giọng gốc
+                  </>
+                )}
+              </button>
+            </div>
             <select
               value={selectedSpeaker}
-              onChange={(e) => setSelectedSpeaker(Number(e.target.value))}
+              onChange={(e) => handleSpeakerChange(Number(e.target.value))}
               className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-4 py-2.5 text-sm text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10"
             >
               {speakers.length > 0 ? (
@@ -490,28 +656,41 @@ const loadDubbingStatus = async () => {
 
             {/* Audio Player */}
             {isTTSReady && ttsAudioUrl && (
-              <div className="mt-3">
+              <div className="mt-4 space-y-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
                 <audio
                   ref={audioRef}
                   src={ttsAudioUrl}
+                  className="hidden"
                   onTimeUpdate={handleAudioTimeUpdate}
                   onLoadedMetadata={handleAudioLoaded}
                   onEnded={handleAudioEnded}
-                  className="hidden"
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
                 />
                 <div className="flex items-center gap-4">
                   <button
                     type="button"
                     onClick={togglePlay}
-                    className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-primary)] text-white transition hover:bg-[var(--color-primary-hover)]"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary)] text-white shadow-sm transition hover:bg-[var(--color-primary-hover)]"
                   >
-                    {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+                    {isPlaying ? <Pause size={18} /> : <Play size={18} />}
                   </button>
-                  <div className="flex-1">
-                    <div className="h-2 overflow-hidden rounded-full bg-[var(--color-border)]">
+                  <div
+                    className="flex-1 cursor-pointer py-1 group"
+                    onClick={(e) => {
+                      if (!audioRef.current || !audioDuration) return;
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const clickX = e.clientX - rect.left;
+                      const pct = Math.max(0, Math.min(1, clickX / rect.width));
+                      const newTime = pct * audioDuration;
+                      audioRef.current.currentTime = newTime;
+                      setCurrentTime(newTime);
+                    }}
+                  >
+                    <div className="h-2 overflow-hidden rounded-full bg-[var(--color-border)] group-hover:h-2.5 transition-all">
                       <div
                         className="h-full rounded-full bg-[var(--color-primary)] transition-all"
-                        style={{ width: `${(currentTime / audioDuration) * 100}%` }}
+                        style={{ width: `${audioDuration > 0 ? (currentTime / audioDuration) * 100 : 0}%` }}
                       />
                     </div>
                     <div className="mt-1 flex justify-between text-xs text-[var(--color-text-muted)]">
@@ -522,10 +701,10 @@ const loadDubbingStatus = async () => {
                   <button
                     type="button"
                     onClick={() => {
-                      if (audioRef.current) {
-                        const url = audioRef.current.src;
+                      const downloadUrl = ttsAudioUrl || audioRef.current?.src;
+                      if (downloadUrl) {
                         const a = document.createElement("a");
-                        a.href = url;
+                        a.href = downloadUrl;
                         a.download = `tts_${selectedLanguage}.wav`;
                         document.body.appendChild(a);
                         a.click();
@@ -632,6 +811,46 @@ const loadDubbingStatus = async () => {
           </div>
         </div>
 
+        {/* Subtitle Burn-in Option */}
+        <div className="mt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
+              <Captions size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+                  Gắn phụ đề vào video (Burn-in Hardsub)
+                </p>
+                {hasSubtitles ? (
+                  <span className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-500">
+                    ✓ Đã có phụ đề Bước 4
+                  </span>
+                ) : (
+                  <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-500">
+                    Chưa tạo phụ đề
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+                In phụ đề trực tiếp vào hình ảnh video để hiển thị mượt mà trên mọi thiết bị và trình phát.
+              </p>
+            </div>
+          </div>
+          <label className="relative inline-flex cursor-pointer items-center shrink-0">
+            <input
+              type="checkbox"
+              checked={burnSubtitles}
+              onChange={(e) => setBurnSubtitles(e.target.checked)}
+              className="peer sr-only"
+            />
+            <div className="peer h-6 w-11 rounded-full bg-[var(--color-border)] after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-[var(--color-primary)] peer-checked:after:translate-x-full" />
+            <span className="ml-3 text-xs font-semibold text-[var(--color-text-secondary)]">
+              {burnSubtitles ? "Bật" : "Tắt"}
+            </span>
+          </label>
+        </div>
+
         {/* Dubbing Status & Preview */}
         {dubbingStatus && dubbingStatus !== "not_started" && (
           <div className="mt-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-4">
@@ -663,6 +882,20 @@ const loadDubbingStatus = async () => {
                 </div>
               )}
             </div>
+
+            {/* Dubbed Video Preview Player */}
+            {isDubReady && videoUrl && (
+              <div className="mt-4 overflow-hidden rounded-xl bg-black border border-[var(--color-border)] shadow-md">
+                <video
+                  src={videoUrl}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="w-full max-h-[440px] object-contain"
+                  onError={(e) => console.error("Dubbed video preview player error:", e)}
+                />
+              </div>
+            )}
 
             {dubbingStatus === "processing" && (
               <div className="mt-3">

@@ -1,4 +1,4 @@
-export type PaymentMethod = "DEMO" | "VNPAY" | "STRIPE" | "MOMO";
+export type PaymentMethod = "VNPAY";
 export type PaymentStatus = "pending" | "completed" | "failed" | "cancelled" | "expired";
 
 export interface CreatePaymentTransactionRequest {
@@ -28,17 +28,4 @@ export interface PaymentTransaction {
 export interface PaymentTransactionListResponse {
   transactions: PaymentTransaction[];
   total: number;
-}
-
-export interface DemoPaymentSuccessResponse {
-  success: boolean;
-  message: string;
-  transaction: PaymentTransaction;
-  activated_entitlement: Record<string, any>;
-}
-
-export interface DemoPaymentFailResponse {
-  success: boolean;
-  message: string;
-  transaction: PaymentTransaction;
 }

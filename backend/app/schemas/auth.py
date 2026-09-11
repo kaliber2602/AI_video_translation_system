@@ -245,3 +245,26 @@ class LogoutResponse(BaseModel):
 class LogoutAllResponse(BaseModel):
 
     message: str
+
+
+# =========================================================
+# Profile & Account Lifecycle
+# =========================================================
+
+class UpdateProfileRequest(BaseModel):
+    full_name: str = Field(
+        min_length=2,
+        max_length=100,
+    )
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 2:
+            raise ValueError("Full name must be at least 2 characters long.")
+        return value
+
+
+class DeleteAccountRequest(BaseModel):
+    confirmation: str = "DELETE"

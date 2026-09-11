@@ -1,8 +1,9 @@
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 
+from app.core.admin_guard import require_admin
 from app.schemas.contact import (
     ContactCreateRequest,
     ContactResponse,
@@ -73,13 +74,14 @@ def submit_contact(
 @router.get(
     "",
     response_model=List[ContactResponse],
-    summary="List contact messages",
+    summary="List contact messages (Admin only)",
 )
 def list_contacts(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    current_admin: dict = Depends(require_admin),
 ):
-    """Retrieve submitted contact messages."""
+    """Retrieve submitted contact messages. Accessible by administrators only."""
     try:
         contacts = get_contact_messages(limit=limit, offset=offset)
         return [ContactResponse(**c) for c in contacts]

@@ -8,6 +8,11 @@ import type {
   ProjectMemberAddRequest,
   ProjectMemberUpdateRequest,
   ProjectUpdateRequest,
+  ProjectFolder,
+  FolderCreateRequest,
+  FolderUpdateRequest,
+  ProjectAssetsResponse,
+  AssetCategory,
 } from "../types/project";
 import type { TagResponse } from "../types/tag";
 
@@ -249,3 +254,105 @@ export const removeProjectMember = async (
     `/api/projects/${projectId}/members/${memberId}`
   );
 };
+
+
+// =========================================================
+// Project Folders Management
+// =========================================================
+
+export const getProjectFolders = async (
+  projectId: number | string
+): Promise<ProjectFolder[]> => {
+  const response = await api.get<ProjectFolder[]>(
+    `/api/projects/${projectId}/folders`
+  );
+  return response.data;
+};
+
+export const createProjectFolder = async (
+  projectId: number | string,
+  data: FolderCreateRequest
+): Promise<ProjectFolder> => {
+  const response = await api.post<ProjectFolder>(
+    `/api/projects/${projectId}/folders`,
+    data
+  );
+  return response.data;
+};
+
+export const updateProjectFolder = async (
+  projectId: number | string,
+  folderId: number | string,
+  data: FolderUpdateRequest
+): Promise<ProjectFolder> => {
+  const response = await api.put<ProjectFolder>(
+    `/api/projects/${projectId}/folders/${folderId}`,
+    data
+  );
+  return response.data;
+};
+
+export const deleteProjectFolder = async (
+  projectId: number | string,
+  folderId: number | string
+): Promise<void> => {
+  await api.delete(
+    `/api/projects/${projectId}/folders/${folderId}`
+  );
+};
+
+
+// =========================================================
+// Project Assets & Storage Management
+// =========================================================
+
+export interface GetAssetsParams {
+  folder_id?: number | null;
+  category?: AssetCategory | string;
+  search?: string;
+}
+
+export const getProjectAssets = async (
+  projectId: number | string,
+  params?: GetAssetsParams
+): Promise<ProjectAssetsResponse> => {
+  const queryParams: Record<string, any> = {};
+  if (params?.folder_id) queryParams.folder_id = params.folder_id;
+  if (params?.category && params.category !== "all") queryParams.category = params.category;
+  if (params?.search) queryParams.search = params.search;
+
+  const response = await api.get<ProjectAssetsResponse>(
+    `/api/projects/${projectId}/assets`,
+    { params: queryParams }
+  );
+  return response.data;
+};
+
+export const downloadProjectAssetsZip = async (
+  projectId: number | string,
+  folderId?: number | null
+): Promise<Blob> => {
+  const response = await api.get(`/api/projects/${projectId}/assets/zip`, {
+    params: folderId ? { folder_id: folderId } : undefined,
+    responseType: "blob",
+  });
+  return response.data;
+};
+
+export const triggerAssetZipDownload = async (
+  projectId: number | string,
+  projectName?: string,
+  folderId?: number | null
+): Promise<void> => {
+  const blob = await downloadProjectAssetsZip(projectId, folderId);
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  const safeName = (projectName || `project_${projectId}`).replace(/[^a-zA-Z0-9_-]/g, "_");
+  link.setAttribute("download", `${safeName}_assets.zip`);
+  document.body.appendChild(link);
+  link.click();
+  link.parentNode?.removeChild(link);
+  window.URL.revokeObjectURL(url);
+};
+

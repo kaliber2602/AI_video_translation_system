@@ -112,7 +112,7 @@
       "sourcesLabel": "Nguồn Dẫn Chứng & Mốc Thời Gian",
       "answers": {
         "a1": "Diễn giả nhấn mạnh rằng tự động hóa AI giúp loại bỏ các tác vụ thủ công lặp lại, cho phép các đội ngũ bản địa hóa video nhanh gấp 10 lần trong khi vẫn duy trì sự kiểm soát chất lượng của con người.",
-        "a2": "Bảng giá được phân tầng theo dung lượng lưu trữ đám mây và số phút xử lý AI hàng tháng, cung cấp các gói linh hoạt cùng tùy chọn mua thêm dung lượng Add-on mà không cần đổi gói chính.",
+        "a2": "Bảng giá được phân tầng theo dung lượng lưu trữ đám mây và hạn ngạch từ (word quota tokenize) hàng tháng, cung cấp các gói linh hoạt cùng tùy chọn mua thêm dung lượng Add-on mà không cần đổi gói chính.",
         "a3": "Kiến trúc được đề xuất sử dụng hàng đợi xử lý bất đồng bộ, tách rời các tiến trình nhận dạng giọng nói, dịch ngữ cảnh và công cụ tổng hợp giọng nói đa nhân vật."
       }
     },

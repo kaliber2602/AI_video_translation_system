@@ -1,6 +1,6 @@
 // TranscriptStep.tsx
 import { useEffect, useState } from "react";
-import { CheckCircle2, Download, FileText, Play, Loader2, Save, Sparkles } from "lucide-react";
+import { CheckCircle2, Download, FileText, Play, Loader2, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePipeline } from "../../hooks/usePipeline";
 import { videoService } from "../../services/video.service";
@@ -87,6 +87,9 @@ export default function TranscriptStep() {
           type: "SET_TRANSCRIPT",
           payload: data,
         });
+
+        // Notify sidebar & settings to update credit balance
+        window.dispatchEvent(new CustomEvent("subscription-updated"));
       } else {
         throw new Error(data?.message || "Invalid transcript data received");
       }

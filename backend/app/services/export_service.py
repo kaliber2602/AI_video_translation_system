@@ -17,9 +17,11 @@ class ExportService:
         self,
         video_path: str,
         format: str = "mp4",
-        quality: str = "1080p"
+        quality: str = "1080p",
+        subtitle_path: Optional[str] = None,
+        burn_subtitles: bool = True
     ) -> str:
-        """Export final video with specified quality."""
+        """Export final video with specified quality and optional burned subtitles."""
         # Check if input video exists and is valid
         if not os.path.exists(video_path):
             raise FileNotFoundError(f"Video file not found: {video_path}")
@@ -41,11 +43,14 @@ class ExportService:
             "360p": 360,
             "720p": 720,
             "1080p": 1080,
+            "2k": 1440,
+            "2K": 1440,
+            "4k": 2160,
             "4K": 2160
         }
-        height = quality_map.get(quality, 1080)
+        height = quality_map.get(quality, quality_map.get(quality.lower() if quality else "1080p", 1080))
         
-        logger.info(f"Exporting video: {video_path} -> {output_path} (quality: {quality})")
+        logger.info(f"Exporting video: {video_path} -> {output_path} (quality: {quality}, burn_subtitles: {burn_subtitles})")
         
         try:
             # First, verify the input video with ffprobe
@@ -67,8 +72,26 @@ class ExportService:
             
             logger.info(f"Video info: {probe_result.stdout}")
             
-            # If the video is already at or below target quality, copy it
-            if quality in ["360p", "720p"]:
+            # Subtitle filter check
+            should_burn = burn_subtitles and subtitle_path
+            chosen_sub = None
+            if should_burn:
+                chosen_sub = subtitle_path
+                if chosen_sub.endswith(".srt"):
+                    ass_candidate = chosen_sub[:-4] + ".ass"
+                    if os.path.exists(ass_candidate):
+                        chosen_sub = ass_candidate
+                elif not os.path.exists(chosen_sub):
+                    srt_candidate = os.path.splitext(chosen_sub)[0] + ".srt"
+                    if os.path.exists(srt_candidate):
+                        chosen_sub = srt_candidate
+                
+                if not os.path.exists(chosen_sub):
+                    logger.warning(f"Subtitle file not found for export burn: {chosen_sub}")
+                    should_burn = False
+
+            # If no subtitles to burn, and the video is already at or below target quality, copy it
+            if not should_burn and quality in ["360p", "720p"]:
                 # Check if video is already at target resolution
                 if "height" in probe_result.stdout:
                     import re
@@ -80,11 +103,18 @@ class ExportService:
                             shutil.copy2(video_path, output_path)
                             return output_path
             
+            # Build video filter
+            vf_filters = [f"scale=-2:{height}"]
+            if should_burn and chosen_sub:
+                escaped_sub = chosen_sub.replace('\\', '/').replace(':', '\\:')
+                vf_filters.append(f"subtitles={escaped_sub}")
+                logger.info(f"🔥 Burning subtitles in export: {chosen_sub}")
+
             # Use FFmpeg to re-encode
             command = [
                 "ffmpeg", "-y",
                 "-i", video_path,
-                "-vf", f"scale=-2:{height}",
+                "-vf", ",".join(vf_filters),
                 "-c:v", "libx264",
                 "-preset", "medium",
                 "-crf", "23",
@@ -201,7 +231,7 @@ class ExportService:
             "final_video": {
                 "available": False,
                 "formats": ["mp4", "mov", "avi"],
-                "qualities": ["360p", "720p", "1080p", "4K"]
+                "qualities": ["360p", "720p", "1080p", "2k", "4k"]
             },
             "audio": {
                 "available": False,

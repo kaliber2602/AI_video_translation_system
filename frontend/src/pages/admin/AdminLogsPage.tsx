@@ -71,7 +71,7 @@ export default function AdminLogsPage() {
           className="inline-flex items-center gap-2 self-start rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2 text-xs font-bold text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] transition shadow-xs cursor-pointer"
         >
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          <span>Làm mới</span>
+          <span>{t("admin:common.refresh", "Làm mới")}</span>
         </button>
       </div>
 
@@ -118,7 +118,7 @@ export default function AdminLogsPage() {
               <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
                 <tr>
                   <th className="px-4 py-3.5">ID</th>
-                  <th className="px-4 py-3.5">Người dùng</th>
+                  <th className="px-4 py-3.5">{t("admin:common.user", "Người dùng")}</th>
                   <th className="px-4 py-3.5">{t("admin:logs.action")}</th>
                   <th className="px-4 py-3.5">{t("admin:logs.target")}</th>
                   <th className="px-4 py-3.5">{t("admin:logs.metadata")}</th>
@@ -130,13 +130,13 @@ export default function AdminLogsPage() {
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-sm text-[var(--color-text-muted)]">
                       <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin text-[var(--color-primary)]" />
-                      Đang tải nhật ký hoạt động...
+                      {t("admin:common.loading", "Đang tải nhật ký hoạt động...")}
                     </td>
                   </tr>
                 ) : activityLogs.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-sm text-[var(--color-text-muted)]">
-                      Chưa có nhật ký hoạt động nào.
+                      {t("admin:common.empty", "Chưa có nhật ký hoạt động nào.")}
                     </td>
                   </tr>
                 ) : (
@@ -170,7 +170,7 @@ export default function AdminLogsPage() {
               <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
                 <tr>
                   <th className="px-4 py-3.5">ID</th>
-                  <th className="px-4 py-3.5">Người dùng</th>
+                  <th className="px-4 py-3.5">{t("admin:common.user", "Người dùng")}</th>
                   <th className="px-4 py-3.5">{t("admin:logs.service")}</th>
                   <th className="px-4 py-3.5">{t("admin:logs.deducted")}</th>
                   <th className="px-4 py-3.5">{t("admin:logs.description")}</th>
@@ -182,13 +182,13 @@ export default function AdminLogsPage() {
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-sm text-[var(--color-text-muted)]">
                       <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin text-[var(--color-primary)]" />
-                      Đang tải kiểm toán tín chỉ...
+                      {t("admin:common.loading", "Đang tải kiểm toán tín chỉ...")}
                     </td>
                   </tr>
                 ) : creditLogs.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-sm text-[var(--color-text-muted)]">
-                      Chưa có nhật ký tín chỉ nào.
+                      {t("admin:common.empty", "Chưa có nhật ký tín chỉ nào.")}
                     </td>
                   </tr>
                 ) : (
@@ -211,7 +211,7 @@ export default function AdminLogsPage() {
                               : "text-emerald-500"
                           }
                         >
-                          {log.credits_deducted > 0 ? `-${log.credits_deducted}` : `+${Math.abs(log.credits_deducted)}`} credits
+                          {log.credits_deducted > 0 ? `-${log.words_deducted ?? log.credits_deducted}` : `+${Math.abs(log.words_deducted ?? log.credits_deducted)}`} từ
                         </span>
                       </td>
                       <td className="px-4 py-3 text-[var(--color-text-secondary)] max-w-sm truncate">
@@ -232,24 +232,28 @@ export default function AdminLogsPage() {
         {total > limit && (
           <div className="flex items-center justify-between border-t border-[var(--color-border)] px-4 py-3 bg-[var(--color-surface-muted)] text-xs text-[var(--color-text-secondary)]">
             <span>
-              Hiển thị {offset + 1} - {Math.min(offset + limit, total)} trên {total} bản ghi
+              {t("admin:common.showing", "Hiển thị {{start}} - {{end}} trên {{total}} bản ghi", {
+                start: offset + 1,
+                end: Math.min(offset + limit, total),
+                total,
+              })}
             </span>
             <div className="flex gap-2">
               <button
                 type="button"
                 disabled={offset === 0}
                 onClick={() => setOffset(Math.max(0, offset - limit))}
-                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 font-bold disabled:opacity-40"
+                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 font-bold disabled:opacity-40 cursor-pointer"
               >
-                Trước
+                {t("admin:common.previous", "Trước")}
               </button>
               <button
                 type="button"
                 disabled={offset + limit >= total}
                 onClick={() => setOffset(offset + limit)}
-                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 font-bold disabled:opacity-40"
+                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 font-bold disabled:opacity-40 cursor-pointer"
               >
-                Sau
+                {t("admin:common.next", "Sau")}
               </button>
             </div>
           </div>

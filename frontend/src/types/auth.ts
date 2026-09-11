@@ -88,3 +88,31 @@ export interface PasswordResetRouteState {
 export interface UpdateAvatarResponse {
   avatar: string;
 }
+
+export interface UpdateProfileRequest {
+  full_name: string;
+}
+
+export interface DeleteAccountRequest {
+  confirmation: string;
+}
+
+export interface ActiveSession {
+  id: string;
+  device: string;
+  browser: string;
+  location: string;
+  ipAddress: string;
+  lastActive: string;
+  isCurrent: boolean;
+  iconType: "desktop" | "mobile" | "tablet";
+}
+
+export interface SecurityAuditItem {
+  id: string;
+  action: string;
+  location: string;
+  ipAddress: string;
+  timestamp: string;
+  status: "success" | "warning" | "failed";
+}

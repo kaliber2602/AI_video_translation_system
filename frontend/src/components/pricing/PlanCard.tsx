@@ -23,7 +23,8 @@ export default function PlanCard({
 
   // Categorize resources
   const storageResource = plan.resources.find((r) => r.resource_type === "STORAGE" && r.resource_key === "storage_bytes");
-  const creditsResource = plan.resources.find((r) => r.resource_type === "CONSUMABLE" && r.resource_key === "ai_credits_monthly");
+  const wordsResource = plan.resources.find((r) => r.resource_type === "CONSUMABLE" && r.resource_key === "words_monthly") ||
+                        plan.resources.find((r) => r.resource_type === "CONSUMABLE" && r.resource_key === "ai_credits_monthly");
   const limits = plan.resources.filter((r) => r.resource_type === "LIMIT");
 
   // Format Storage value
@@ -34,12 +35,19 @@ export default function PlanCard({
     return `${Math.round(bytes / (1024 ** 3))} GB`;
   };
 
-  // Format AI Credits
-  const formatCredits = (creditsStr?: string) => {
-    if (!creditsStr) return isFree ? "1,000" : plan.code === "pro" ? "10,000" : "100,000";
-    const num = parseInt(creditsStr, 10);
-    return num.toLocaleString();
+  // Format Words Quota & Estimated Minutes
+  const getWordCount = () => {
+    if (wordsResource?.resource_key === "words_monthly" && wordsResource.limit_value) {
+      return parseInt(wordsResource.limit_value, 10);
+    }
+    if (wordsResource?.resource_key === "ai_credits_monthly" && wordsResource.limit_value) {
+      return parseInt(wordsResource.limit_value, 10) * 10;
+    }
+    return isFree ? 5000 : plan.code === "pro" ? 100000 : 1000000;
   };
+
+  const wordCount = getWordCount();
+  const estimatedMinutes = Math.round(wordCount / 150);
 
   // Map Limits for clean presentation
   const limitValues: Record<string, string> = {
@@ -150,17 +158,19 @@ export default function PlanCard({
           </div>
         </div>
 
-        {/* 2. CONSUMABLE AI CREDITS */}
+        {/* 2. CONSUMABLE AI WORDS QUOTA */}
         <div className="mt-3.5 rounded-2xl bg-[var(--color-background)] p-3.5 transition-colors">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
             <Sparkles size={15} className="text-[var(--color-primary)]" />
-            <span>{t("pricing:sections.consumable")}</span>
+            <span>{t("pricing:sections.consumable", "Định Mức Từ AI (Word Quota)")}</span>
           </div>
           <div className="mt-2 text-lg font-black text-[var(--color-text-primary)]">
-            {formatCredits(creditsResource?.limit_value)} {t("pricing:comparison.rows.credits")}
+            {wordCount.toLocaleString()} {t("pricing:comparison.rows.words", "Từ (Words) / Tháng")}
           </div>
-          <div className="text-[11px] text-[var(--color-text-muted)]">
-            ~ {formatCredits(creditsResource?.limit_value)} {t("pricing:comparison.rows.minutes")}
+          <div className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1.5 mt-0.5">
+            <span>~ {estimatedMinutes.toLocaleString()} {t("pricing:comparison.rows.minutesEstimate", "phút âm thanh")}</span>
+            <span>•</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-medium">{t("pricing:comparison.rows.tokenizeMethod", "Khấu trừ theo từ")}</span>
           </div>
         </div>
 

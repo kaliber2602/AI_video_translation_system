@@ -1,3 +1,5 @@
+import io
+import json
 import os
 import logging
 from datetime import datetime, timezone, timedelta
@@ -31,6 +33,7 @@ DEFAULT_PLANS_SEED = [
         "resources": [
             {"id": 1, "plan_id": 1, "resource_type": "STORAGE", "resource_key": "storage_bytes", "limit_value": "5368709120", "unit": "bytes"},
             {"id": 2, "plan_id": 1, "resource_type": "CONSUMABLE", "resource_key": "ai_credits_monthly", "limit_value": "1000", "unit": "credits"},
+            {"id": 101, "plan_id": 1, "resource_type": "CONSUMABLE", "resource_key": "words_monthly", "limit_value": "5000", "unit": "words"},
             {"id": 3, "plan_id": 1, "resource_type": "LIMIT", "resource_key": "max_file_size_bytes", "limit_value": "524288000", "unit": "bytes"},
             {"id": 4, "plan_id": 1, "resource_type": "LIMIT", "resource_key": "max_video_duration_seconds", "limit_value": "1800", "unit": "seconds"},
             {"id": 5, "plan_id": 1, "resource_type": "LIMIT", "resource_key": "max_upload_resolution", "limit_value": "1080p", "unit": "resolution"},
@@ -66,6 +69,7 @@ DEFAULT_PLANS_SEED = [
         "resources": [
             {"id": 22, "plan_id": 2, "resource_type": "STORAGE", "resource_key": "storage_bytes", "limit_value": "107374182400", "unit": "bytes"},
             {"id": 23, "plan_id": 2, "resource_type": "CONSUMABLE", "resource_key": "ai_credits_monthly", "limit_value": "10000", "unit": "credits"},
+            {"id": 102, "plan_id": 2, "resource_type": "CONSUMABLE", "resource_key": "words_monthly", "limit_value": "100000", "unit": "words"},
             {"id": 24, "plan_id": 2, "resource_type": "LIMIT", "resource_key": "max_file_size_bytes", "limit_value": "5368709120", "unit": "bytes"},
             {"id": 25, "plan_id": 2, "resource_type": "LIMIT", "resource_key": "max_video_duration_seconds", "limit_value": "14400", "unit": "seconds"},
             {"id": 26, "plan_id": 2, "resource_type": "LIMIT", "resource_key": "max_upload_resolution", "limit_value": "4K", "unit": "resolution"},
@@ -101,6 +105,7 @@ DEFAULT_PLANS_SEED = [
         "resources": [
             {"id": 43, "plan_id": 3, "resource_type": "STORAGE", "resource_key": "storage_bytes", "limit_value": "1099511627776", "unit": "bytes"},
             {"id": 44, "plan_id": 3, "resource_type": "CONSUMABLE", "resource_key": "ai_credits_monthly", "limit_value": "100000", "unit": "credits"},
+            {"id": 103, "plan_id": 3, "resource_type": "CONSUMABLE", "resource_key": "words_monthly", "limit_value": "1000000", "unit": "words"},
             {"id": 45, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_file_size_bytes", "limit_value": "21474836480", "unit": "bytes"},
             {"id": 46, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_video_duration_seconds", "limit_value": "43200", "unit": "seconds"},
             {"id": 47, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_upload_resolution", "limit_value": "4K", "unit": "resolution"},
@@ -664,6 +669,7 @@ def get_user_active_storage_addons(user_id: int) -> List[Dict[str, Any]]:
 def get_user_storage_usage(user_id: int) -> int:
     """
     Calculates the total storage in bytes currently consumed by the user's projects & video assets.
+    Accurately accounts for recorded file_size as well as physical files on disk/storage.
     """
     try:
         connection = get_connection()
@@ -675,28 +681,36 @@ def get_user_storage_usage(user_id: int) -> int:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT v.original_path, v.extracted_vocal_path, v.background_music_path,
+                SELECT v.id, COALESCE(v.file_size, 0), v.original_path, v.extracted_vocal_path, v.background_music_path,
                        v.transcript_path, v.subtitle_path, v.dubbed_audio_path, v.output_path
                 FROM videos v
                 JOIN projects p ON p.id = v.project_id
-                WHERE p.owner_id = %s
+                WHERE p.owner_id = %s AND v.deleted_at IS NULL AND p.deleted_at IS NULL
                 """,
                 (user_id,),
             )
             rows = cursor.fetchall()
             for r in rows:
-                for path_str in r:
+                rec_file_size = r[1]
+                path_strs = r[2:]
+                video_files_bytes = 0
+                for path_str in path_strs:
                     if path_str:
                         p = Path(path_str)
                         if not p.is_absolute():
                             up = UPLOAD_DIR / path_str
                             out = OUTPUT_DIR / path_str
                             if up.exists():
-                                total_bytes += up.stat().st_size
+                                video_files_bytes += up.stat().st_size
                             elif out.exists():
-                                total_bytes += out.stat().st_size
+                                video_files_bytes += out.stat().st_size
                         elif p.exists():
-                            total_bytes += p.stat().st_size
+                            video_files_bytes += p.stat().st_size
+
+                if video_files_bytes > 0:
+                    total_bytes += video_files_bytes
+                else:
+                    total_bytes += rec_file_size
 
         return total_bytes
     except Exception as e:
@@ -708,18 +722,25 @@ def get_user_storage_usage(user_id: int) -> int:
 
 def get_user_consumable_usage(user_id: int) -> Dict[str, int]:
     """
-    Returns monthly AI processing credits used by the user.
+    Returns monthly AI processing credits and word quota used by the user.
     """
     try:
         connection = get_connection()
     except Exception:
-        return {"credits_used": 0}
+        return {"credits_used": 0, "words_used": 0}
 
     try:
         with connection.cursor() as cursor:
+            # Ensure column exists
+            try:
+                cursor.execute("ALTER TABLE user_consumable_usage ADD COLUMN IF NOT EXISTS words_used INTEGER NOT NULL DEFAULT 0;")
+                connection.commit()
+            except Exception:
+                connection.rollback()
+
             cursor.execute(
                 """
-                SELECT COALESCE(SUM(credits_used), 0)
+                SELECT COALESCE(SUM(credits_used), 0), COALESCE(SUM(words_used), 0)
                 FROM user_consumable_usage
                 WHERE user_id = %s
                   AND period_start <= CURRENT_TIMESTAMP
@@ -728,12 +749,317 @@ def get_user_consumable_usage(user_id: int) -> Dict[str, int]:
                 (user_id,),
             )
             row = cursor.fetchone()
-            used = row[0] if row else 0
-            return {"credits_used": int(used)}
+            credits_val = row[0] if row else 0
+            words_val = row[1] if row and len(row) > 1 else 0
+            return {"credits_used": int(credits_val), "words_used": int(words_val)}
     except Exception:
-        return {"credits_used": 0}
+        return {"credits_used": 0, "words_used": 0}
     finally:
         connection.close()
+
+
+def deduct_user_words(
+    user_id: int,
+    words_amount: int,
+    service_type: str = "WORD_PROCESSING",
+    description: Optional[str] = None,
+    video_id: Optional[int] = None,
+    job_id: Optional[str] = None,
+    **kwargs,
+) -> bool:
+    """
+    Deducts words quota atomically (Tokenize / Word-based billing):
+    1. Checks if user has sufficient word quota in the current billing cycle.
+    2. Updates user_consumable_usage.words_used for the period.
+    3. Records entry in credit_audit_logs with word_balance_after.
+    """
+    amount = int(words_amount) if words_amount is not None else 0
+    if amount <= 0:
+        return True
+
+    desc = description or f"Word processing for video #{video_id or 'job'}"
+    svc = service_type or "WORD_PROCESSING"
+
+    # 1. Check user's available word quota
+    try:
+        quota = get_user_effective_quota(user_id)
+        words_quota = quota.get("words", {})
+        remaining = words_quota.get("remaining_words", 0)
+        if remaining < amount:
+            logger.warning(
+                f"[SubscriptionService] User {user_id} has insufficient word quota: "
+                f"remaining={remaining}, requested={amount}"
+            )
+            return False
+        balance_after = remaining - amount
+    except Exception as e:
+        logger.error(f"[SubscriptionService] Error checking word quota in deduct_user_words: {e}")
+        balance_after = None
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            now = datetime.now(timezone.utc)
+            period_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+            if now.month == 12:
+                period_end = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc) - timedelta(seconds=1)
+            else:
+                period_end = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc) - timedelta(seconds=1)
+
+            cur.execute("ALTER TABLE user_consumable_usage ADD COLUMN IF NOT EXISTS words_used INTEGER NOT NULL DEFAULT 0;")
+
+            cur.execute(
+                """
+                INSERT INTO user_consumable_usage (user_id, period_start, period_end, credits_used, words_used, created_at, updated_at)
+                VALUES (%s, %s, %s, 0, %s, %s, %s)
+                ON CONFLICT (user_id, period_start, period_end)
+                DO UPDATE SET words_used = user_consumable_usage.words_used + EXCLUDED.words_used,
+                              updated_at = EXCLUDED.updated_at
+                """,
+                (user_id, period_start, period_end, amount, now, now),
+            )
+
+            cur.execute(
+                """
+                INSERT INTO credit_audit_logs (user_id, service_type, credits_deducted, balance_after, description, video_id, job_id, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                """,
+                (user_id, svc, amount, balance_after, f"{desc} ({amount} words)", video_id, job_id),
+            )
+        conn.commit()
+        logger.info(
+            f"[SubscriptionService] Successfully deducted {amount} words from user {user_id} for {svc}. "
+            f"New balance: {balance_after}"
+        )
+        return True
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"[SubscriptionService] deduct_user_words error: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def refund_user_words(
+    user_id: int,
+    words_amount: int,
+    description: Optional[str] = None,
+    video_id: Optional[int] = None,
+    job_id: Optional[str] = None,
+) -> bool:
+    """Refunds previously deducted word quota."""
+    amount = int(words_amount) if words_amount else 0
+    if amount <= 0:
+        return True
+
+    desc = description or f"Word refund for video #{video_id or 'job'}"
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            now = datetime.now(timezone.utc)
+            period_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+            if now.month == 12:
+                period_end = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc) - timedelta(seconds=1)
+            else:
+                period_end = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc) - timedelta(seconds=1)
+
+            cur.execute(
+                """
+                UPDATE user_consumable_usage
+                SET words_used = GREATEST(0, words_used - %s),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s AND period_start = %s AND period_end = %s
+                """,
+                (amount, user_id, period_start, period_end),
+            )
+
+            cur.execute(
+                """
+                INSERT INTO credit_audit_logs (user_id, service_type, credits_deducted, balance_after, description, video_id, job_id, created_at)
+                VALUES (%s, 'REFUND_WORDS', %s, NULL, %s, %s, %s, CURRENT_TIMESTAMP)
+                """,
+                (user_id, -amount, f"Refund: {desc} ({amount} words)", video_id, job_id),
+            )
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"[SubscriptionService] refund_user_words error: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def deduct_user_credits(
+    user_id: int,
+    credits_amount: Optional[int] = None,
+    service_type: str = "AI_PROCESSING",
+    description: Optional[str] = None,
+    video_id: Optional[int] = None,
+    job_id: Optional[str] = None,
+    **kwargs,
+) -> bool:
+    """
+    Deducts AI credits atomically:
+    1. Checks if user has sufficient credits in current period.
+    2. Updates user_consumable_usage for the current billing period.
+    3. Writes credit_audit_logs entry with calculated balance_after.
+    """
+    amount = credits_amount if credits_amount is not None else kwargs.get("credits", 1)
+    if amount <= 0:
+        return True
+
+    desc = description or kwargs.get("reason", f"AI processing for video #{video_id or 'job'}")
+    svc = service_type or kwargs.get("service_type", "AI_PROCESSING")
+
+    # 1. Check user's available credits quota
+    try:
+        quota = get_user_effective_quota(user_id)
+        credits_quota = quota.get("credits", {})
+        remaining = credits_quota.get("remaining_credits", 0)
+        if remaining < amount:
+            logger.warning(
+                f"[SubscriptionService] User {user_id} has insufficient credits: "
+                f"remaining={remaining}, requested={amount}"
+            )
+            return False
+        balance_after = remaining - amount
+    except Exception as e:
+        logger.error(f"[SubscriptionService] Error checking quota in deduct_user_credits: {e}")
+        balance_after = None
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            now = datetime.now(timezone.utc)
+            period_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+            if now.month == 12:
+                period_end = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc) - timedelta(seconds=1)
+            else:
+                period_end = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc) - timedelta(seconds=1)
+
+            cur.execute(
+                """
+                INSERT INTO user_consumable_usage (user_id, period_start, period_end, credits_used, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (user_id, period_start, period_end)
+                DO UPDATE SET credits_used = user_consumable_usage.credits_used + EXCLUDED.credits_used,
+                              updated_at = EXCLUDED.updated_at
+                """,
+                (user_id, period_start, period_end, amount, now, now),
+            )
+
+            cur.execute(
+                """
+                INSERT INTO credit_audit_logs (user_id, service_type, credits_deducted, balance_after, description, video_id, job_id, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                """,
+                (user_id, svc, amount, balance_after, desc, video_id, job_id),
+            )
+        conn.commit()
+        logger.info(
+            f"[SubscriptionService] Successfully deducted {amount} credits from user {user_id} for {svc}. "
+            f"New balance: {balance_after}"
+        )
+        return True
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"[SubscriptionService] deduct_user_credits error: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def refund_user_credits(
+    user_id: int,
+    credits_amount: Optional[int] = None,
+    reason: Optional[str] = None,
+    video_id: Optional[int] = None,
+    job_id: Optional[str] = None,
+    **kwargs,
+) -> bool:
+    """
+    Refunds previously deducted AI credits when a job fails.
+    """
+    amount = credits_amount if credits_amount is not None else kwargs.get("credits", 0)
+    if not amount:
+        return False
+
+    desc = reason or kwargs.get("description") or kwargs.get("service_type") or "Refund"
+    vid_id = video_id if isinstance(video_id, int) else (kwargs.get("video_id") if isinstance(kwargs.get("video_id"), int) else None)
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            now = datetime.now(timezone.utc)
+            period_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+            if now.month == 12:
+                period_end = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc) - timedelta(seconds=1)
+            else:
+                period_end = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc) - timedelta(seconds=1)
+
+            cur.execute(
+                """
+                UPDATE user_consumable_usage
+                SET credits_used = GREATEST(0, credits_used - %s),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s AND period_start = %s AND period_end = %s
+                """,
+                (amount, user_id, period_start, period_end),
+            )
+
+            cur.execute(
+                """
+                INSERT INTO credit_audit_logs (user_id, service_type, credits_deducted, balance_after, description, video_id, job_id, created_at)
+                VALUES (%s, 'REFUND', %s, NULL, %s, %s, %s, CURRENT_TIMESTAMP)
+                """,
+                (user_id, -amount, f"Refund: {desc}", vid_id, job_id),
+            )
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"[SubscriptionService] refund_user_credits error: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_model_credit_cost(model_code: Optional[str], default_cost: int = 1) -> int:
+    """
+    Look up the real-time credit_cost_per_minute for an AI model from the ai_models database table.
+    """
+    if not model_code:
+        return default_cost
+    try:
+        conn = get_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT credit_cost_per_minute FROM ai_models WHERE code = %s AND is_active = true LIMIT 1;",
+                (model_code,)
+            )
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                return int(row[0])
+    except Exception as e:
+        logger.error(f"[SubscriptionService] Failed to query credit cost for model {model_code}: {e}")
+    return default_cost
+
+
+def get_all_ai_model_credit_costs() -> Dict[str, int]:
+    """
+    Returns a dictionary mapping model_code -> credit_cost_per_minute from the ai_models table.
+    """
+    result = {}
+    try:
+        conn = get_connection()
+        with conn.cursor() as cur:
+            cur.execute("SELECT code, credit_cost_per_minute FROM ai_models WHERE is_active = true;")
+            for r in cur.fetchall():
+                result[r[0]] = int(r[1])
+    except Exception as e:
+        logger.error(f"[SubscriptionService] Failed to query all ai model credit costs: {e}")
+    return result
 
 
 def get_user_credit_audit_logs(user_id: int, limit: int = 50, offset: int = 0) -> Tuple[List[Dict[str, Any]], int]:
@@ -767,12 +1093,12 @@ def get_user_credit_audit_logs(user_id: int, limit: int = 50, offset: int = 0) -
                     "id": r[0],
                     "user_id": r[1],
                     "video_id": r[2],
-                    "job_id": str(r[3]) if r[3] else None,
+                    "job_id": r[3],
                     "service_type": r[4],
                     "credits_deducted": r[5],
                     "balance_after": r[6],
                     "description": r[7],
-                    "created_at": r[8],
+                    "created_at": r[8].isoformat() if r[8] else None,
                 }
                 for r in rows
             ]
@@ -829,7 +1155,7 @@ def add_credit_audit_log(
             connection.close()
 
 
-def get_user_effective_quota(user_id: int) -> Dict[str, Any]:
+def get_user_effective_quota(user_id: int, **kwargs) -> Dict[str, Any]:
     """
     Resolves the user's complete effective quota:
     Effective Storage = Base Plan Storage + Active Storage Add-ons
@@ -845,6 +1171,7 @@ def get_user_effective_quota(user_id: int) -> Dict[str, Any]:
 
     storage_resource_bytes = 5368709120  # default 5 GB
     credits_resource = 1000  # default 1000 credits
+    words_resource = 5000  # default 5000 words
     limits: Dict[str, Any] = {}
     features: Dict[str, bool] = {}
 
@@ -863,6 +1190,11 @@ def get_user_effective_quota(user_id: int) -> Dict[str, Any]:
                 credits_resource = int(rval)
             except ValueError:
                 pass
+        elif rtype == "CONSUMABLE" and rkey == "words_monthly":
+            try:
+                words_resource = int(rval)
+            except ValueError:
+                pass
         elif rtype == "LIMIT":
             try:
                 limits[rkey] = int(rval)
@@ -870,6 +1202,10 @@ def get_user_effective_quota(user_id: int) -> Dict[str, Any]:
                 limits[rkey] = rval
         elif rtype == "FEATURE":
             features[rkey] = True
+
+    # If words_resource wasn't explicitly in plan resource table, derive from credits proportionally
+    if words_resource == 5000 and credits_resource > 1000:
+        words_resource = credits_resource * 10
 
     active_addons = get_user_active_storage_addons(user_id)
     addon_bytes = sum(a["storage_bytes"] for a in active_addons)
@@ -882,8 +1218,12 @@ def get_user_effective_quota(user_id: int) -> Dict[str, Any]:
         usage_percent = round((used_storage_bytes / total_storage_bytes) * 100, 1)
 
     consumable_info = get_user_consumable_usage(user_id)
-    used_credits = consumable_info["credits_used"]
+    used_credits = consumable_info.get("credits_used", 0)
     remaining_credits = max(0, credits_resource - used_credits)
+
+    used_words = consumable_info.get("words_used", 0)
+    remaining_words = max(0, words_resource - used_words)
+    words_usage_percent = round((used_words / words_resource) * 100, 1) if words_resource > 0 else 0.0
 
     converted_total = credits_resource
     converted_used = used_credits
@@ -922,6 +1262,12 @@ def get_user_effective_quota(user_id: int) -> Dict[str, Any]:
             "converted_minutes_total": converted_total,
             "converted_minutes_used": converted_used,
             "converted_minutes_remaining": converted_remaining,
+        },
+        "words": {
+            "total_words": words_resource,
+            "used_words": used_words,
+            "remaining_words": remaining_words,
+            "usage_percent": words_usage_percent,
         },
         "limits": limits,
         "features": features,
@@ -1121,12 +1467,14 @@ def activate_storage_addon(user_id: int, addon_id: int, billing_cycle: str = "mo
 # Quota Validation Enforcers
 # =========================================================
 
-def validate_upload_quota(user_id: int, new_file_size: int):
+def validate_upload_quota(user_id: int, new_file_size: int = 0, incoming_bytes: int = None, db: Any = None):
     """
     Validates that:
     1. new_file_size <= user's max_file_size_bytes
     2. current_used + new_file_size <= user's effective_storage_limit
     """
+    if incoming_bytes is not None:
+        new_file_size = incoming_bytes
     effective_quota = get_user_effective_quota(user_id)
     limits = effective_quota["limits"]
     storage = effective_quota["storage"]
@@ -1190,3 +1538,581 @@ def get_limit(user_id: int, limit_key: str) -> Any:
     """
     quota = get_user_effective_quota(user_id)
     return quota["limits"].get(limit_key)
+
+
+# =========================================================
+# Detailed Storage & Resource Breakdown Analytics
+# =========================================================
+
+def _format_storage_size(bytes_val: int) -> str:
+    if not bytes_val or bytes_val <= 0:
+        return "0 B"
+    if bytes_val < 1024:
+        return f"{bytes_val} B"
+    if bytes_val < 1024 * 1024:
+        return f"{bytes_val / 1024:.1f} KB"
+    if bytes_val < 1024 * 1024 * 1024:
+        return f"{bytes_val / (1024 * 1024):.1f} MB"
+    return f"{bytes_val / (1024 * 1024 * 1024):.2f} GB"
+
+
+def get_user_storage_breakdown(user_id: int) -> Dict[str, Any]:
+    """
+    Computes detailed, real-time storage allocation breakdown for a user:
+    1. Plan Quota (Free, Pro, Enterprise, total bytes, used bytes, available bytes, %)
+    2. Allocation by 5 Resource Types (Source videos, Dubbed renders, Audio stems, Subtitles/Docs, Pipeline Cache)
+    3. Allocation by Project (Storage bytes, video counts, percentage of total used)
+    4. Top Largest Files (ranked with specs, format, download URLs and status)
+    5. Full File Inventory (for interactive search/filter data table)
+    6. Pipeline Cache Summary (reclaimable cache info)
+    """
+    effective_quota = get_user_effective_quota(user_id)
+    storage_quota = effective_quota["storage"]
+    total_allowed_bytes = storage_quota["total_bytes"]
+    total_allowed_gb = storage_quota["total_gb"]
+
+    # Plan info
+    sub_summary = get_user_subscription_summary(user_id)
+    plan_obj = sub_summary.get("subscription")
+    plan_code = plan_obj.get("plan_code", "free") if plan_obj else "free"
+    plan_name = plan_obj.get("plan_name", "Free Plan") if plan_obj else "Free Plan"
+
+    all_files: List[Dict[str, Any]] = []
+    projects_dict: Dict[int, Dict[str, Any]] = {}
+
+    bytes_by_type = {
+        "source_video": 0,
+        "dubbed_video": 0,
+        "audio_track": 0,
+        "subtitles_docs": 0,
+        "pipeline_cache": 0,
+    }
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            # 1. Fetch user's active projects
+            cur.execute(
+                """
+                SELECT id, name FROM projects
+                WHERE owner_id = %s AND status != 'trash' AND deleted_at IS NULL
+                ORDER BY id ASC
+                """,
+                (user_id,),
+            )
+            for r in cur.fetchall():
+                projects_dict[r[0]] = {
+                    "project_id": r[0],
+                    "project_name": r[1],
+                    "storage_bytes": 0,
+                    "storage_formatted": "0 B",
+                    "storage_gb": 0.0,
+                    "video_count": 0,
+                    "percentage": 0.0,
+                }
+
+            # 2. Fetch videos in those projects
+            cur.execute(
+                """
+                SELECT v.id, v.project_id, p.name, v.title, v.original_filename,
+                       COALESCE(v.file_size, 0), v.original_path, v.extracted_vocal_path,
+                       v.background_music_path, v.subtitle_path, v.transcript_path,
+                       v.dubbed_audio_path, v.output_path, v.duration, v.resolution,
+                       v.fps, v.status, v.created_at
+                FROM videos v
+                JOIN projects p ON p.id = v.project_id
+                WHERE p.owner_id = %s AND v.deleted_at IS NULL AND p.deleted_at IS NULL
+                ORDER BY v.id DESC
+                """,
+                (user_id,),
+            )
+            videos = cur.fetchall()
+
+            for v in videos:
+                vid_id = v[0]
+                p_id = v[1]
+                p_name = v[2]
+                v_title = v[3] or v[4] or f"Video #{vid_id}"
+                rec_file_size = v[5]
+                orig_path = v[6]
+                vocal_path = v[7]
+                bg_music_path = v[8]
+                sub_path = v[9]
+                trans_path = v[10]
+                dubbed_audio_path = v[11]
+                out_path = v[12]
+                duration_sec = v[13]
+                resolution = v[14] or "1080p"
+                fps = v[15] or 30
+                status_str = v[16] or "ready"
+                created_dt = v[17].isoformat() if v[17] else None
+
+                specs_str = f"{resolution}"
+                if fps:
+                    specs_str += f" • {fps}fps"
+                if duration_sec:
+                    m, s = divmod(int(duration_sec), 60)
+                    specs_str += f" • {m}:{s:02d}"
+
+                if p_id in projects_dict:
+                    projects_dict[p_id]["video_count"] += 1
+
+                # A. Source Video
+                orig_size = 0
+                if orig_path:
+                    p = Path(orig_path)
+                    if not p.is_absolute():
+                        cand = UPLOAD_DIR / orig_path
+                        if cand.exists():
+                            orig_size = cand.stat().st_size
+                    elif p.exists():
+                        orig_size = p.stat().st_size
+
+                if orig_size == 0:
+                    orig_size = rec_file_size or 0
+
+                if orig_size > 0 or orig_path:
+                    bytes_by_type["source_video"] += orig_size
+                    if p_id in projects_dict:
+                        projects_dict[p_id]["storage_bytes"] += orig_size
+                    all_files.append({
+                        "id": f"source_{vid_id}",
+                        "filename": v[4] or f"{v_title}.mp4",
+                        "project_id": p_id,
+                        "project_name": p_name,
+                        "resource_type": "source_video",
+                        "size_bytes": orig_size,
+                        "size_formatted": _format_storage_size(orig_size),
+                        "specs": specs_str,
+                        "created_at": created_dt,
+                        "download_url": f"/api/videos/{vid_id}/download?kind=original",
+                        "status": status_str,
+                    })
+
+                # B. Dubbed Output Video
+                dubbed_size = 0
+                if out_path:
+                    p = Path(out_path)
+                    if not p.is_absolute():
+                        cand = OUTPUT_DIR / out_path
+                        if cand.exists():
+                            dubbed_size = cand.stat().st_size
+                    elif p.exists():
+                        dubbed_size = p.stat().st_size
+
+                if dubbed_size > 0:
+                    bytes_by_type["dubbed_video"] += dubbed_size
+                    if p_id in projects_dict:
+                        projects_dict[p_id]["storage_bytes"] += dubbed_size
+                    all_files.append({
+                        "id": f"dubbed_{vid_id}",
+                        "filename": f"Dubbed_{v_title}.mp4",
+                        "project_id": p_id,
+                        "project_name": p_name,
+                        "resource_type": "dubbed_video",
+                        "size_bytes": dubbed_size,
+                        "size_formatted": _format_storage_size(dubbed_size),
+                        "specs": specs_str,
+                        "created_at": created_dt,
+                        "download_url": f"/api/videos/{vid_id}/download?kind=output",
+                        "status": "ready",
+                    })
+
+                # C. Audio Stems (Vocal, Dubbed Audio, Background)
+                audio_items = [
+                    (vocal_path, "Vocal_Stem", "WAV • 24-bit Vocal"),
+                    (dubbed_audio_path, "Dubbed_Audio", "WAV • 24-bit TTS"),
+                    (bg_music_path, "Background_Music", "WAV • 24-bit BGM"),
+                ]
+                for a_path, a_label, a_spec in audio_items:
+                    if a_path:
+                        a_size = 0
+                        p = Path(a_path)
+                        if not p.is_absolute():
+                            cand = OUTPUT_DIR / a_path
+                            if cand.exists():
+                                a_size = cand.stat().st_size
+                        elif p.exists():
+                            a_size = p.stat().st_size
+
+                        if a_size > 0:
+                            bytes_by_type["audio_track"] += a_size
+                            if p_id in projects_dict:
+                                projects_dict[p_id]["storage_bytes"] += a_size
+                            all_files.append({
+                                "id": f"audio_{vid_id}_{a_label.lower()}",
+                                "filename": f"{v_title}_{a_label}.wav",
+                                "project_id": p_id,
+                                "project_name": p_name,
+                                "resource_type": "audio_track",
+                                "size_bytes": a_size,
+                                "size_formatted": _format_storage_size(a_size),
+                                "specs": a_spec,
+                                "created_at": created_dt,
+                                "download_url": f"/api/videos/{vid_id}/audio/{'vocals' if 'vocal' in a_label.lower() else 'dubbed'}",
+                                "status": "ready",
+                            })
+
+                # D. Subtitles & Documents
+                sub_items = [
+                    (sub_path, "Subtitle", "SRT • UTF-8 Subtitle"),
+                    (trans_path, "Transcript", "JSON • Timed Transcript"),
+                ]
+                for s_path, s_label, s_spec in sub_items:
+                    if s_path:
+                        s_size = 0
+                        p = Path(s_path)
+                        if not p.is_absolute():
+                            cand = OUTPUT_DIR / s_path
+                            if cand.exists():
+                                s_size = cand.stat().st_size
+                        elif p.exists():
+                            s_size = p.stat().st_size
+                        if s_size > 0:
+                            bytes_by_type["subtitles_docs"] += s_size
+                            if p_id in projects_dict:
+                                projects_dict[p_id]["storage_bytes"] += s_size
+                            all_files.append({
+                                "id": f"sub_{vid_id}_{s_label.lower()}",
+                                "filename": f"{v_title}_{s_label}.srt" if "sub" in s_label.lower() else f"{v_title}_{s_label}.json",
+                                "project_id": p_id,
+                                "project_name": p_name,
+                                "resource_type": "subtitles_docs",
+                                "size_bytes": s_size,
+                                "size_formatted": _format_storage_size(s_size),
+                                "specs": s_spec,
+                                "created_at": created_dt,
+                                "download_url": f"/api/videos/{vid_id}/subtitles/export?format=srt",
+                                "status": "ready",
+                            })
+
+            # 3. Check Pipeline Cache
+            cache_bytes = 0
+            tmp_dir = Path("/tmp")
+            if tmp_dir.exists():
+                for f in tmp_dir.glob(f"*{user_id}*"):
+                    try:
+                        if f.is_file():
+                            cache_bytes += f.stat().st_size
+                    except Exception:
+                        pass
+            bytes_by_type["pipeline_cache"] = cache_bytes
+
+    finally:
+        conn.close()
+
+    # Calculate Totals & Percentages
+    total_used_bytes = sum(bytes_by_type.values())
+    if total_used_bytes == 0 and storage_quota.get("used_bytes", 0) > 0:
+        total_used_bytes = storage_quota["used_bytes"]
+        bytes_by_type["source_video"] = total_used_bytes
+
+    used_gb = round(total_used_bytes / (1024**3), 3)
+    available_bytes = max(0, total_allowed_bytes - total_used_bytes)
+    available_gb = round(available_bytes / (1024**3), 2)
+    usage_percent = round((total_used_bytes / total_allowed_bytes) * 100, 1) if total_allowed_bytes > 0 else 0.0
+
+    # Build Storage by Type list
+    type_meta = {
+        "source_video": {
+            "label": "Original Source Videos",
+            "db_field": "videos.original_path",
+            "color": "var(--color-primary)",
+        },
+        "dubbed_video": {
+            "label": "Rendered Dubbed Videos",
+            "db_field": "video_render_outputs.output_video_path",
+            "color": "#3B82F6",
+        },
+        "audio_track": {
+            "label": "Extracted Audio & Vocal Tracks",
+            "db_field": "videos.extracted_vocal_path, dubbed_audio_path",
+            "color": "#8B5CF6",
+        },
+        "subtitles_docs": {
+            "label": "Subtitles & Structured Documents",
+            "db_field": "subtitle_segments, video_documents",
+            "color": "#EC4899",
+        },
+        "pipeline_cache": {
+            "label": "Temporary Pipeline Cache",
+            "db_field": "/tmp/ intermediate audio chunks & VAD buffers",
+            "color": "#94A3B8",
+        },
+    }
+
+    storage_by_type = []
+    for key, meta in type_meta.items():
+        s_bytes = bytes_by_type.get(key, 0)
+        pct = round((s_bytes / total_used_bytes) * 100, 1) if total_used_bytes > 0 else 0.0
+        storage_by_type.append({
+            "key": key,
+            "label": meta["label"],
+            "db_field": meta["db_field"],
+            "size_bytes": s_bytes,
+            "size_formatted": _format_storage_size(s_bytes),
+            "size_gb": round(s_bytes / (1024**3), 2),
+            "percentage": pct,
+            "color": meta["color"],
+        })
+
+    # Build Storage by Project list
+    storage_by_project = []
+    for p_id, p_info in projects_dict.items():
+        p_bytes = p_info["storage_bytes"]
+        p_info["storage_formatted"] = _format_storage_size(p_bytes)
+        p_info["storage_gb"] = round(p_bytes / (1024**3), 2)
+        p_info["percentage"] = round((p_bytes / total_used_bytes) * 100, 1) if total_used_bytes > 0 else 0.0
+        storage_by_project.append(p_info)
+
+    # Sort projects by storage_bytes DESC
+    storage_by_project.sort(key=lambda x: x["storage_bytes"], reverse=True)
+
+    # Sort files by size_bytes DESC
+    all_files.sort(key=lambda x: x["size_bytes"], reverse=True)
+    largest_files = all_files[:5]
+
+    return {
+        "plan": {
+            "code": plan_code,
+            "name": plan_name,
+            "total_bytes": total_allowed_bytes,
+            "total_gb": total_allowed_gb,
+            "used_bytes": total_used_bytes,
+            "used_gb": used_gb,
+            "available_bytes": available_bytes,
+            "available_gb": available_gb,
+            "usage_percent": usage_percent,
+        },
+        "storage_by_type": storage_by_type,
+        "storage_by_project": storage_by_project,
+        "largest_files": largest_files,
+        "all_files": all_files,
+        "cache_summary": {
+            "cache_bytes": bytes_by_type["pipeline_cache"],
+            "cache_formatted": _format_storage_size(bytes_by_type["pipeline_cache"]),
+            "can_clean": True,
+        },
+    }
+
+
+def clean_user_pipeline_cache(user_id: int) -> Dict[str, Any]:
+    """
+    Cleans up temporary cache files for this user across /tmp and intermediate output staging.
+    """
+    reclaimed_bytes = 0
+    tmp_dir = Path("/tmp")
+    if tmp_dir.exists():
+        for f in tmp_dir.glob(f"*{user_id}*"):
+            try:
+                if f.is_file():
+                    s = f.stat().st_size
+                    f.unlink()
+                    reclaimed_bytes += s
+            except Exception as e:
+                logger.warning(f"Failed to delete temp file {f}: {e}")
+
+    new_breakdown = get_user_storage_breakdown(user_id)
+    new_used_bytes = new_breakdown["plan"]["used_bytes"]
+    new_used_gb = new_breakdown["plan"]["used_gb"]
+
+    return {
+        "reclaimed_bytes": reclaimed_bytes,
+        "reclaimed_formatted": _format_storage_size(reclaimed_bytes),
+        "new_used_bytes": new_used_bytes,
+        "new_used_gb": new_used_gb,
+        "message": f"Successfully cleaned {_format_storage_size(reclaimed_bytes)} of temporary cache." if reclaimed_bytes > 0 else "Pipeline cache is already optimal.",
+    }
+
+
+def delete_storage_resource(user_id: int, resource_type: str, file_id: str) -> Dict[str, Any]:
+    """
+    Safely deletes a specific file asset (source, dubbed, audio, subtitle) to reclaim quota.
+    Ensures multi-tenant ownership check before deleting.
+    """
+    conn = get_connection()
+    reclaimed_bytes = 0
+    try:
+        parts = file_id.split("_")
+        if len(parts) >= 2 and parts[1].isdigit():
+            vid_id = int(parts[1])
+        else:
+            raise HTTPException(status_code=400, detail="Invalid resource file ID format.")
+
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT v.id, v.original_path, v.output_path, v.extracted_vocal_path,
+                       v.background_music_path, v.dubbed_audio_path, v.subtitle_path,
+                       v.transcript_path, COALESCE(v.file_size, 0)
+                FROM videos v
+                JOIN projects p ON p.id = v.project_id
+                WHERE v.id = %s AND p.owner_id = %s AND v.deleted_at IS NULL
+                """,
+                (vid_id, user_id),
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Resource file not found or unauthorized.")
+
+            orig_path = row[1]
+            out_path = row[2]
+            vocal_path = row[3]
+            bg_path = row[4]
+            dubbed_audio_path = row[5]
+            sub_path = row[6]
+            trans_path = row[7]
+            f_size = row[8]
+
+            target_path = None
+            if file_id.startswith("source_") or resource_type == "source_video":
+                target_path = orig_path
+                cur.execute("UPDATE videos SET deleted_at = CURRENT_TIMESTAMP WHERE id = %s", (vid_id,))
+                reclaimed_bytes += f_size
+            elif file_id.startswith("dubbed_") or resource_type == "dubbed_video":
+                target_path = out_path
+                cur.execute("UPDATE videos SET output_path = NULL WHERE id = %s", (vid_id,))
+            elif "vocal" in file_id or (resource_type == "audio_track" and "vocal" in file_id):
+                target_path = vocal_path
+                cur.execute("UPDATE videos SET extracted_vocal_path = NULL WHERE id = %s", (vid_id,))
+            elif "dubbed_audio" in file_id or (resource_type == "audio_track" and "dubbed" in file_id):
+                target_path = dubbed_audio_path
+                cur.execute("UPDATE videos SET dubbed_audio_path = NULL WHERE id = %s", (vid_id,))
+            elif "bgm" in file_id or "background" in file_id:
+                target_path = bg_path
+                cur.execute("UPDATE videos SET background_music_path = NULL WHERE id = %s", (vid_id,))
+            elif file_id.startswith("sub_") or resource_type == "subtitles_docs":
+                target_path = sub_path or trans_path
+                cur.execute("UPDATE videos SET subtitle_path = NULL, transcript_path = NULL WHERE id = %s", (vid_id,))
+
+            if target_path:
+                p = Path(target_path)
+                if not p.is_absolute():
+                    for d in [UPLOAD_DIR, OUTPUT_DIR]:
+                        cand = d / target_path
+                        if cand.exists():
+                            reclaimed_bytes = max(reclaimed_bytes, cand.stat().st_size)
+                            try:
+                                cand.unlink()
+                            except Exception:
+                                pass
+                elif p.exists():
+                    reclaimed_bytes = max(reclaimed_bytes, p.stat().st_size)
+                    try:
+                        p.unlink()
+                    except Exception:
+                        pass
+
+                try:
+                    from app.services.s3_service import s3_service
+                    s3_service.delete_file(target_path)
+                except Exception as e:
+                    logger.warning(f"S3 deletion note: {e}")
+
+        conn.commit()
+        return {
+            "success": True,
+            "reclaimed_bytes": reclaimed_bytes,
+            "message": f"Resource deleted successfully. Reclaimed {_format_storage_size(reclaimed_bytes)}.",
+        }
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"delete_storage_resource error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete resource file.")
+    finally:
+        conn.close()
+
+
+def export_user_data_archive(user_id: int) -> io.BytesIO:
+    """
+    Generate an archive ZIP file containing user projects, transcripts, subtitles, and export manifest.
+    """
+    import zipfile
+    conn = get_connection()
+    buf = io.BytesIO()
+
+    try:
+        projects_data = []
+        videos = []
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, name, description, created_at, updated_at
+                FROM projects
+                WHERE owner_id = %s
+                ORDER BY created_at DESC
+                """,
+                (user_id,),
+            )
+            for p in cur.fetchall():
+                projects_data.append({
+                    "id": p[0],
+                    "name": p[1],
+                    "description": p[2],
+                    "created_at": p[3].isoformat() if p[3] else None,
+                    "updated_at": p[4].isoformat() if p[4] else None,
+                })
+
+            cur.execute(
+                """
+                SELECT v.id, v.project_id, v.title, v.transcript_path, v.subtitle_path
+                FROM videos v
+                JOIN projects p ON v.project_id = p.id
+                WHERE p.owner_id = %s
+                """,
+                (user_id,),
+            )
+            videos = cur.fetchall()
+
+        with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            manifest = {
+                "platform": "VidNova AI Video Translation Platform",
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "user_id": user_id,
+                "project_count": len(projects_data),
+                "video_count": len(videos),
+                "projects": projects_data,
+            }
+            zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+            zf.writestr(
+                "README.txt",
+                f"VidNova User Data Archive Package\n"
+                f"User ID: {user_id}\n"
+                f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n"
+                f"This package contains your project structures, transcript archives, and AI translation records."
+            )
+
+            for vid in videos:
+                vid_id, proj_id, title, tr_path, sub_path = vid
+                zf.writestr(
+                    f"projects/project_{proj_id}/video_{vid_id}_meta.json",
+                    json.dumps({
+                        "video_id": vid_id,
+                        "project_id": proj_id,
+                        "title": title,
+                        "has_transcript": bool(tr_path),
+                        "has_subtitles": bool(sub_path),
+                    }, indent=2)
+                )
+                if tr_path and os.path.exists(tr_path):
+                    try:
+                        with open(tr_path, "r", encoding="utf-8") as f:
+                            zf.writestr(f"projects/project_{proj_id}/transcript_video_{vid_id}.json", f.read())
+                    except Exception:
+                        pass
+                if sub_path and os.path.exists(sub_path):
+                    try:
+                        with open(sub_path, "r", encoding="utf-8") as f:
+                            zf.writestr(f"projects/project_{proj_id}/subtitles_video_{vid_id}.srt", f.read())
+                    except Exception:
+                        pass
+
+        buf.seek(0)
+        return buf
+    finally:
+        conn.close()
+
+

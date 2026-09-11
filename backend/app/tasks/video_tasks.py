@@ -1,37 +1,39 @@
-# app/tasks/video_tasks.py
-from celery import Task
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+# app/tasks/video_tasks.py - Standardized Celery Tasks (No SQLAlchemy)
 import os
+import logging
 import torch
+try:
+    from celery import Task
+except ImportError:
+    class Task:
+        pass
 
 from app.tasks.celery_app import celery_app
 from app.models import Video, VideoPipelineConfig, PipelineJob
 from app.models.enums import JobStatus
 from app.services.job_service import JobService
 from app.pipeline.orchestrator import run_full_pipeline
+from app.core.database import DatabaseSession, desc
+
+logger = logging.getLogger("app.tasks.video_tasks")
 
 # Auto-detect and log device for Celery worker
 cuda_available = torch.cuda.is_available()
 if cuda_available:
-    print(f"🔍 Celery Worker: ✅ CUDA detected - using GPU", flush=True)
-    print(f"🔍 GPU: {torch.cuda.get_device_name(0)}", flush=True)
-    print(f"🔍 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f}GB", flush=True)
+    logger.info("Celery Worker: CUDA detected - using GPU (%s, Memory: %.1fGB)",
+                torch.cuda.get_device_name(0),
+                torch.cuda.get_device_properties(0).total_memory / 1e9)
 else:
-    print(f"🔍 Celery Worker: ⚠️ CUDA not detected - using CPU", flush=True)
-
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://ai_video:ai_video@db:5432/ai_video")
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    logger.info("Celery Worker: CUDA not detected - using CPU")
 
 
 class PipelineTask(Task):
     _db = None
     
     @property
-    def db(self):
+    def db(self) -> DatabaseSession:
         if self._db is None:
-            self._db = SessionLocal()
+            self._db = DatabaseSession()
         return self._db
     
     def after_return(self, status, retval, task_id, args, kwargs, einfo):
@@ -47,11 +49,9 @@ def process_video_pipeline(self, video_id: int, user_id: int):
     db = self.db
     
     try:
-        # Log device status
         cuda_available = torch.cuda.is_available()
         print(f"🚀 Starting pipeline for video {video_id} using {'GPU' if cuda_available else 'CPU'}", flush=True)
         
-        # Update task state
         self.update_state(
             state="STARTED", 
             meta={
@@ -61,7 +61,6 @@ def process_video_pipeline(self, video_id: int, user_id: int):
             }
         )
         
-        # Create job
         job_service = JobService(db)
         config = db.query(VideoPipelineConfig).filter(
             VideoPipelineConfig.video_id == video_id
@@ -70,12 +69,15 @@ def process_video_pipeline(self, video_id: int, user_id: int):
         if not config:
             raise ValueError(f"No pipeline config found for video {video_id}")
         
+        target_lang = config.target_language if config and getattr(config, "target_language", None) else "vi"
+        source_lang = config.source_language if config and getattr(config, "source_language", None) else "en"
+
         job = job_service.create_job(
             video_id=video_id,
             triggered_by=user_id,
             config={
-                "target_language": config.target_language if config else "vi",
-                "source_language": config.source_language if config else "en",
+                "target_language": target_lang,
+                "source_language": source_lang,
                 "celery_task_id": self.request.id,
                 "device": "GPU" if cuda_available else "CPU"
             }
@@ -83,7 +85,6 @@ def process_video_pipeline(self, video_id: int, user_id: int):
         
         print(f"✅ Job created: {job.id} for video {video_id}", flush=True)
         
-        # Update task state with job_id
         self.update_state(
             state="PROCESSING",
             meta={
@@ -95,27 +96,11 @@ def process_video_pipeline(self, video_id: int, user_id: int):
             }
         )
         
-        # Run the pipeline with progress updates
-        def progress_callback(step: str, progress: int):
-            """Callback to update task state during pipeline execution"""
-            self.update_state(
-                state="PROCESSING",
-                meta={
-                    "job_id": str(job.id),
-                    "video_id": video_id,
-                    "current_step": step,
-                    "progress": progress,
-                    "device": "GPU" if cuda_available else "CPU"
-                }
-            )
-        
-        # Run the pipeline
         result = run_full_pipeline(
             job.id, 
             video_id, 
             user_id, 
-            db,
-            progress_callback=progress_callback
+            db
         )
         
         print(f"✅ Pipeline completed for video {video_id}", flush=True)
@@ -133,28 +118,24 @@ def process_video_pipeline(self, video_id: int, user_id: int):
         error_msg = str(e)
         print(f"❌ Pipeline failed for video {video_id}: {error_msg}", flush=True)
         
-        # Mark job as failed
         try:
             job_service = JobService(db)
             job = db.query(PipelineJob).filter(
                 PipelineJob.video_id == video_id
-            ).order_by(PipelineJob.created_at.desc()).first()
+            ).order_by(desc(PipelineJob.created_at)).first()
             if job:
                 job_service.update_job_status(job.id, JobStatus.FAILED, error_message=error_msg)
                 print(f"✅ Job {job.id} marked as failed", flush=True)
         except Exception as db_error:
             print(f"⚠️ Could not update job status: {db_error}", flush=True)
         
-        # Retry on specific errors
         if self.request.retries < self.max_retries:
             print(f"🔄 Retrying task (attempt {self.request.retries + 1}/{self.max_retries})...", flush=True)
             raise self.retry(exc=e, countdown=60 * (self.request.retries + 1))
         
-        # If all retries failed, raise the exception
         raise
         
     finally:
-        db.close()
         print(f"🏁 Pipeline task for video {video_id} finished", flush=True)
 
 
@@ -166,10 +147,8 @@ def check_task_status(task_id: str):
     
     try:
         task = AsyncResult(task_id, app=celery_app)
-        
-        # Get device info if available
         info = task.info if task.ready() else None
-        device_info = info.get("device", "Unknown") if info else "Unknown"
+        device_info = info.get("device", "Unknown") if info and isinstance(info, dict) else "Unknown"
         
         return {
             "task_id": task_id,
@@ -228,11 +207,10 @@ def clear_task_queue():
     from celery.result import AsyncResult
     from app.tasks.celery_app import celery_app
     
-    # Get all active tasks
     i = celery_app.control.inspect()
-    active = i.active()
-    scheduled = i.scheduled()
-    reserved = i.reserved()
+    active = i.active() if i else None
+    scheduled = i.scheduled() if i else None
+    reserved = i.reserved() if i else None
     
     result = {
         "active": active,
@@ -241,7 +219,6 @@ def clear_task_queue():
         "cleared": []
     }
     
-    # Revoke all active tasks
     if active:
         for worker, tasks in active.items():
             for task in tasks:

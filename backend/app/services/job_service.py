@@ -1,24 +1,24 @@
-# app/services/job_service.py
+# app/services/job_service.py - Standardized PostgreSQL job service (No SQLAlchemy)
 import uuid
 from datetime import datetime
 from typing import Optional, Dict, Any
-from sqlalchemy.orm import Session
-from sqlalchemy import desc
 
+from app.core.database import DatabaseSession, desc, RowRecord
 from app.models import Video, PipelineJob, PipelineTaskLog, VideoPipelineConfig
 from app.models.enums import JobStatus, JobStep, VideoStatus
 
 
 class JobService:
-    def __init__(self, db: Session):
-        self.db = db
+    def __init__(self, db: Optional[DatabaseSession] = None):
+        self._owns_db = db is None
+        self.db = db if db is not None else DatabaseSession()
 
     def create_job(
         self,
         video_id: int,
         triggered_by: int,
         config: Optional[Dict] = None
-    ) -> PipelineJob:
+    ) -> RowRecord:
         """Create a new pipeline job"""
         job = PipelineJob(
             id=uuid.uuid4(),
@@ -51,7 +51,7 @@ class JobService:
         current_step: Optional[JobStep] = None,
         error_message: Optional[str] = None,
         finished_at: Optional[datetime] = None
-    ) -> PipelineJob:
+    ) -> RowRecord:
         """Update job status and progress"""
         job = self.db.query(PipelineJob).filter(PipelineJob.id == job_id).first()
         if not job:
@@ -102,7 +102,7 @@ class JobService:
         log_output: Optional[str] = None,
         error_trace: Optional[str] = None,
         duration_ms: Optional[int] = None
-    ) -> PipelineTaskLog:
+    ) -> RowRecord:
         """Log a task step in the pipeline"""
         task_log = PipelineTaskLog(
             job_id=job_id,
@@ -119,11 +119,11 @@ class JobService:
         self.db.refresh(task_log)
         return task_log
 
-    def get_job(self, job_id: uuid.UUID) -> Optional[PipelineJob]:
+    def get_job(self, job_id: uuid.UUID) -> Optional[RowRecord]:
         """Get job by ID"""
         return self.db.query(PipelineJob).filter(PipelineJob.id == job_id).first()
 
-    def get_job_by_video(self, video_id: int) -> Optional[PipelineJob]:
+    def get_job_by_video(self, video_id: int) -> Optional[RowRecord]:
         """Get latest job for a video"""
         return (self.db.query(PipelineJob)
                 .filter(PipelineJob.video_id == video_id)
@@ -141,6 +141,14 @@ class JobService:
                  .order_by(PipelineTaskLog.created_at)
                  .all())
         
+        config = job.config_json or {}
+        if isinstance(config, str):
+            import json
+            try:
+                config = json.loads(config)
+            except Exception:
+                config = {}
+
         return {
             "job_id": str(job.id),
             "video_id": job.video_id,
@@ -148,19 +156,19 @@ class JobService:
             "progress": job.progress,
             "current_step": job.current_step,
             "error_message": job.error_message,
-            "started_at": job.started_at.isoformat() if job.started_at else None,
-            "finished_at": job.finished_at.isoformat() if job.finished_at else None,
-            "created_at": job.created_at.isoformat(),
+            "started_at": job.started_at.isoformat() if getattr(job, "started_at", None) else None,
+            "finished_at": job.finished_at.isoformat() if getattr(job, "finished_at", None) else None,
+            "created_at": job.created_at.isoformat() if getattr(job, "created_at", None) else None,
             "tasks": [
                 {
                     "step": task.step_name,
                     "status": task.status,
                     "duration_ms": task.duration_ms,
                     "log_output": task.log_output[-500:] if task.log_output else None,
-                    "created_at": task.created_at.isoformat()
+                    "created_at": task.created_at.isoformat() if getattr(task, "created_at", None) else None
                 }
                 for task in tasks
             ],
-            "config": job.config_json,
-            "celery_task_id": job.config_json.get("celery_task_id") if job.config_json else None
+            "config": config,
+            "celery_task_id": config.get("celery_task_id") if isinstance(config, dict) else None
         }

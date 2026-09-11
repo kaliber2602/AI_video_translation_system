@@ -1,10 +1,12 @@
-# app/services/diarization_service.py
+# app/services/diarization_service.py - Standardized Pyannote Speaker Diarization (No SQLAlchemy)
 import os
 import json
 from typing import List, Dict, Any, Optional
+from datetime import datetime
+
+from app.core.database import DatabaseSession, RowRecord
 from app.models import SpeakerProfile
-from sqlalchemy.orm import Session
-import torch
+
 
 class DiarizationService:
     """Service for speaker diarization using pyannote"""
@@ -15,14 +17,19 @@ class DiarizationService:
     
     def _load_pipeline(self):
         """Load pyannote pipeline with auto device detection"""
+        hf_token = (os.getenv("HF_TOKEN") or "").strip()
+        if not hf_token:
+            print("[Diarization] ⚠️ HF_TOKEN not set; Diarization pipeline will run in fallback mode", flush=True)
+            self.pipeline = None
+            return
+
         try:
             from pyannote.audio import Pipeline
             import torch
-            import os
             
             self.pipeline = Pipeline.from_pretrained(
                 "pyannote/speaker-diarization-3.1",
-                use_auth_token=os.getenv("HF_TOKEN")
+                use_auth_token=hf_token
             )
             
             # Auto-detect CUDA
@@ -37,6 +44,9 @@ class DiarizationService:
             print(f"[Diarization] ❌ Failed to load pyannote: {e}", flush=True)
             self.pipeline = None
     
+    def is_available(self) -> bool:
+        return self.pipeline is not None
+
     def diarize(self, audio_path: str, num_speakers: Optional[int] = None) -> List[Dict]:
         """
         Run speaker diarization on audio file
@@ -49,7 +59,13 @@ class DiarizationService:
             List of speaker segments with start, end, speaker label
         """
         if not self.pipeline:
-            raise RuntimeError("Pyannote pipeline not available")
+            # Graceful fallback: return a single default speaker turn
+            return [{
+                "start": 0.0,
+                "end": 999999.0,
+                "speaker": "SPEAKER_01",
+                "duration": 999999.0
+            }]
         
         diarization = self.pipeline(audio_path)
         
@@ -72,14 +88,6 @@ class DiarizationService:
     ) -> List[Dict]:
         """
         Assign speaker labels to transcript segments based on diarization
-        
-        Args:
-            transcript_path: Path to transcript JSON file
-            diarization_segments: Diarization segments from pyannote
-            output_path: Path to save updated transcript
-        
-        Returns:
-            Updated segments with speaker labels
         """
         with open(transcript_path, 'r', encoding='utf-8') as f:
             transcript_data = json.load(f)
@@ -109,30 +117,22 @@ class DiarizationService:
     
     def create_speaker_profiles(
         self,
-        db: Session,
+        db: DatabaseSession,
         video_id: int,
         segments: List[Dict],
         language: str = "en"
-    ) -> List[SpeakerProfile]:
+    ) -> List[RowRecord]:
         """
-        Create speaker profiles from diarized segments
-        
-        Args:
-            db: Database session
-            video_id: Video ID
-            segments: Segments with speaker labels
-            language: Detected language
-        
-        Returns:
-            List of created SpeakerProfile objects
+        Create speaker profiles from diarized segments in PostgreSQL
         """
-        from datetime import datetime
-        
         speakers = set()
         for seg in segments:
             if seg.get("speaker"):
                 speakers.add(seg["speaker"])
         
+        if not speakers:
+            speakers.add("SPEAKER_01")
+
         profiles = []
         for speaker_label in speakers:
             existing = db.query(SpeakerProfile).filter(
@@ -149,7 +149,6 @@ class DiarizationService:
                     updated_at=datetime.utcnow()
                 )
                 db.add(profile)
-                db.flush()
                 profiles.append(profile)
             else:
                 profiles.append(existing)

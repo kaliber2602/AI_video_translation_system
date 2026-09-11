@@ -4,7 +4,6 @@ torchaudio==2.5.1+cpu
 
 # --- Database ---
 psycopg2-binary==2.9.10
-sqlalchemy==2.0.23
 alembic==1.12.1
 
 # --- Hash ---
@@ -51,6 +50,8 @@ pydub==0.25.1
 demucs==4.0.1
 librosa==0.10.2.post1
 soundfile==0.12.1
+pyannote.audio==3.3.2
+matplotlib>=3.8.0
 
 # --- AWS S3 ---
 boto3==1.34.0

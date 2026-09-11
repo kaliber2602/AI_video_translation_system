@@ -1,0 +1,2165 @@
+[
+  {
+    "path": "/openapi.json",
+    "name": "openapi",
+    "methods": [
+      "GET"
+    ],
+    "module": "fastapi.applications",
+    "dependencies": [],
+    "varnames": [
+      "req"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/docs",
+    "name": "swagger_ui_html",
+    "methods": [
+      "GET"
+    ],
+    "module": "fastapi.applications",
+    "dependencies": [],
+    "varnames": [
+      "req"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/docs/oauth2-redirect",
+    "name": "swagger_ui_redirect",
+    "methods": [
+      "GET"
+    ],
+    "module": "fastapi.applications",
+    "dependencies": [],
+    "varnames": [
+      "req"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/redoc",
+    "name": "redoc_html",
+    "methods": [
+      "GET"
+    ],
+    "module": "fastapi.applications",
+    "dependencies": [],
+    "varnames": [
+      "req"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/auth/register",
+    "name": "register",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.auth_routes",
+    "dependencies": [],
+    "varnames": [
+      "request"
+    ],
+    "response_model": "<class 'app.schemas.auth.RegisterResponse'>"
+  },
+  {
+    "path": "/api/auth/login",
+    "name": "login",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.auth_routes",
+    "dependencies": [],
+    "varnames": [
+      "request"
+    ],
+    "response_model": "<class 'app.schemas.auth.LoginResponse'>"
+  },
+  {
+    "path": "/api/auth/refresh",
+    "name": "refresh",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.auth_routes",
+    "dependencies": [],
+    "varnames": [
+      "request"
+    ],
+    "response_model": "<class 'app.schemas.auth.RefreshTokenResponse'>"
+  },
+  {
+    "path": "/api/auth/me",
+    "name": "me",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.auth_routes",
+    "dependencies": [],
+    "varnames": [
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.auth.UserResponse'>"
+  },
+  {
+    "path": "/api/auth/change-password",
+    "name": "update_password",
+    "methods": [
+      "PUT"
+    ],
+    "module": "app.api.auth_routes",
+    "dependencies": [],
+    "varnames": [
+      "request",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/auth/forgot-password",
+    "name": "forgot_password",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.auth_routes",
+    "dependencies": [],
+    "varnames": [
+      "request"
+    ],
+    "response_model": "<class 'app.schemas.auth.ForgotPasswordResponse'>"
+  },
+  {
+    "path": "/api/auth/reset-password",
+    "name": "reset_password_endpoint",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.auth_routes",
+    "dependencies": [],
+    "varnames": [
+      "request"
+    ],
+    "response_model": "<class 'app.schemas.auth.ResetPasswordResponse'>"
+  },
+  {
+    "path": "/api/auth/logout",
+    "name": "logout",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.auth_routes",
+    "dependencies": [],
+    "varnames": [
+      "request"
+    ],
+    "response_model": "<class 'app.schemas.auth.LogoutResponse'>"
+  },
+  {
+    "path": "/api/auth/logout-all",
+    "name": "logout_all",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.auth_routes",
+    "dependencies": [],
+    "varnames": [
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.auth.LogoutAllResponse'>"
+  },
+  {
+    "path": "/api/auth/me/avatar",
+    "name": "update_avatar",
+    "methods": [
+      "PUT"
+    ],
+    "module": "app.api.auth_routes",
+    "dependencies": [],
+    "varnames": [
+      "avatar",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.auth.UserResponse'>"
+  },
+  {
+    "path": "/api/settings",
+    "name": "get_settings",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.user_settings_routes",
+    "dependencies": [],
+    "varnames": [
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.user_settings.UserSettingsResponse'>"
+  },
+  {
+    "path": "/api/settings",
+    "name": "update_settings",
+    "methods": [
+      "PUT"
+    ],
+    "module": "app.api.user_settings_routes",
+    "dependencies": [],
+    "varnames": [
+      "request",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.user_settings.UserSettingsResponse'>"
+  },
+  {
+    "path": "/api/settings",
+    "name": "patch_settings",
+    "methods": [
+      "PATCH"
+    ],
+    "module": "app.api.user_settings_routes",
+    "dependencies": [],
+    "varnames": [
+      "request",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.user_settings.UserSettingsResponse'>"
+  },
+  {
+    "path": "/api/settings/reset",
+    "name": "reset_settings",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.user_settings_routes",
+    "dependencies": [],
+    "varnames": [
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.user_settings.UserSettingsResponse'>"
+  },
+  {
+    "path": "/api/tags",
+    "name": "create_tag_route",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.tag_routes",
+    "dependencies": [],
+    "varnames": [
+      "data",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.tag.TagResponse'>"
+  },
+  {
+    "path": "/api/tags",
+    "name": "get_tags_route",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.tag_routes",
+    "dependencies": [],
+    "varnames": [
+      "user_id"
+    ],
+    "response_model": "list[app.schemas.tag.TagResponse]"
+  },
+  {
+    "path": "/api/tags/{tag_id}",
+    "name": "get_tag_route",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.tag_routes",
+    "dependencies": [],
+    "varnames": [
+      "tag_id",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.tag.TagResponse'>"
+  },
+  {
+    "path": "/api/tags/{tag_id}",
+    "name": "update_tag_route",
+    "methods": [
+      "PUT"
+    ],
+    "module": "app.api.tag_routes",
+    "dependencies": [],
+    "varnames": [
+      "tag_id",
+      "data",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.tag.TagResponse'>"
+  },
+  {
+    "path": "/api/tags/{tag_id}",
+    "name": "delete_tag_route",
+    "methods": [
+      "DELETE"
+    ],
+    "module": "app.api.tag_routes",
+    "dependencies": [],
+    "varnames": [
+      "tag_id",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/projects",
+    "name": "create_project_route",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "data",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.project.ProjectResponse'>"
+  },
+  {
+    "path": "/api/projects",
+    "name": "get_projects_route",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "tag_id",
+      "search",
+      "scope",
+      "user_id"
+    ],
+    "response_model": "list[app.schemas.project.ProjectResponse]"
+  },
+  {
+    "path": "/api/projects/trash/empty",
+    "name": "empty_trash_route",
+    "methods": [
+      "DELETE"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/projects/{project_id}",
+    "name": "get_project_route",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.project.ProjectResponse'>"
+  },
+  {
+    "path": "/api/projects/{project_id}",
+    "name": "update_project_route",
+    "methods": [
+      "PUT"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "data",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.project.ProjectResponse'>"
+  },
+  {
+    "path": "/api/projects/{project_id}",
+    "name": "delete_project_route",
+    "methods": [
+      "DELETE"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/projects/{project_id}/restore",
+    "name": "restore_project_route",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.project.ProjectResponse'>"
+  },
+  {
+    "path": "/api/projects/{project_id}/permanent",
+    "name": "permanent_delete_project_route",
+    "methods": [
+      "DELETE"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/projects/{project_id}/favorite",
+    "name": "toggle_favorite_route",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.project.ProjectFavoriteResponse'>"
+  },
+  {
+    "path": "/api/projects/{project_id}/tags",
+    "name": "get_project_tags_route",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "user_id"
+    ],
+    "response_model": "list[app.schemas.tag.TagResponse]"
+  },
+  {
+    "path": "/api/projects/{project_id}/tags/{tag_id}",
+    "name": "add_project_tag_route",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "tag_id",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.tag.TagResponse'>"
+  },
+  {
+    "path": "/api/projects/{project_id}/tags/{tag_id}",
+    "name": "remove_project_tag_route",
+    "methods": [
+      "DELETE"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "tag_id",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/projects/{project_id}/members",
+    "name": "get_project_members_route",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "user_id"
+    ],
+    "response_model": "list[app.schemas.project.ProjectMemberResponse]"
+  },
+  {
+    "path": "/api/projects/{project_id}/members",
+    "name": "add_project_member_route",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "data",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.project.ProjectMemberResponse'>"
+  },
+  {
+    "path": "/api/projects/{project_id}/members/{member_id}",
+    "name": "update_project_member_role_route",
+    "methods": [
+      "PUT"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "member_id",
+      "data",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.project.ProjectMemberResponse'>"
+  },
+  {
+    "path": "/api/projects/{project_id}/members/{member_id}",
+    "name": "remove_project_member_route",
+    "methods": [
+      "DELETE"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "member_id",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/projects/{project_id}/folders",
+    "name": "list_folders_route",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "parent_id",
+      "user_id"
+    ],
+    "response_model": "list[app.schemas.folder.FolderResponse]"
+  },
+  {
+    "path": "/api/projects/{project_id}/folders",
+    "name": "create_folder_route",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "data",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.folder.FolderResponse'>"
+  },
+  {
+    "path": "/api/projects/{project_id}/folders/{folder_id}",
+    "name": "update_folder_route",
+    "methods": [
+      "PUT"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "folder_id",
+      "data",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.folder.FolderResponse'>"
+  },
+  {
+    "path": "/api/projects/{project_id}/folders/{folder_id}",
+    "name": "delete_folder_route",
+    "methods": [
+      "DELETE"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "folder_id",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/projects/{project_id}/assets",
+    "name": "get_project_assets_route",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "folder_id",
+      "category",
+      "search",
+      "user_id",
+      "db"
+    ],
+    "response_model": "<class 'app.schemas.asset.ProjectAssetsResponse'>"
+  },
+  {
+    "path": "/api/projects/{project_id}/assets/zip",
+    "name": "download_project_assets_zip_route",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.project_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "folder_id",
+      "user_id",
+      "db"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/subscriptions/catalog",
+    "name": "get_catalog_endpoint",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.subscription_routes",
+    "dependencies": [],
+    "varnames": [],
+    "response_model": "<class 'app.schemas.subscription.PricingCatalogResponse'>"
+  },
+  {
+    "path": "/api/subscriptions/plans",
+    "name": "get_plans_endpoint",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.subscription_routes",
+    "dependencies": [],
+    "varnames": [],
+    "response_model": "typing.List[app.schemas.subscription.PlanOut]"
+  },
+  {
+    "path": "/api/subscriptions/plans/{plan_id}",
+    "name": "get_plan_detail_endpoint",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.subscription_routes",
+    "dependencies": [],
+    "varnames": [
+      "plan_id"
+    ],
+    "response_model": "<class 'app.schemas.subscription.PlanOut'>"
+  },
+  {
+    "path": "/api/subscriptions/addons",
+    "name": "get_addons_endpoint",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.subscription_routes",
+    "dependencies": [],
+    "varnames": [],
+    "response_model": "typing.List[app.schemas.subscription.StorageAddonOut]"
+  },
+  {
+    "path": "/api/subscriptions/addons/{addon_id}",
+    "name": "get_addon_detail_endpoint",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.subscription_routes",
+    "dependencies": [],
+    "varnames": [
+      "addon_id"
+    ],
+    "response_model": "<class 'app.schemas.subscription.StorageAddonOut'>"
+  },
+  {
+    "path": "/api/subscriptions/me",
+    "name": "get_my_subscription_endpoint",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.subscription_routes",
+    "dependencies": [],
+    "varnames": [
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.subscription.UserSubscriptionSummaryResponse'>"
+  },
+  {
+    "path": "/api/subscriptions/quota",
+    "name": "get_my_quota_endpoint",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.subscription_routes",
+    "dependencies": [],
+    "varnames": [
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.subscription.EffectiveQuotaOut'>"
+  },
+  {
+    "path": "/api/subscriptions/usage",
+    "name": "get_my_usage_endpoint",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.subscription_routes",
+    "dependencies": [],
+    "varnames": [
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.subscription.UserConsumableUsageOut'>"
+  },
+  {
+    "path": "/api/subscriptions/storage-addons",
+    "name": "get_my_storage_addons_endpoint",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.subscription_routes",
+    "dependencies": [],
+    "varnames": [
+      "user_id"
+    ],
+    "response_model": "typing.List[app.schemas.subscription.UserStorageAddonOut]"
+  },
+  {
+    "path": "/api/subscriptions/audit-logs",
+    "name": "get_my_audit_logs_endpoint",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.subscription_routes",
+    "dependencies": [],
+    "varnames": [
+      "limit",
+      "offset",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.subscription.CreditAuditLogListResponse'>"
+  },
+  {
+    "path": "/api/videos/status",
+    "name": "processing_status",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [],
+    "response_model": "<class 'app.schemas.video.ProcessingStatusResponse'>"
+  },
+  {
+    "path": "/api/videos/upload",
+    "name": "upload_video",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "file",
+      "target_language",
+      "project_id",
+      "folder_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.video.VideoUploadResponse'>"
+  },
+  {
+    "path": "/api/videos/",
+    "name": "list_videos",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "project_id",
+      "folder_id",
+      "root_only",
+      "status",
+      "limit",
+      "offset",
+      "db",
+      "user_id"
+    ],
+    "response_model": "typing.List[app.schemas.video.VideoListItem]"
+  },
+  {
+    "path": "/api/videos/{video_id}",
+    "name": "get_video_details",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.video.VideoDetailResponse'>"
+  },
+  {
+    "path": "/api/videos/{video_id}",
+    "name": "update_video",
+    "methods": [
+      "PATCH"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "payload",
+      "db",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.video.VideoDetailResponse'>"
+  },
+  {
+    "path": "/api/videos/{video_id}/download",
+    "name": "download_video",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "kind",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}",
+    "name": "delete_video",
+    "methods": [
+      "DELETE"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/original",
+    "name": "get_original_video",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/process",
+    "name": "start_processing",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.video.StartProcessingResponse'>"
+  },
+  {
+    "path": "/api/videos/{video_id}/process/cancel",
+    "name": "cancel_processing",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.video.JobCancelResponse'>"
+  },
+  {
+    "path": "/api/videos/{video_id}/status",
+    "name": "get_video_status",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.video.JobStatusResponse'>"
+  },
+  {
+    "path": "/api/videos/{video_id}/logs",
+    "name": "get_video_logs",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "limit",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/audio/extract",
+    "name": "extract_audio",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/audio",
+    "name": "get_audio",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "download",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/transcription",
+    "name": "start_transcription",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/transcription",
+    "name": "get_transcription",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/transcription/{segment_id}",
+    "name": "get_transcript_segment",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "segment_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/transcription",
+    "name": "update_transcription",
+    "methods": [
+      "PUT"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "updates",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/speakers",
+    "name": "get_speakers",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/speakers/{speaker_id}",
+    "name": "update_speaker",
+    "methods": [
+      "PUT"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "speaker_id",
+      "updates",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/diarization",
+    "name": "get_diarization",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/translations",
+    "name": "start_translation",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "target_language",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/translations",
+    "name": "list_translations",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/translations/{language}",
+    "name": "get_translation",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "language",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/translations/{language}",
+    "name": "update_translation",
+    "methods": [
+      "PUT"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "language",
+      "updates",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/translations/{language}",
+    "name": "delete_translation",
+    "methods": [
+      "DELETE"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "language",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/subtitles",
+    "name": "generate_subtitles",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "language",
+      "format",
+      "font_size",
+      "position",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/subtitles",
+    "name": "list_subtitles",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/subtitles/{language}",
+    "name": "get_subtitles",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "language",
+      "format",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/subtitles/{language}/download",
+    "name": "download_subtitles_file",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "language",
+      "format",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/voices",
+    "name": "list_voices",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/vocal/sample",
+    "name": "get_speaker_sample",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "speaker_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/speakers/{speaker_id}/sample",
+    "name": "get_speaker_sample",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "speaker_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/tts",
+    "name": "generate_tts",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "language",
+      "speaker_id",
+      "style",
+      "speed",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/tts/{language}",
+    "name": "get_tts",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "language",
+      "preview",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/dub",
+    "name": "generate_dubbed_video",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "language",
+      "video_format",
+      "quality",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/dub",
+    "name": "get_dubbing_status",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/dub/{language}/download",
+    "name": "download_dubbed_video",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "language",
+      "format",
+      "preview",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/export/options",
+    "name": "get_export_options",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/export",
+    "name": "export_video",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "export_type",
+      "format",
+      "quality",
+      "language",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/play",
+    "name": "get_playback_info",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.video.PlaybackInfoResponse'>"
+  },
+  {
+    "path": "/api/videos/jobs/{job_id}/status",
+    "name": "get_job_status",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "job_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.video.JobStatusResponse'>"
+  },
+  {
+    "path": "/api/videos/jobs/{job_id}/celery-status",
+    "name": "get_celery_status",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "job_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/jobs/{job_id}/logs",
+    "name": "get_job_logs",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "job_id",
+      "limit",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/jobs/{job_id}/cancel",
+    "name": "cancel_job",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "job_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.video.JobCancelResponse'>"
+  },
+  {
+    "path": "/api/videos/{video_id}/audio/separate",
+    "name": "separate_audio",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/videos/{video_id}/chapters",
+    "name": "get_video_chapters",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "token"
+    ],
+    "response_model": "typing.List[app.schemas.video.VideoChapterResponse]"
+  },
+  {
+    "path": "/api/videos/{video_id}/chapters/generate",
+    "name": "generate_video_chapters",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "token"
+    ],
+    "response_model": "typing.List[app.schemas.video.VideoChapterResponse]"
+  },
+  {
+    "path": "/api/videos/{video_id}/documents",
+    "name": "get_video_documents",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "db",
+      "token"
+    ],
+    "response_model": "typing.List[app.schemas.video.VideoDocumentResponse]"
+  },
+  {
+    "path": "/api/videos/{video_id}/documents/generate",
+    "name": "generate_video_document",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "doc_type",
+      "db",
+      "token"
+    ],
+    "response_model": "<class 'app.schemas.video.VideoDocumentResponse'>"
+  },
+  {
+    "path": "/api/videos/{video_id}/documents/{doc_id}",
+    "name": "get_video_document",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.video_routes",
+    "dependencies": [],
+    "varnames": [
+      "video_id",
+      "doc_id",
+      "db",
+      "token"
+    ],
+    "response_model": "<class 'app.schemas.video.VideoDocumentResponse'>"
+  },
+  {
+    "path": "/api/payments/transactions",
+    "name": "create_transaction_endpoint",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.payment_routes",
+    "dependencies": [],
+    "varnames": [
+      "body",
+      "request",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.payment.PaymentTransactionResponse'>"
+  },
+  {
+    "path": "/api/payments/transactions",
+    "name": "get_my_transactions_endpoint",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.payment_routes",
+    "dependencies": [],
+    "varnames": [
+      "status",
+      "product_type",
+      "limit",
+      "offset",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.payment.PaymentTransactionListResponse'>"
+  },
+  {
+    "path": "/api/payments/transactions/{transaction_id}",
+    "name": "get_transaction_detail_endpoint",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.payment_routes",
+    "dependencies": [],
+    "varnames": [
+      "transaction_id",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.payment.PaymentTransactionResponse'>"
+  },
+  {
+    "path": "/api/payments/vnpay/return",
+    "name": "vnpay_return_endpoint",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.payment_routes",
+    "dependencies": [],
+    "varnames": [
+      "request"
+    ],
+    "response_model": "<class 'app.schemas.payment.VNPayReturnResponse'>"
+  },
+  {
+    "path": "/api/contact",
+    "name": "submit_contact",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.contact_routes",
+    "dependencies": [],
+    "varnames": [
+      "data",
+      "request",
+      "background_tasks"
+    ],
+    "response_model": "<class 'app.schemas.contact.ContactSubmitSuccessResponse'>"
+  },
+  {
+    "path": "/api/contact",
+    "name": "list_contacts",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.contact_routes",
+    "dependencies": [],
+    "varnames": [
+      "limit",
+      "offset",
+      "current_admin"
+    ],
+    "response_model": "typing.List[app.schemas.contact.ContactResponse]"
+  },
+  {
+    "path": "/api/admin/health",
+    "name": "get_health",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [],
+    "response_model": "<class 'app.schemas.admin.SystemHealthResponse'>"
+  },
+  {
+    "path": "/api/admin/metrics",
+    "name": "get_metrics",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [],
+    "response_model": "<class 'app.schemas.admin.SystemMetricsResponse'>"
+  },
+  {
+    "path": "/api/admin/jobs",
+    "name": "list_jobs",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [
+      "limit",
+      "offset",
+      "status",
+      "search"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/admin/jobs/{job_id}",
+    "name": "get_job_detail",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [
+      "job_id"
+    ],
+    "response_model": "<class 'app.schemas.admin.AdminJobDetailResponse'>"
+  },
+  {
+    "path": "/api/admin/jobs/{job_id}/retry",
+    "name": "retry_job",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [
+      "job_id"
+    ],
+    "response_model": "<class 'app.schemas.admin.JobActionResponse'>"
+  },
+  {
+    "path": "/api/admin/jobs/{job_id}/cancel",
+    "name": "cancel_job",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [
+      "job_id"
+    ],
+    "response_model": "<class 'app.schemas.admin.JobActionResponse'>"
+  },
+  {
+    "path": "/api/admin/models",
+    "name": "get_models",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [
+      "category",
+      "provider"
+    ],
+    "response_model": "typing.List[app.schemas.admin.AdminAIModelResponse]"
+  },
+  {
+    "path": "/api/admin/models/{model_id}",
+    "name": "update_model",
+    "methods": [
+      "PUT"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [
+      "model_id",
+      "payload"
+    ],
+    "response_model": "<class 'app.schemas.admin.AdminAIModelResponse'>"
+  },
+  {
+    "path": "/api/admin/users",
+    "name": "get_users",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [
+      "limit",
+      "offset",
+      "search",
+      "role",
+      "is_active"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/admin/users/{user_id}",
+    "name": "get_user",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.admin.AdminUserDetailResponse'>"
+  },
+  {
+    "path": "/api/admin/users/{user_id}",
+    "name": "update_user_status_or_role",
+    "methods": [
+      "PUT"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [
+      "user_id",
+      "payload"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/admin/users/{user_id}/adjust-credits",
+    "name": "adjust_credits",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [
+      "user_id",
+      "payload",
+      "current_admin"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/admin/payments",
+    "name": "get_payments",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [
+      "limit",
+      "offset",
+      "gateway",
+      "status"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/admin/payments/stats",
+    "name": "get_payment_overview",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [],
+    "response_model": "<class 'app.schemas.admin.AdminPaymentStatsResponse'>"
+  },
+  {
+    "path": "/api/admin/logs/activity",
+    "name": "get_activity_logs",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [
+      "limit",
+      "offset",
+      "action",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/admin/logs/credits",
+    "name": "get_credit_logs",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [
+      "limit",
+      "offset",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/admin/contacts",
+    "name": "get_contacts",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [
+      "limit",
+      "offset",
+      "status"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/admin/contacts/{contact_id}/status",
+    "name": "update_contact_status",
+    "methods": [
+      "PUT"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [
+      "contact_id",
+      "payload"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/admin/tools/storage",
+    "name": "get_storage",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [],
+    "response_model": "<class 'app.schemas.admin.AdminStorageStatsResponse'>"
+  },
+  {
+    "path": "/api/admin/tools/cleanup",
+    "name": "run_cleanup",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [
+      "payload"
+    ],
+    "response_model": "<class 'app.schemas.admin.AdminCleanupResultResponse'>"
+  },
+  {
+    "path": "/api/admin/tools/database",
+    "name": "get_db_stats",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [],
+    "response_model": "<class 'app.schemas.admin.AdminDatabaseStatsResponse'>"
+  },
+  {
+    "path": "/api/admin/tools/diagnostics",
+    "name": "run_diagnostics",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.admin_routes",
+    "dependencies": [
+      "require_admin"
+    ],
+    "varnames": [],
+    "response_model": "<class 'app.schemas.admin.AdminDiagnosticsResponse'>"
+  },
+  {
+    "path": "/api/notifications/unread-count",
+    "name": "get_unread_count_route",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.notification_routes",
+    "dependencies": [],
+    "varnames": [
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.notification.UnreadCountResponse'>"
+  },
+  {
+    "path": "/api/notifications/preferences",
+    "name": "get_preferences_route",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.notification_routes",
+    "dependencies": [],
+    "varnames": [
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.notification.NotificationPreferencesResponse'>"
+  },
+  {
+    "path": "/api/notifications/preferences",
+    "name": "patch_preferences_route",
+    "methods": [
+      "PATCH"
+    ],
+    "module": "app.api.notification_routes",
+    "dependencies": [],
+    "varnames": [
+      "data",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.notification.NotificationPreferencesResponse'>"
+  },
+  {
+    "path": "/api/notifications/mark-all-read",
+    "name": "mark_all_read_route",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.notification_routes",
+    "dependencies": [],
+    "varnames": [
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.notification.MarkAllReadResponse'>"
+  },
+  {
+    "path": "/api/notifications/test-alert",
+    "name": "test_alert_route",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.notification_routes",
+    "dependencies": [],
+    "varnames": [
+      "request",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.notification.NotificationResponse'>"
+  },
+  {
+    "path": "/api/notifications",
+    "name": "get_notifications_route",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.notification_routes",
+    "dependencies": [],
+    "varnames": [
+      "page",
+      "page_size",
+      "unread_only",
+      "type",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.notification.NotificationListResponse'>"
+  },
+  {
+    "path": "/api/notifications/{notification_id}/read",
+    "name": "mark_notification_read_route",
+    "methods": [
+      "PATCH"
+    ],
+    "module": "app.api.notification_routes",
+    "dependencies": [],
+    "varnames": [
+      "notification_id",
+      "user_id"
+    ],
+    "response_model": "<class 'app.schemas.notification.NotificationResponse'>"
+  },
+  {
+    "path": "/api/notifications/{notification_id}",
+    "name": "delete_notification_route",
+    "methods": [
+      "DELETE"
+    ],
+    "module": "app.api.notification_routes",
+    "dependencies": [],
+    "varnames": [
+      "notification_id",
+      "user_id"
+    ],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/health",
+    "name": "health_check",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.routes",
+    "dependencies": [],
+    "varnames": [],
+    "response_model": "None"
+  },
+  {
+    "path": "/api/status",
+    "name": "processing_status",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.routes",
+    "dependencies": [],
+    "varnames": [],
+    "response_model": "<class 'app.schemas.video.ProcessingStatusResponse'>"
+  },
+  {
+    "path": "/api/uploads",
+    "name": "upload_video_legacy",
+    "methods": [
+      "POST"
+    ],
+    "module": "app.api.routes",
+    "dependencies": [],
+    "varnames": [
+      "file",
+      "target_language"
+    ],
+    "response_model": "<class 'app.schemas.video.UploadResponse'>"
+  },
+  {
+    "path": "/api/files/{filename}",
+    "name": "download_file",
+    "methods": [
+      "GET"
+    ],
+    "module": "app.api.routes",
+    "dependencies": [],
+    "varnames": [
+      "filename"
+    ],
+    "response_model": "None"
+  }
+]

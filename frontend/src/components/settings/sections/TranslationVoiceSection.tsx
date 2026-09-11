@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Globe, Mic, Subtitles, Play, Square, Sparkles, BookOpen, Clock, FileText } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Globe, Mic, Subtitles, Play, Square, Sparkles, BookOpen, Clock, FileText, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "../../../lib/toast";
 import SettingCard from "../SettingCard";
@@ -11,6 +11,11 @@ import SettingsBadge from "../common/SettingsBadge";
 import SettingsTabs from "../common/SettingsTabs";
 import Toggle from "../Toggle";
 import { INITIAL_MOCK_SETTINGS, VOICE_PROFILES } from "../mock/settingsMockData";
+import {
+  getUserSettings,
+  patchUserSettings,
+  playTTSPreview,
+} from "../../../services/settings.service";
 
 export default function TranslationVoiceSection() {
   const { t } = useTranslation(["settings", "common"]);
@@ -30,6 +35,8 @@ export default function TranslationVoiceSection() {
   const [voiceEmotion, setVoiceEmotion] = useState(INITIAL_MOCK_SETTINGS.translationVoice.voiceEmotion);
   const [autoDubbing, setAutoDubbing] = useState(INITIAL_MOCK_SETTINGS.translationVoice.autoDubbing);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Subtitle State
   const [subtitleFormat, setSubtitleFormat] = useState(INITIAL_MOCK_SETTINGS.translationVoice.subtitleFormat);
@@ -41,29 +48,135 @@ export default function TranslationVoiceSection() {
 
   const [isSaved, setIsSaved] = useState(true);
 
+  // Load preferences from database
+  useEffect(() => {
+    const fetchVoiceSettings = async () => {
+      try {
+        const data = await getUserSettings();
+        if (data) {
+          if (data.default_target_language) setTargetLang(data.default_target_language);
+          if (data.preferences?.translationVoice) {
+            const tv = data.preferences.translationVoice;
+            if (tv.sourceLang !== undefined) setSourceLang(tv.sourceLang);
+            if (tv.targetLang !== undefined) setTargetLang(tv.targetLang);
+            if (tv.translationStyle !== undefined) setTranslationStyle(tv.translationStyle);
+            if (tv.preserveFormatting !== undefined) setPreserveFormatting(tv.preserveFormatting);
+            if (tv.glossaryPreservation !== undefined) setGlossaryPreservation(tv.glossaryPreservation);
+            if (tv.timestampSync !== undefined) setTimestampSync(tv.timestampSync);
+            if (tv.selectedVoiceId !== undefined) setSelectedVoiceId(tv.selectedVoiceId);
+            if (tv.voiceSpeed !== undefined) setVoiceSpeed(tv.voiceSpeed);
+            if (tv.voicePitch !== undefined) setVoicePitch(tv.voicePitch);
+            if (tv.voiceEmotion !== undefined) setVoiceEmotion(tv.voiceEmotion);
+            if (tv.autoDubbing !== undefined) setAutoDubbing(tv.autoDubbing);
+            if (tv.subtitleFormat !== undefined) setSubtitleFormat(tv.subtitleFormat);
+            if (tv.subtitleFont !== undefined) setSubtitleFont(tv.subtitleFont);
+            if (tv.subtitleFontSize !== undefined) setSubtitleFontSize(tv.subtitleFontSize);
+            if (tv.subtitleColor !== undefined) setSubtitleColor(tv.subtitleColor);
+            if (tv.subtitlePosition !== undefined) setSubtitlePosition(tv.subtitlePosition);
+            if (tv.maxChars !== undefined) setMaxChars(tv.maxChars);
+          }
+        }
+      } catch (err) {
+        console.error("[TranslationVoiceSection] Failed to load voice settings:", err);
+      }
+    };
+    fetchVoiceSettings();
+  }, []);
+
   const markDirty = () => setIsSaved(false);
 
-  const handlePlayVoice = () => {
-    if (isPlayingAudio) {
+  const handlePlayVoice = async () => {
+    if (isPlayingAudio || isSynthesizing) {
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current = null;
+      }
       setIsPlayingAudio(false);
+      setIsSynthesizing(false);
       return;
     }
-    setIsPlayingAudio(true);
-    toast.info("Playing Voice Sample", "Synthesizing audio preview with current pitch & speed.");
-    setTimeout(() => {
+
+    try {
+      setIsSynthesizing(true);
+      toast.info("Synthesizing Voice", "Generating neural Edge-TTS speech preview...");
+
+      const sampleText =
+        targetLang === "vi"
+          ? "Xin chào! Đây là bản nghe thử giọng đọc AI chất lượng cao của hệ thống VidNova."
+          : "Hello! This is a high-fidelity AI synthetic voice preview from VidNova.";
+
+      const audioUrl = await playTTSPreview({
+        voice_id: selectedVoiceId,
+        text: sampleText,
+        speed: voiceSpeed,
+        pitch: voicePitch,
+      });
+      
+      setIsSynthesizing(false);
+      setIsPlayingAudio(true);
+
+      const audio = new Audio(audioUrl);
+      currentAudioRef.current = audio;
+
+      audio.onended = () => {
+        setIsPlayingAudio(false);
+        currentAudioRef.current = null;
+      };
+
+      audio.onerror = () => {
+        setIsPlayingAudio(false);
+        setIsSynthesizing(false);
+        currentAudioRef.current = null;
+        toast.error("Playback Error", "Failed to play synthesis preview.");
+      };
+
+      await audio.play();
+    } catch (err: any) {
+      setIsSynthesizing(false);
       setIsPlayingAudio(false);
-    }, 2800);
+      console.error("[TranslationVoiceSection] TTS Preview failed:", err);
+      toast.error("Preview Failed", err?.response?.data?.detail || "Could not synthesize voice sample.");
+    }
   };
 
-  const handleSave = () => {
-    setIsSaved(true);
-    toast.success(
-      t("settings:toast.settingsSaved", "Settings saved"),
-      t("settings:toast.translationVoiceSavedDesc", "Translation tone, voice profiles, and subtitle styles updated.")
-    );
+  const handleSave = async () => {
+    try {
+      await patchUserSettings({
+        default_target_language: targetLang,
+        preferences: {
+          translationVoice: {
+            sourceLang,
+            targetLang,
+            translationStyle,
+            preserveFormatting,
+            glossaryPreservation,
+            timestampSync,
+            selectedVoiceId,
+            voiceSpeed,
+            voicePitch,
+            voiceEmotion,
+            autoDubbing,
+            subtitleFormat,
+            subtitleFont,
+            subtitleFontSize,
+            subtitleColor,
+            subtitlePosition,
+            maxChars,
+          },
+        },
+      });
+      setIsSaved(true);
+      toast.success(
+        t("settings:toast.settingsSaved", "Settings saved"),
+        t("settings:toast.translationVoiceSavedDesc", "Translation tone, voice profiles, and subtitle styles updated.")
+      );
+    } catch (err: any) {
+      console.error("[TranslationVoiceSection] Failed to save:", err);
+      toast.error("Save Failed", err?.response?.data?.detail || "Could not save preferences.");
+    }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     setSourceLang("auto");
     setTargetLang("vi");
     setTranslationStyle("natural");
@@ -74,8 +187,37 @@ export default function TranslationVoiceSection() {
     setSubtitleFormat("srt");
     setSubtitleFontSize(18);
     setSubtitlePosition("bottom");
-    setIsSaved(true);
-    toast.info("Reset to defaults", "Translation and Voice preferences restored.");
+
+    try {
+      await patchUserSettings({
+        default_target_language: "vi",
+        preferences: {
+          translationVoice: {
+            sourceLang: "auto",
+            targetLang: "vi",
+            translationStyle: "natural",
+            preserveFormatting: true,
+            glossaryPreservation: true,
+            timestampSync: true,
+            selectedVoiceId: "voice-1",
+            voiceSpeed: 1.0,
+            voicePitch: 0,
+            voiceEmotion: "natural",
+            autoDubbing: true,
+            subtitleFormat: "srt",
+            subtitleFont: "Inter",
+            subtitleFontSize: 18,
+            subtitleColor: "#FFFFFF",
+            subtitlePosition: "bottom",
+            maxChars: 42,
+          },
+        },
+      });
+      setIsSaved(true);
+      toast.info("Reset to defaults", "Translation and Voice preferences restored.");
+    } catch (err: any) {
+      console.error("[TranslationVoiceSection] Failed to reset:", err);
+    }
   };
 
   return (
@@ -234,14 +376,29 @@ export default function TranslationVoiceSection() {
                 <button
                   type="button"
                   onClick={handlePlayVoice}
-                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition ${
-                    isPlayingAudio
+                  disabled={isSynthesizing}
+                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                    isSynthesizing
+                      ? "bg-[var(--color-primary-soft)] text-[var(--color-primary)] cursor-wait opacity-80"
+                      : isPlayingAudio
                       ? "bg-rose-500 text-white animate-pulse"
                       : "bg-[var(--color-primary-soft)] text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white"
                   }`}
                 >
-                  {isPlayingAudio ? <Square size={12} /> : <Play size={12} />}
-                  <span>{isPlayingAudio ? "Stop Audio" : "Play Sample"}</span>
+                  {isSynthesizing ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : isPlayingAudio ? (
+                    <Square size={12} />
+                  ) : (
+                    <Play size={12} />
+                  )}
+                  <span>
+                    {isSynthesizing
+                      ? "Synthesizing..."
+                      : isPlayingAudio
+                      ? "Stop Audio"
+                      : "Play Sample"}
+                  </span>
                 </button>
               </div>
 

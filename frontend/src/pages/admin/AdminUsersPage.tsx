@@ -35,10 +35,10 @@ export default function AdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState("all");
   const [loading, setLoading] = useState(true);
 
-  // Credit adjustment modal
+  // Word quota adjustment modal
   const [creditUser, setCreditUser] = useState<AdminUserListItem | null>(null);
-  const [creditAmount, setCreditAmount] = useState(500);
-  const [creditReason, setCreditReason] = useState("Hỗ trợ kỹ thuật / Bồi hoàn tín chỉ");
+  const [creditAmount, setCreditAmount] = useState(5000);
+  const [creditReason, setCreditReason] = useState("Hỗ trợ kỹ thuật / Bồi hoàn quota từ");
   const [adjusting, setAdjusting] = useState(false);
 
   // User detail modal
@@ -183,7 +183,7 @@ export default function AdminUsersPage() {
           className="inline-flex items-center gap-2 self-start rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2 text-xs font-bold text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] transition shadow-xs cursor-pointer"
         >
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          <span>Làm mới</span>
+          <span>{t("admin:common.refresh", "Làm mới")}</span>
         </button>
       </div>
 
@@ -212,9 +212,9 @@ export default function AdminUsersPage() {
             }}
             className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-3 py-2 text-xs font-bold text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition cursor-pointer"
           >
-            <option value="all">Tất cả vai trò</option>
-            <option value="admin">Quản trị viên (Admin)</option>
-            <option value="user">Người dùng thường (User)</option>
+            <option value="all">{t("admin:common.all", "Tất cả vai trò")}</option>
+            <option value="admin">Admin</option>
+            <option value="user">User</option>
           </select>
         </div>
       </div>
@@ -225,7 +225,7 @@ export default function AdminUsersPage() {
           <table className="w-full text-left text-xs">
             <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
               <tr>
-                <th className="px-4 py-3.5">Người dùng</th>
+                <th className="px-4 py-3.5">{t("admin:common.user", "Người dùng")}</th>
                 <th className="px-4 py-3.5">{t("admin:users.role")}</th>
                 <th className="px-4 py-3.5">{t("admin:users.plan")}</th>
                 <th className="px-4 py-3.5">{t("admin:users.projects")}</th>
@@ -240,13 +240,13 @@ export default function AdminUsersPage() {
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-sm text-[var(--color-text-muted)]">
                     <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin text-[var(--color-primary)]" />
-                    Đang tải danh sách người dùng...
+                    {t("admin:common.loading", "Đang tải danh sách người dùng...")}
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-sm text-[var(--color-text-muted)]">
-                    Không tìm thấy người dùng nào.
+                    {t("admin:common.empty", "Không tìm thấy người dùng nào.")}
                   </td>
                 </tr>
               ) : (
@@ -300,7 +300,7 @@ export default function AdminUsersPage() {
                     <td className="px-4 py-3 font-mono text-[var(--color-text-primary)]">
                       <span className="inline-flex items-center gap-1 text-teal-600 font-bold">
                         <Zap size={12} />
-                        {u.credits_used.toLocaleString()}
+                        {((u.words_used ?? u.credits_used) || 0).toLocaleString()} từ
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -323,13 +323,13 @@ export default function AdminUsersPage() {
                           type="button"
                           onClick={() => {
                             setCreditUser(u);
-                            setCreditAmount(500);
+                            setCreditAmount(5000);
                           }}
-                          title="Cộng/Trừ credits"
+                          title="Cộng/Trừ Quota Từ"
                           className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border)] px-2 py-1 text-[11px] font-bold text-teal-600 hover:bg-teal-500/10 transition cursor-pointer"
                         >
                           <Zap size={12} />
-                          <span>Credits</span>
+                          <span>Quota Từ</span>
                         </button>
 
                         <button
@@ -337,7 +337,7 @@ export default function AdminUsersPage() {
                           onClick={() => handleViewDetail(u.id)}
                           className="rounded-lg border border-[var(--color-border)] px-2 py-1 text-[11px] font-bold text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition cursor-pointer"
                         >
-                          Chi tiết
+                          {t("admin:common.details", "Chi tiết")}
                         </button>
                       </div>
                     </td>
@@ -352,7 +352,11 @@ export default function AdminUsersPage() {
         {total > limit && (
           <div className="flex items-center justify-between border-t border-[var(--color-border)] px-4 py-3 bg-[var(--color-surface-muted)] text-xs text-[var(--color-text-secondary)]">
             <span>
-              Hiển thị {offset + 1} - {Math.min(offset + limit, total)} trên tổng số {total} tài khoản
+              {t("admin:common.showing", "Hiển thị {{start}} - {{end}} trên tổng số {{total}}", {
+                start: offset + 1,
+                end: Math.min(offset + limit, total),
+                total,
+              })}
             </span>
             <div className="flex gap-2">
               <button
@@ -361,7 +365,7 @@ export default function AdminUsersPage() {
                 onClick={() => setOffset(Math.max(0, offset - limit))}
                 className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 font-bold disabled:opacity-40 cursor-pointer"
               >
-                Trước
+                {t("admin:common.previous", "Trước")}
               </button>
               <button
                 type="button"
@@ -369,7 +373,7 @@ export default function AdminUsersPage() {
                 onClick={() => setOffset(offset + limit)}
                 className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 font-bold disabled:opacity-40 cursor-pointer"
               >
-                Sau
+                {t("admin:common.next", "Sau")}
               </button>
             </div>
           </div>
@@ -405,7 +409,7 @@ export default function AdminUsersPage() {
                 required
               />
               <p className="text-[11px] text-[var(--color-text-muted)] mt-1">
-                Ví dụ: Nhập <span className="font-bold text-emerald-600">500</span> để cộng thêm 500 credits, hoặc <span className="font-bold text-red-500">-200</span> để trừ bớt 200 credits.
+                Ví dụ: Nhập <span className="font-bold text-emerald-600">5000</span> để cộng thêm 5,000 từ, hoặc <span className="font-bold text-red-500">-2000</span> để trừ bớt 2,000 từ.
               </p>
             </div>
 
@@ -428,14 +432,14 @@ export default function AdminUsersPage() {
                 onClick={() => setCreditUser(null)}
                 className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-xs font-bold text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-muted)] cursor-pointer"
               >
-                Hủy
+                {t("admin:common.cancel", "Hủy")}
               </button>
               <button
                 type="submit"
                 disabled={adjusting}
                 className="rounded-xl bg-[var(--color-primary)] px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-[var(--color-primary-hover)] disabled:opacity-50 cursor-pointer"
               >
-                {adjusting ? "Đang xử lý..." : t("admin:users.confirm")}
+                {adjusting ? t("admin:common.refreshing", "Đang xử lý...") : t("admin:users.confirm")}
               </button>
             </div>
           </form>
@@ -455,7 +459,9 @@ export default function AdminUsersPage() {
           <div className="relative flex flex-col w-full max-w-2xl max-h-[85vh] rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl z-10 overflow-hidden animate-scaleIn">
             <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)] bg-[var(--color-surface-muted)]">
               <div>
-                <h3 className="text-base font-bold text-[var(--color-text-primary)]">Hồ Sơ Chi Tiết Người Dùng</h3>
+                <h3 className="text-base font-bold text-[var(--color-text-primary)]">
+                  {t("admin:users.modalTitle", "Hồ Sơ Chi Tiết Người Dùng")}
+                </h3>
                 <p className="font-mono text-xs text-[var(--color-text-muted)]">User ID #{detailUserId}</p>
               </div>
               <button
@@ -505,8 +511,8 @@ export default function AdminUsersPage() {
                       <p className="font-bold">{userDetail.videos_count}</p>
                     </div>
                     <div>
-                      <span className="text-[var(--color-text-muted)]">Tín chỉ đã tiêu thụ:</span>
-                      <p className="font-bold text-teal-600">{userDetail.total_credits_used.toLocaleString()} credits</p>
+                      <span className="text-[var(--color-text-muted)]">Quota từ đã tiêu thụ:</span>
+                      <p className="font-bold text-teal-600">{(userDetail.total_words_used ?? userDetail.total_credits_used).toLocaleString()} từ (words)</p>
                     </div>
                     <div>
                       <span className="text-[var(--color-text-muted)]">Ngày tạo tài khoản:</span>
@@ -558,10 +564,10 @@ export default function AdminUsersPage() {
           }
           setConfirmAction(null);
         }}
-        title={confirmAction?.title || "Xác nhận"}
+        title={confirmAction?.title || t("admin:common.confirm", "Xác nhận")}
         message={confirmAction?.message || ""}
-        confirmLabel={confirmAction?.confirmLabel || "Xác nhận"}
-        cancelLabel="Hủy"
+        confirmLabel={confirmAction?.confirmLabel || t("admin:common.confirm", "Xác nhận")}
+        cancelLabel={t("admin:common.cancel", "Hủy")}
         isDestructive={confirmAction?.isDestructive || false}
       />
     </div>

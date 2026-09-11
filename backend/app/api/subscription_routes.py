@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.security import get_user_id_from_token
@@ -13,6 +13,9 @@ from app.schemas.subscription import (
     UserSubscriptionSummaryResponse,
     UserConsumableUsageOut,
     CreditAuditLogListResponse,
+    StorageBreakdownResponse,
+    CleanCacheResponse,
+    DeleteStorageFileResponse,
 )
 from app.services.subscription_service import (
     get_active_plans,
@@ -25,6 +28,10 @@ from app.services.subscription_service import (
     get_user_active_storage_addons,
     get_user_usage_details,
     get_user_credit_audit_logs,
+    get_user_storage_breakdown,
+    clean_user_pipeline_cache,
+    delete_storage_resource,
+    export_user_data_archive,
 )
 
 router = APIRouter(
@@ -184,3 +191,67 @@ def get_my_audit_logs_endpoint(
 ):
     logs, total = get_user_credit_audit_logs(user_id=user_id, limit=limit, offset=offset)
     return {"logs": logs, "total": total}
+
+
+# =========================================================
+# Storage & Resource Breakdown Analytics & Reclaim Endpoints
+# =========================================================
+
+@router.get(
+    "/storage/breakdown",
+    response_model=StorageBreakdownResponse,
+    summary="Get granular storage allocation by type, project, and file inventory",
+)
+def get_storage_breakdown_endpoint(
+    user_id: int = Depends(get_required_current_user_id),
+):
+    return get_user_storage_breakdown(user_id)
+
+
+@router.post(
+    "/storage/clean-cache",
+    response_model=CleanCacheResponse,
+    summary="Clean up temporary processing and audio chunk cache to reclaim quota",
+)
+def clean_storage_cache_endpoint(
+    user_id: int = Depends(get_required_current_user_id),
+):
+    return clean_user_pipeline_cache(user_id)
+
+
+@router.delete(
+    "/storage/files/{resource_type}/{file_id}",
+    response_model=DeleteStorageFileResponse,
+    summary="Safely delete a stored resource file (source, dubbed, audio, subtitle) to reclaim quota",
+)
+def delete_storage_resource_endpoint(
+    resource_type: str,
+    file_id: str,
+    user_id: int = Depends(get_required_current_user_id),
+):
+    return delete_storage_resource(user_id, resource_type, file_id)
+
+
+@router.post(
+    "/storage/export-archive",
+    summary="Download user projects, transcripts, and subtitles packaged in a ZIP archive",
+)
+def export_archive_endpoint(
+    user_id: int = Depends(get_required_current_user_id),
+):
+    try:
+        zip_buf = export_user_data_archive(user_id)
+        return Response(
+            content=zip_buf.getvalue(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="vidnova_archive_user_{user_id}.zip"'
+            },
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate archive: {exc}",
+        ) from exc
+
+

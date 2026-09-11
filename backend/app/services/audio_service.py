@@ -97,10 +97,13 @@ class AudioService:
         video_id: Optional[int] = None,
         language: Optional[str] = None,
         quality: Optional[str] = "1080p",
-        generate_hls: bool = True
+        generate_hls: bool = True,
+        subtitle_path: Optional[str] = None,
+        burn_subtitles: bool = True
     ):
         """
         Mix TTS audio with optional BGM and mux with video.
+        Optionally burn subtitles into the video stream.
         The output video will maintain the full original video length.
         """
         mixed_audio_path = os.path.join(temp_dir, "mixed_audio.wav")
@@ -179,13 +182,48 @@ class AudioService:
             # 6. Mux audio with video using FFmpeg
             logger.info(f"Muxing video ({video_path}) with mixed audio...")
             
+            # Map quality to resolution
+            quality_map = {
+                "360p": 360,
+                "720p": 720,
+                "1080p": 1080,
+                "2k": 1440,
+                "4k": 2160,
+            }
+            target_h = quality_map.get(quality.lower() if quality else "1080p", 1080)
+
+            # Build video filters (scaling + optional burned subtitles)
+            vf_filters = [f"scale=-2:{target_h}"]
+            if burn_subtitles and subtitle_path:
+                chosen_sub = subtitle_path
+                # If .srt was given, prefer .ass if available for styled fonts and layout
+                if chosen_sub.endswith(".srt"):
+                    ass_candidate = chosen_sub[:-4] + ".ass"
+                    if os.path.exists(ass_candidate):
+                        chosen_sub = ass_candidate
+                elif not os.path.exists(chosen_sub):
+                    # Try fallback to .srt
+                    srt_candidate = os.path.splitext(chosen_sub)[0] + ".srt"
+                    if os.path.exists(srt_candidate):
+                        chosen_sub = srt_candidate
+
+                if os.path.exists(chosen_sub):
+                    escaped_sub = chosen_sub.replace('\\', '/').replace(':', '\\:')
+                    vf_filters.append(f"subtitles={escaped_sub}")
+                    logger.info(f"🔥 Burning subtitles into video: {chosen_sub}")
+                else:
+                    logger.warning(f"⚠️ Subtitle path provided but file not found on disk: {chosen_sub}")
+
+            vf_string = ",".join(vf_filters)
+
             # ✅ REMOVED -shortest flag since audio is now padded to full video length
             command = [
                 "ffmpeg", "-y",
                 "-i", video_path,
                 "-i", mixed_audio_path,
+                "-vf", vf_string,
                 "-c:v", "libx264",
-                "-preset", "medium",
+                "-preset", "veryfast",
                 "-crf", "23",
                 "-c:a", "aac",
                 "-b:a", "192k",

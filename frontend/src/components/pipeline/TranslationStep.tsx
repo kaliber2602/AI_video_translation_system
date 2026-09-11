@@ -1,6 +1,6 @@
 // TranslationStep.tsx
 import { useState, useEffect } from "react";
-import { Languages, Save, Sparkles, Loader2, CheckCircle2 } from "lucide-react";
+import { Languages, Sparkles, Loader2, CheckCircle2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePipeline } from "../../hooks/usePipeline";
 import { videoService } from "../../services/video.service";
@@ -23,12 +23,34 @@ export default function TranslationStep() {
   } | null>(null);
 
   const [translationError, setTranslationError] = useState<string | null>(null);
+  const [selectedTargetLang, setSelectedTargetLang] = useState<string>(state.targetLanguage || "vi");
+
+  const supportedTargetLanguages = [
+    { code: "vi", label: "Tiếng Việt (Vietnamese)" },
+    { code: "en", label: "English (English)" },
+    { code: "zh", label: "中文 (Chinese)" },
+    { code: "ja", label: "日本語 (Japanese)" },
+    { code: "ko", label: "한국어 (Korean)" },
+    { code: "fr", label: "Français (French)" },
+    { code: "de", label: "Deutsch (German)" },
+    { code: "es", label: "Español (Spanish)" },
+    { code: "ar", label: "العربية (Arabic)" },
+    { code: "ru", label: "Русский (Russian)" },
+    { code: "pt", label: "Português (Portuguese)" },
+    { code: "it", label: "Italiano (Italian)" },
+  ];
 
   useEffect(() => {
-    loadTranslation();
-  }, [state.video?.videoId, state.targetLanguage]);
+    if (state.targetLanguage && state.targetLanguage !== selectedTargetLang) {
+      setSelectedTargetLang(state.targetLanguage);
+    }
+  }, [state.targetLanguage]);
 
-  const loadTranslation = async () => {
+  useEffect(() => {
+    loadTranslation(selectedTargetLang);
+  }, [state.video?.videoId, selectedTargetLang]);
+
+  const loadTranslation = async (lang?: string) => {
     if (!state.video?.videoId) {
       setIsLoading(false);
       return;
@@ -36,8 +58,9 @@ export default function TranslationStep() {
     setIsLoading(true);
     setTranslationError(null);
 
+    const targetLang = lang || selectedTargetLang || state.targetLanguage || "vi";
+
     try {
-      const targetLang = state.targetLanguage || "vi";
       const data = await videoService.getTranslation(state.video.videoId, targetLang);
       setTranslation(data);
       dispatch({
@@ -52,19 +75,30 @@ export default function TranslationStep() {
     }
   };
 
+  const handleLanguageSelect = (newLang: string) => {
+    setSelectedTargetLang(newLang);
+    dispatch({
+      type: "SET_TARGET_LANGUAGE",
+      payload: newLang,
+    });
+  };
+
   const generateTranslation = async () => {
     if (!state.video?.videoId) return;
     setIsTranslating(true);
     setTranslationError(null);
 
     try {
-      const targetLang = state.targetLanguage || "vi";
+      const targetLang = selectedTargetLang || state.targetLanguage || "vi";
       const data = await videoService.startTranslation(state.video.videoId, targetLang);
       setTranslation(data);
       dispatch({
         type: "SET_TRANSLATION",
         payload: data,
       });
+
+      // Notify sidebar & settings to update credit balance
+      window.dispatchEvent(new CustomEvent("subscription-updated"));
     } catch (error: any) {
       console.error("Translation generation failed:", error);
       setTranslationError(error.message || "Failed to generate translation");
@@ -155,30 +189,50 @@ export default function TranslationStep() {
               </h3>
               <p className="mt-1 text-xs text-[var(--color-text-muted)]">
                 {translation?.source_language || "English"} →{" "}
-                {translation?.target_language?.toUpperCase() || state.targetLanguage?.toUpperCase() || "VI"}
+                {translation?.target_language?.toUpperCase() || selectedTargetLang.toUpperCase()}
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={generateTranslation}
-            disabled={isTranslating}
-            className="flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
-          >
-            {isTranslating ? (
-              <Loader2 size={15} className="animate-spin" />
-            ) : (
-              <Sparkles size={15} />
-            )}
-            {isTranslating ? "Translating..." : translation ? "Re-translate" : "Generate Translation"}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-[var(--color-text-secondary)] whitespace-nowrap">
+                Ngôn ngữ đích:
+              </label>
+              <select
+                value={selectedTargetLang}
+                onChange={(e) => handleLanguageSelect(e.target.value)}
+                disabled={isTranslating}
+                className="h-9 rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs font-medium text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 disabled:opacity-50"
+              >
+                {supportedTargetLanguages.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={generateTranslation}
+              disabled={isTranslating}
+              className="flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
+            >
+              {isTranslating ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Sparkles size={15} />
+              )}
+              {isTranslating ? "Translating..." : translation ? "Re-translate" : "Generate Translation"}
+            </button>
+          </div>
         </div>
 
         {!translation ? (
           <div className="mt-8 flex flex-col items-center justify-center gap-4 py-8">
             <p className="text-sm text-[var(--color-text-muted)]">
-              No translation found. Generate one to get started.
+              Chưa có bản dịch cho ngôn ngữ {supportedTargetLanguages.find(l => l.code === selectedTargetLang)?.label || selectedTargetLang.toUpperCase()}.
             </p>
             <button
               type="button"
@@ -191,7 +245,7 @@ export default function TranslationStep() {
               ) : (
                 <Sparkles size={17} />
               )}
-              {isTranslating ? "Translating..." : "Generate Translation"}
+              {isTranslating ? "Đang dịch..." : `Tạo bản dịch (${selectedTargetLang.toUpperCase()})`}
             </button>
           </div>
         ) : (

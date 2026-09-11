@@ -1,5 +1,4 @@
-// ReviewExportStep.tsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
   Download, 
   Loader2, 
@@ -11,54 +10,88 @@ import {
   Subtitles,
   Globe,
   Settings,
-  Play,
-  Pause,
-  Volume2,
-  VolumeX,
-  Maximize2,
-  Minimize2,
   Clock,
-  Film,
-  Music,
-  Mic
+  Film
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePipeline } from "../../hooks/usePipeline";
 import { videoService } from "../../services/video.service";
+import StandardVideoPlayer from "../common/StandardVideoPlayer";
 
 export default function ReviewExportStep() {
   const { t } = useTranslation(["pipeline", "common"]);
-  const { state, dispatch } = usePipeline();
-  
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const { state } = usePipeline();
   
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  const [isSwitchingQuality, setIsSwitchingQuality] = useState(false);
   const [exportOptions, setExportOptions] = useState<any>(null);
   const [selectedType, setSelectedType] = useState("final_video");
   const [selectedFormat, setSelectedFormat] = useState("mp4");
   const [selectedQuality, setSelectedQuality] = useState("1080p");
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportSuccess, setExportSuccess] = useState(false);
-  
-  // Video player state
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
+
+  // Video state
   const [duration, setDuration] = useState(0);
-  const [videoLoaded, setVideoLoaded] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  
+  const [subtitleSegments, setSubtitleSegments] = useState<
+    Array<{ start: number; end: number; text?: string; translated_text?: string }>
+  >([]);
+  const [hasSubtitles, setHasSubtitles] = useState(false);
+
   // Dubbed video info
   const [dubbedVideoInfo, setDubbedVideoInfo] = useState<any>(null);
+
+  // Detect whether the current dubbed video already has burned subtitles (hardsub)
+  const hasBurnedSubtitles = useMemo(() => {
+    if (dubbedVideoInfo?.has_burned_subtitles !== undefined) {
+      return Boolean(dubbedVideoInfo.has_burned_subtitles);
+    }
+    if ((state.dubbedVideo as any)?.has_burned_subtitles !== undefined) {
+      return Boolean((state.dubbedVideo as any).has_burned_subtitles);
+    }
+    if ((state.video as any)?.subtitle_path) {
+      return true;
+    }
+    return true; // Default in our pipeline: dubbed video is hardsubbed with custom styles
+  }, [dubbedVideoInfo, state.dubbedVideo, state.video]);
 
   useEffect(() => {
     loadExportOptions();
     loadVideoPreview();
+    loadSubtitles();
   }, [state.video?.videoId]);
+
+  useEffect(() => {
+    return () => {
+      if (videoUrl && videoUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(videoUrl);
+      }
+    };
+  }, [videoUrl]);
+
+  const loadSubtitles = async () => {
+    if (!state.video?.videoId) return;
+    try {
+      const targetLang = state.targetLanguage || "vi";
+      // Fetch subtitle segments for synchronized live overlay if needed
+      try {
+        const segData = await videoService.getSubtitleSegments(state.video.videoId, targetLang);
+        if (segData?.segments && Array.isArray(segData.segments) && segData.segments.length > 0) {
+          setSubtitleSegments(segData.segments);
+          setHasSubtitles(true);
+        }
+      } catch {
+        if (state.translation?.segments && state.translation.segments.length > 0) {
+          setSubtitleSegments(state.translation.segments);
+          setHasSubtitles(true);
+        }
+      }
+    } catch {
+      setHasSubtitles(false);
+    }
+  };
 
   const loadExportOptions = async () => {
     if (!state.video?.videoId) {
@@ -82,7 +115,7 @@ export default function ReviewExportStep() {
             final_video: {
               available: true,
               formats: ["mp4", "mov", "avi"],
-              qualities: ["360p", "720p", "1080p", "4K"]
+              qualities: ["360p", "720p", "1080p", "2k", "4k"]
             },
             audio: {
               available: false,
@@ -110,7 +143,7 @@ export default function ReviewExportStep() {
           final_video: {
             available: true,
             formats: ["mp4", "mov", "avi"],
-            qualities: ["360p", "720p", "1080p", "4K"]
+            qualities: ["360p", "720p", "1080p", "2k", "4k"]
           }
         }
       });
@@ -119,8 +152,7 @@ export default function ReviewExportStep() {
     }
   };
 
-  // ✅ Fixed: Added `async` keyword here
-  const loadVideoPreview = async () => {
+  const loadVideoPreview = async (quality = selectedQuality) => {
     if (!state.video?.videoId) return;
     
     try {
@@ -129,30 +161,19 @@ export default function ReviewExportStep() {
         setDubbedVideoInfo(status);
         
         try {
-          // ✅ Get the actual preview URL from S3
+          // ✅ Get the actual preview URL from S3 or local blob
           const previewUrl = await videoService.getDubbedVideoPreview(
             state.video.videoId,
-            state.targetLanguage || "vi"
+            state.targetLanguage || "vi",
+            quality
           );
-          setVideoUrl(previewUrl);
+          setVideoUrl((prev) => {
+            if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+            return previewUrl;
+          });
           console.log("✅ Video preview URL loaded:", previewUrl);
         } catch (error) {
           console.error("Failed to get preview URL:", error);
-          // Fallback: try the old method
-          const lang = state.targetLanguage || "vi";
-          const format = "mp4";
-          const url = `/api/videos/${state.video.videoId}/dub/${lang}/download?video_format=${format}`;
-          setVideoUrl(url);
-        }
-        
-        // Also load audio preview if available
-        try {
-          const lang = state.targetLanguage || "vi";
-          const audioBlob = await videoService.getAudioBlob(state.video.videoId, lang);
-          const audioUrl = URL.createObjectURL(audioBlob);
-          setAudioUrl(audioUrl);
-        } catch (error) {
-          console.log("No audio preview available");
         }
       }
     } catch (error) {
@@ -160,58 +181,30 @@ export default function ReviewExportStep() {
     }
   };
 
-  // ============================================================
-  // VIDEO PLAYER CONTROLS
-  // ============================================================
+  const handleQualityChange = async (newQuality: string) => {
+    if (!state.video?.videoId) return;
+    if (newQuality === selectedQuality && videoUrl) return;
 
-  const togglePlay = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
+    setSelectedQuality(newQuality);
+    setIsSwitchingQuality(true);
+    setExportError(null);
 
-  const toggleMute = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
-    }
-  };
-
-  const toggleFullscreen = () => {
-    if (videoRef.current) {
-      if (document.fullscreenElement) {
-        document.exitFullscreen();
-        setIsFullscreen(false);
-      } else {
-        videoRef.current.requestFullscreen();
-        setIsFullscreen(true);
-      }
-    }
-  };
-
-  const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
-    }
-  };
-
-  const handleLoadedMetadata = () => {
-    if (videoRef.current) {
-      setDuration(videoRef.current.duration);
-      setVideoLoaded(true);
-    }
-  };
-
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const time = parseFloat(e.target.value);
-    if (videoRef.current) {
-      videoRef.current.currentTime = time;
-      setCurrentTime(time);
+    try {
+      const newUrl = await videoService.getDubbedVideoPreview(
+        state.video.videoId,
+        state.targetLanguage || "vi",
+        newQuality
+      );
+      setVideoUrl((prev) => {
+        if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+        return newUrl;
+      });
+      console.log(`✅ Switched video preview to ${newQuality}:`, newUrl);
+    } catch (err: any) {
+      console.error("Failed to switch video quality:", err);
+      setExportError(`Could not load ${newQuality}: ${err.message || "Failed to switch resolution"}`);
+    } finally {
+      setIsSwitchingQuality(false);
     }
   };
 
@@ -388,66 +381,23 @@ export default function ReviewExportStep() {
           )}
         </div>
 
-        {/* Video Player */}
+        {/* Unified Standard Video Player */}
         {videoUrl ? (
           <div className="mt-4">
-            <div className="relative overflow-hidden rounded-xl bg-black">
-              <video
-                ref={videoRef}
-                src={videoUrl}
-                className="w-full max-h-[500px] object-contain"
-                onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={handleLoadedMetadata}
-                onClick={togglePlay}
-              />
-              
-              {/* Video Controls Overlay */}
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4">
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={togglePlay}
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
-                  >
-                    {isPlaying ? <Pause size={18} /> : <Play size={18} />}
-                  </button>
-                  
-                  <div className="flex-1">
-                    <input
-                      type="range"
-                      min={0}
-                      max={duration || 100}
-                      value={currentTime}
-                      onChange={handleSeek}
-                      className="w-full accent-white"
-                    />
-                    <div className="mt-1 flex justify-between text-xs text-white/70">
-                      <span>{formatTime(currentTime)}</span>
-                      <span>{formatTime(duration)}</span>
-                    </div>
-                  </div>
-                  
-                  <button
-                    type="button"
-                    onClick={toggleMute}
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
-                  >
-                    {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={toggleFullscreen}
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
-                  >
-                    {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <StandardVideoPlayer
+              src={videoUrl}
+              selectedQuality={selectedQuality}
+              availableQualities={["360p", "720p", "1080p", "2k", "4k"]}
+              onQualityChange={handleQualityChange}
+              isSwitchingQuality={isSwitchingQuality}
+              hasBurnedSubtitles={hasBurnedSubtitles}
+              subtitleSegments={subtitleSegments}
+              aspectRatio="auto"
+              onDurationChange={(d) => setDuration(d)}
+            />
 
             {/* Video Info */}
-            <div className="mt-4 grid grid-cols-3 gap-4">
+            <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3">
                 <p className="text-xs text-[var(--color-text-muted)]">Duration</p>
                 <p className="text-sm font-semibold text-[var(--color-text-primary)]">
@@ -464,6 +414,12 @@ export default function ReviewExportStep() {
                 <p className="text-xs text-[var(--color-text-muted)]">Language</p>
                 <p className="text-sm font-semibold text-[var(--color-text-primary)]">
                   {state.targetLanguage?.toUpperCase() || "VI"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3">
+                <p className="text-xs text-[var(--color-text-muted)]">Subtitles</p>
+                <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+                  {hasBurnedSubtitles ? "✓ Đã nhúng (Hardsub)" : (hasSubtitles ? "✓ Phụ đề mềm (Softsub)" : "Không có")}
                 </p>
               </div>
             </div>
@@ -575,18 +531,18 @@ export default function ReviewExportStep() {
                 </label>
                 <select
                   value={selectedQuality}
-                  onChange={(e) => setSelectedQuality(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-4 py-2.5 text-sm text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10"
+                  onChange={(e) => handleQualityChange(e.target.value)}
+                  disabled={isSwitchingQuality}
+                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-4 py-2.5 text-sm text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10 disabled:opacity-50"
                 >
-                  {availableTypes
-                    .find(t => t.key === selectedType)
-                    ?.qualities?.map((quality: string) => (
-                      <option key={quality} value={quality}>
-                        {quality}
-                      </option>
-                    )) || (
-                    <option value="1080p">1080p</option>
-                  )}
+                  {(
+                    availableTypes.find(t => t.key === selectedType)?.qualities ||
+                    ["360p", "720p", "1080p", "2k", "4k"]
+                  ).map((quality: string) => (
+                    <option key={quality} value={quality}>
+                      {quality}
+                    </option>
+                  ))}
                 </select>
               </div>
             )}

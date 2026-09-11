@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Shield,
   Download,
@@ -15,8 +15,13 @@ import {
   Music,
   Layers,
   FolderGit2,
+  RefreshCw,
+  Loader2,
+  ArrowUpRight,
+  Activity,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { toast } from "../../../lib/toast";
 import SettingCard from "../SettingCard";
 import SelectBox from "../SelectBox";
@@ -31,20 +36,117 @@ import {
   INITIAL_MOCK_SETTINGS,
   type StorageFileItem,
 } from "../mock/settingsMockData";
+import {
+  getStorageBreakdown,
+  getMyQuota,
+  getMyCreditAuditLogs,
+  cleanPipelineCache,
+  deleteStorageFile,
+  exportUserDataArchive,
+} from "../../../services/subscription.service";
+import { deleteAccount } from "../../../services/auth.service";
+import { getUserSettings, patchUserSettings } from "../../../services/settings.service";
+import type {
+  StorageBreakdownResponse,
+  EffectiveQuota,
+  CreditAuditLog,
+} from "../../../types/subscription";
 
 export default function DataPrivacySection() {
   const { t } = useTranslation(["settings", "common"]);
+  const navigate = useNavigate();
+
+  // Live Storage Breakdown State
+  const [breakdown, setBreakdown] = useState<StorageBreakdownResponse | null>(null);
+  const [isLoadingBreakdown, setIsLoadingBreakdown] = useState(true);
+  const [isCleaningCache, setIsCleaningCache] = useState(false);
+  const [isDeletingFile, setIsDeletingFile] = useState(false);
+
+  // Live Quota & Credits State
+  const [quota, setQuota] = useState<EffectiveQuota | null>(null);
+  const [creditLogs, setCreditLogs] = useState<CreditAuditLog[]>([]);
+  const [isLoadingQuota, setIsLoadingQuota] = useState(true);
 
   // Storage files state
-  const [files, setFiles] = useState<StorageFileItem[]>(
-    INITIAL_MOCK_SETTINGS.privacy.storageFiles
-  );
+  const [files, setFiles] = useState<StorageFileItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"size_desc" | "size_asc" | "date_desc" | "name_asc">("size_desc");
 
   // File to delete state (for delete confirmation modal)
   const [fileToDelete, setFileToDelete] = useState<StorageFileItem | null>(null);
+
+  // Load live breakdown, quota, and audit logs from backend API
+  const loadStorageData = useCallback(async () => {
+    try {
+      setIsLoadingBreakdown(true);
+      setIsLoadingQuota(true);
+
+      const [storageData, quotaData, logsData] = await Promise.all([
+        getStorageBreakdown().catch((err) => {
+          console.error("[DataPrivacySection] Storage breakdown error:", err);
+          return null;
+        }),
+        getMyQuota().catch((err) => {
+          console.error("[DataPrivacySection] Quota fetch error:", err);
+          return null;
+        }),
+        getMyCreditAuditLogs(6).catch((err) => {
+          console.error("[DataPrivacySection] Credit logs fetch error:", err);
+          return { logs: [], total: 0 };
+        }),
+      ]);
+
+      if (storageData) {
+        setBreakdown(storageData);
+        if (storageData.all_files && storageData.all_files.length > 0) {
+          setFiles(
+            storageData.all_files.map((f) => ({
+              id: f.id,
+              filename: f.filename,
+              projectName: f.project_name,
+              resourceType: f.resource_type as StorageFileItem["resourceType"],
+              sizeBytes: f.size_bytes,
+              sizeFormatted: f.size_formatted,
+              specs: f.specs,
+              createdAt: f.created_at ? new Date(f.created_at).toLocaleDateString() : "Recent",
+              status: (f.status === "processing" || f.status === "failed" ? f.status : "ready") as StorageFileItem["status"],
+              downloadUrl: f.download_url,
+            }))
+          );
+        } else {
+          setFiles([]);
+        }
+      }
+
+      if (quotaData) {
+        setQuota(quotaData);
+      }
+
+      if (logsData && logsData.logs) {
+        setCreditLogs(logsData.logs);
+      }
+    } catch (err) {
+      console.error("[DataPrivacySection] Failed to load privacy & quota data:", err);
+      setFiles(INITIAL_MOCK_SETTINGS.privacy.storageFiles);
+    } finally {
+      setIsLoadingBreakdown(false);
+      setIsLoadingQuota(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStorageData();
+
+    const handleSync = () => {
+      loadStorageData();
+    };
+
+    window.addEventListener("subscription-updated", handleSync);
+    return () => {
+      window.removeEventListener("subscription-updated", handleSync);
+    };
+  }, [loadStorageData]);
 
   // Privacy toggles
   const [aiTraining, setAiTraining] = useState(
@@ -62,6 +164,26 @@ export default function DataPrivacySection() {
   const [autoCleanCache, setAutoCleanCache] = useState(
     INITIAL_MOCK_SETTINGS.privacy.autoCleanCache
   );
+
+  // Load privacy preferences on mount
+  useEffect(() => {
+    const fetchPrivacySettings = async () => {
+      try {
+        const data = await getUserSettings();
+        if (data?.preferences?.privacy) {
+          const p = data.preferences.privacy;
+          if (p.aiModelTrainingConsent !== undefined) setAiTraining(p.aiModelTrainingConsent);
+          if (p.telemetryAnalytics !== undefined) setTelemetry(p.telemetryAnalytics);
+          if (p.personalizedRecommendations !== undefined) setPersonalized(p.personalizedRecommendations);
+          if (p.trashRetentionDays !== undefined) setTrashDays(p.trashRetentionDays);
+          if (p.autoCleanCache !== undefined) setAutoCleanCache(p.autoCleanCache);
+        }
+      } catch (err) {
+        console.error("[DataPrivacySection] Failed to load preferences:", err);
+      }
+    };
+    fetchPrivacySettings();
+  }, []);
 
   // Data Export Modal & Selected Entities
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -108,70 +230,150 @@ export default function DataPrivacySection() {
     return [...files].sort((a, b) => b.sizeBytes - a.sizeBytes).slice(0, 5);
   }, [files]);
 
-  // Handle Delete File
-  const handleConfirmDeleteFile = () => {
+  // Handle Delete File from Backend API
+  const handleConfirmDeleteFile = async () => {
     if (!fileToDelete) return;
-    setFiles((prev) => prev.filter((f) => f.id !== fileToDelete.id));
-    toast.success(
-      "Resource Deleted",
-      `Deleted ${fileToDelete.filename} (${fileToDelete.sizeFormatted} freed).`
-    );
-    setFileToDelete(null);
+    try {
+      setIsDeletingFile(true);
+      const res = await deleteStorageFile(fileToDelete.resourceType, fileToDelete.id);
+      toast.success("Resource Deleted", res.message);
+      setFileToDelete(null);
+      // Dispatch quota update for Sidebar & Topbar
+      window.dispatchEvent(new CustomEvent("subscription-updated"));
+      await loadStorageData();
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || "Could not delete this resource.";
+      toast.error("Delete Failed", msg);
+    } finally {
+      setIsDeletingFile(false);
+    }
   };
 
-  // Handle Request Export
-  const handleStartExport = () => {
-    setExportState("generating");
-    toast.info(
-      "Generating Archive",
-      "Packaging selected database entities, transcripts, and subtitles..."
-    );
+  // Handle Clean Pipeline Cache
+  const handleCleanCache = async () => {
+    try {
+      setIsCleaningCache(true);
+      const res = await cleanPipelineCache();
+      toast.success("Cache Purged", res.message);
+      window.dispatchEvent(new CustomEvent("subscription-updated"));
+      await loadStorageData();
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || "Failed to purge pipeline cache.";
+      toast.error("Clean Cache Failed", msg);
+    } finally {
+      setIsCleaningCache(false);
+    }
+  };
 
-    setTimeout(() => {
-      setExportState("ready");
-      toast.success(
-        "Archive Ready",
-        "Your project archive package (vidnova_export_2026.zip) is ready for download."
+  // Handle Download File
+  const handleDownloadFile = (file: StorageFileItem & { downloadUrl?: string | null }) => {
+    if (file.downloadUrl) {
+      window.open(file.downloadUrl, "_blank");
+    } else {
+      toast.info("Download Initiated", `Downloading ${file.filename}...`);
+    }
+  };
+
+  // Handle Request Export (Real ZIP generator)
+  const handleStartExport = async () => {
+    try {
+      setExportState("generating");
+      toast.info(
+        "Generating Archive",
+        "Packaging selected database entities, manifests, transcripts, and subtitles..."
       );
-    }, 2400);
+
+      await exportUserDataArchive();
+      setExportState("ready");
+
+      toast.success(
+        "Archive Downloaded",
+        "Your project archive package (vidnova_user_archive.zip) has been compiled and downloaded."
+      );
+      setIsExportModalOpen(false);
+    } catch (err: any) {
+      setExportState("idle");
+      console.error("[DataPrivacySection] Export archive failed:", err);
+      toast.error("Export Failed", err?.response?.data?.detail || "Could not generate user data archive.");
+    }
   };
 
   const handleDownloadArchive = () => {
-    toast.success("Downloading Archive", "Downloading vidnova_export_2026.zip (14.2 MB)...");
     setIsExportModalOpen(false);
   };
 
-  const handleDeleteAccount = () => {
+  // Handle Real Permanent Account Deletion
+  const handleDeleteAccount = async () => {
     if (deleteConfirmationText.trim() !== "DELETE") {
       toast.error("Confirmation Required", "Please type DELETE in capital letters to confirm.");
       return;
     }
 
-    setIsDeletingAccount(true);
-    setTimeout(() => {
-      setIsDeletingAccount(false);
+    try {
+      setIsDeletingAccount(true);
+      await deleteAccount();
+      toast.warning("Account Deleted", "Your account and active sessions have been deleted. Redirecting to login...");
       setIsDeleteModalOpen(false);
       setDeleteConfirmationText("");
-      toast.error("Account Deletion Demo", "Account marked for scheduled deletion (demo simulation).");
-    }, 1200);
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 1200);
+    } catch (err: any) {
+      console.error("[DataPrivacySection] Failed to delete account:", err);
+      toast.error("Account Deletion Failed", err?.response?.data?.detail || "Could not delete account.");
+    } finally {
+      setIsDeletingAccount(false);
+    }
   };
 
-  const handleSave = () => {
-    setIsSaved(true);
-    toast.success(
-      t("settings:toast.settingsSaved", "Settings saved"),
-      t("settings:toast.privacySavedDesc", "Data retention policies and privacy consents updated.")
-    );
+  const handleSave = async () => {
+    try {
+      await patchUserSettings({
+        preferences: {
+          privacy: {
+            aiModelTrainingConsent: aiTraining,
+            telemetryAnalytics: telemetry,
+            personalizedRecommendations: personalized,
+            trashRetentionDays: trashDays,
+            autoCleanCache,
+          },
+        },
+      });
+      setIsSaved(true);
+      toast.success(
+        t("settings:toast.settingsSaved", "Settings saved"),
+        t("settings:toast.privacySavedDesc", "Data retention policies and privacy consents updated.")
+      );
+    } catch (err: any) {
+      console.error("[DataPrivacySection] Failed to save preferences:", err);
+      toast.error("Save Failed", err?.response?.data?.detail || "Could not save privacy preferences.");
+    }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     setAiTraining(false);
     setTelemetry(true);
     setPersonalized(true);
     setTrashDays(30);
     setAutoCleanCache(true);
-    setIsSaved(true);
-    toast.info("Reset to defaults", "Privacy preferences restored.");
+
+    try {
+      await patchUserSettings({
+        preferences: {
+          privacy: {
+            aiModelTrainingConsent: false,
+            telemetryAnalytics: true,
+            personalizedRecommendations: true,
+            trashRetentionDays: 30,
+            autoCleanCache: true,
+          },
+        },
+      });
+      setIsSaved(true);
+      toast.info("Reset to defaults", "Privacy preferences restored.");
+    } catch (err: any) {
+      console.error("[DataPrivacySection] Failed to reset preferences:", err);
+    }
   };
 
   // Helper for resource icon & badge
@@ -237,41 +439,230 @@ export default function DataPrivacySection() {
       />
 
       {/* ========================================================= */}
-      {/* 1. STORAGE USAGE & BREAKDOWN DASHBOARD                    */}
+      {/* 1. RESOURCE ALLOCATION & LIVE QUOTA DASHBOARD             */}
       {/* ========================================================= */}
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* CARD 0: AI PROCESSING WORDS & LIVE QUOTA DASHBOARD (Full width on lg) */}
+        <div className="lg:col-span-2">
+          <SettingCard
+            title={t("settings:privacy.creditsTitle", "AI Word Quota & Remaining Balance")}
+            description="Live tracking of AI compute allowance. Speech processing automatically deducts quota based on exact tokenized words. Subtitle editing in Video Editor is 100% free (0 quota)."
+            action={
+              <button
+                type="button"
+                onClick={loadStorageData}
+                disabled={isLoadingQuota}
+                className="text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition disabled:opacity-50 p-1 cursor-pointer"
+                title="Refresh Quota"
+              >
+                <RefreshCw size={14} className={isLoadingQuota ? "animate-spin text-[var(--color-primary)]" : ""} />
+              </button>
+            }
+          >
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Left Column: Word Balance, Progress, Rates */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-black text-[var(--color-text-primary)]">
+                        {quota?.words ? quota.words.remaining_words.toLocaleString() : (quota?.credits ? (quota.credits.remaining_credits * 10).toLocaleString() : "5,000")}
+                      </span>
+                      <span className="text-xs font-normal text-[var(--color-text-muted)]">
+                        / {quota?.words ? quota.words.total_words.toLocaleString() : (quota?.credits ? (quota.credits.total_credits * 10).toLocaleString() : "5,000")} Từ (Words)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
+                      {(quota?.words?.used_words ?? ((quota?.credits?.used_credits ?? 0) * 10)).toLocaleString()} từ đã dùng •{" "}
+                      <b>~{Math.round((quota?.words?.remaining_words ?? ((quota?.credits?.remaining_credits ?? 500) * 10)) / 150).toLocaleString()} mins</b> thời lượng âm thanh ước tính
+                    </p>
+                  </div>
+
+                  <SettingsBadge
+                    variant={
+                      quota && quota.credits.total_credits > 0 && (quota.credits.remaining_credits / quota.credits.total_credits) < 0.2
+                        ? "danger"
+                        : "primary"
+                    }
+                    size="md"
+                  >
+                    {quota?.words
+                      ? `${Math.round((quota.words.remaining_words / Math.max(1, quota.words.total_words)) * 100)}% Available`
+                      : quota && quota.credits.total_credits > 0
+                      ? `${Math.round((quota.credits.remaining_credits / quota.credits.total_credits) * 100)}% Available`
+                      : "100% Available"}
+                  </SettingsBadge>
+                </div>
+
+                {/* Gradient Progress Bar */}
+                <div className="h-3 w-full overflow-hidden rounded-full bg-[var(--color-border)] flex">
+                  <div
+                    className="h-full bg-gradient-to-r from-amber-400 via-emerald-400 to-[var(--color-primary)] transition-all duration-500"
+                    style={{
+                      width: `${
+                        quota?.words
+                          ? Math.min(100, Math.max(2, (quota.words.remaining_words / Math.max(1, quota.words.total_words)) * 100))
+                          : quota && quota.credits.total_credits > 0
+                          ? Math.min(100, Math.max(2, (quota.credits.remaining_credits / quota.credits.total_credits) * 100))
+                          : 100
+                      }%`,
+                    }}
+                    title={`${quota?.words?.remaining_words ?? (quota?.credits?.remaining_credits ? quota.credits.remaining_credits * 10 : 5000)} words remaining`}
+                  />
+                </div>
+
+                {/* Unit Cost Badges */}
+                <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-4 text-xs">
+                  <div className="rounded-xl border border-[var(--color-border)]/60 bg-[var(--color-surface-muted)]/50 p-2.5 text-center">
+                    <span className="text-[10px] font-semibold text-[var(--color-text-muted)] block">Whisper STT</span>
+                    <span className="text-xs font-bold text-[var(--color-text-primary)]">1 từ / từ gốc</span>
+                    <span className="text-[9px] text-[var(--color-text-muted)] block truncate">WhisperX / Turbo</span>
+                  </div>
+                  <div className="rounded-xl border border-[var(--color-border)]/60 bg-[var(--color-surface-muted)]/50 p-2.5 text-center">
+                    <span className="text-[10px] font-semibold text-[var(--color-text-muted)] block">Translation</span>
+                    <span className="text-xs font-bold text-[var(--color-text-primary)]">1 - 2 từ / từ</span>
+                    <span className="text-[9px] text-[var(--color-text-muted)] block truncate">NLLB (1x) / GPT-4o (2x)</span>
+                  </div>
+                  <div className="rounded-xl border border-[var(--color-border)]/60 bg-[var(--color-surface-muted)]/50 p-2.5 text-center">
+                    <span className="text-[10px] font-semibold text-[var(--color-text-muted)] block">Voice TTS</span>
+                    <span className="text-xs font-bold text-[var(--color-text-primary)]">1 - 3 từ / từ</span>
+                    <span className="text-[9px] text-[var(--color-text-muted)] block truncate">XTTS (1x) / 11Labs (3x)</span>
+                  </div>
+                  <div className="rounded-xl border border-[var(--color-border)]/60 bg-[var(--color-surface-muted)]/50 p-2.5 text-center">
+                    <span className="text-[10px] font-semibold text-[var(--color-text-muted)] block">Subtitle Editor</span>
+                    <span className="text-xs font-bold text-emerald-600">0 Quota Miễn phí</span>
+                    <span className="text-[9px] text-[var(--color-text-muted)] block truncate">Chỉnh sửa tự do</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Live Deduction Audit Logs */}
+              <div className="space-y-2.5 border-t border-[var(--color-border)]/60 pt-3 lg:border-t-0 lg:border-l lg:pl-6 lg:pt-0">
+                <div className="flex items-center justify-between text-xs font-bold text-[var(--color-text-primary)]">
+                  <span className="flex items-center gap-1.5">
+                    <Activity size={13} className="text-amber-500" />
+                    Recent AI Word Deductions
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/settings?tab=billing")}
+                    className="text-[11px] font-semibold text-[var(--color-primary)] hover:underline flex items-center gap-0.5 cursor-pointer"
+                  >
+                    <span>Manage Plan</span>
+                    <ArrowUpRight size={12} />
+                  </button>
+                </div>
+
+                {creditLogs && creditLogs.length > 0 ? (
+                  <div className="space-y-1.5 max-h-[175px] overflow-y-auto pr-1">
+                    {creditLogs.map((log) => (
+                      <div
+                        key={log.id}
+                        className="flex items-center justify-between rounded-xl border border-[var(--color-border)]/50 bg-[var(--color-surface-muted)]/40 px-3 py-2 text-xs"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
+                          <div className="min-w-0">
+                            <span className="font-semibold truncate block text-[var(--color-text-primary)]">
+                              {log.description || log.service_type}
+                            </span>
+                            <span className="text-[10px] text-[var(--color-text-muted)] block">
+                              {new Date(log.created_at).toLocaleString([], {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-bold text-rose-500 block">
+                            -{log.words_deducted ?? log.credits_deducted} từ
+                          </span>
+                          <span className="text-[10px] text-[var(--color-text-muted)] font-mono block">
+                            {log.balance_after !== null ? `${log.balance_after} left` : "deducted"}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center rounded-xl border border-[var(--color-border)]/40 bg-[var(--color-surface-muted)]/20 p-5 text-center text-xs text-[var(--color-text-muted)] space-y-1">
+                    <Sparkles size={16} className="text-amber-500/80 mb-1" />
+                    <p className="font-semibold text-[var(--color-text-secondary)]">No words deducted yet</p>
+                    <p className="text-[11px]">
+                      Word quota is automatically deducted when running STT, Translation, or TTS. Subtitle editor is 0 quota.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </SettingCard>
+        </div>
+
         {/* CARD 1: OVERVIEW PROGRESS & MULTI-CATEGORY BAR */}
         <SettingCard
           title={t("settings:storage.title", "Storage & Data Usage")}
           description="Live allocation of video footage, rendered dubs, extracted vocal stems, and cache."
+          action={
+            <button
+              type="button"
+              onClick={loadStorageData}
+              disabled={isLoadingBreakdown}
+              className="text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition disabled:opacity-50 p-1"
+              title="Refresh Storage"
+            >
+              <RefreshCw size={14} className={isLoadingBreakdown ? "animate-spin text-[var(--color-primary)]" : ""} />
+            </button>
+          }
         >
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-xl font-black text-[var(--color-text-primary)]">
-                  72.4 GB <span className="text-xs font-normal text-[var(--color-text-muted)]">/ 100 GB</span>
+                  {breakdown
+                    ? breakdown.plan.used_bytes < 1024 * 1024 * 1024
+                      ? `${(breakdown.plan.used_bytes / (1024 * 1024)).toFixed(1)} MB`
+                      : `${breakdown.plan.used_gb} GB`
+                    : "0 MB"}{" "}
+                  <span className="text-xs font-normal text-[var(--color-text-muted)]">
+                    / {breakdown?.plan.total_gb ?? 5} GB
+                  </span>
                 </span>
                 <p className="text-[11px] text-[var(--color-text-muted)]">
-                  Pro Plan Quota • 27.6 GB Available
+                  {breakdown?.plan.name || "Free"} Plan Quota •{" "}
+                  {breakdown?.plan.available_gb ?? 5} GB Available
                 </p>
               </div>
               <SettingsBadge variant="primary" size="md">
-                72.4% Used
+                {breakdown?.plan.usage_percent ?? 0}% Used
               </SettingsBadge>
             </div>
 
             {/* Segmented Color Bar */}
             <div className="h-3 w-full overflow-hidden rounded-full bg-[var(--color-border)] flex">
-              <div className="h-full w-[42.5%] bg-[var(--color-primary)] transition-all" title="Source Videos (42.5 GB)" />
-              <div className="h-full w-[18.2%] bg-blue-500 transition-all" title="Dubbed Videos (18.2 GB)" />
-              <div className="h-full w-[7.4%] bg-purple-500 transition-all" title="Audio Tracks (7.4 GB)" />
-              <div className="h-full w-[1.8%] bg-pink-500 transition-all" title="Subtitles & Docs (1.8 GB)" />
-              <div className="h-full w-[2.5%] bg-slate-400 transition-all" title="Pipeline Cache (2.5 GB)" />
+              {(breakdown?.storage_by_type || []).map((cat) =>
+                cat.percentage > 0 ? (
+                  <div
+                    key={cat.key}
+                    className="h-full transition-all duration-500"
+                    style={{
+                      width: `${cat.percentage}%`,
+                      backgroundColor: cat.color.startsWith("var") ? "var(--color-primary)" : cat.color,
+                    }}
+                    title={`${cat.label} (${cat.size_formatted} - ${cat.percentage}%)`}
+                  />
+                ) : null
+              )}
+              {(!breakdown || breakdown.plan.used_bytes === 0) && (
+                <div className="h-full w-full bg-[var(--color-border)]/40" title="0 B used" />
+              )}
             </div>
 
             {/* Real Resource Categories */}
             <div className="space-y-2 pt-2 text-xs">
-              {INITIAL_MOCK_SETTINGS.privacy.storageByType.map((item) => (
+              {(breakdown?.storage_by_type || []).map((item) => (
                 <div
                   key={item.key}
                   className="flex items-center justify-between py-1 border-b border-[var(--color-border)]/40 last:border-0"
@@ -279,18 +670,20 @@ export default function DataPrivacySection() {
                   <div className="flex items-center gap-2">
                     <span
                       className="h-2.5 w-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: item.color }}
+                      style={{
+                        backgroundColor: item.color.startsWith("var") ? "var(--color-primary)" : item.color,
+                      }}
                     />
                     <span className="font-semibold text-[var(--color-text-primary)]">
                       {item.label}
                     </span>
                     <span className="hidden font-mono text-[10px] text-[var(--color-text-muted)] sm:inline">
-                      ({item.dbField})
+                      ({item.db_field})
                     </span>
                   </div>
                   <div className="text-right">
                     <span className="font-bold text-[var(--color-text-primary)]">
-                      {item.sizeGB} GB
+                      {item.size_formatted}
                     </span>
                     <span className="ml-1.5 text-[11px] text-[var(--color-text-muted)]">
                       ({item.percentage}%)
@@ -302,37 +695,61 @@ export default function DataPrivacySection() {
           </div>
         </SettingCard>
 
-        {/* CARD 2: STORAGE BY PROJECT DISTRIBUTION */}
+        {/* CARD 2: STORAGE BY PROJECT DISTRIBUTION & CACHE CLEANUP */}
         <SettingCard
           title="Storage by Project"
           description="Identify which video translation projects consume the highest storage quota."
         >
           <div className="space-y-3.5">
-            {INITIAL_MOCK_SETTINGS.privacy.storageByProject.map((proj) => (
-              <div key={proj.projectName} className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-[var(--color-text-primary)] flex items-center gap-1.5">
-                    <FolderGit2 size={13} className="text-[var(--color-primary)]" />
-                    {proj.projectName}
-                  </span>
-                  <span className="font-bold text-[var(--color-text-primary)]">
-                    {proj.storageGB} GB{" "}
-                    <span className="text-[10px] font-normal text-[var(--color-text-muted)]">
-                      ({proj.videoCount} videos)
+            {breakdown?.storage_by_project && breakdown.storage_by_project.length > 0 ? (
+              breakdown.storage_by_project.map((proj) => (
+                <div key={proj.project_id} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-[var(--color-text-primary)] flex items-center gap-1.5">
+                      <FolderGit2 size={13} className="text-[var(--color-primary)]" />
+                      {proj.project_name}
                     </span>
-                  </span>
+                    <span className="font-bold text-[var(--color-text-primary)]">
+                      {proj.storage_formatted}{" "}
+                      <span className="text-[10px] font-normal text-[var(--color-text-muted)]">
+                        ({proj.video_count} {proj.video_count === 1 ? "video" : "videos"})
+                      </span>
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-border)]">
+                    <div
+                      className="h-full rounded-full bg-[var(--color-primary)] transition-all duration-500"
+                      style={{ width: `${Math.max(proj.percentage, 2)}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-border)]">
-                  <div
-                    className="h-full rounded-full bg-[var(--color-primary)]"
-                    style={{ width: `${proj.percentage}%` }}
-                  />
-                </div>
+              ))
+            ) : (
+              <div className="py-5 text-center text-xs text-[var(--color-text-muted)]">
+                No active projects found yet.
               </div>
-            ))}
+            )}
 
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/50 p-3 text-xs text-[var(--color-text-muted)]">
-              💡 <b>Storage Optimization:</b> Archiving completed projects frees up local render cache while preserving finalized subtitle tracks.
+            {/* Cache Cleaner Action Footer */}
+            <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/50 p-3 text-xs">
+              <div className="space-y-0.5">
+                <div className="font-semibold text-[var(--color-text-primary)] flex items-center gap-1.5">
+                  <Layers size={13} className="text-[var(--color-primary)]" />
+                  <span>Pipeline Cache</span>
+                </div>
+                <p className="text-[11px] text-[var(--color-text-muted)]">
+                  Temporary audio chunks & VAD buffers ({breakdown?.cache_summary.cache_formatted || "0 B"})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCleanCache}
+                disabled={isCleaningCache}
+                className="flex items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-bold text-white transition hover:bg-[var(--color-primary-hover)] disabled:opacity-50 active:scale-95 cursor-pointer"
+              >
+                {isCleaningCache ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                <span>{isCleaningCache ? "Cleaning..." : "Purge Cache"}</span>
+              </button>
             </div>
           </div>
         </SettingCard>
@@ -343,65 +760,70 @@ export default function DataPrivacySection() {
             title="Largest Files"
             description="Top storage consumers across all projects. Quick actions to review or reclaim space."
           >
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {topLargestFiles.map((file, idx) => {
-                const meta = getResourceMeta(file.resourceType);
-                return (
-                  <div
-                    key={file.id}
-                    className="flex flex-col justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 shadow-sm transition hover:border-[var(--color-primary)]/40"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-[var(--color-primary)]">
-                          #{idx + 1} Largest
-                        </span>
-                        <SettingsBadge variant={meta.badgeVariant} size="sm">
-                          {meta.label}
-                        </SettingsBadge>
+            {topLargestFiles.length > 0 ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {topLargestFiles.map((file, idx) => {
+                  const meta = getResourceMeta(file.resourceType);
+                  return (
+                    <div
+                      key={file.id}
+                      className="flex flex-col justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 shadow-sm transition hover:border-[var(--color-primary)]/40"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-[var(--color-primary)]">
+                            #{idx + 1} Largest
+                          </span>
+                          <SettingsBadge variant={meta.badgeVariant} size="sm">
+                            {meta.label}
+                          </SettingsBadge>
+                        </div>
+
+                        <h5 className="text-xs font-bold text-[var(--color-text-primary)] line-clamp-1" title={file.filename}>
+                          {file.filename}
+                        </h5>
+
+                        <p className="text-[11px] text-[var(--color-text-muted)] line-clamp-1">
+                          Project: <b>{file.projectName}</b>
+                        </p>
+
+                        <div className="flex items-center justify-between text-[11px] text-[var(--color-text-muted)]">
+                          <span>{file.specs}</span>
+                          <span className="font-bold text-[var(--color-text-primary)]">
+                            {file.sizeFormatted}
+                          </span>
+                        </div>
                       </div>
 
-                      <h5 className="text-xs font-bold text-[var(--color-text-primary)] line-clamp-1" title={file.filename}>
-                        {file.filename}
-                      </h5>
+                      <div className="mt-3 flex items-center justify-end gap-2 border-t border-[var(--color-border)]/40 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadFile(file)}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:border-[var(--color-primary)] transition cursor-pointer"
+                          title="Download"
+                        >
+                          <Download size={13} />
+                        </button>
 
-                      <p className="text-[11px] text-[var(--color-text-muted)] line-clamp-1">
-                        Project: <b>{file.projectName}</b>
-                      </p>
-
-                      <div className="flex items-center justify-between text-[11px] text-[var(--color-text-muted)]">
-                        <span>{file.specs}</span>
-                        <span className="font-bold text-[var(--color-text-primary)]">
-                          {file.sizeFormatted}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setFileToDelete(file)}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-rose-600 hover:border-rose-500/30 hover:bg-rose-500/10 transition cursor-pointer"
+                          title="Delete Resource"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </div>
-
-                    <div className="mt-3 flex items-center justify-end gap-2 border-t border-[var(--color-border)]/40 pt-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          toast.info("Downloading File", `Initiating download for ${file.filename}`)
-                        }
-                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:border-[var(--color-primary)] transition"
-                        title="Download"
-                      >
-                        <Download size={13} />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setFileToDelete(file)}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-rose-600 hover:border-rose-500/30 hover:bg-rose-500/10 transition"
-                        title="Delete Resource"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-[var(--color-border)] p-8 text-center text-xs text-[var(--color-text-muted)]">
+                <Video size={24} className="mx-auto mb-2 text-[var(--color-text-muted)] opacity-50" />
+                No files found in storage yet. Upload your first video to see asset ranking.
+              </div>
+            )}
           </SettingCard>
         </div>
 
@@ -574,10 +996,8 @@ export default function DataPrivacySection() {
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() =>
-                              toast.info("Downloading File", `Initiating download for ${file.filename}`)
-                            }
-                            className="text-[var(--color-primary)] font-semibold"
+                            onClick={() => handleDownloadFile(file)}
+                            className="text-[var(--color-primary)] font-semibold hover:underline cursor-pointer"
                           >
                             Download
                           </button>
@@ -739,16 +1159,19 @@ export default function DataPrivacySection() {
             <button
               type="button"
               onClick={() => setFileToDelete(null)}
-              className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-muted)]"
+              disabled={isDeletingFile}
+              className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-muted)] cursor-pointer disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleConfirmDeleteFile}
-              className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white hover:bg-rose-700 shadow-sm"
+              disabled={isDeletingFile}
+              className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white hover:bg-rose-700 shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
-              Confirm Delete
+              {isDeletingFile ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+              <span>{isDeletingFile ? "Deleting..." : "Confirm Delete"}</span>
             </button>
           </div>
         }
@@ -792,7 +1215,7 @@ export default function DataPrivacySection() {
               className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-700 flex items-center gap-1.5"
             >
               <CheckCircle2 size={14} />
-              Download Ready (14.2 MB)
+              Archive Downloaded
             </button>
           ) : (
             <div className="flex gap-2">

@@ -9,7 +9,7 @@ export interface CurrentUsageWidgetProps {
 export default function CurrentUsageWidget({ summary }: CurrentUsageWidgetProps) {
   const { t } = useTranslation(["pricing"]);
   const { subscription, effective_quota } = summary;
-  const { storage, credits } = effective_quota;
+  const { storage, credits, words } = effective_quota;
 
   return (
     <div className="mx-auto mb-14 max-w-[1400px]">
@@ -69,15 +69,17 @@ export default function CurrentUsageWidget({ summary }: CurrentUsageWidgetProps)
               </div>
             </div>
 
-            {/* AI Credits bar */}
+            {/* AI Words / Credits bar */}
             <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-background)] p-4">
               <div className="flex items-center justify-between text-xs font-bold text-[var(--color-text-primary)]">
                 <span className="flex items-center gap-1.5">
                   <Sparkles size={15} className="text-[var(--color-primary)]" />
-                  {t("pricing:currentUsage.creditsUsed")}
+                  {words ? "Quota từ đã dùng" : t("pricing:currentUsage.creditsUsed")}
                 </span>
                 <span>
-                  {credits.converted_minutes_used} / {credits.converted_minutes_total} min
+                  {words
+                    ? `${words.used_words.toLocaleString()} / ${words.total_words.toLocaleString()} từ (${words.usage_percent}%)`
+                    : `${credits.converted_minutes_used} / ${credits.converted_minutes_total} min`}
                 </span>
               </div>
 
@@ -90,7 +92,9 @@ export default function CurrentUsageWidget({ summary }: CurrentUsageWidgetProps)
                       100,
                       Math.max(
                         2,
-                        credits.converted_minutes_total > 0
+                        words
+                          ? words.usage_percent
+                          : credits.converted_minutes_total > 0
                           ? Math.round((credits.converted_minutes_used / credits.converted_minutes_total) * 100)
                           : 0
                       )
@@ -100,7 +104,9 @@ export default function CurrentUsageWidget({ summary }: CurrentUsageWidgetProps)
               </div>
 
               <div className="mt-2 text-right text-[11px] font-semibold text-[var(--color-primary)]">
-                {credits.converted_minutes_remaining} {t("pricing:currentUsage.creditsRemaining")}
+                {words
+                  ? `${words.remaining_words.toLocaleString()} từ còn lại`
+                  : `${credits.converted_minutes_remaining} ${t("pricing:currentUsage.creditsRemaining")}`}
               </div>
             </div>
           </div>

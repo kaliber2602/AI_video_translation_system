@@ -4,36 +4,36 @@ from app.services import AudioService, TranslationService, STTService, TTSAligne
 from app.core.languages import TARGET_LANGUAGE_MAP, SOURCE_LANGUAGE_MAP
 import torch
 
-# ✅ Lazy initialization - services will be created when first needed
-_audio_service = None
-_stt_service = None
-_translation_service = None
-_tts_aligner = None
+# ✅ Lazy initialization & dependency injection hooks
+audio_service = None
+stt_service = None
+translation_service = None
+tts_aligner = None
 
 def get_audio_service():
-    global _audio_service
-    if _audio_service is None:
-        _audio_service = AudioService()
-    return _audio_service
+    global audio_service
+    if audio_service is None:
+        audio_service = AudioService()
+    return audio_service
 
 def get_stt_service():
-    global _stt_service
-    if _stt_service is None:
-        _stt_service = STTService()
-    return _stt_service
+    global stt_service
+    if stt_service is None:
+        stt_service = STTService()
+    return stt_service
 
 def get_translation_service():
-    global _translation_service
-    if _translation_service is None:
-        _translation_service = TranslationService()
-    return _translation_service
+    global translation_service
+    if translation_service is None:
+        translation_service = TranslationService()
+    return translation_service
 
 def get_tts_aligner():
-    global _tts_aligner
-    if _tts_aligner is None:
+    global tts_aligner
+    if tts_aligner is None:
         tts_url = os.getenv("TTS_API_URL", "http://tts-service:8001/generate_tts")
-        _tts_aligner = TTSAlignerService(tts_api_url=tts_url)
-    return _tts_aligner
+        tts_aligner = TTSAlignerService(tts_api_url=tts_url)
+    return tts_aligner
 
 def _video_translation(video_input_path: str, final_output_path: str, target_language: str, glossary: dict = None):
     """
@@ -69,7 +69,7 @@ def _video_translation(video_input_path: str, final_output_path: str, target_lan
     translation_service = get_translation_service()
     tts_aligner = get_tts_aligner()
     
-    with tempfile.TemporaryDirectory() as temp_dir:
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
         temp_raw_audio = os.path.join(temp_dir, "raw_audio.wav")
         temp_final_tts = os.path.join(temp_dir, "final_tts_track.wav")
         

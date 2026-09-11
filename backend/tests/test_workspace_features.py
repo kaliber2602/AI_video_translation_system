@@ -1,3 +1,15 @@
+import os
+import io
+import sys
+import zipfile
+from pathlib import Path
+
+backend_dir = Path(__file__).resolve().parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
+os.environ.setdefault("JWT_SECRET_KEY", "test_jwt_secret_key_1234567890")
+
 import pytest
 from datetime import timedelta
 from fastapi.testclient import TestClient
@@ -18,6 +30,15 @@ token_user_2 = create_token(USER_2_ID, "access", timedelta(hours=1))
 
 headers_user_1 = {"Authorization": f"Bearer {token_user_1}"}
 headers_user_2 = {"Authorization": f"Bearer {token_user_2}"}
+
+
+@pytest.fixture(autouse=True)
+def check_db():
+    try:
+        conn = get_connection()
+        conn.close()
+    except Exception as exc:
+        pytest.skip(f"PostgreSQL not available on host: {exc}")
 
 
 def test_soft_delete_and_restore_and_permanent_delete():
@@ -214,3 +235,69 @@ def test_update_project():
 
     # 3. Clean up
     client.delete(f"/api/projects/{proj_id}/permanent", headers=headers_user_1)
+
+
+def test_project_assets_listing_and_zip():
+    # 1. Create a project
+    create_res = client.post(
+        "/api/projects",
+        json={"name": "Asset Test Project", "description": "Testing asset aggregation and zip"},
+        headers=headers_user_1,
+    )
+    assert create_res.status_code == 201
+    proj_id = create_res.json()["id"]
+
+    # 2. Create a folder in the project
+    folder_res = client.post(
+        f"/api/projects/{proj_id}/folders",
+        json={"name": "Folder 1"},
+        headers=headers_user_1,
+    )
+    assert folder_res.status_code == 201
+    folder_id = folder_res.json()["id"]
+
+    try:
+        # 3. List assets - should return empty assets list with valid category counts
+        assets_res = client.get(
+            f"/api/projects/{proj_id}/assets",
+            headers=headers_user_1,
+        )
+        assert assets_res.status_code == 200
+        data = assets_res.json()
+        assert data["project_id"] == proj_id
+        assert data["total_files"] == 0
+        assert data["total_size_bytes"] == 0
+        assert "all" in data["category_counts"]
+        assert "video" in data["category_counts"]
+        assert "audio" in data["category_counts"]
+        assert "subtitle" in data["category_counts"]
+        assert "transcript" in data["category_counts"]
+        assert "document" in data["category_counts"]
+        assert "speaker_voice" in data["category_counts"]
+        assert isinstance(data["assets"], list)
+
+        # 4. Test with folder_id, category, and search query parameters
+        assets_filtered = client.get(
+            f"/api/projects/{proj_id}/assets?folder_id={folder_id}&category=video&search=test",
+            headers=headers_user_1,
+        )
+        assert assets_filtered.status_code == 200
+        assert assets_filtered.json()["total_files"] == 0
+
+        # 5. Download ZIP bundle
+        zip_res = client.get(
+            f"/api/projects/{proj_id}/assets/zip?folder_id={folder_id}",
+            headers=headers_user_1,
+        )
+        assert zip_res.status_code == 200
+        assert "application/zip" in zip_res.headers.get("content-type", "")
+        assert "attachment" in zip_res.headers.get("content-disposition", "")
+        # Verify valid zip format
+        with zipfile.ZipFile(io.BytesIO(zip_res.content)) as zf:
+            assert isinstance(zf.namelist(), list)
+
+    finally:
+        # Clean up folder and project
+        client.delete(f"/api/projects/{proj_id}/folders/{folder_id}", headers=headers_user_1)
+        client.delete(f"/api/projects/{proj_id}/permanent", headers=headers_user_1)
+

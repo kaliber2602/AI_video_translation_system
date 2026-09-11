@@ -28,3 +28,20 @@ export const resetUserSettings = async (): Promise<UserSettingsResponse> => {
   const response = await api.post<UserSettingsResponse>("/api/settings/reset");
   return response.data;
 };
+
+export const playTTSPreview = async (params: {
+  text: string;
+  language?: string;
+  voice_id?: string;
+  speed?: number;
+  pitch?: number;
+}): Promise<string> => {
+  const response = await api.post("/api/settings/tts/preview", params, {
+    responseType: "blob",
+  });
+  const contentType = (response.headers["content-type"] as string) || "audio/wav";
+  const blob = new Blob([response.data], {
+    type: contentType,
+  });
+  return URL.createObjectURL(blob);
+};

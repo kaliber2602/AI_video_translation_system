@@ -50,25 +50,43 @@ GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 
 # =========================================================
-# AWS S3 / MinIO Configuration
+# Production Object Storage: AWS S3 Primary + MinIO Fallback
 # =========================================================
 
-AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-AWS_REGION = os.getenv("AWS_REGION", "ap-southeast-1")
-AWS_S3_BUCKET = os.getenv("AWS_S3_BUCKET")
-S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL", "http://minio:9000")
+# Primary AWS S3 (Production Cloud)
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "").strip() or None
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "").strip() or None
+AWS_REGION = os.getenv("AWS_REGION", "ap-southeast-1").strip()
+AWS_S3_BUCKET = os.getenv("AWS_S3_BUCKET", "vidnova-media").strip()
+AWS_S3_ENDPOINT_URL = os.getenv("AWS_S3_ENDPOINT_URL", "").strip() or None  # None for standard AWS S3 cloud
 
-# Optional: Validate AWS config (uncomment if required)
-# if not all([AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_BUCKET]):
-#     raise RuntimeError("AWS credentials and bucket name are required.")
+# Fallback MinIO Storage (High Availability / Failover)
+MINIO_ENDPOINT_URL = os.getenv("MINIO_ENDPOINT_URL", os.getenv("S3_ENDPOINT_URL", "http://minio:9000")).strip()
+MINIO_PUBLIC_URL = os.getenv("MINIO_PUBLIC_URL", os.getenv("S3_PUBLIC_URL", "http://localhost:9000")).strip()
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", os.getenv("MINIO_ROOT_USER", "minioadmin")).strip()
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", os.getenv("MINIO_ROOT_PASSWORD", "minioadmin")).strip()
+MINIO_BUCKET = os.getenv("MINIO_BUCKET", "vidnova-media").strip()
+MINIO_REGION = os.getenv("MINIO_REGION", "us-east-1").strip()
+
+# Legacy alias for backward compatibility
+S3_ENDPOINT_URL = MINIO_ENDPOINT_URL
+S3_PUBLIC_URL = MINIO_PUBLIC_URL
+
+# Circuit Breaker Configuration
+STORAGE_CIRCUIT_BREAKER_ENABLED = os.getenv("STORAGE_CIRCUIT_BREAKER_ENABLED", "true").lower() in ("true", "1", "yes")
+STORAGE_FAILURE_THRESHOLD = int(os.getenv("STORAGE_FAILURE_THRESHOLD", "3"))
+STORAGE_RECOVERY_TIMEOUT_SECONDS = int(os.getenv("STORAGE_RECOVERY_TIMEOUT_SECONDS", "60"))
+
+# Storage Mode: "auto" (default), "minio" (Direct MinIO for dev testing), "s3" (Production AWS S3 Primary)
+STORAGE_MODE = os.getenv("STORAGE_MODE", os.getenv("STORAGE_PRIMARY", "auto")).strip().lower()
+
 
 
 # =========================================================
 # Hugging Face
 # =========================================================
 
-HF_TOKEN = os.getenv("HF_TOKEN")
+HF_TOKEN = os.getenv("HF_TOKEN", "").strip() or None
 
 
 # =========================================================

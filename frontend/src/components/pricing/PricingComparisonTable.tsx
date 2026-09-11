@@ -11,8 +11,9 @@ export default function PricingComparisonTable() {
       category: t("pricing:comparison.categories.resources"),
       items: [
         { name: t("pricing:comparison.rows.storage"), free: "5 GB", pro: "100 GB", business: "1 TB" },
-        { name: t("pricing:comparison.rows.credits"), free: "1,000", pro: "10,000", business: "100,000" },
-        { name: t("pricing:comparison.rows.minutes"), free: "~1,000 min", pro: "~10,000 min", business: "~100,000 min" },
+        { name: t("pricing:comparison.rows.credits"), free: "5,000 từ", pro: "100,000 từ", business: "1,000,000 từ" },
+        { name: t("pricing:comparison.rows.minutes"), free: "~35 phút", pro: "~660 phút", business: "~6,600 phút" },
+        { name: t("pricing:comparison.rows.subEditorQuota"), free: "0 quota (Miễn phí)", pro: "0 quota (Miễn phí)", business: "0 quota (Miễn phí)" },
       ],
     },
     // Category 2: Limits

@@ -1,19 +1,26 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import {
   FileText,
   MoreHorizontal,
   Play,
   Settings2,
+  Pencil,
+  FolderInput,
+  Download,
+  Trash2,
+  Sparkles,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-type VideoStatus =
+export type VideoStatus =
   | "completed"
   | "editing"
   | "processing"
-  | "draft";
+  | "draft"
+  | "failed"
+  | "uploaded";
 
-type Video = {
+export type Video = {
   id: number;
   title: string;
   filename: string;
@@ -21,11 +28,20 @@ type Video = {
   size: string;
   updated: string;
   status: VideoStatus;
+  thumbnail?: string;
+  progress?: number;
+  folder_id?: number | null;
 };
 
-type VideoCardProps = {
+export type VideoCardProps = {
   video: Video;
   onOpen: () => void;
+  onOpenEditor?: (video: Video) => void;
+  onRename?: (video: Video) => void;
+  onMove?: (video: Video) => void;
+  onDownload?: (video: Video) => void;
+  onDelete?: (video: Video) => void;
+  onViewDocuments?: (video: Video) => void;
 };
 
 const statusClasses: Record<VideoStatus, string> = {
@@ -33,14 +49,39 @@ const statusClasses: Record<VideoStatus, string> = {
   editing: "bg-[#FFF2D8] text-[#C68A1C] dark:bg-amber-950/40 dark:text-amber-300",
   processing: "bg-[#EAF1FF] text-[#5783D4] dark:bg-blue-950/40 dark:text-blue-300",
   draft: "bg-[#F0F2F3] text-[#738187] dark:bg-slate-800 dark:text-slate-300",
+  failed: "bg-red-500/10 text-red-500 dark:bg-red-950/40 dark:text-red-300",
+  uploaded: "bg-blue-500/10 text-blue-500 dark:bg-blue-950/40 dark:text-blue-300",
 };
 
 export default function VideoCard({
   video,
   onOpen,
+  onOpenEditor,
+  onRename,
+  onMove,
+  onDownload,
+  onDelete,
+  onViewDocuments,
 }: VideoCardProps) {
   const { t } = useTranslation(["project"]);
-  const statusClassName = statusClasses[video.status];
+  const statusClassName = statusClasses[video.status] || statusClasses.uploaded;
+
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    if (isMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isMenuOpen]);
 
   const cardRef = useRef<HTMLElement>(null);
   const isDraggingRef = useRef(false);
@@ -124,8 +165,8 @@ export default function VideoCard({
       if (e.button !== 0) return;
 
       const target = e.target as HTMLElement;
-      if (target.closest("button, a, input, textarea, select, [data-no-drag]")) {
-        if (target !== el) return;
+      if (target.closest("button, a, input, [data-no-drag]")) {
+        return;
       }
 
       if (animFrameRef.current) {
@@ -136,81 +177,90 @@ export default function VideoCard({
       isDraggingRef.current = true;
       hasMovedRef.current = false;
       startPosRef.current = { x: e.clientX, y: e.clientY };
-      lastTimeRef.current = performance.now();
+      currentPosRef.current = { x: 0, y: 0 };
       velocityRef.current = { x: 0, y: 0 };
+      lastTimeRef.current = performance.now();
 
-      el.style.transition = "none";
-      el.style.animation = "none";
+      el.setPointerCapture(e.pointerId);
       el.style.zIndex = "50";
+      el.style.boxShadow = "var(--shadow-lg)";
       el.style.cursor = "grabbing";
-
-      const onPointerMove = (moveEvent: PointerEvent) => {
-        if (!isDraggingRef.current) return;
-
-        const rawDx = moveEvent.clientX - startPosRef.current.x;
-        const rawDy = moveEvent.clientY - startPosRef.current.y;
-
-        // If on touch device and user is scrolling vertically more than horizontally, cancel dragging to allow native scroll
-        if (moveEvent.pointerType === "touch" && !hasMovedRef.current) {
-          if (Math.abs(rawDy) > Math.abs(rawDx) && Math.abs(rawDy) > 8) {
-            isDraggingRef.current = false;
-            return;
-          }
-        }
-
-        if (Math.abs(rawDx) > 3 || Math.abs(rawDy) > 3) {
-          hasMovedRef.current = true;
-        }
-
-        const now = performance.now();
-        const dt = Math.max((now - lastTimeRef.current) / 1000, 0.001);
-        lastTimeRef.current = now;
-
-        const tx = applyRubberBand(rawDx);
-        const ty = applyRubberBand(rawDy);
-
-        velocityRef.current = {
-          x: (tx - currentPosRef.current.x) / dt,
-          y: (ty - currentPosRef.current.y) / dt,
-        };
-
-        currentPosRef.current = { x: tx, y: ty };
-        const tilt = tx * 0.035;
-
-        el.style.transform = `translate3d(${tx}px, ${ty}px, 0px) rotate(${tilt}deg) scale(1.035)`;
-        el.style.boxShadow =
-          "0 28px 56px -12px rgba(0, 0, 0, 0.28), 0 0 24px -4px color-mix(in srgb, var(--color-primary) 35%, transparent)";
-      };
-
-      const onPointerUp = () => {
-        window.removeEventListener("pointermove", onPointerMove);
-        window.removeEventListener("pointerup", onPointerUp);
-        window.removeEventListener("pointercancel", onPointerUp);
-
-        isDraggingRef.current = false;
-        startSpring();
-      };
-
-      window.addEventListener("pointermove", onPointerMove, { passive: true });
-      window.addEventListener("pointerup", onPointerUp);
-      window.addEventListener("pointercancel", onPointerUp);
+      el.style.transition = "none";
     };
 
-    const preventDrag = (e: DragEvent) => {
-      e.preventDefault();
+    const onPointerMove = (e: PointerEvent) => {
+      if (!isDraggingRef.current) return;
+
+      const now = performance.now();
+      const dt = Math.max((now - lastTimeRef.current) / 1000, 0.001);
+
+      const rawDx = e.clientX - startPosRef.current.x;
+      const rawDy = e.clientY - startPosRef.current.y;
+
+      if (!hasMovedRef.current && (Math.abs(rawDx) > 4 || Math.abs(rawDy) > 4)) {
+        hasMovedRef.current = true;
+      }
+
+      const dx = applyRubberBand(rawDx);
+      const dy = applyRubberBand(rawDy);
+
+      velocityRef.current = {
+        x: (dx - currentPosRef.current.x) / dt,
+        y: (dy - currentPosRef.current.y) / dt,
+      };
+
+      currentPosRef.current = { x: dx, y: dy };
+      lastTimeRef.current = now;
+
+      const tilt = dx * 0.035;
+      el.style.transform = `translate3d(${dx}px, ${dy}px, 0px) rotate(${tilt}deg)`;
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+
+      try {
+        el.releasePointerCapture(e.pointerId);
+      } catch {
+        // pointer was already released
+      }
+
+      startSpring();
+    };
+
+    const onPointerCancel = (e: PointerEvent) => {
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+
+      try {
+        el.releasePointerCapture(e.pointerId);
+      } catch {
+        // pointer was already released
+      }
+
+      startSpring();
     };
 
     el.addEventListener("pointerdown", onPointerDown);
-    el.addEventListener("dragstart", preventDrag);
+    el.addEventListener("pointermove", onPointerMove);
+    el.addEventListener("pointerup", onPointerUp);
+    el.addEventListener("pointercancel", onPointerCancel);
 
     return () => {
       el.removeEventListener("pointerdown", onPointerDown);
-      el.removeEventListener("dragstart", preventDrag);
+      el.removeEventListener("pointermove", onPointerMove);
+      el.removeEventListener("pointerup", onPointerUp);
+      el.removeEventListener("pointercancel", onPointerCancel);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
   }, []);
 
   const handleCardClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest("button, a, input, [data-no-drag]")) {
+      return;
+    }
     if (hasMovedRef.current) {
       e.preventDefault();
       e.stopPropagation();
@@ -222,26 +272,37 @@ export default function VideoCard({
   const getStatusLabel = (status: VideoStatus) => {
     switch (status) {
       case "completed":
-        return t("project:status.completed");
+        return t("project:status.completed") || "Completed";
       case "editing":
-        return t("project:status.editing");
+        return t("project:status.editing") || "Editing";
       case "processing":
-        return t("project:status.processing");
+        return t("project:status.processing") || "Processing";
       case "draft":
-        return t("project:status.draft");
+        return t("project:status.draft") || "Draft";
+      case "uploaded":
+        return t("project:status.uploaded") || "Uploaded";
+      case "failed":
+        return t("project:status.failed") || "Failed";
+      default:
+        return status;
     }
   };
 
   const getActionLabel = (status: VideoStatus) => {
     switch (status) {
       case "completed":
-        return t("project:action.reviewVideo");
+        return t("project:action.reviewVideo") || "Review Video";
       case "editing":
-        return t("project:action.continueEditing");
+        return t("project:action.continueEditing") || "Continue Editing";
       case "processing":
-        return t("project:action.viewProgress");
+        return t("project:action.viewProgress") || "View Progress";
+      case "uploaded":
       case "draft":
-        return t("project:action.openPipeline");
+        return t("project:action.openPipeline") || "Open Pipeline";
+      case "failed":
+        return t("project:action.retry") || "Retry Processing";
+      default:
+        return t("project:action.openPipeline") || "Open";
     }
   };
 
@@ -256,10 +317,10 @@ export default function VideoCard({
         cursor: "grab",
         willChange: "transform",
       }}
-      className="group relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)] transition-all duration-220 ease-out hover:shadow-lg animate-fade-up select-none"
+      className="group relative rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)] transition-all duration-220 ease-out hover:shadow-lg animate-fade-up select-none"
     >
       {/* Thumbnail */}
-      <div className="relative h-[165px] sm:h-[190px] overflow-hidden bg-gradient-to-br from-[#15212B] via-[#334854] to-[#78919A]">
+      <div className="relative h-[165px] sm:h-[190px] overflow-hidden rounded-t-2xl bg-gradient-to-br from-[#15212B] via-[#334854] to-[#78919A]">
         {/* Background Gradient */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,189,0.3),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(255,255,255,0.14),transparent_30%)]" />
 
@@ -283,18 +344,93 @@ export default function VideoCard({
           {video.duration}
         </div>
 
-        {/* More Button */}
-        <div className="absolute right-3 top-3">
+        {/* More Button & Menu */}
+        <div className="absolute right-3 top-3" ref={menuRef} data-no-drag>
           <button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
+              setIsMenuOpen((prev) => !prev);
             }}
             aria-label="More options"
             className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/30 text-white backdrop-blur-md transition-colors duration-150 ease-out hover:bg-black/50"
           >
             <MoreHorizontal size={17} />
           </button>
+
+          {isMenuOpen && (
+            <div
+              className="absolute right-0 top-10 z-50 w-48 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-1.5 shadow-xl backdrop-blur-md animate-scale-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onOpenEditor ? onOpenEditor(video) : onOpen();
+                }}
+                className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-xs font-medium text-indigo-400 transition hover:bg-[var(--color-surface-muted)]"
+              >
+                <Sparkles size={14} />
+                Mở Video Editor
+              </button>
+              {onRename && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onRename(video);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-xs font-medium text-[var(--color-text-primary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
+                >
+                  <Pencil size={14} />
+                  Rename
+                </button>
+              )}
+
+              {onMove && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onMove(video);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-xs font-medium text-[var(--color-text-primary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
+                >
+                  <FolderInput size={14} />
+                  Move to Folder
+                </button>
+              )}
+
+              {onDownload && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onDownload(video);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-xs font-medium text-[var(--color-text-primary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
+                >
+                  <Download size={14} />
+                  Download
+                </button>
+              )}
+
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onDelete(video);
+                  }}
+                  className="flex w-full items-center gap-2.5 border-t border-[var(--color-border)] px-4 py-2 text-left text-xs font-medium text-[var(--color-danger)] transition hover:bg-[var(--color-danger)]/10"
+                >
+                  <Trash2 size={14} />
+                  Delete Video
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -327,7 +463,7 @@ export default function VideoCard({
         </div>
 
         {/* Actions */}
-        <div className="mt-4 flex items-center gap-2">
+        <div className="mt-4 flex items-center gap-2" data-no-drag>
           {/* Open Pipeline */}
           <button
             type="button"
@@ -343,11 +479,27 @@ export default function VideoCard({
             type="button"
             onClick={(event) => {
               event.stopPropagation();
+              onViewDocuments?.(video);
             }}
-            aria-label={t("project:viewDocuments")}
+            aria-label={t("project:viewDocuments") || "View Documents"}
+            title="View Chapters & Documents"
             className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] transition-colors duration-180 ease-out hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
           >
             <FileText size={15} />
+          </button>
+
+          {/* Open Video Editor Button */}
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenEditor ? onOpenEditor(video) : onOpen();
+            }}
+            aria-label="Mở Video Editor"
+            title="Mở Trình Dựng Video & Phụ Đề"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-indigo-500/40 bg-indigo-950/20 text-indigo-400 transition-colors duration-180 ease-out hover:border-indigo-400 hover:bg-indigo-600 hover:text-white"
+          >
+            <Sparkles size={15} />
           </button>
         </div>
       </div>

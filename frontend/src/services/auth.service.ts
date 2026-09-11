@@ -159,3 +159,37 @@ export const updateAvatar = async (
 
   return response.data;
 };
+
+export const updateProfile = async (data: {
+  full_name: string;
+}): Promise<UserResponse> => {
+  const response = await api.put<UserResponse>("/api/auth/me", data);
+  return response.data;
+};
+
+export const deleteAccount = async (confirmation = "DELETE"): Promise<{ message: string }> => {
+  const response = await api.post<{ message: string }>("/api/auth/account/delete", {
+    confirmation,
+  });
+  return response.data;
+};
+
+export const getSessions = async (): Promise<any[]> => {
+  const response = await api.get<any[]>("/api/auth/sessions");
+  return response.data;
+};
+
+export const revokeSession = async (sessionId: string): Promise<{ message: string }> => {
+  const response = await api.delete<{ message: string }>(`/api/auth/sessions/${sessionId}`);
+  return response.data;
+};
+
+export const logoutAll = async (): Promise<LogoutResponse> => {
+  const response = await api.post<LogoutResponse>("/api/auth/logout-all");
+  return response.data;
+};
+
+export const getSecurityLogs = async (): Promise<any[]> => {
+  const response = await api.get<any[]>("/api/auth/security-logs");
+  return response.data;
+};

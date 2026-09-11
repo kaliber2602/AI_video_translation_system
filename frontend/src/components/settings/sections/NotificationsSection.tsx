@@ -302,7 +302,7 @@ export default function NotificationsSection() {
             2. STORAGE & USAGE QUOTAS
         ====================================================== */}
         <SettingCard
-          title={t("notifications:preferences.quotaGroup", "Storage & Credit Limits")}
+          title={t("notifications:preferences.quotaGroup", "Storage & Word Quota Limits")}
           description={t(
             "notifications:preferences.quotaGroupDesc",
             "Threshold warnings to prevent interrupted video processing jobs."
@@ -321,7 +321,7 @@ export default function NotificationsSection() {
                   <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
                     {t(
                       "notifications:preferences.quotaWarningDesc",
-                      "Alert when storage volume or monthly AI processing credits reach 85%."
+                      "Alert when storage volume or monthly AI word quota reaches 85%."
                     )}
                   </p>
                 </div>

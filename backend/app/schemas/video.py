@@ -63,6 +63,13 @@ class VideoUploadResponse(BaseModel):
     status: str
     message: str
     project_id: Optional[int] = None
+    folder_id: Optional[int] = None
+    file_size: Optional[int] = None
+
+
+class VideoUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    folder_id: Optional[int] = None
 
 
 class StartProcessingResponse(BaseModel):
@@ -109,8 +116,11 @@ class JobCancelResponse(BaseModel):
 
 class VideoListItem(BaseModel):
     id: int
+    project_id: Optional[int] = None
+    folder_id: Optional[int] = None
     title: str
     original_filename: str
+    file_size: Optional[int] = None
     status: str
     progress: int
     current_step: Optional[str] = None
@@ -124,8 +134,10 @@ class VideoListItem(BaseModel):
 class VideoDetailResponse(BaseModel):
     id: int
     project_id: Optional[int] = None
+    folder_id: Optional[int] = None
     title: str
     original_filename: str
+    file_size: Optional[int] = None
     original_path: Optional[str] = None
     extracted_vocal_path: Optional[str] = None
     background_music_path: Optional[str] = None
@@ -145,7 +157,6 @@ class VideoDetailResponse(BaseModel):
     target_language: Optional[str] = None
     source_language: Optional[str] = None
     segments: Optional[List[SegmentOut]] = None
-    # Add to VideoDetailResponse
     job_info: Optional[Dict[str, Any]] = None
 
 
@@ -154,3 +165,26 @@ class PlaybackInfoResponse(BaseModel):
     qualities: List[str] = []
     metadata: Optional[Dict[str, Any]] = None
     subtitle_urls: Optional[Dict[str, str]] = None
+
+
+class VideoChapterResponse(BaseModel):
+    id: int
+    video_id: int
+    sequence: int
+    start_time: float
+    end_time: float
+    title: str
+    summary: Optional[str] = None
+    thumbnail_path: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class VideoDocumentResponse(BaseModel):
+    id: int
+    video_id: int
+    doc_type: str
+    title: str
+    file_path: Optional[str] = None
+    content_markdown: Optional[str] = None
+    file_size_bytes: Optional[int] = None
+    created_at: Optional[datetime] = None

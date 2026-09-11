@@ -72,7 +72,7 @@ export default function AdminLayout() {
       await logout().catch(() => {});
     } finally {
       clearTokens();
-      toast.success("Đã đăng xuất thành công.");
+      toast.success(t("common:logoutSuccess", "Đã đăng xuất thành công."));
       navigate("/login");
     }
   };
@@ -306,7 +306,7 @@ export default function AdminLayout() {
             <button
               type="button"
               onClick={handleLogout}
-              title="Đăng xuất"
+              title={t("common:logout", "Đăng xuất")}
               className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-500/20 text-red-500 hover:bg-red-500/10 transition cursor-pointer"
             >
               <LogOut size={16} />
@@ -445,7 +445,7 @@ export default function AdminLayout() {
                 onClick={() => setIsHealthModalOpen(false)}
                 className="rounded-xl bg-[var(--color-primary)] px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-[var(--color-primary-hover)] transition cursor-pointer"
               >
-                Đóng
+                {t("common:close", "Đóng")}
               </button>
             </div>
           </div>

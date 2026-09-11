@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from "react";
+import { useState, useEffect, type ChangeEvent } from "react";
 import { User, Sparkles, Globe, Sliders } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../app/providers/ThemeContext";
@@ -7,6 +7,8 @@ import { THEME_OPTIONS, type Theme } from "../../../config/theme";
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "../../../i18n/types";
 import { toast } from "../../../lib/toast";
 import type { UserResponse } from "../../../types/auth";
+import { updateProfile } from "../../../services/auth.service";
+import { getUserSettings, patchUserSettings } from "../../../services/settings.service";
 import { getAvatarSrc, getInitials } from "../helpers";
 import SettingCard from "../SettingCard";
 import ThemeSelector from "../ThemeSelector";
@@ -42,28 +44,91 @@ export default function GeneralSection({
   const [reducedMotion, setReducedMotion] = useState(INITIAL_MOCK_SETTINGS.general.reducedMotion);
   const [isSaved, setIsSaved] = useState(true);
 
+  // Sync user prop if loaded later
+  useEffect(() => {
+    if (user?.full_name) setFullName(user.full_name);
+    if (user?.email) setEmail(user.email);
+  }, [user]);
+
+  // Load preferences from backend
+  useEffect(() => {
+    const fetchGeneralSettings = async () => {
+      try {
+        const data = await getUserSettings();
+        if (data?.preferences?.general) {
+          const g = data.preferences.general;
+          if (g.bio !== undefined) setBio(g.bio);
+          if (g.timezone !== undefined) setTimezone(g.timezone);
+          if (g.dateFormat !== undefined) setDateFormat(g.dateFormat);
+          if (g.interfaceDensity !== undefined) setDensity(g.interfaceDensity);
+          if (g.reducedMotion !== undefined) setReducedMotion(g.reducedMotion);
+        }
+      } catch (err) {
+        console.error("[GeneralSection] Failed to load general preferences:", err);
+      }
+    };
+    fetchGeneralSettings();
+  }, []);
+
   const avatarSrc = getAvatarSrc(user?.avatar);
 
   const handleFieldChange = () => {
     setIsSaved(false);
   };
 
-  const handleSave = () => {
-    setIsSaved(true);
-    toast.success(
-      t("settings:toast.settingsSaved", "Settings saved"),
-      t("settings:toast.generalSavedDesc", "Your general preferences have been updated.")
-    );
+  const handleSave = async () => {
+    try {
+      await Promise.all([
+        updateProfile({ full_name: fullName }),
+        patchUserSettings({
+          preferences: {
+            general: {
+              bio,
+              timezone,
+              dateFormat,
+              interfaceDensity: density,
+              reducedMotion,
+            },
+          },
+        }),
+      ]);
+      setIsSaved(true);
+      toast.success(
+        t("settings:toast.settingsSaved", "Settings saved"),
+        t("settings:toast.generalSavedDesc", "Your general preferences have been updated.")
+      );
+    } catch (err: any) {
+      console.error("[GeneralSection] Failed to save settings:", err);
+      toast.error(
+        t("common:error", "Error"),
+        err?.response?.data?.detail || "Failed to save general settings."
+      );
+    }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     setBio(INITIAL_MOCK_SETTINGS.general.bio);
     setTimezone(INITIAL_MOCK_SETTINGS.general.timezone);
     setDateFormat(INITIAL_MOCK_SETTINGS.general.dateFormat);
     setDensity(INITIAL_MOCK_SETTINGS.general.interfaceDensity);
     setReducedMotion(INITIAL_MOCK_SETTINGS.general.reducedMotion);
-    setIsSaved(true);
-    toast.info("Reset to defaults", "General settings restored.");
+    try {
+      await patchUserSettings({
+        preferences: {
+          general: {
+            bio: INITIAL_MOCK_SETTINGS.general.bio,
+            timezone: INITIAL_MOCK_SETTINGS.general.timezone,
+            dateFormat: INITIAL_MOCK_SETTINGS.general.dateFormat,
+            interfaceDensity: INITIAL_MOCK_SETTINGS.general.interfaceDensity,
+            reducedMotion: INITIAL_MOCK_SETTINGS.general.reducedMotion,
+          },
+        },
+      });
+      setIsSaved(true);
+      toast.info("Reset to defaults", "General settings restored.");
+    } catch (err: any) {
+      console.error("[GeneralSection] Failed to reset preferences:", err);
+    }
   };
 
   return (
@@ -85,7 +150,7 @@ export default function GeneralSection({
           title={t("settings:general.profileTitle", "Profile Information")}
           description={t(
             "settings:general.profileDesc",
-            "Update your personal photo, display name, and public biography."
+            "Update your personal photo, display name."
           )}
         >
           <div className="space-y-4">
@@ -145,21 +210,7 @@ export default function GeneralSection({
               }}
             />
 
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-[var(--color-text-secondary)]">
-                {t("settings:general.bioLabel", "Biography")}
-              </label>
-              <textarea
-                rows={3}
-                value={bio}
-                onChange={(e) => {
-                  setBio(e.target.value);
-                  handleFieldChange();
-                }}
-                className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] p-3 text-xs text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10"
-                placeholder="Tell us about yourself..."
-              />
-            </div>
+
           </div>
         </SettingCard>
 

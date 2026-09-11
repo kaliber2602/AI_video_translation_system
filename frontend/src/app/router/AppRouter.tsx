@@ -12,14 +12,13 @@ import Register from "../../pages/Register";
 import Workspace from "../../pages/Workspace";
 import ProjectDetail from "../../pages/ProjectDetail";
 import VideoPipeline from "../../pages/VideoPipeline";
+import VideoEditor from "../../pages/VideoEditor";
 import Setting from "../../pages/Settings";
 import NotificationsPage from "../../pages/NotificationsPage";
 import ResetPasswordPage from "../../pages/ResetPasswordPage";
 import VerifyOtpPage from "../../pages/VerifyOtpPage";
 import ForgotPasswordPage from "../../pages/ForgotPasswordPage";
-import { PipelineProvider } from "../../contexts/PipelineContext";
 import VNPayReturnPage from "../../pages/VNPayReturnPage";
-import StripeReturnPage from "../../pages/StripeReturnPage";
 
 import ProtectedRoute from "./ProtectedRoute";
 import AdminRoute from "./AdminRoute";
@@ -61,13 +60,6 @@ export default function AppRouter() {
         <Route
           path="/payments/vnpay/return"
           element={<VNPayReturnPage />}
-        />
-
-        {/* Stripe Gateway Return Page */}
-
-        <Route
-          path="/payments/stripe/return"
-          element={<StripeReturnPage />}
         />
 
         {/* Authentication */}
@@ -123,6 +115,18 @@ export default function AppRouter() {
           <Route
             path="/workspace/project/:projectId/video/:videoId"
             element={<VideoPipeline />}
+          />
+
+          {/* Dedicated Video & Subtitle Editor */}
+
+          <Route
+            path="/workspace/project/:projectId/video/:videoId/editor"
+            element={<VideoEditor />}
+          />
+
+          <Route
+            path="/workspace/video/:videoId/editor"
+            element={<VideoEditor />}
           />
 
           {/* Settings */}

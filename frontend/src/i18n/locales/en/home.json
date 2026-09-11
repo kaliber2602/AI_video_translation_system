@@ -112,7 +112,7 @@
       "sourcesLabel": "Grounded Sources & Citations",
       "answers": {
         "a1": "The speaker emphasizes that AI automation removes repetitive manual workflows, enabling teams to scale video localization 10x faster while maintaining human-in-the-loop oversight.",
-        "a2": "Pricing is structured around storage tiers and monthly consumable AI minutes, offering transparent scalable plans with optional standalone storage expansion add-ons.",
+        "a2": "Pricing is structured around storage tiers and monthly consumable AI word quota (tokenize), offering transparent scalable plans with optional standalone storage expansion add-ons.",
         "a3": "The recommended architecture utilizes an asynchronous pipeline queue with decoupled transcription, neural translation, and multi-speaker voice synthesis engines."
       }
     },

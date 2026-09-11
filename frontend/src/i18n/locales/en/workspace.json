@@ -115,7 +115,8 @@
   "quota": {
     "title": "Workspace Quotas",
     "storage": "Cloud Storage",
-    "credits": "AI Credits",
+    "credits": "AI Word Quota",
+    "words": "AI Word Quota",
     "used": "Used",
     "remaining": "Remaining",
     "addStorage": "+ Add Storage",

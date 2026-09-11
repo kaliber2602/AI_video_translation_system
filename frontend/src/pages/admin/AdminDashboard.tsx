@@ -60,7 +60,9 @@ export default function AdminDashboard() {
       <div className="flex h-96 w-full items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-[var(--color-primary)]" />
-          <p className="text-sm font-medium text-[var(--color-text-secondary)]">Đang tải dữ liệu giám sát...</p>
+          <p className="text-sm font-medium text-[var(--color-text-secondary)]">
+            {t("admin:common.loading", "Đang tải dữ liệu giám sát...")}
+          </p>
         </div>
       </div>
     );
@@ -70,7 +72,7 @@ export default function AdminDashboard() {
     {
       title: t("admin:dashboard.kpi.totalUsers"),
       value: metrics?.total_users ?? 0,
-      subtext: `${metrics?.active_users ?? 0} đang hoạt động • ${metrics?.admin_users ?? 0} admin`,
+      subtext: `${metrics?.active_users ?? 0} ${t("admin:common.active", "hoạt động")} • ${metrics?.admin_users ?? 0} admin`,
       icon: Users,
       color: "text-blue-500",
       bg: "bg-blue-500/10",
@@ -79,7 +81,7 @@ export default function AdminDashboard() {
     {
       title: t("admin:dashboard.kpi.totalProjects"),
       value: metrics?.total_projects ?? 0,
-      subtext: "Dự án trên nền tảng",
+      subtext: t("admin:dashboard.kpi.totalProjects"),
       icon: Folder,
       color: "text-emerald-500",
       bg: "bg-emerald-500/10",
@@ -88,7 +90,7 @@ export default function AdminDashboard() {
     {
       title: t("admin:dashboard.kpi.totalVideos"),
       value: metrics?.total_videos ?? 0,
-      subtext: "Video đã tải lên",
+      subtext: t("admin:dashboard.kpi.totalVideos"),
       icon: Video,
       color: "text-purple-500",
       bg: "bg-purple-500/10",
@@ -97,7 +99,7 @@ export default function AdminDashboard() {
     {
       title: t("admin:dashboard.kpi.totalJobs"),
       value: metrics?.total_jobs ?? 0,
-      subtext: `${metrics?.jobs_by_status.processing ?? 0} đang chạy • ${metrics?.jobs_by_status.failed ?? 0} lỗi`,
+      subtext: `${metrics?.jobs_by_status.processing ?? 0} ${t("admin:jobs.status")} • ${metrics?.jobs_by_status.failed ?? 0} err`,
       icon: Cpu,
       color: "text-amber-500",
       bg: "bg-amber-500/10",
@@ -106,16 +108,16 @@ export default function AdminDashboard() {
     {
       title: t("admin:dashboard.kpi.totalRevenue"),
       value: `$${(metrics?.total_revenue_usd ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-      subtext: "Doanh thu tích lũy Stripe & VNPay",
+      subtext: t("admin:finance.subtitle"),
       icon: DollarSign,
       color: "text-teal-500",
       bg: "bg-teal-500/10",
       link: "/admin/finance",
     },
     {
-      title: t("admin:dashboard.kpi.creditsConsumed"),
-      value: (metrics?.total_credits_consumed ?? 0).toLocaleString(),
-      subtext: "AI consumable credits đã dùng",
+      title: t("admin:dashboard.kpi.creditsConsumed", "Tổng Từ Đã Xử Lý"),
+      value: `${(metrics?.total_words_consumed ?? ((metrics?.total_credits_consumed ?? 0) * 10)).toLocaleString()} từ`,
+      subtext: t("admin:dashboard.kpi.creditsConsumedSub", "Định mức từ (Word Quota) đã tiêu hao"),
       icon: Zap,
       color: "text-rose-500",
       bg: "bg-rose-500/10",
@@ -143,7 +145,7 @@ export default function AdminDashboard() {
           className="inline-flex items-center gap-2 self-start rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2 text-xs font-bold text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition shadow-xs cursor-pointer disabled:opacity-50"
         >
           <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-          <span>{refreshing ? "Đang làm mới..." : t("admin:health.refreshTelemetry")}</span>
+          <span>{refreshing ? t("admin:common.refreshing", "Đang làm mới...") : t("admin:health.refreshTelemetry")}</span>
         </button>
       </div>
 
@@ -279,10 +281,12 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between pb-3 border-b border-[var(--color-border)]">
               <div className="flex items-center gap-2">
                 <Activity size={18} className="text-[var(--color-primary)]" />
-                <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Tình Trạng Tiến Trình AI</h3>
+                <h3 className="text-sm font-bold text-[var(--color-text-primary)]">
+                  {t("admin:jobs.title", "Tình Trạng Tiến Trình AI")}
+                </h3>
               </div>
               <Link to="/admin/jobs" className="text-xs font-bold text-[var(--color-primary)] hover:underline">
-                Xem tất cả
+                {t("admin:common.viewAll", "Xem tất cả")}
               </Link>
             </div>
 
@@ -290,7 +294,7 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between rounded-xl bg-[var(--color-surface-muted)] p-2.5 px-3">
                 <span className="flex items-center gap-2 text-xs font-bold text-blue-500">
                   <PlayCircle size={14} />
-                  Đang xử lý (Processing)
+                  Processing
                 </span>
                 <span className="font-mono font-bold text-sm">{metrics?.jobs_by_status.processing ?? 0}</span>
               </div>
@@ -298,7 +302,7 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between rounded-xl bg-[var(--color-surface-muted)] p-2.5 px-3">
                 <span className="flex items-center gap-2 text-xs font-bold text-amber-500">
                   <Clock size={14} />
-                  Trong hàng đợi (Queued)
+                  Queued
                 </span>
                 <span className="font-mono font-bold text-sm">{metrics?.jobs_by_status.queued ?? 0}</span>
               </div>
@@ -306,7 +310,7 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between rounded-xl bg-[var(--color-surface-muted)] p-2.5 px-3">
                 <span className="flex items-center gap-2 text-xs font-bold text-emerald-500">
                   <CheckCircle2 size={14} />
-                  Thành công (Completed)
+                  Completed
                 </span>
                 <span className="font-mono font-bold text-sm">{metrics?.jobs_by_status.completed ?? 0}</span>
               </div>
@@ -314,7 +318,7 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between rounded-xl bg-[var(--color-surface-muted)] p-2.5 px-3">
                 <span className="flex items-center gap-2 text-xs font-bold text-red-500">
                   <XCircle size={14} />
-                  Thất bại (Failed)
+                  Failed
                 </span>
                 <span className="font-mono font-bold text-sm">{metrics?.jobs_by_status.failed ?? 0}</span>
               </div>

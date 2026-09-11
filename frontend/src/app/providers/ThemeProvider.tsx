@@ -43,10 +43,31 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(getInitialTheme);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Apply theme to HTML attribute
+  const PUBLIC_AUTH_PATHS = [
+    "/",
+    "/pricing",
+    "/login",
+    "/register",
+    "/forgot-password",
+    "/reset-password",
+    "/verify-otp",
+  ];
+
+  // Apply theme to HTML attribute with strict isolation for public/auth pages
   useEffect(() => {
-    const root = document.documentElement;
-    root.setAttribute("data-theme", theme);
+    const updateThemeForRoute = () => {
+      const root = document.documentElement;
+      const pathname = window.location.pathname;
+      const isPublicAuthPage = PUBLIC_AUTH_PATHS.some(
+        (path) => pathname === path || (path !== "/" && pathname.startsWith(`${path}/`))
+      );
+      const effectiveTheme = isPublicAuthPage ? DEFAULT_THEME : theme;
+      root.setAttribute("data-theme", effectiveTheme);
+    };
+
+    updateThemeForRoute();
+    window.addEventListener("popstate", updateThemeForRoute);
+    return () => window.removeEventListener("popstate", updateThemeForRoute);
   }, [theme]);
 
   // Sync theme from backend on startup or when tokens exist

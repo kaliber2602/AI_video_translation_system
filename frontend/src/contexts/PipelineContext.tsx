@@ -1,5 +1,5 @@
 // src/contexts/PipelineContext.tsx
-import { createContext, useReducer, ReactNode } from "react";
+import { createContext, useReducer, type ReactNode } from "react";
 
 // ============================================================
 // STATE TYPES
@@ -78,8 +78,23 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
   switch (action.type) {
     case "SET_STEP":
       return { ...state, step: action.payload };
-    case "SET_VIDEO":
-      return { ...state, video: action.payload };
+    case "SET_VIDEO": {
+      const isNewVideo = !state.video || state.video.videoId !== action.payload?.videoId;
+      return {
+        ...state,
+        video: action.payload,
+        ...(isNewVideo
+          ? {
+              transcript: null,
+              translation: null,
+              subtitles: null,
+              tts: null,
+              dubbedVideo: null,
+              error: null,
+            }
+          : {}),
+      };
+    }
     case "SET_JOB":
       return { ...state, job: action.payload };
     case "UPDATE_JOB_STATUS":

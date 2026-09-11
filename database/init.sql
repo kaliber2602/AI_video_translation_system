@@ -36,6 +36,7 @@ CREATE TABLE user_settings (
     default_tts_model VARCHAR(100) DEFAULT 'xtts_v2',
     default_llm_model VARCHAR(100) DEFAULT 'gpt_4o',
     default_embedding_model VARCHAR(100) DEFAULT 'qwen3_embedding',
+    preferences JSONB DEFAULT '{}'::jsonb,
     
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -134,12 +135,47 @@ CREATE TABLE refresh_tokens (
     token_hash VARCHAR(64) NOT NULL UNIQUE,
     expires_at TIMESTAMPTZ NOT NULL,
     revoked_at TIMESTAMPTZ NULL,
+    user_agent VARCHAR(500) NULL,
+    ip_address VARCHAR(100) NULL,
+    last_used_at TIMESTAMPTZ NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_refresh_tokens_user
         FOREIGN KEY (user_id)
         REFERENCES users(id)
         ON DELETE CASCADE
+);
+
+CREATE TABLE user_api_keys (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    prefix VARCHAR(50) NOT NULL,
+    key_hash VARCHAR(255) NOT NULL,
+    environment VARCHAR(50) NOT NULL DEFAULT 'production',
+    last_used_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_user_api_keys_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE user_integrations (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    app_id VARCHAR(100) NOT NULL,
+    is_connected BOOLEAN NOT NULL DEFAULT FALSE,
+    account_email VARCHAR(255) NULL,
+    config JSONB DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_user_integrations_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+    CONSTRAINT uq_user_app UNIQUE (user_id, app_id)
 );
 
 CREATE TABLE notifications (
@@ -370,6 +406,28 @@ CREATE TABLE projects (
         ON DELETE CASCADE
 );
 
+CREATE TABLE project_folders (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER NOT NULL,
+    parent_id INTEGER,
+    name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_project_folders_project
+        FOREIGN KEY (project_id)
+        REFERENCES projects(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_project_folders_parent
+        FOREIGN KEY (parent_id)
+        REFERENCES project_folders(id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX idx_project_folders_project ON project_folders(project_id);
+CREATE INDEX idx_project_folders_parent ON project_folders(parent_id);
+
 CREATE TABLE project_members (
     id SERIAL PRIMARY KEY,
     project_id INTEGER NOT NULL,
@@ -530,9 +588,11 @@ CREATE TABLE ai_models (
 CREATE TABLE videos (
     id SERIAL PRIMARY KEY,
     project_id INTEGER NOT NULL,
+    folder_id INTEGER,
 
     title VARCHAR(255) NOT NULL,
     original_filename VARCHAR(500),
+    file_size BIGINT DEFAULT 0,
 
     original_path TEXT,
     extracted_vocal_path TEXT,
@@ -562,9 +622,16 @@ CREATE TABLE videos (
         REFERENCES projects(id)
         ON DELETE CASCADE,
 
+    CONSTRAINT fk_videos_folder
+        FOREIGN KEY (folder_id)
+        REFERENCES project_folders(id)
+        ON DELETE SET NULL,
+
     CONSTRAINT chk_videos_progress
         CHECK (progress >= 0 AND progress <= 100)
 );
+
+CREATE INDEX idx_videos_folder ON videos(folder_id);
 
 CREATE TABLE video_pipeline_configs (
     id SERIAL PRIMARY KEY,

@@ -179,7 +179,7 @@ export default function AdminJobsPage() {
           className="inline-flex items-center gap-2 self-start rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2 text-xs font-bold text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] transition shadow-xs cursor-pointer"
         >
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          <span>Làm mới</span>
+          <span>{t("admin:common.refresh", "Làm mới")}</span>
         </button>
       </div>
 
@@ -208,12 +208,12 @@ export default function AdminJobsPage() {
             }}
             className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-3 py-2 text-xs font-bold text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none transition cursor-pointer"
           >
-            <option value="all">Tất cả (All)</option>
-            <option value="processing">Processing (Đang chạy)</option>
-            <option value="queued">Queued (Hàng đợi)</option>
-            <option value="completed">Completed (Thành công)</option>
-            <option value="failed">Failed (Lỗi)</option>
-            <option value="cancelled">Cancelled (Đã hủy)</option>
+            <option value="all">{t("admin:common.all", "Tất cả")}</option>
+            <option value="processing">Processing</option>
+            <option value="queued">Queued</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+            <option value="cancelled">Cancelled</option>
           </select>
         </div>
       </div>
@@ -239,7 +239,7 @@ export default function AdminJobsPage() {
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-sm text-[var(--color-text-muted)]">
                     <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin text-[var(--color-primary)]" />
-                    Đang tải danh sách tiến trình...
+                    {t("admin:common.loading", "Đang tải danh sách tiến trình...")}
                   </td>
                 </tr>
               ) : jobs.length === 0 ? (
@@ -318,7 +318,11 @@ export default function AdminJobsPage() {
         {total > limit && (
           <div className="flex items-center justify-between border-t border-[var(--color-border)] px-4 py-3 bg-[var(--color-surface-muted)] text-xs text-[var(--color-text-secondary)]">
             <span>
-              Hiển thị {offset + 1} - {Math.min(offset + limit, total)} trên tổng số {total} tiến trình
+              {t("admin:common.showing", "Hiển thị {{start}} - {{end}} trên tổng số {{total}}", {
+                start: offset + 1,
+                end: Math.min(offset + limit, total),
+                total,
+              })}
             </span>
             <div className="flex gap-2">
               <button
@@ -327,7 +331,7 @@ export default function AdminJobsPage() {
                 onClick={() => setOffset(Math.max(0, offset - limit))}
                 className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 font-bold disabled:opacity-40 cursor-pointer"
               >
-                Trước
+                {t("admin:common.previous", "Trước")}
               </button>
               <button
                 type="button"
@@ -335,7 +339,7 @@ export default function AdminJobsPage() {
                 onClick={() => setOffset(offset + limit)}
                 className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 font-bold disabled:opacity-40 cursor-pointer"
               >
-                Sau
+                {t("admin:common.next", "Sau")}
               </button>
             </div>
           </div>
@@ -492,7 +496,7 @@ export default function AdminJobsPage() {
                 }}
                 className="rounded-xl bg-[var(--color-primary)] px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-[var(--color-primary-hover)] transition cursor-pointer"
               >
-                Đóng
+                {t("admin:common.close", "Đóng")}
               </button>
             </div>
           </div>
@@ -504,10 +508,10 @@ export default function AdminJobsPage() {
         isOpen={Boolean(cancelingJobId)}
         onClose={() => setCancelingJobId(null)}
         onConfirm={handleConfirmCancel}
-        title="Hủy tiến trình"
-        message="Bạn có chắc chắn muốn hủy tiến trình đang xử lý này không?"
-        confirmLabel="Hủy tiến trình"
-        cancelLabel="Đóng"
+        title={t("admin:jobs.cancel", "Hủy tiến trình")}
+        message="Are you sure you want to cancel this AI processing job?"
+        confirmLabel={t("admin:jobs.cancel", "Hủy tiến trình")}
+        cancelLabel={t("admin:common.close", "Đóng")}
         isDestructive
       />
     </div>

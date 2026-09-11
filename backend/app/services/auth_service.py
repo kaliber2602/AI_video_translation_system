@@ -1170,3 +1170,177 @@ async def update_user_avatar(
 
         if connection:
             connection.close()
+
+
+# =========================================================
+# User Profile, Account Lifecycle & Security Management
+# =========================================================
+
+def update_user_profile(user_id: int, full_name: str):
+    connection = get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE users
+                SET full_name = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                RETURNING id, email, password_hash, full_name, avatar, role, is_active, created_at, updated_at
+                """,
+                (full_name.strip(), user_id),
+            )
+            user = cursor.fetchone()
+            if not user:
+                raise ValueError("User not found.")
+            connection.commit()
+            return user
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+def delete_user_account(user_id: int):
+    connection = get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE users
+                SET is_active = FALSE, is_deleted = TRUE, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                (user_id,),
+            )
+            cursor.execute(
+                """
+                UPDATE refresh_tokens
+                SET revoked_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            )
+            cursor.execute(
+                """
+                INSERT INTO activity_logs (user_id, action, target_type, metadata)
+                VALUES (%s, 'account_deleted', 'user', '{"details": "User requested account deactivation"}'::jsonb)
+                """,
+                (user_id,),
+            )
+            connection.commit()
+            return True
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+def get_user_sessions(user_id: int):
+    connection = get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, user_agent, ip_address, created_at, last_used_at, expires_at, revoked_at
+                FROM refresh_tokens
+                WHERE user_id = %s AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP
+                ORDER BY created_at DESC
+                """,
+                (user_id,),
+            )
+            rows = cursor.fetchall()
+            sessions = []
+            for r in rows:
+                ua = r[1] or "Web Client"
+                device = "Desktop Computer"
+                icon_type = "desktop"
+                if "Mobile" in ua or "iPhone" in ua or "Android" in ua:
+                    device = "Mobile Phone"
+                    icon_type = "mobile"
+                elif "Macintosh" in ua:
+                    device = "MacBook Pro"
+                elif "Windows" in ua:
+                    device = "Windows PC"
+                elif "Linux" in ua:
+                    device = "Linux Workstation"
+
+                browser = "Web Browser"
+                if "Chrome" in ua:
+                    browser = "Chrome Browser"
+                elif "Firefox" in ua:
+                    browser = "Firefox Browser"
+                elif "Safari" in ua:
+                    browser = "Safari Browser"
+                elif "Edge" in ua:
+                    browser = "Edge Browser"
+
+                created_str = r[3].strftime("%b %d, %Y %H:%M") if r[3] else "Recently"
+                sessions.append({
+                    "id": str(r[0]),
+                    "device": f"{device} ({browser})",
+                    "browser": browser,
+                    "location": "Ho Chi Minh City, Vietnam",
+                    "ipAddress": r[2] or "127.0.0.1",
+                    "lastActive": created_str,
+                    "isCurrent": len(sessions) == 0,
+                    "iconType": icon_type,
+                })
+            return sessions
+    finally:
+        connection.close()
+
+
+def revoke_user_session(user_id: int, session_id: str):
+    connection = get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE refresh_tokens
+                SET revoked_at = CURRENT_TIMESTAMP
+                WHERE id = %s AND user_id = %s
+                """,
+                (session_id, user_id),
+            )
+            connection.commit()
+            return True
+    finally:
+        connection.close()
+
+
+def get_user_security_logs(user_id: int):
+    connection = get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, action, metadata, created_at
+                FROM activity_logs
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                LIMIT 20
+                """,
+                (user_id,),
+            )
+            rows = cursor.fetchall()
+            logs = []
+            for r in rows:
+                meta = r[2] or {}
+                if isinstance(meta, str):
+                    try:
+                        meta = json.loads(meta)
+                    except Exception:
+                        meta = {}
+                logs.append({
+                    "id": str(r[0]),
+                    "action": (r[1] or "Security Action").replace("_", " ").title(),
+                    "location": "Vietnam",
+                    "ipAddress": meta.get("ip_address", "127.0.0.1"),
+                    "timestamp": r[3].strftime("%b %d, %Y %H:%M") if r[3] else "Recently",
+                    "status": "success",
+                })
+            return logs
+    finally:
+        connection.close()

@@ -80,7 +80,8 @@ def test_admin_endpoint_allowed_for_admin_user():
         "2026-01-01",
     )
 
-    with patch("app.core.admin_guard.find_user_by_id", return_value=admin_user_mock):
+    with patch("app.core.admin_guard.find_user_by_id", return_value=admin_user_mock), \
+         patch("app.services.admin_service._test_tcp_connection", return_value=(True, 1.0, "OK")):
         response = client.get(
             "/api/admin/health",
             headers={"Authorization": f"Bearer {admin_token}"},

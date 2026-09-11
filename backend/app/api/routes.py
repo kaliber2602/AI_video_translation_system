@@ -1,7 +1,8 @@
 # app/api/routes.py - UPDATED
 import logging
+from pathlib import Path
 import shutil
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 
 from app.core.config import OUTPUT_DIR, UPLOAD_DIR
@@ -19,6 +20,7 @@ from app.api.payment_routes import router as payment_router
 from app.api.contact_routes import router as contact_router
 from app.api.admin_routes import router as admin_router
 from app.api.notification_routes import router as notification_router
+from app.api.integration_routes import router as integration_router
 
 logger = logging.getLogger("app.api.routes")
 
@@ -32,6 +34,7 @@ router.include_router(tag_router)
 router.include_router(project_router)
 router.include_router(subscription_router)
 router.include_router(video_router)
+router.include_router(integration_router)
 
 
 # ============================================================
@@ -109,12 +112,22 @@ async def upload_video_legacy(
 
 @router.get("/files/{filename}")
 def download_file(filename: str):
-    out_path = OUTPUT_DIR / filename
-    if out_path.exists():
+    # Enforce strict path traversal protection
+    safe_filename = Path(filename).name
+    if not safe_filename or ".." in filename or safe_filename != filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid filename: path traversal characters are forbidden",
+        )
+
+    out_base = OUTPUT_DIR.resolve()
+    out_path = (OUTPUT_DIR / safe_filename).resolve()
+    if out_path.is_relative_to(out_base) and out_path.is_file():
         return FileResponse(out_path)
 
-    up_path = UPLOAD_DIR / filename
-    if up_path.exists():
+    up_base = UPLOAD_DIR.resolve()
+    up_path = (UPLOAD_DIR / safe_filename).resolve()
+    if up_path.is_relative_to(up_base) and up_path.is_file():
         return FileResponse(up_path)
 
-    raise HTTPException(status_code=404, detail="File not found")
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")

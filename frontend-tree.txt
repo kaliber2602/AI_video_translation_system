@@ -1,5 +1,5 @@
 Folder PATH listing
-Volume serial number is 00000198 C80D:FCAF
+Volume serial number is 0000024B C80D:FCAF
 C:\USERS\ADMIN\ONEDRIVE\DESKTOP\PROJECT\AI_VIDEO_TRANSLATION_SYSTEM\FRONTEND\SRC
 ¦   App.css
 ¦   App.tsx
@@ -10,14 +10,17 @@ C:\USERS\ADMIN\ONEDRIVE\DESKTOP\PROJECT\AI_VIDEO_TRANSLATION_SYSTEM\FRONTEND\SRC
 ¦   +---providers
 ¦   ¦       LanguageContext.ts
 ¦   ¦       LanguageProvider.tsx
+¦   ¦       NotificationContext.tsx
 ¦   ¦       ThemeContext.ts
 ¦   ¦       ThemeProvider.tsx
 ¦   ¦       
 ¦   +---router
+¦           AdminRoute.tsx
 ¦           AppRouter.tsx
 ¦           ProtectedRoute.tsx
 ¦           
 +---assets
+¦       1.png
 ¦       hero.png
 ¦       react.svg
 ¦       vite.svg
@@ -36,11 +39,17 @@ C:\USERS\ADMIN\ONEDRIVE\DESKTOP\PROJECT\AI_VIDEO_TRANSLATION_SYSTEM\FRONTEND\SRC
 ¦   ¦       ResetPasswordForm.tsx
 ¦   ¦       
 ¦   +---common
+¦   ¦       Button.tsx
+¦   ¦       ConfirmationDialog.tsx
+¦   ¦       Dialog.tsx
 ¦   ¦       ElasticCard.tsx
+¦   ¦       EmptyState.tsx
 ¦   ¦       FolderIcon.tsx
+¦   ¦       ResponsiveTable.tsx
 ¦   ¦       RippleDistortion.css
 ¦   ¦       RippleDistortion.tsx
 ¦   ¦       SocialIcons.tsx
+¦   ¦       StatusBadge.tsx
 ¦   ¦       
 ¦   +---home
 ¦   ¦   ¦   HomeCTA.tsx
@@ -68,6 +77,12 @@ C:\USERS\ADMIN\ONEDRIVE\DESKTOP\PROJECT\AI_VIDEO_TRANSLATION_SYSTEM\FRONTEND\SRC
 ¦   ¦           RAGFlowDiagram.tsx
 ¦   ¦           SemanticSearchDemo.tsx
 ¦   ¦           
+¦   +---notifications
+¦   ¦       NotificationBell.tsx
+¦   ¦       NotificationDropdown.tsx
+¦   ¦       NotificationItem.tsx
+¦   ¦       notificationMeta.tsx
+¦   ¦       
 ¦   +---pipeline
 ¦   ¦       DubbingStep.tsx
 ¦   ¦       ReviewExportStep.tsx
@@ -85,6 +100,7 @@ C:\USERS\ADMIN\ONEDRIVE\DESKTOP\PROJECT\AI_VIDEO_TRANSLATION_SYSTEM\FRONTEND\SRC
 ¦   ¦       StorageAddonSection.tsx
 ¦   ¦       
 ¦   +---project
+¦   ¦       ProjectAssetExplorer.tsx
 ¦   ¦       VideoCard.tsx
 ¦   ¦       
 ¦   +---settings
@@ -145,6 +161,7 @@ C:\USERS\ADMIN\ONEDRIVE\DESKTOP\PROJECT\AI_VIDEO_TRANSLATION_SYSTEM\FRONTEND\SRC
 ¦           ProjectSkeletonLoader.tsx
 ¦           ProjectTable.tsx
 ¦           ProjectToolbar.tsx
+¦           ShareProjectModal.tsx
 ¦           StorageCard.tsx
 ¦           ViewSwitcher.tsx
 ¦           WorkspaceHeader.tsx
@@ -154,8 +171,14 @@ C:\USERS\ADMIN\ONEDRIVE\DESKTOP\PROJECT\AI_VIDEO_TRANSLATION_SYSTEM\FRONTEND\SRC
 +---config
 ¦       theme.ts
 ¦       
++---contexts
+¦       index.ts
+¦       PipelineContext.tsx
+¦       
 +---hooks
+¦       index.ts
 ¦       useElasticDrag.ts
+¦       usePipeline.ts
 ¦       
 +---i18n
 ¦   ¦   index.ts
@@ -163,10 +186,12 @@ C:\USERS\ADMIN\ONEDRIVE\DESKTOP\PROJECT\AI_VIDEO_TRANSLATION_SYSTEM\FRONTEND\SRC
 ¦   ¦   
 ¦   +---locales
 ¦       +---en
+¦       ¦       admin.json
 ¦       ¦       auth.json
 ¦       ¦       common.json
 ¦       ¦       home.json
 ¦       ¦       navigation.json
+¦       ¦       notifications.json
 ¦       ¦       pipeline.json
 ¦       ¦       pricing.json
 ¦       ¦       project.json
@@ -174,10 +199,12 @@ C:\USERS\ADMIN\ONEDRIVE\DESKTOP\PROJECT\AI_VIDEO_TRANSLATION_SYSTEM\FRONTEND\SRC
 ¦       ¦       workspace.json
 ¦       ¦       
 ¦       +---vi
+¦               admin.json
 ¦               auth.json
 ¦               common.json
 ¦               home.json
 ¦               navigation.json
+¦               notifications.json
 ¦               pipeline.json
 ¦               pricing.json
 ¦               project.json
@@ -185,6 +212,7 @@ C:\USERS\ADMIN\ONEDRIVE\DESKTOP\PROJECT\AI_VIDEO_TRANSLATION_SYSTEM\FRONTEND\SRC
 ¦               workspace.json
 ¦               
 +---layouts
+¦       AdminLayout.tsx
 ¦       AuthLayout.tsx
 ¦       MainLayout.tsx
 ¦       SettingsLayout.tsx
@@ -195,32 +223,45 @@ C:\USERS\ADMIN\ONEDRIVE\DESKTOP\PROJECT\AI_VIDEO_TRANSLATION_SYSTEM\FRONTEND\SRC
 ¦       veloxi.ts
 ¦       
 +---pages
-¦       Dashboard.tsx
-¦       ForgotPasswordPage.tsx
-¦       Home.tsx
-¦       Login.tsx
-¦       PricingPage.tsx
-¦       ProjectDetail.tsx
-¦       Register.tsx
-¦       ResetPasswordPage.tsx
-¦       Settings.tsx
-¦       StripeReturnPage.tsx
-¦       VerifyOtpPage.tsx
-¦       VideoPipeline.tsx
-¦       VNPayReturnPage.tsx
-¦       Workspace.tsx
-¦       
+¦   ¦   Dashboard.tsx
+¦   ¦   ForgotPasswordPage.tsx
+¦   ¦   Home.tsx
+¦   ¦   Login.tsx
+¦   ¦   NotificationsPage.tsx
+¦   ¦   PricingPage.tsx
+¦   ¦   ProjectDetail.tsx
+¦   ¦   Register.tsx
+¦   ¦   ResetPasswordPage.tsx
+¦   ¦   Settings.tsx
+¦   ¦   VerifyOtpPage.tsx
+¦   ¦   VideoPipeline.tsx
+¦   ¦   VNPayReturnPage.tsx
+¦   ¦   Workspace.tsx
+¦   ¦   
+¦   +---admin
+¦           AdminContactsPage.tsx
+¦           AdminDashboard.tsx
+¦           AdminFinancePage.tsx
+¦           AdminJobsPage.tsx
+¦           AdminLogsPage.tsx
+¦           AdminModelsPage.tsx
+¦           AdminToolsPage.tsx
+¦           AdminUsersPage.tsx
+¦           
 +---routes
 ¦       index.tsx
 ¦       
 +---services
+¦   ¦   admin.service.ts
 ¦   ¦   auth.service.ts
 ¦   ¦   contact.service.ts
+¦   ¦   notification.service.ts
 ¦   ¦   payment.service.ts
 ¦   ¦   project.service.ts
 ¦   ¦   settings.service.ts
 ¦   ¦   subscription.service.ts
 ¦   ¦   tag.service.ts
+¦   ¦   video.service.ts
 ¦   ¦   
 ¦   +---api
 ¦           axios.ts
@@ -230,11 +271,14 @@ C:\USERS\ADMIN\ONEDRIVE\DESKTOP\PROJECT\AI_VIDEO_TRANSLATION_SYSTEM\FRONTEND\SRC
 ¦       themes.css
 ¦       
 +---types
+        admin.ts
         auth.ts
         contact.ts
+        notification.ts
         payment.ts
         project.ts
         settings.ts
         subscription.ts
         tag.ts
+        video.ts
         

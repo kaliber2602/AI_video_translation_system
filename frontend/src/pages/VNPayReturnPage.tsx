@@ -67,7 +67,10 @@ export default function VNPayReturnPage() {
   }, [searchParams]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--color-background)] px-4 py-12">
+    <div
+      data-theme="default_theme"
+      className="flex min-h-screen items-center justify-center bg-[var(--color-background)] px-4 py-12"
+    >
       <div className="w-full max-w-lg overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-2xl transition-all">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">

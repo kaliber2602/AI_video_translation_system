@@ -28,7 +28,7 @@ export default function UploadStep() {
   useEffect(() => {
     if (uploadComplete && state.video?.videoId) {
       const timer = setTimeout(() => {
-        if (state.projectId) {
+        if (state.projectId && state.video?.videoId) {
           navigate(`/workspace/project/${state.projectId}/video/${state.video.videoId}`, { replace: true });
         }
         dispatch({ type: "SET_STEP", payload: 2 });
@@ -44,22 +44,16 @@ export default function UploadStep() {
     setUploadError(null);
     setUploadComplete(false);
 
-    // Simulate upload progress
-    const progressInterval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 85) {
-          clearInterval(progressInterval);
-          return 85;
-        }
-        return prev + 10;
-      });
-    }, 250);
-
     try {
       const response = await videoService.uploadVideo(
         file,
         state.targetLanguage || "vi",
-        state.projectId
+        state.projectId,
+        undefined,
+        (percent) => {
+          setUploadProgress(Math.min(percent, 90));
+          setUploadStatusText(`Uploading video file (${percent}%)...`);
+        }
       );
 
       console.log("📦 Upload response:", response);
@@ -71,8 +65,7 @@ export default function UploadStep() {
       }
 
       console.log("✅ Video uploaded with ID:", videoId);
-      clearInterval(progressInterval);
-      setUploadProgress(90);
+      setUploadProgress(95);
       setUploadStatusText("Extracting audio for transcription...");
 
       // Automatically extract audio now so Step 2 (Transcript) is immediately ready
@@ -84,6 +77,7 @@ export default function UploadStep() {
       }
 
       setUploadProgress(100);
+      setUploadStatusText("Upload complete!");
 
       // Update state with video details
       dispatch({
@@ -102,11 +96,11 @@ export default function UploadStep() {
       
     } catch (error: any) {
       console.error("❌ Upload failed:", error);
-      clearInterval(progressInterval);
-      setUploadError(error.message || "Upload failed");
+      const errorMsg = error?.response?.data?.detail || error.message || "Upload failed";
+      setUploadError(errorMsg);
       dispatch({
         type: "SET_ERROR",
-        payload: error.message || "Upload failed",
+        payload: errorMsg,
       });
     } finally {
       setIsUploading(false);
@@ -208,7 +202,7 @@ export default function UploadStep() {
               </p>
               <p className="text-xs text-[var(--color-text-muted)]">
                 Video ID: {state.video?.videoId} · 
-                {(state.video?.fileSize || 0) > 0 
+                {state.video?.fileSize != null && state.video.fileSize > 0 
                   ? ` ${(state.video.fileSize / (1024 * 1024)).toFixed(1)} MB`
                   : ""}
               </p>
@@ -262,7 +256,7 @@ export default function UploadStep() {
                 {state.video.filename}
               </p>
               <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                {(state.video.fileSize / (1024 * 1024)).toFixed(1)} MB · Video ID: {state.video.videoId}
+                {state.video.fileSize != null ? `${(state.video.fileSize / (1024 * 1024)).toFixed(1)} MB · ` : ""}Video ID: {state.video.videoId}
               </p>
             </div>
             <CheckCircle2 size={20} className="text-[var(--color-primary)]" />

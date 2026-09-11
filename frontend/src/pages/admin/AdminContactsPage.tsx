@@ -91,14 +91,14 @@ export default function AdminContactsPage() {
           className="inline-flex items-center gap-2 self-start rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2 text-xs font-bold text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] transition shadow-xs cursor-pointer"
         >
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          <span>Làm mới</span>
+          <span>{t("admin:common.refresh", "Làm mới")}</span>
         </button>
       </div>
 
       {/* Filter Tabs */}
       <div className="flex gap-2 border-b border-[var(--color-border)] pb-1">
         {[
-          { id: "all", label: "Tất cả" },
+          { id: "all", label: t("admin:common.all", "Tất cả") },
           { id: "pending", label: t("admin:contacts.pending") },
           { id: "read", label: t("admin:contacts.read") },
           { id: "resolved", label: t("admin:contacts.resolved") },
@@ -129,10 +129,10 @@ export default function AdminContactsPage() {
               <tr>
                 <th className="px-4 py-3.5">{t("admin:contacts.sender")}</th>
                 <th className="px-4 py-3.5">{t("admin:contacts.subject")}</th>
-                <th className="px-4 py-3.5">Nội dung tóm tắt</th>
+                <th className="px-4 py-3.5">{t("admin:contacts.summary", "Nội dung tóm tắt")}</th>
                 <th className="px-4 py-3.5">{t("admin:contacts.status")}</th>
                 <th className="px-4 py-3.5">{t("admin:contacts.date")}</th>
-                <th className="px-4 py-3.5 text-right">Hành động</th>
+                <th className="px-4 py-3.5 text-right">{t("admin:common.actions", "Hành động")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border)]">
@@ -140,13 +140,13 @@ export default function AdminContactsPage() {
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-sm text-[var(--color-text-muted)]">
                     <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin text-[var(--color-primary)]" />
-                    Đang tải hộp thư...
+                    {t("admin:common.loading", "Đang tải hộp thư...")}
                   </td>
                 </tr>
               ) : contacts.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-sm text-[var(--color-text-muted)]">
-                    Không có tin nhắn nào.
+                    {t("admin:contacts.empty", "Không có tin nhắn nào.")}
                   </td>
                 </tr>
               ) : (
@@ -157,7 +157,7 @@ export default function AdminContactsPage() {
                       <p className="text-[11px] text-[var(--color-text-muted)]">{contact.email}</p>
                     </td>
                     <td className="px-4 py-3 font-semibold text-[var(--color-text-primary)] max-w-xs truncate">
-                      {contact.subject || "(Không có tiêu đề)"}
+                      {contact.subject || "(No Subject)"}
                     </td>
                     <td className="px-4 py-3 text-[var(--color-text-secondary)] max-w-sm truncate">
                       {contact.message}
@@ -185,7 +185,7 @@ export default function AdminContactsPage() {
                         className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border)] px-2.5 py-1 text-[11px] font-bold text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition cursor-pointer"
                       >
                         <Eye size={12} />
-                        <span>Xem</span>
+                        <span>{t("admin:common.view", "Xem")}</span>
                       </button>
                     </td>
                   </tr>
@@ -199,24 +199,28 @@ export default function AdminContactsPage() {
         {total > limit && (
           <div className="flex items-center justify-between border-t border-[var(--color-border)] px-4 py-3 bg-[var(--color-surface-muted)] text-xs text-[var(--color-text-secondary)]">
             <span>
-              Hiển thị {offset + 1} - {Math.min(offset + limit, total)} trên {total} tin nhắn
+              {t("admin:common.showing", "Hiển thị {{start}} - {{end}} trên {{total}} tin nhắn", {
+                start: offset + 1,
+                end: Math.min(offset + limit, total),
+                total,
+              })}
             </span>
             <div className="flex gap-2">
               <button
                 type="button"
                 disabled={offset === 0}
                 onClick={() => setOffset(Math.max(0, offset - limit))}
-                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 font-bold disabled:opacity-40"
+                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 font-bold disabled:opacity-40 cursor-pointer"
               >
-                Trước
+                {t("admin:common.previous", "Trước")}
               </button>
               <button
                 type="button"
                 disabled={offset + limit >= total}
                 onClick={() => setOffset(offset + limit)}
-                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 font-bold disabled:opacity-40"
+                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 font-bold disabled:opacity-40 cursor-pointer"
               >
-                Sau
+                {t("admin:common.next", "Sau")}
               </button>
             </div>
           </div>
@@ -231,7 +235,9 @@ export default function AdminContactsPage() {
             <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
               <div className="flex items-center gap-2">
                 <Mail size={18} className="text-[var(--color-primary)]" />
-                <h3 className="text-base font-bold text-[var(--color-text-primary)]">Chi Tiết Tin Nhắn Hỗ Trợ</h3>
+                <h3 className="text-base font-bold text-[var(--color-text-primary)]">
+                  {t("admin:contacts.modalTitle", "Chi Tiết Tin Nhắn Hỗ Trợ")}
+                </h3>
               </div>
               <button
                 type="button"
@@ -245,7 +251,7 @@ export default function AdminContactsPage() {
             <div className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-2 rounded-xl bg-[var(--color-surface-muted)] p-3">
                 <div>
-                  <span className="text-[var(--color-text-muted)]">Người gửi:</span>
+                  <span className="text-[var(--color-text-muted)]">{t("admin:contacts.sender", "Người gửi")}:</span>
                   <p className="font-bold text-[var(--color-text-primary)]">{selectedContact.name}</p>
                 </div>
                 <div>
@@ -257,20 +263,20 @@ export default function AdminContactsPage() {
                   <p className="font-mono">{selectedContact.ip_address || "—"}</p>
                 </div>
                 <div>
-                  <span className="text-[var(--color-text-muted)]">Thời gian:</span>
+                  <span className="text-[var(--color-text-muted)]">{t("admin:contacts.date", "Thời gian")}:</span>
                   <p className="font-mono">{new Date(selectedContact.created_at).toLocaleString()}</p>
                 </div>
               </div>
 
               <div>
-                <span className="font-bold text-[var(--color-text-muted)] uppercase text-[10px]">Chủ đề:</span>
+                <span className="font-bold text-[var(--color-text-muted)] uppercase text-[10px]">{t("admin:contacts.subject", "Chủ đề")}:</span>
                 <p className="font-bold text-sm text-[var(--color-text-primary)] mt-0.5">
-                  {selectedContact.subject || "(Không có tiêu đề)"}
+                  {selectedContact.subject || "(No Subject)"}
                 </p>
               </div>
 
               <div>
-                <span className="font-bold text-[var(--color-text-muted)] uppercase text-[10px]">Nội dung:</span>
+                <span className="font-bold text-[var(--color-text-muted)] uppercase text-[10px]">{t("admin:contacts.content", "Nội dung")}:</span>
                 <div className="mt-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3.5 text-xs text-[var(--color-text-primary)] whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
                   {selectedContact.message}
                 </div>
@@ -286,7 +292,7 @@ export default function AdminContactsPage() {
                     className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-600 hover:bg-emerald-500/20 cursor-pointer"
                   >
                     <CheckCircle2 size={14} />
-                    <span>Đánh dấu Đã xử lý</span>
+                    <span>{t("admin:contacts.markResolved", "Đánh dấu Đã xử lý")}</span>
                   </button>
                 )}
               </div>
@@ -296,7 +302,7 @@ export default function AdminContactsPage() {
                 onClick={() => setSelectedContact(null)}
                 className="rounded-xl bg-[var(--color-primary)] px-4 py-1.5 text-xs font-bold text-white cursor-pointer"
               >
-                Đóng
+                {t("admin:common.close", "Đóng")}
               </button>
             </div>
           </div>

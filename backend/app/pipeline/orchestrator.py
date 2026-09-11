@@ -1,10 +1,11 @@
-# app/pipeline/orchestrator.py - NEW FILE
+# app/pipeline/orchestrator.py - Standardized Pipeline Orchestrator (No SQLAlchemy)
 import os
 import shutil
 import tempfile
 import uuid
-from sqlalchemy.orm import Session
+from typing import Optional
 
+from app.core.database import DatabaseSession
 from app.models import Video, VideoPipelineConfig
 from app.models.enums import JobStatus, JobStep
 from app.services.job_service import JobService
@@ -16,23 +17,25 @@ def run_full_pipeline(
     job_id: uuid.UUID,
     video_id: int,
     user_id: int,
-    db: Session
+    db: Optional[DatabaseSession] = None
 ):
     """
-    Full pipeline orchestrator - runs all steps in sequence
+    Full pipeline orchestrator - runs all steps in sequence using pooled PostgreSQL
     """
-    job_service = JobService(db)
-    pipeline = PipelineSteps(db, job_service)
+    owns_db = db is None
+    session = db if db is not None else DatabaseSession()
+    job_service = JobService(session)
+    pipeline = PipelineSteps(session, job_service)
     
     temp_dir = tempfile.mkdtemp()
     
     try:
         # Get video and config
-        video = db.query(Video).filter(Video.id == video_id).first()
+        video = session.query(Video).filter(Video.id == video_id).first()
         if not video:
             raise ValueError(f"Video {video_id} not found")
         
-        config = db.query(VideoPipelineConfig).filter(
+        config = session.query(VideoPipelineConfig).filter(
             VideoPipelineConfig.video_id == video_id
         ).first()
         if not config:
@@ -47,7 +50,6 @@ def run_full_pipeline(
                 break
         
         if not video_path:
-            # Try to find any file with the video_id prefix
             for file in UPLOAD_DIR.glob(f"{video_id}_*"):
                 video_path = str(file)
                 break
@@ -72,6 +74,19 @@ def run_full_pipeline(
             job_id, video_id, separate_result["vocal_path"], temp_dir
         )
         
+        # STEP 3.5: Diarization (Speaker identification)
+        try:
+            diar_result = pipeline.step_diarize(
+                job_id, video_id,
+                separate_result["vocal_path"],
+                transcribe_result["transcript_path"],
+                transcribe_result["detected_language"]
+            )
+            if diar_result.get("success") and diar_result.get("segments"):
+                transcribe_result["segments"] = diar_result["segments"]
+        except Exception as e:
+            print(f"[Pipeline] Diarization non-fatal notice: {e}", flush=True)
+
         # STEP 4: Translate
         translate_result = pipeline.step_translate(
             job_id, video_id,
@@ -115,7 +130,7 @@ def run_full_pipeline(
             is_original=False
         )
         
-        # STEP 9: Upload to S3
+        # STEP 9: Upload to S3 / MinIO
         upload_result = pipeline.step_upload_s3(
             job_id, video_id,
             mix_result["output_path"],
@@ -168,5 +183,6 @@ def run_full_pipeline(
         )
         raise
     finally:
-        # Clean up temp directory
+        if owns_db and session is not None:
+            session.close()
         shutil.rmtree(temp_dir, ignore_errors=True)

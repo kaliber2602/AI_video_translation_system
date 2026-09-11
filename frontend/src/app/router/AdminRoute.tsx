@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { ShieldAlert, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { getAccessToken, getRefreshToken } from "../../services/api/token";
 import { getMe } from "../../services/auth.service";
 import { toast } from "../../lib/toast";
 import type { UserResponse } from "../../types/auth";
 
 export default function AdminRoute() {
+  const { t } = useTranslation(["admin", "common"]);
   const location = useLocation();
   const [currentUser, setCurrentUser] = useState<UserResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,7 +35,7 @@ export default function AdminRoute() {
           setIsAuthorized(true);
         } else {
           setIsAuthorized(false);
-          toast.error("Bạn không có quyền quản trị viên để truy cập trang này.");
+          toast.error(t("admin:auth.noPermission", "Bạn không có quyền quản trị viên để truy cập trang này."));
         }
       } catch (error) {
         if (!isMounted) return;
@@ -63,7 +65,7 @@ export default function AdminRoute() {
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-lg">
           <Loader2 className="h-8 w-8 animate-spin text-[var(--color-primary)]" />
           <p className="text-sm font-medium text-[var(--color-text-secondary)]">
-            Đang xác thực quyền Quản trị viên...
+            {t("admin:auth.verifying", "Đang xác thực quyền Quản trị viên...")}
           </p>
         </div>
       </div>
@@ -79,10 +81,13 @@ export default function AdminRoute() {
             <ShieldAlert size={32} />
           </div>
           <h2 className="text-xl font-bold text-[var(--color-text-primary)]">
-            Quyền truy cập bị từ chối
+            {t("admin:auth.accessDenied", "Quyền truy cập bị từ chối")}
           </h2>
           <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
-            Tài khoản <span className="font-semibold">{currentUser?.email}</span> (vai trò: <span className="uppercase font-bold text-amber-500">{currentUser?.role || "user"}</span>) không có quyền quản trị viên nền tảng VidNova.
+            {t("admin:auth.accountDetail", "Tài khoản {{email}} (vai trò: {{role}}) không có quyền quản trị viên nền tảng VidNova.", {
+              email: currentUser?.email || "",
+              role: currentUser?.role || "user"
+            })}
           </p>
           <div className="mt-6 flex gap-3">
             <Navigate to="/workspace" replace />

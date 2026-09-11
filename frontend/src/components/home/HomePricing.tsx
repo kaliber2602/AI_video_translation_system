@@ -31,7 +31,7 @@ const FALLBACK_PLANS: Plan[] = [
     display_order: 1,
     resources: [
       { id: 1, plan_id: 1, resource_type: "STORAGE", resource_key: "storage_bytes", limit_value: "5368709120", unit: "bytes" },
-      { id: 2, plan_id: 1, resource_type: "CONSUMABLE", resource_key: "ai_credits_monthly", limit_value: "1000", unit: "credits" },
+      { id: 2, plan_id: 1, resource_type: "CONSUMABLE", resource_key: "words_monthly", limit_value: "5000", unit: "words" },
       { id: 3, plan_id: 1, resource_type: "LIMIT", resource_key: "max_file_size_bytes", limit_value: "524288000", unit: "bytes" },
       { id: 4, plan_id: 1, resource_type: "LIMIT", resource_key: "max_video_duration_seconds", limit_value: "1800", unit: "seconds" },
       { id: 5, plan_id: 1, resource_type: "LIMIT", resource_key: "max_upload_resolution", limit_value: "1080p", unit: "resolution" },
@@ -54,7 +54,7 @@ const FALLBACK_PLANS: Plan[] = [
     display_order: 2,
     resources: [
       { id: 10, plan_id: 2, resource_type: "STORAGE", resource_key: "storage_bytes", limit_value: "107374182400", unit: "bytes" },
-      { id: 11, plan_id: 2, resource_type: "CONSUMABLE", resource_key: "ai_credits_monthly", limit_value: "10000", unit: "credits" },
+      { id: 11, plan_id: 2, resource_type: "CONSUMABLE", resource_key: "words_monthly", limit_value: "100000", unit: "words" },
       { id: 12, plan_id: 2, resource_type: "LIMIT", resource_key: "max_file_size_bytes", limit_value: "5368709120", unit: "bytes" },
       { id: 13, plan_id: 2, resource_type: "LIMIT", resource_key: "max_video_duration_seconds", limit_value: "14400", unit: "seconds" },
       { id: 14, plan_id: 2, resource_type: "LIMIT", resource_key: "max_upload_resolution", limit_value: "4K", unit: "resolution" },
@@ -77,7 +77,7 @@ const FALLBACK_PLANS: Plan[] = [
     display_order: 3,
     resources: [
       { id: 19, plan_id: 3, resource_type: "STORAGE", resource_key: "storage_bytes", limit_value: "1099511627776", unit: "bytes" },
-      { id: 20, plan_id: 3, resource_type: "CONSUMABLE", resource_key: "ai_credits_monthly", limit_value: "100000", unit: "credits" },
+      { id: 20, plan_id: 3, resource_type: "CONSUMABLE", resource_key: "words_monthly", limit_value: "1000000", unit: "words" },
       { id: 21, plan_id: 3, resource_type: "LIMIT", resource_key: "max_file_size_bytes", limit_value: "21474836480", unit: "bytes" },
       { id: 22, plan_id: 3, resource_type: "LIMIT", resource_key: "max_video_duration_seconds", limit_value: "43200", unit: "seconds" },
       { id: 23, plan_id: 3, resource_type: "LIMIT", resource_key: "max_upload_resolution", limit_value: "4K", unit: "resolution" },

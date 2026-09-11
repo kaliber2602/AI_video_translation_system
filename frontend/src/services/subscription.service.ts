@@ -8,6 +8,9 @@ import type {
   UserConsumableUsage,
   UserStorageAddon,
   UserSubscriptionSummary,
+  StorageBreakdownResponse,
+  CleanCacheResponse,
+  DeleteStorageFileResponse,
 } from "../types/subscription";
 
 // =========================================================
@@ -114,3 +117,60 @@ export const getMyCreditAuditLogs = async (
   });
   return response.data;
 };
+
+// =========================================================
+// Storage & Resource Breakdown Analytics (Protected)
+// GET /api/subscriptions/storage/breakdown
+// =========================================================
+
+export const getStorageBreakdown = async (): Promise<StorageBreakdownResponse> => {
+  const response = await api.get<StorageBreakdownResponse>("/api/subscriptions/storage/breakdown");
+  return response.data;
+};
+
+// =========================================================
+// Clean Pipeline Cache (Protected)
+// POST /api/subscriptions/storage/clean-cache
+// =========================================================
+
+export const cleanPipelineCache = async (): Promise<CleanCacheResponse> => {
+  const response = await api.post<CleanCacheResponse>("/api/subscriptions/storage/clean-cache");
+  return response.data;
+};
+
+// =========================================================
+// Delete Storage Resource File (Protected)
+// DELETE /api/subscriptions/storage/files/{resourceType}/{fileId}
+// =========================================================
+
+export const deleteStorageFile = async (
+  resourceType: string,
+  fileId: string
+): Promise<DeleteStorageFileResponse> => {
+  const response = await api.delete<DeleteStorageFileResponse>(
+    `/api/subscriptions/storage/files/${encodeURIComponent(resourceType)}/${encodeURIComponent(fileId)}`
+  );
+  return response.data;
+};
+
+// =========================================================
+// Export User Data Archive (Protected)
+// POST /api/subscriptions/storage/export-archive
+// =========================================================
+
+export const exportUserDataArchive = async (): Promise<void> => {
+  const response = await api.post("/api/subscriptions/storage/export-archive", null, {
+    responseType: "blob",
+  });
+  const url = window.URL.createObjectURL(
+    new Blob([response.data], { type: "application/zip" })
+  );
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", "vidnova_user_archive.zip");
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+

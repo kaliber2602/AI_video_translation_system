@@ -39,6 +39,7 @@ export interface AccountSettingsSectionProps {
   onEmailNotificationsChange: (value: boolean) => void;
   onProcessingUpdatesChange: (value: boolean) => void;
   onTipsNewsChange: (value: boolean) => void;
+  onSectionChange?: (section: any) => void;
 }
 
 export default function AccountSettingsSection({
@@ -70,6 +71,7 @@ export default function AccountSettingsSection({
   onEmailNotificationsChange,
   onProcessingUpdatesChange,
   onTipsNewsChange,
+  onSectionChange,
 }: AccountSettingsSectionProps) {
   const { t } = useTranslation(["settings", "common"]);
 
@@ -150,7 +152,7 @@ export default function AccountSettingsSection({
         </div>
 
         <div className="animate-fade-up stagger-5">
-          <StorageUsageCard />
+          <StorageUsageCard onManageStorage={() => onSectionChange?.("privacy")} />
         </div>
 
         <div className="animate-fade-up stagger-6">

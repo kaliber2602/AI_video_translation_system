@@ -80,9 +80,17 @@ export interface EffectiveCredits {
   converted_minutes_remaining: number;
 }
 
+export interface EffectiveWords {
+  total_words: number;
+  used_words: number;
+  remaining_words: number;
+  usage_percent: number;
+}
+
 export interface EffectiveQuota {
   storage: EffectiveStorage;
   credits: EffectiveCredits;
+  words?: EffectiveWords;
   limits: Record<string, any>;
   features: Record<string, boolean>;
 }
@@ -103,6 +111,9 @@ export interface UserConsumableUsage {
   credits_allocated: number;
   credits_used: number;
   credits_remaining: number;
+  words_allocated?: number;
+  words_used?: number;
+  words_remaining?: number;
   storage_bytes_allocated: number;
   storage_bytes_used: number;
   storage_bytes_remaining: number;
@@ -115,6 +126,7 @@ export interface CreditAuditLog {
   job_id: string | null;
   service_type: string;
   credits_deducted: number;
+  words_deducted?: number;
   balance_after: number | null;
   description: string | null;
   created_at: string;
@@ -124,3 +136,80 @@ export interface CreditAuditLogListResponse {
   logs: CreditAuditLog[];
   total: number;
 }
+
+export interface StorageByTypeItem {
+  key: string;
+  label: string;
+  db_field: string;
+  size_bytes: number;
+  size_formatted: string;
+  size_gb: number;
+  percentage: number;
+  color: string;
+}
+
+export interface ProjectStorageItem {
+  project_id: number;
+  project_name: string;
+  storage_bytes: number;
+  storage_formatted: string;
+  storage_gb: number;
+  video_count: number;
+  percentage: number;
+}
+
+export interface LargestFileItem {
+  id: string;
+  filename: string;
+  project_id: number;
+  project_name: string;
+  resource_type: string;
+  size_bytes: number;
+  size_formatted: string;
+  specs: string;
+  created_at: string | null;
+  download_url: string | null;
+  status: string;
+}
+
+export interface StorageBreakdownPlanInfo {
+  code: string;
+  name: string;
+  total_bytes: number;
+  total_gb: number;
+  used_bytes: number;
+  used_gb: number;
+  available_bytes: number;
+  available_gb: number;
+  usage_percent: number;
+}
+
+export interface CacheSummaryInfo {
+  cache_bytes: number;
+  cache_formatted: string;
+  can_clean: boolean;
+}
+
+export interface StorageBreakdownResponse {
+  plan: StorageBreakdownPlanInfo;
+  storage_by_type: StorageByTypeItem[];
+  storage_by_project: ProjectStorageItem[];
+  largest_files: LargestFileItem[];
+  all_files: LargestFileItem[];
+  cache_summary: CacheSummaryInfo;
+}
+
+export interface CleanCacheResponse {
+  reclaimed_bytes: number;
+  reclaimed_formatted: string;
+  new_used_bytes: number;
+  new_used_gb: number;
+  message: string;
+}
+
+export interface DeleteStorageFileResponse {
+  success: boolean;
+  reclaimed_bytes: number;
+  message: string;
+}
+

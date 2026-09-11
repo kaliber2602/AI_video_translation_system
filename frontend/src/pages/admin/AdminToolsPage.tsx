@@ -85,7 +85,7 @@ export default function AdminToolsPage() {
       const sData = await getAdminStorage();
       setStorageData(sData);
     } catch (err) {
-      toast.error("Lỗi khi dọn dẹp file tạm.");
+      toast.error(t("admin:tools.cleanupError"));
     } finally {
       setCleaning(false);
       setIsCleanupConfirmOpen(false);
@@ -98,12 +98,12 @@ export default function AdminToolsPage() {
       const res = await runAdminDiagnostics();
       setDiagnostics(res);
       if (res.overall_status === "healthy") {
-        toast.success("Tất cả các bài kiểm tra chẩn đoán đều PASS!");
+        toast.success(t("admin:tools.diagSuccess"));
       } else {
-        toast.error("Phát hiện lỗi trong quá trình chẩn đoán hệ thống.");
+        toast.error(t("admin:tools.diagFailed"));
       }
     } catch (err) {
-      toast.error("Không thể chạy kiểm tra chẩn đoán.");
+      toast.error(t("admin:tools.diagError"));
     } finally {
       setDiagRunning(false);
     }
@@ -128,7 +128,7 @@ export default function AdminToolsPage() {
           className="inline-flex items-center gap-2 self-start rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2 text-xs font-bold text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] transition shadow-xs cursor-pointer"
         >
           <RefreshCw size={14} className={storageLoading || dbLoading ? "animate-spin" : ""} />
-          <span>Làm mới</span>
+          <span>{t("admin:common.refresh")}</span>
         </button>
       </div>
 
@@ -145,7 +145,7 @@ export default function AdminToolsPage() {
                 </h2>
               </div>
               <span className="font-mono text-xs font-bold text-teal-600">
-                Tổng: {storageData?.total_size_human || "0 B"} ({storageData?.total_file_count || 0} files)
+                {t("admin:tools.total")}: {storageData?.total_size_human || "0 B"} ({storageData?.total_file_count || 0} {t("admin:tools.files")})
               </span>
             </div>
             <p className="text-xs text-[var(--color-text-secondary)] mt-2">
@@ -162,7 +162,7 @@ export default function AdminToolsPage() {
                   <p className="font-bold text-[var(--color-text-primary)]">{dir.directory}</p>
                   <div className="mt-1 flex items-center justify-between text-[11px] text-[var(--color-text-muted)]">
                     <span className="font-mono font-bold text-teal-600">{dir.size_human}</span>
-                    <span>{dir.file_count} files</span>
+                    <span>{dir.file_count} {t("admin:tools.files")}</span>
                   </div>
                 </div>
               ))}
@@ -181,9 +181,9 @@ export default function AdminToolsPage() {
                   onChange={(e) => setCleanupTarget(e.target.value)}
                   className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-3 py-2 text-xs font-bold"
                 >
-                  <option value="temp">Tất cả tệp tạm (Uploads & Outputs)</option>
-                  <option value="uploads">Chỉ thư mục Uploads</option>
-                  <option value="outputs">Chỉ thư mục Outputs</option>
+                  <option value="temp">{t("admin:tools.targetAll")}</option>
+                  <option value="uploads">{t("admin:tools.targetUploads")}</option>
+                  <option value="outputs">{t("admin:tools.targetOutputs")}</option>
                 </select>
               </div>
 
@@ -209,7 +209,7 @@ export default function AdminToolsPage() {
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 py-2.5 text-xs font-bold text-red-600 hover:bg-red-500/20 transition cursor-pointer disabled:opacity-50"
             >
               {cleaning ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              <span>{cleaning ? "Đang quét dọn..." : t("admin:tools.runCleanup")}</span>
+              <span>{cleaning ? t("admin:tools.cleanupScanning") : t("admin:tools.runCleanup")}</span>
             </button>
           </form>
         </div>
@@ -237,7 +237,7 @@ export default function AdminToolsPage() {
               )}
             </div>
             <p className="text-xs text-[var(--color-text-secondary)] mt-2">
-              Chạy kiểm tra ping round-trip, kiểm tra kết nối socket và quyền ghi ổ đĩa cho các dịch vụ cốt lõi.
+              {t("admin:tools.diagDesc")}
             </p>
 
             {/* Diagnostics Results List */}
@@ -272,7 +272,7 @@ export default function AdminToolsPage() {
                 ))
               ) : (
                 <div className="rounded-xl border border-[var(--color-border)] p-6 text-center text-xs text-[var(--color-text-muted)]">
-                  Nhấn nút bên dưới để bắt đầu kiểm tra chẩn đoán hệ thống.
+                  {t("admin:tools.diagPrompt")}
                 </div>
               )}
             </div>
@@ -285,7 +285,7 @@ export default function AdminToolsPage() {
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] py-2.5 text-xs font-bold text-white shadow-xs hover:bg-[var(--color-primary-hover)] transition cursor-pointer disabled:opacity-50"
           >
             {diagRunning ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-            <span>{diagRunning ? "Đang chẩn đoán..." : t("admin:tools.runDiagnostics")}</span>
+            <span>{diagRunning ? t("admin:tools.diagRunning") : t("admin:tools.runDiagnostics")}</span>
           </button>
         </div>
       </div>
@@ -308,9 +308,9 @@ export default function AdminToolsPage() {
           <table className="w-full text-left text-xs">
             <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
               <tr>
-                <th className="px-4 py-3">Tên Bảng (Table)</th>
-                <th className="px-4 py-3">Số Lượng Bản Ghi (Rows)</th>
-                <th className="px-4 py-3 text-right">Dung Lượng (Size)</th>
+                <th className="px-4 py-3">{t("admin:tools.tableName")}</th>
+                <th className="px-4 py-3">{t("admin:tools.rowCount")}</th>
+                <th className="px-4 py-3 text-right">{t("admin:tools.tableSize")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border)]">
@@ -318,7 +318,7 @@ export default function AdminToolsPage() {
                 <tr>
                   <td colSpan={3} className="py-8 text-center text-xs text-[var(--color-text-muted)]">
                     <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-[var(--color-primary)]" />
-                    Đang tải chỉ số database...
+                    {t("admin:tools.dbLoading")}
                   </td>
                 </tr>
               ) : (
@@ -345,10 +345,10 @@ export default function AdminToolsPage() {
         isOpen={isCleanupConfirmOpen}
         onClose={() => setIsCleanupConfirmOpen(false)}
         onConfirm={handleExecuteCleanup}
-        title="Dọn dẹp hệ thống lưu trữ"
-        message={`Bạn có chắc chắn muốn dọn dẹp các tệp tạm trong mục "${cleanupTarget}" cũ hơn ${cleanupDays} ngày không? Hành động này sẽ giải phóng dung lượng đĩa.`}
-        confirmLabel="Bắt đầu dọn dẹp"
-        cancelLabel="Hủy"
+        title={t("admin:tools.confirmTitle")}
+        message={t("admin:tools.confirmMessage", { target: cleanupTarget, days: cleanupDays })}
+        confirmLabel={t("admin:tools.runCleanup")}
+        cancelLabel={t("admin:common.cancel")}
         isDestructive
         isLoading={cleaning}
       />

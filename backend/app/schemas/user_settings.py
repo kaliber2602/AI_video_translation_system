@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, field_validator
 
@@ -10,8 +10,14 @@ class UserSettingsUpdate(BaseModel):
     theme: str
     language: str
     default_target_language: Optional[str] = None
+    default_separation_model: Optional[str] = None
+    default_stt_model: Optional[str] = None
+    default_diarization_model: Optional[str] = None
     default_translation_model: Optional[str] = None
     default_tts_model: Optional[str] = None
+    default_llm_model: Optional[str] = None
+    default_embedding_model: Optional[str] = None
+    preferences: Optional[Dict[str, Any]] = None
 
     @field_validator("language")
     @classmethod
@@ -29,8 +35,14 @@ class UserSettingsPatch(BaseModel):
     theme: Optional[str] = None
     language: Optional[str] = None
     default_target_language: Optional[str] = None
+    default_separation_model: Optional[str] = None
+    default_stt_model: Optional[str] = None
+    default_diarization_model: Optional[str] = None
     default_translation_model: Optional[str] = None
     default_tts_model: Optional[str] = None
+    default_llm_model: Optional[str] = None
+    default_embedding_model: Optional[str] = None
+    preferences: Optional[Dict[str, Any]] = None
 
     @field_validator("language")
     @classmethod
@@ -53,5 +65,19 @@ class UserSettingsResponse(BaseModel):
     theme: str
     language: str
     default_target_language: Optional[str] = None
+    default_separation_model: Optional[str] = None
+    default_stt_model: Optional[str] = None
+    default_diarization_model: Optional[str] = None
     default_translation_model: Optional[str] = None
     default_tts_model: Optional[str] = None
+    default_llm_model: Optional[str] = None
+    default_embedding_model: Optional[str] = None
+    preferences: Optional[Dict[str, Any]] = None
+
+
+class TTSPreviewRequest(BaseModel):
+    text: str
+    language: str = "en"
+    voice_id: Optional[str] = None
+    speed: float = 1.0
+    pitch: float = 0.0

@@ -3,8 +3,6 @@ import type {
   CreatePaymentTransactionRequest,
   PaymentTransaction,
   PaymentTransactionListResponse,
-  DemoPaymentSuccessResponse,
-  DemoPaymentFailResponse,
 } from "../types/payment";
 
 // =========================================================
@@ -52,30 +50,4 @@ export const getPaymentTransaction = async (
   return response.data;
 };
 
-// =========================================================
-// Simulate Demo Payment Success (Protected)
-// POST /api/payments/transactions/{id}/demo-success
-// =========================================================
 
-export const simulateDemoSuccess = async (
-  transactionIdOrCode: string | number
-): Promise<DemoPaymentSuccessResponse> => {
-  const response = await api.post<DemoPaymentSuccessResponse>(
-    `/api/payments/transactions/${transactionIdOrCode}/demo-success`
-  );
-  return response.data;
-};
-
-// =========================================================
-// Simulate Demo Payment Fail (Protected)
-// POST /api/payments/transactions/{id}/demo-fail
-// =========================================================
-
-export const simulateDemoFail = async (
-  transactionIdOrCode: string | number
-): Promise<DemoPaymentFailResponse> => {
-  const response = await api.post<DemoPaymentFailResponse>(
-    `/api/payments/transactions/${transactionIdOrCode}/demo-fail`
-  );
-  return response.data;
-};

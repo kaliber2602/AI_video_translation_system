@@ -329,9 +329,10 @@ export default function WorkspaceSidebar({
     const totalGb = storage?.total_gb ?? (planCode === "pro" ? 100 : planCode === "business" ? 1000 : 5);
     const storageUsagePercent = storage?.usage_percent ?? (totalGb > 0 ? Math.round((usedGb / totalGb) * 100) : 0);
 
+    const words = subscriptionSummary?.effective_quota?.words;
     const credits = subscriptionSummary?.effective_quota?.credits;
-    const remainingCredits = credits?.remaining_credits ?? (planCode === "pro" ? 10000 : planCode === "business" ? 100000 : 1000);
-    const totalCredits = credits?.total_credits ?? (planCode === "pro" ? 10000 : planCode === "business" ? 100000 : 1000);
+    const remainingWords = words?.remaining_words ?? (credits ? credits.remaining_credits * 10 : (planCode === "pro" ? 100000 : planCode === "business" ? 1000000 : 5000));
+    const totalWords = words?.total_words ?? (credits ? credits.total_credits * 10 : (planCode === "pro" ? 100000 : planCode === "business" ? 1000000 : 5000));
 
     return (
       <>
@@ -591,15 +592,15 @@ export default function WorkspaceSidebar({
           </div>
         </div>
 
-        {/* AI Processing Credits Counter */}
+        {/* AI Word Quota Counter */}
         <div className="mt-3 space-y-1.5">
           <div className="flex items-center justify-between text-[11px]">
             <span className="flex items-center gap-1 font-semibold text-[var(--color-text-secondary)]">
               <Sparkles size={12} className="text-amber-500" />
-              <span>{t("workspace:quota.credits", "AI Credits")}</span>
+              <span>{t("workspace:quota.words", "Quota từ AI")}</span>
             </span>
             <span className="font-bold text-[var(--color-text-primary)] text-[10px]">
-              {remainingCredits.toLocaleString()} / {totalCredits.toLocaleString()}
+              {remainingWords.toLocaleString()} / {totalWords.toLocaleString()} từ
             </span>
           </div>
 
@@ -607,7 +608,7 @@ export default function WorkspaceSidebar({
             <div
               className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-500"
               style={{
-                width: `${totalCredits > 0 ? Math.min(100, Math.max((remainingCredits / totalCredits) * 100, 4)) : 100}%`,
+                width: `${totalWords > 0 ? Math.min(100, Math.max((remainingWords / totalWords) * 100, 4)) : 100}%`,
               }}
             />
           </div>

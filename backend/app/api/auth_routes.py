@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -12,6 +14,8 @@ from fastapi.security import (
     HTTPBearer,
 )
 
+logger = logging.getLogger("app.api.auth_routes")
+
 from app.services.auth_service import (
     register_user,
     login_user,
@@ -23,6 +27,11 @@ from app.services.auth_service import (
     logout_user,
     logout_all_user_tokens,
     update_user_avatar,
+    update_user_profile,
+    delete_user_account,
+    get_user_sessions,
+    revoke_user_session,
+    get_user_security_logs,
 )
 
 from app.core.security import (
@@ -34,6 +43,8 @@ from app.schemas.auth import (
     RegisterResponse,
     LoginRequest,
     LoginResponse,
+    UpdateProfileRequest,
+    DeleteAccountRequest,
     RefreshTokenRequest,
     RefreshTokenResponse,
     UserResponse,
@@ -250,6 +261,45 @@ def me(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get current user.",
+        ) from exc
+
+
+# =========================================================
+# Update Profile
+# PUT /auth/me
+# =========================================================
+
+@router.put(
+    "/me",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+)
+def update_me(
+    request: UpdateProfileRequest,
+    user_id: int = Depends(get_current_user_id),
+):
+    try:
+        user = update_user_profile(
+            user_id=user_id,
+            full_name=request.full_name,
+        )
+        return {
+            "id": user[0],
+            "email": user[1],
+            "full_name": user[3],
+            "avatar": user[4],
+            "role": user[5],
+            "is_active": user[6],
+        }
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update profile.",
         ) from exc
 
 
@@ -518,3 +568,97 @@ async def update_avatar(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Unexpected avatar upload error: {exc}",
         ) from exc
+
+
+# =========================================================
+# Delete Account
+# POST /auth/account/delete
+# =========================================================
+
+@router.post(
+    "/account/delete",
+    status_code=status.HTTP_200_OK,
+)
+def delete_account(
+    request: DeleteAccountRequest,
+    user_id: int = Depends(get_current_user_id),
+):
+    if request.confirmation.strip().upper() != "DELETE":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirmation text must be DELETE.",
+        )
+
+    try:
+        delete_user_account(user_id=user_id)
+        return {
+            "message": "Account has been deactivated and scheduled for deletion."
+        }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete account.",
+        ) from exc
+
+
+# =========================================================
+# Active Sessions
+# GET /auth/sessions
+# DELETE /auth/sessions/{session_id}
+# =========================================================
+
+@router.get(
+    "/sessions",
+    status_code=status.HTTP_200_OK,
+)
+def list_sessions(
+    user_id: int = Depends(get_current_user_id),
+):
+    try:
+        return get_user_sessions(user_id=user_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch active sessions.",
+        ) from exc
+
+
+@router.delete(
+    "/sessions/{session_id}",
+    status_code=status.HTTP_200_OK,
+)
+def revoke_session(
+    session_id: str,
+    user_id: int = Depends(get_current_user_id),
+):
+    try:
+        revoke_user_session(user_id=user_id, session_id=session_id)
+        return {
+            "message": "Session terminated successfully."
+        }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to revoke session.",
+        ) from exc
+
+
+# =========================================================
+# Security Audit Logs
+# GET /auth/security-logs
+# =========================================================
+
+@router.get(
+    "/security-logs",
+    status_code=status.HTTP_200_OK,
+)
+def list_security_logs(
+    user_id: int = Depends(get_current_user_id),
+):
+    try:
+        return get_user_security_logs(user_id=user_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch security logs.",
+        ) from exc

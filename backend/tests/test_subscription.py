@@ -22,8 +22,18 @@ from app.services.subscription_service import (
     validate_upload_quota,
     validate_project_quota,
 )
+from app.core.database import get_connection
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def check_db():
+    try:
+        conn = get_connection()
+        conn.close()
+    except Exception as exc:
+        pytest.skip(f"PostgreSQL not available on host: {exc}")
 
 
 def test_get_catalog_public_endpoint():

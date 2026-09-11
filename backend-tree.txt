@@ -1,81 +1,168 @@
-Folder PATH listing for volume New Volume
-Volume serial number is 000000F6 5037:64D5
-+---backend
-|   |   Dockerfile
-|   |   requirements.txt
-|   |   
-|   +---app
-|   |   |   main.py
-|   |   |   __init__.py
-|   |   |   
-|   |   +---api
-|   |   |   |   auth_routes.py
-|   |   |   |   project_routes.py
-|   |   |   |   routes.py
-|   |   |   |   subscription_routes.py
-|   |   |   |   tag_routes.py
-|   |   |   |   user_settings_routes.py
-|   |   |   |   video_routes.py
-|   |   |   |   __init__.py
-|   |   |   |   
-|   |   |           
-|   |   +---core
-|   |   |   |   config.py
-|   |   |   |   database.py
-|   |   |   |   languages.py
-|   |   |   |   security.py
-|   |   |   |   
-|   |   |           
-|   |   +---models
-|   |   |       enums.py
-|   |   |       
-|   |   +---pipeline
-|   |   |   |   orchestrator.py
-|   |   |   |   video_translation.py
-|   |   |   |   __init__.py
-|   |   |   |   
-|   |   |           
-|   |   +---schemas
-|   |   |   |   auth.py
-|   |   |   |   project.py
-|   |   |   |   subscription.py
-|   |   |   |   tag.py
-|   |   |   |   user_settings.py
-|   |   |   |   video.py
-|   |   |   |   __init__.py
-|   |   |   |   
-|   |   |           
-|   |   +---services
-|   |   |   |   audio_service.py
-|   |   |   |   auth_service.py
-|   |   |   |   email_service.py
-|   |   |   |   job_service.py
-|   |   |   |   pipeline_steps.py
-|   |   |   |   project_service.py
-|   |   |   |   stt_service.py
-|   |   |   |   subscription_service.py
-|   |   |   |   tag_service.py
-|   |   |   |   translation_service.py
-|   |   |   |   tts_aligner_service.py
-|   |   |   |   user_settings_service.py
-|   |   |   |   __init__.py
-|   |   |   |   
-|   |   |           
-|   |   +---video
-|   |   |           
-|   |           
-|   +---outputs
-|   |       
-|   +---scripts
-|   |       prefetch_models.py
-|   |       seed_users.py
-|   |       
-|   +---tests
-|   |       test_language_flow.py
-|   |       test_main.py
-|   |       test_pipeline.py
-|   |       test_subscription.py
-|   |       test_translation_pipeline.py
-|   |       __init__.py
-|   |       
-|   |       
+Folder PATH listing
+Volume serial number is 00000207 C80D:FCAF
+C:\USERS\ADMIN\ONEDRIVE\DESKTOP\PROJECT\AI_VIDEO_TRANSLATION_SYSTEM\BACKEND\APP
+¦   main.py
+¦   __init__.py
+¦   
++---api
+¦   ¦   admin_routes.py
+¦   ¦   auth_routes.py
+¦   ¦   contact_routes.py
+¦   ¦   notification_routes.py
+¦   ¦   payment_routes.py
+¦   ¦   project_routes.py
+¦   ¦   routes.py
+¦   ¦   subscription_routes.py
+¦   ¦   tag_routes.py
+¦   ¦   user_settings_routes.py
+¦   ¦   video_routes.py
+¦   ¦   __init__.py
+¦   ¦   
+¦   +---__pycache__
+¦           admin_routes.cpython-312.pyc
+¦           auth_routes.cpython-312.pyc
+¦           contact_routes.cpython-312.pyc
+¦           notification_routes.cpython-312.pyc
+¦           payment_routes.cpython-312.pyc
+¦           project_routes.cpython-312.pyc
+¦           routes.cpython-312.pyc
+¦           subscription_routes.cpython-312.pyc
+¦           tag_routes.cpython-312.pyc
+¦           user_settings_routes.cpython-312.pyc
+¦           video_routes.cpython-312.pyc
+¦           __init__.cpython-312.pyc
+¦           
++---core
+¦   ¦   admin_guard.py
+¦   ¦   config.py
+¦   ¦   database.py
+¦   ¦   languages.py
+¦   ¦   security.py
+¦   ¦   
+¦   +---__pycache__
+¦           admin_guard.cpython-312.pyc
+¦           config.cpython-312.pyc
+¦           database.cpython-312.pyc
+¦           languages.cpython-312.pyc
+¦           security.cpython-312.pyc
+¦           
++---models
+¦   ¦   enums.py
+¦   ¦   __init__.py
+¦   ¦   
+¦   +---__pycache__
+¦           enums.cpython-312.pyc
+¦           __init__.cpython-312.pyc
+¦           
++---pipeline
+¦   ¦   orchestrator.py
+¦   ¦   video_translation.py
+¦   ¦   __init__.py
+¦   ¦   
+¦   +---__pycache__
+¦           orchestrator.cpython-312.pyc
+¦           video_translation.cpython-312.pyc
+¦           __init__.cpython-312.pyc
+¦           
++---schemas
+¦   ¦   admin.py
+¦   ¦   asset.py
+¦   ¦   auth.py
+¦   ¦   contact.py
+¦   ¦   folder.py
+¦   ¦   notification.py
+¦   ¦   payment.py
+¦   ¦   project.py
+¦   ¦   subscription.py
+¦   ¦   tag.py
+¦   ¦   user_settings.py
+¦   ¦   video.py
+¦   ¦   __init__.py
+¦   ¦   
+¦   +---__pycache__
+¦           admin.cpython-312.pyc
+¦           asset.cpython-312.pyc
+¦           auth.cpython-312.pyc
+¦           contact.cpython-312.pyc
+¦           folder.cpython-312.pyc
+¦           notification.cpython-312.pyc
+¦           payment.cpython-312.pyc
+¦           project.cpython-312.pyc
+¦           subscription.cpython-312.pyc
+¦           tag.cpython-312.pyc
+¦           user_settings.cpython-312.pyc
+¦           video.cpython-312.pyc
+¦           __init__.cpython-312.pyc
+¦           
++---services
+¦   ¦   admin_service.py
+¦   ¦   audio_service.py
+¦   ¦   auth_service.py
+¦   ¦   contact_service.py
+¦   ¦   diarization_service.py
+¦   ¦   email_service.py
+¦   ¦   export_service.py
+¦   ¦   folder_service.py
+¦   ¦   hls_service.py
+¦   ¦   job_service.py
+¦   ¦   notification_service.py
+¦   ¦   payment_service.py
+¦   ¦   pipeline_steps.py
+¦   ¦   project_asset_service.py
+¦   ¦   project_service.py
+¦   ¦   s3_service.py
+¦   ¦   stt_service.py
+¦   ¦   subscription_service.py
+¦   ¦   subtitle_service.py
+¦   ¦   tag_service.py
+¦   ¦   translation_service.py
+¦   ¦   tts_aligner_service.py
+¦   ¦   user_settings_service.py
+¦   ¦   video_service.py
+¦   ¦   video_understanding_service.py
+¦   ¦   __init__.py
+¦   ¦   
+¦   +---__pycache__
+¦           admin_service.cpython-312.pyc
+¦           audio_service.cpython-312.pyc
+¦           auth_service.cpython-312.pyc
+¦           contact_service.cpython-312.pyc
+¦           diarization_service.cpython-312.pyc
+¦           email_service.cpython-312.pyc
+¦           export_service.cpython-312.pyc
+¦           folder_service.cpython-312.pyc
+¦           hls_service.cpython-312.pyc
+¦           job_service.cpython-312.pyc
+¦           notification_service.cpython-312.pyc
+¦           payment_service.cpython-312.pyc
+¦           pipeline_steps.cpython-312.pyc
+¦           project_asset_service.cpython-312.pyc
+¦           project_service.cpython-312.pyc
+¦           s3_service.cpython-312.pyc
+¦           stt_service.cpython-312.pyc
+¦           subscription_service.cpython-312.pyc
+¦           subtitle_service.cpython-312.pyc
+¦           tag_service.cpython-312.pyc
+¦           translation_service.cpython-312.pyc
+¦           tts_aligner_service.cpython-312.pyc
+¦           user_settings_service.cpython-312.pyc
+¦           video_service.cpython-312.pyc
+¦           video_understanding_service.cpython-312.pyc
+¦           __init__.cpython-312.pyc
+¦           
++---tasks
+¦   ¦   audio_tasks.py
+¦   ¦   celery_app.py
+¦   ¦   translation_tasks.py
+¦   ¦   video_tasks.py
+¦   ¦   __init__.py
+¦   ¦   
+¦   +---__pycache__
+¦           celery_app.cpython-312.pyc
+¦           video_tasks.cpython-312.pyc
+¦           __init__.cpython-312.pyc
+¦           
++---__pycache__
+        main.cpython-312.pyc
+        __init__.cpython-312.pyc
+        

@@ -18,6 +18,7 @@ RUN pip install \
     --no-cache-dir \
     --default-timeout=60 \
     --retries 5 \
+    --progress-bar on \
     -r requirements.txt
 
 COPY . ./

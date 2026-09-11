@@ -133,6 +133,7 @@ export default function SettingsLayout({
                 onEmailNotificationsChange={onEmailNotificationsChange}
                 onProcessingUpdatesChange={onProcessingUpdatesChange}
                 onTipsNewsChange={onTipsNewsChange}
+                onSectionChange={onSectionChange}
               />
             )}
 

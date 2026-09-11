@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FolderGit2, Users, Eye, Save, Sparkles, LayoutGrid } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "../../../lib/toast";
@@ -10,6 +10,7 @@ import SettingsBadge from "../common/SettingsBadge";
 import SettingsInput from "../common/SettingsInput";
 import Toggle from "../Toggle";
 import { INITIAL_MOCK_SETTINGS } from "../mock/settingsMockData";
+import { getUserSettings, patchUserSettings } from "../../../services/settings.service";
 
 export interface WorkspaceSectionProps {
   autoSave?: boolean;
@@ -57,6 +58,44 @@ export default function WorkspaceSection({
 
   const [isSaved, setIsSaved] = useState(true);
 
+  // Load preferences on mount
+  useEffect(() => {
+    const fetchWorkspaceSettings = async () => {
+      try {
+        const data = await getUserSettings();
+        if (data?.preferences?.workspace) {
+          const w = data.preferences.workspace;
+          if (w.name !== undefined) setWorkspaceName(w.name);
+          if (w.slug !== undefined) setWorkspaceSlug(w.slug);
+          if (w.defaultExportResolution !== undefined) setDefaultResolution(w.defaultExportResolution);
+          if (w.defaultAspectRatio !== undefined) setDefaultAspect(w.defaultAspectRatio);
+          if (w.defaultMemberRole !== undefined) setDefaultRole(w.defaultMemberRole);
+          if (w.defaultLayout !== undefined) setDefaultLayout(w.defaultLayout);
+          if (w.autoPlayHover !== undefined) setAutoPlayHover(w.autoPlayHover);
+          if (w.autoSave !== undefined) {
+            setLocalAutoSave(w.autoSave);
+            onAutoSaveChange?.(w.autoSave);
+          }
+          if (w.showTranscripts !== undefined) {
+            setLocalShowTranscripts(w.showTranscripts);
+            onShowTranscriptsChange?.(w.showTranscripts);
+          }
+          if (w.aiSuggestions !== undefined) {
+            setLocalAiSuggestions(w.aiSuggestions);
+            onAiSuggestionsChange?.(w.aiSuggestions);
+          }
+          if (w.compactView !== undefined) {
+            setLocalCompactView(w.compactView);
+            onCompactViewChange?.(w.compactView);
+          }
+        }
+      } catch (err) {
+        console.error("[WorkspaceSection] Failed to load workspace settings:", err);
+      }
+    };
+    fetchWorkspaceSettings();
+  }, [onAutoSaveChange, onShowTranscriptsChange, onAiSuggestionsChange, onCompactViewChange]);
+
   const autoSave = propAutoSave ?? localAutoSave;
   const showTranscripts = propShowTranscripts ?? localShowTranscripts;
   const aiSuggestions = propAiSuggestions ?? localAiSuggestions;
@@ -64,15 +103,37 @@ export default function WorkspaceSection({
 
   const markDirty = () => setIsSaved(false);
 
-  const handleSave = () => {
-    setIsSaved(true);
-    toast.success(
-      t("settings:toast.settingsSaved", "Settings saved"),
-      t("settings:toast.workspaceSavedDesc", "Workspace parameters and editor defaults updated.")
-    );
+  const handleSave = async () => {
+    try {
+      await patchUserSettings({
+        preferences: {
+          workspace: {
+            name: workspaceName,
+            slug: workspaceSlug,
+            defaultExportResolution: defaultResolution,
+            defaultAspectRatio: defaultAspect,
+            defaultMemberRole: defaultRole,
+            defaultLayout,
+            autoPlayHover,
+            autoSave,
+            showTranscripts,
+            aiSuggestions,
+            compactView,
+          },
+        },
+      });
+      setIsSaved(true);
+      toast.success(
+        t("settings:toast.settingsSaved", "Settings saved"),
+        t("settings:toast.workspaceSavedDesc", "Workspace parameters and editor defaults updated.")
+      );
+    } catch (err: any) {
+      console.error("[WorkspaceSection] Failed to save:", err);
+      toast.error("Save Failed", err?.response?.data?.detail || "Could not save workspace settings.");
+    }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     setWorkspaceName("VidNova Creative Studio");
     setWorkspaceSlug("vidnova-creative-studio");
     setDefaultResolution("1080p");
@@ -84,8 +145,35 @@ export default function WorkspaceSection({
     setLocalShowTranscripts(true);
     setLocalAiSuggestions(true);
     setLocalCompactView(false);
-    setIsSaved(true);
-    toast.info("Reset to defaults", "Workspace defaults restored.");
+
+    onAutoSaveChange?.(true);
+    onShowTranscriptsChange?.(true);
+    onAiSuggestionsChange?.(true);
+    onCompactViewChange?.(false);
+
+    try {
+      await patchUserSettings({
+        preferences: {
+          workspace: {
+            name: "VidNova Creative Studio",
+            slug: "vidnova-creative-studio",
+            defaultExportResolution: "1080p",
+            defaultAspectRatio: "16:9",
+            defaultMemberRole: "editor",
+            defaultLayout: "grid",
+            autoPlayHover: true,
+            autoSave: true,
+            showTranscripts: true,
+            aiSuggestions: true,
+            compactView: false,
+          },
+        },
+      });
+      setIsSaved(true);
+      toast.info("Reset to defaults", "Workspace defaults restored.");
+    } catch (err: any) {
+      console.error("[WorkspaceSection] Failed to reset:", err);
+    }
   };
 
   return (

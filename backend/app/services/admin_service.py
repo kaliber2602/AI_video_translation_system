@@ -253,11 +253,19 @@ def get_system_metrics() -> SystemMetricsResponse:
             )
             total_revenue_usd = float(cursor.fetchone()[0] or 0.0)
 
-            # Consumable AI Credits
+            # Consumable AI Credits & Words Quota
             cursor.execute(
-                "SELECT COALESCE(SUM(credits_used), 0) FROM user_consumable_usage;"
+                """
+                SELECT COALESCE(SUM(credits_used), 0),
+                       COALESCE(SUM(words_used), 0)
+                FROM user_consumable_usage;
+                """
             )
-            total_credits_consumed = int(cursor.fetchone()[0] or 0)
+            usage_row = cursor.fetchone()
+            total_credits_consumed = int(usage_row[0] or 0)
+            total_words_consumed = int(usage_row[1] or 0)
+            if total_words_consumed == 0 and total_credits_consumed > 0:
+                total_words_consumed = total_credits_consumed * 10
 
             return SystemMetricsResponse(
                 total_users=total_users,
@@ -269,6 +277,7 @@ def get_system_metrics() -> SystemMetricsResponse:
                 jobs_by_status=jobs_by_status,
                 total_revenue_usd=total_revenue_usd,
                 total_credits_consumed=total_credits_consumed,
+                total_words_consumed=total_words_consumed,
                 timestamp=datetime.now(timezone.utc),
             )
     finally:
@@ -698,7 +707,8 @@ def list_users(
                     COALESCE(p.name, 'Free') AS plan_name,
                     (SELECT COUNT(*) FROM projects pr WHERE pr.owner_id = u.id AND pr.deleted_at IS NULL) AS projects_count,
                     (SELECT COUNT(*) FROM videos v JOIN projects pr ON v.project_id = pr.id WHERE pr.owner_id = u.id AND v.deleted_at IS NULL) AS videos_count,
-                    COALESCE((SELECT SUM(credits_used) FROM user_consumable_usage WHERE user_id = u.id), 0) AS credits_used
+                    COALESCE((SELECT SUM(credits_used) FROM user_consumable_usage WHERE user_id = u.id), 0) AS credits_used,
+                    COALESCE((SELECT SUM(words_used) FROM user_consumable_usage WHERE user_id = u.id), 0) AS words_used
                 FROM users u
                 LEFT JOIN user_subscriptions us ON u.id = us.user_id AND us.status = 'active'
                 LEFT JOIN plans p ON us.plan_id = p.id
@@ -723,6 +733,7 @@ def list_users(
                     projects_count=r[9],
                     videos_count=r[10],
                     credits_used=r[11],
+                    words_used=r[12] if len(r) > 12 and r[12] > 0 else (r[11] * 10),
                 )
                 for r in rows
             ]
@@ -755,7 +766,8 @@ def get_user_details(user_id: int) -> AdminUserDetailResponse:
                     us.expires_at,
                     (SELECT COUNT(*) FROM projects pr WHERE pr.owner_id = u.id AND pr.deleted_at IS NULL) AS projects_count,
                     (SELECT COUNT(*) FROM videos v JOIN projects pr ON v.project_id = pr.id WHERE pr.owner_id = u.id AND v.deleted_at IS NULL) AS videos_count,
-                    COALESCE((SELECT SUM(credits_used) FROM user_consumable_usage WHERE user_id = u.id), 0) AS total_credits_used
+                    COALESCE((SELECT SUM(credits_used) FROM user_consumable_usage WHERE user_id = u.id), 0) AS total_credits_used,
+                    COALESCE((SELECT SUM(words_used) FROM user_consumable_usage WHERE user_id = u.id), 0) AS total_words_used
                 FROM users u
                 LEFT JOIN user_subscriptions us ON u.id = us.user_id AND us.status = 'active'
                 LEFT JOIN plans p ON us.plan_id = p.id
@@ -816,6 +828,7 @@ def get_user_details(user_id: int) -> AdminUserDetailResponse:
                 for jr in job_rows
             ]
 
+            words_val = int(r[16]) if len(r) > 16 and r[16] > 0 else (int(r[15]) * 10)
             return AdminUserDetailResponse(
                 id=r[0],
                 email=r[1],
@@ -833,6 +846,7 @@ def get_user_details(user_id: int) -> AdminUserDetailResponse:
                 projects_count=r[13],
                 videos_count=r[14],
                 total_credits_used=r[15],
+                total_words_used=words_val,
                 recent_jobs=recent_jobs,
             )
     finally:
@@ -1198,6 +1212,7 @@ def list_credit_audit_logs(
                     job_id=str(r[4]) if r[4] else None,
                     service_type=r[5],
                     credits_deducted=r[6],
+                    words_deducted=r[6] if "word" in (r[8] or "").lower() or r[5] == "WORD_PROCESSING" else (r[6] * 10),
                     balance_after=r[7],
                     description=r[8],
                     created_at=r[9],

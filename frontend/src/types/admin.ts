@@ -38,6 +38,7 @@ export interface SystemMetricsResponse {
   };
   total_revenue_usd: number;
   total_credits_consumed: number;
+  total_words_consumed?: number;
   timestamp: string;
 }
 
@@ -108,6 +109,7 @@ export interface AdminUserListItem {
   projects_count: number;
   videos_count: number;
   credits_used: number;
+  words_used?: number;
   created_at: string;
 }
 
@@ -128,6 +130,7 @@ export interface AdminUserDetailResponse {
   projects_count: number;
   videos_count: number;
   total_credits_used: number;
+  total_words_used?: number;
   recent_jobs: AdminJobResponse[];
 }
 
@@ -175,6 +178,7 @@ export interface AdminCreditAuditResponse {
   job_id?: string;
   service_type: string;
   credits_deducted: number;
+  words_deducted?: number;
   balance_after?: number;
   description?: string;
   created_at: string;

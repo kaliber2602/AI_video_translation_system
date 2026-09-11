@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  CreditCard,
   Sparkles,
   Download,
   AlertCircle,
@@ -242,8 +241,8 @@ export default function BillingSection() {
 
         {/* CARD 2: REAL-TIME QUOTAS & CONSUMABLES */}
         <SettingCard
-          title={t("settings:billing.usageTitle", "Pipeline Quotas & AI Credits")}
-          description="Authoritative real-time balance of storage allowance and monthly AI credits."
+          title={t("settings:billing.usageTitle", "Pipeline Quotas & Quota Từ AI")}
+          description="Authoritative real-time balance of storage allowance and monthly AI word quota."
         >
           <div className="space-y-4">
             {/* Storage Quota */}
@@ -271,20 +270,24 @@ export default function BillingSection() {
               </p>
             </div>
 
-            {/* AI Credits Consumable */}
+            {/* AI Words Quota Consumable */}
             <div>
               <div className="flex justify-between text-xs font-semibold pb-1">
                 <span className="flex items-center gap-1.5 text-[var(--color-text-secondary)]">
                   <Clock size={13} className="text-blue-500" />
-                  Monthly AI Credits (Whisper / NLLB / XTTS)
+                  {t("settings:billing.wordsQuotaTitle", "Định Mức Từ AI Hàng Tháng (Whisper / NLLB / XTTS)")}
                 </span>
                 <span className="text-[var(--color-text-primary)]">
-                  {quota
-                    ? `${quota.credits.used_credits.toLocaleString()} / ${quota.credits.total_credits.toLocaleString()}`
-                    : "0 / 1,000"}
+                  {quota?.words
+                    ? `${quota.words.used_words.toLocaleString()} / ${quota.words.total_words.toLocaleString()} từ`
+                    : quota?.credits
+                    ? `${(quota.credits.used_credits * 10).toLocaleString()} / ${(quota.credits.total_credits * 10).toLocaleString()} từ`
+                    : "0 / 5,000 từ"}
                   <span className="text-[var(--color-text-muted)] ml-1">
                     (
-                    {quota && quota.credits.total_credits > 0
+                    {quota?.words
+                      ? `${quota.words.usage_percent}%`
+                      : quota?.credits && quota.credits.total_credits > 0
                       ? `${Math.round((quota.credits.used_credits / quota.credits.total_credits) * 100)}%`
                       : "0%"}
                     )
@@ -296,7 +299,9 @@ export default function BillingSection() {
                   className="h-full rounded-full bg-blue-500 transition-all duration-500"
                   style={{
                     width: `${
-                      quota && quota.credits.total_credits > 0
+                      quota?.words
+                        ? Math.min(100, quota.words.usage_percent)
+                        : quota && quota.credits.total_credits > 0
                         ? Math.min(100, (quota.credits.used_credits / quota.credits.total_credits) * 100)
                         : 0
                     }%`,
@@ -304,7 +309,7 @@ export default function BillingSection() {
                 />
               </div>
               <p className="mt-1 text-[10px] text-[var(--color-text-muted)]">
-                ~{quota?.credits.remaining_credits.toLocaleString() || "1,000"} minutes of video translation remaining.
+                ~{Math.round((quota?.words?.remaining_words ?? (quota?.credits?.remaining_credits ? quota.credits.remaining_credits * 10 : 5000)) / 150).toLocaleString()} phút âm thanh ước tính còn lại • Khấu trừ theo số từ thực tế.
               </p>
             </div>
 
@@ -332,28 +337,6 @@ export default function BillingSection() {
           description="PCI-DSS compliant hosted gateways. No raw card numbers stored in VidNova."
         >
           <div className="space-y-3">
-            {/* Stripe Card */}
-            <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 transition-all hover:border-[var(--color-primary)]">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600">
-                  <CreditCard size={18} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-[var(--color-text-primary)]">
-                      Stripe Global Checkout
-                    </span>
-                    <SettingsBadge variant="primary" size="sm">
-                      Global USD
-                    </SettingsBadge>
-                  </div>
-                  <p className="text-[11px] text-[var(--color-text-muted)]">
-                    Visa, MasterCard, American Express, Apple Pay
-                  </p>
-                </div>
-              </div>
-              <ShieldCheck size={16} className="text-blue-500" />
-            </div>
 
             {/* VNPay Card */}
             <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 transition-all hover:border-[var(--color-primary)]">
@@ -453,7 +436,7 @@ export default function BillingSection() {
         isOpen={isUpgradeModalOpen}
         onClose={() => setIsUpgradeModalOpen(false)}
         title="Subscription Plans Catalog"
-        subtitle="Select a tier to scale your storage and monthly AI processing credits"
+        subtitle="Select a tier to scale your storage and monthly AI word processing quota"
         icon={<Sparkles size={20} />}
         maxWidth="lg"
       >

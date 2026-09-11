@@ -90,12 +90,12 @@ export default function AdminModelsPage() {
   };
 
   const categories = [
-    { id: "all", label: "Tất cả các loại" },
+    { id: "all", label: t("admin:common.all", "Tất cả") },
     { id: "stt", label: "Speech-to-Text (STT)" },
-    { id: "separation", label: "Tách âm thanh (Demucs)" },
-    { id: "diarization", label: "Nhận diện người nói" },
-    { id: "translation", label: "Dịch thuật (NLLB/GPT)" },
-    { id: "tts", label: "Lồng tiếng (TTS/Clone)" },
+    { id: "separation", label: "Audio Separation (Demucs)" },
+    { id: "diarization", label: "Speaker Diarization" },
+    { id: "translation", label: "Translation (NLLB/GPT)" },
+    { id: "tts", label: "Voice / TTS (Edge/XTTS)" },
     { id: "llm", label: "LLM & Video Understanding" },
     { id: "embedding", label: "Semantic Search & Vector" },
   ];
@@ -119,7 +119,7 @@ export default function AdminModelsPage() {
           className="inline-flex items-center gap-2 self-start rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2 text-xs font-bold text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] transition shadow-xs cursor-pointer"
         >
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          <span>Làm mới</span>
+          <span>{t("admin:common.refresh", "Làm mới")}</span>
         </button>
       </div>
 
@@ -147,14 +147,14 @@ export default function AdminModelsPage() {
           <table className="w-full text-left text-xs">
             <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
               <tr>
-                <th className="px-4 py-3.5">Mã Model (Code)</th>
-                <th className="px-4 py-3.5">Tên Mô Hình</th>
+                <th className="px-4 py-3.5">{t("admin:models.code", "Mã Model (Code)")}</th>
+                <th className="px-4 py-3.5">{t("admin:models.name", "Tên Mô Hình")}</th>
                 <th className="px-4 py-3.5">{t("admin:models.category")}</th>
                 <th className="px-4 py-3.5">{t("admin:models.provider")}</th>
                 <th className="px-4 py-3.5">{t("admin:models.cost")}</th>
                 <th className="px-4 py-3.5">{t("admin:models.requiredPlan")}</th>
                 <th className="px-4 py-3.5">{t("admin:models.status")}</th>
-                <th className="px-4 py-3.5 text-right">{t("common:actions", "Hành động")}</th>
+                <th className="px-4 py-3.5 text-right">{t("admin:common.actions", "Hành động")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border)]">
@@ -162,13 +162,13 @@ export default function AdminModelsPage() {
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-sm text-[var(--color-text-muted)]">
                     <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin text-[var(--color-primary)]" />
-                    Đang tải danh sách mô hình...
+                    {t("admin:common.loading", "Đang tải danh sách mô hình...")}
                   </td>
                 </tr>
               ) : models.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-sm text-[var(--color-text-muted)]">
-                    Không có mô hình nào thuộc danh mục này.
+                    {t("admin:models.empty", "Không có mô hình nào thuộc danh mục này.")}
                   </td>
                 </tr>
               ) : (
@@ -191,7 +191,7 @@ export default function AdminModelsPage() {
                     <td className="px-4 py-3 font-mono font-bold">
                       <span className="inline-flex items-center gap-1 text-teal-600 dark:text-teal-400">
                         <Zap size={13} />
-                        {model.credit_cost_per_minute} credits/min
+                        x{model.credit_cost_per_minute} rate ({model.credit_cost_per_minute * 150} từ/m)
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -228,7 +228,7 @@ export default function AdminModelsPage() {
                         className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] px-2.5 py-1 text-[11px] font-bold text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition cursor-pointer"
                       >
                         <Edit2 size={13} />
-                        <span>Sửa</span>
+                        <span>{t("admin:models.edit", "Sửa")}</span>
                       </button>
                     </td>
                   </tr>
@@ -261,7 +261,7 @@ export default function AdminModelsPage() {
 
             <div>
               <label className="block text-xs font-bold text-[var(--color-text-primary)] mb-1">
-                Chi phí Credits mỗi phút (Credit Cost)
+                {t("admin:models.cost", "Hệ số khấu trừ Quota Từ (Tokenize Rate)")}
               </label>
               <input
                 type="number"
@@ -273,22 +273,22 @@ export default function AdminModelsPage() {
                 required
               />
               <p className="text-[11px] text-[var(--color-text-muted)] mt-1">
-                Số tín chỉ AI bị trừ khi người dùng xử lý 1 phút audio/video với mô hình này.
+                {t("admin:models.creditCostHelp", "Hệ số khấu trừ quota từ khi người dùng xử lý video bằng mô hình này.")}
               </p>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-[var(--color-text-primary)] mb-1">
-                Gói yêu cầu tối thiểu (Required Plan)
+                {t("admin:models.requiredPlan", "Gói yêu cầu tối thiểu (Required Plan)")}
               </label>
               <select
                 value={editPlan}
                 onChange={(e) => setEditPlan(e.target.value)}
                 className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-3 py-2 text-xs font-bold text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
               >
-                <option value="free">Free (Tất cả người dùng)</option>
-                <option value="pro">Pro (Gói Pro trở lên)</option>
-                <option value="business">Business (Chỉ gói Business)</option>
+                <option value="free">Free</option>
+                <option value="pro">Pro</option>
+                <option value="business">Business</option>
               </select>
             </div>
 
@@ -305,7 +305,7 @@ export default function AdminModelsPage() {
                 disabled={saving}
                 className="rounded-xl bg-[var(--color-primary)] px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-[var(--color-primary-hover)] disabled:opacity-50 cursor-pointer"
               >
-                {saving ? "Đang lưu..." : t("admin:models.save")}
+                {saving ? t("admin:common.refreshing", "Đang lưu...") : t("admin:models.save")}
               </button>
             </div>
           </form>
