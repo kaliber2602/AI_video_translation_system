@@ -1,11 +1,6 @@
 // services/video.service.ts
 import api from "./api/axios";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-
-// Add /api to the base URL
-const API_URL = `${API_BASE}/api`;
-
 export const videoService = {
   // Upload with real progress tracking and folder support
   async uploadVideo(
@@ -35,72 +30,39 @@ export const videoService = {
 
   // Get single video details
   async getVideo(videoId: number) {
-    const response = await fetch(`${API_URL}/videos/${videoId}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to fetch video details: ${response.status}`);
-    }
-    return response.json();
+    const response = await api.get(`/api/videos/${videoId}`);
+    return response.data;
   },
 
   // Audio extraction
   async extractAudio(videoId: number) {
-    const response = await fetch(`${API_URL}/videos/${videoId}/audio/extract`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `Failed to extract audio: ${response.status}`);
-    }
-    return response.json();
+    const response = await api.post(`/api/videos/${videoId}/audio/extract`);
+    return response.data;
   },
 
   // Media Blobs (authenticated streams for in-browser playback)
   async getVideoBlob(videoId: number): Promise<Blob> {
-    const response = await fetch(`${API_URL}/videos/${videoId}/original`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
+    const response = await api.get<Blob>(`/api/videos/${videoId}/original`, {
+      responseType: "blob",
     });
-    if (!response.ok) {
-      throw new Error("Failed to load video file");
-    }
-    return response.blob();
+    return response.data;
   },
 
   async getAudioBlob(videoId: number, language: string): Promise<Blob> {
-    const response = await fetch(`${API_URL}/videos/${videoId}/tts/${language}?preview=true`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
+    const response = await api.get<Blob>(`/api/videos/${videoId}/tts/${language}?preview=true`, {
+      responseType: "blob",
     });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `Failed to load audio preview: ${response.status}`);
+    if (response.data.size < 1024) {
+      throw new Error(`TTS audio file is corrupted or empty (${response.data.size} bytes)`);
     }
-    const blob = await response.blob();
-    if (blob.size < 1024) {
-      throw new Error(`TTS audio file is corrupted or empty (${blob.size} bytes)`);
-    }
-    return blob;
+    return response.data;
   },
 
   async getDubbedVideoBlob(videoId: number, language: string, format = "mp4", quality = "1080p"): Promise<Blob> {
-    const response = await fetch(`${API_URL}/videos/${videoId}/dub/${language}/download?format=${format}&quality=${encodeURIComponent(quality)}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
+    const response = await api.get<Blob>(`/api/videos/${videoId}/dub/${language}/download?format=${format}&quality=${encodeURIComponent(quality)}`, {
+      responseType: "blob",
     });
-    if (!response.ok) {
-      throw new Error("Failed to load dubbed video");
-    }
-    return response.blob();
+    return response.data;
   },
 
   // List videos with filtering
@@ -178,144 +140,67 @@ export const videoService = {
 
   // Processing
   async startProcessing(videoId: number) {
-    const response = await fetch(`${API_URL}/videos/${videoId}/process?user_id=1`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-    return response.json();
+    const response = await api.post(`/api/videos/${videoId}/process`);
+    return response.data;
   },
 
   async getJobStatus(jobId: string) {
-    const response = await fetch(`${API_URL}/videos/jobs/${jobId}/status`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-    return response.json();
+    const response = await api.get(`/api/videos/jobs/${jobId}/status`);
+    return response.data;
   },
 
   // Transcript
   async getTranscript(videoId: number) {
-    const response = await fetch(`${API_URL}/videos/${videoId}/transcription`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-    if (!response.ok) {
-      throw new Error(`Transcript not available (${response.status})`);
-    }
-    const data = await response.json();
-    if (data.status === "not_available") {
+    const response = await api.get(`/api/videos/${videoId}/transcription`);
+    const data = response.data;
+    if (data?.status === "not_available") {
       throw new Error("Transcript not available yet");
     }
     return data;
   },
 
   async startTranscription(videoId: number) {
-    const response = await fetch(`${API_URL}/videos/${videoId}/transcription`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `Transcription failed: ${response.status}`);
-    }
-    return response.json();
+    const response = await api.post(`/api/videos/${videoId}/transcription`);
+    return response.data;
   },
 
   async updateTranscript(videoId: number, updates: { segment_id: number; text: string }) {
-    const response = await fetch(`${API_URL}/videos/${videoId}/transcription`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-      body: JSON.stringify(updates),
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `Failed to update transcript: ${response.status}`);
-    }
-    return response.json();
+    const response = await api.put(`/api/videos/${videoId}/transcription`, updates);
+    return response.data;
   },
 
-  async exportTranscript(videoId: number, format: string) {
-    const response = await fetch(`${API_URL}/videos/${videoId}/export?export_type=transcript&format=${format}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
+  async exportTranscript(videoId: number, format: string): Promise<Blob> {
+    const response = await api.get<Blob>(`/api/videos/${videoId}/export?export_type=transcript&format=${format}`, {
+      responseType: "blob",
     });
-    if (!response.ok) {
-      throw new Error(`Failed to export transcript: ${response.status}`);
-    }
-    return response.blob();
+    return response.data;
   },
 
   // Translation
   async getTranslation(videoId: number, language: string) {
-    const response = await fetch(`${API_URL}/videos/${videoId}/translations/${language}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-    if (!response.ok) {
-      throw new Error(`Translation not found (${response.status})`);
-    }
-    return response.json();
+    const response = await api.get(`/api/videos/${videoId}/translations/${language}`);
+    return response.data;
   },
 
   async startTranslation(videoId: number, targetLanguage: string) {
-    const response = await fetch(
-      `${API_URL}/videos/${videoId}/translations?target_language=${targetLanguage}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-      }
+    const response = await api.post(
+      `/api/videos/${videoId}/translations?target_language=${targetLanguage}`,
+      {},
+      { timeout: 180000 }
     );
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `Translation failed: ${response.status}`);
-    }
-    return response.json();
+    return response.data;
   },
 
   async updateTranslation(videoId: number, language: string, updates: { segment_id: number; translated_text: string }) {
-    const response = await fetch(`${API_URL}/videos/${videoId}/translations/${language}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-      body: JSON.stringify(updates),
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `Failed to update translation: ${response.status}`);
-    }
-    return response.json();
+    const response = await api.put(`/api/videos/${videoId}/translations/${language}`, updates);
+    return response.data;
   },
 
   // Subtitles
   async getSubtitles(videoId: number, language: string, format?: string) {
-    let url = `${API_URL}/videos/${videoId}/subtitles/${language}`;
-    if (format) {
-      url += `?format=${encodeURIComponent(format)}`;
-    }
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-    if (!response.ok) {
-      throw new Error(`Subtitles not found (${response.status})`);
-    }
-    return response.json();
+    const query = format ? `?format=${encodeURIComponent(format)}` : "";
+    const response = await api.get(`/api/videos/${videoId}/subtitles/${language}${query}`);
+    return response.data;
   },
 
   async generateSubtitles(
@@ -352,34 +237,16 @@ export const videoService = {
     if (options?.segments && options.segments.length > 0) bodyData.segments = options.segments;
     if (options?.aspectRatio) bodyData.aspect_ratio = options.aspectRatio;
     if (options?.autoSplitChunks !== undefined) bodyData.auto_split_chunks = options.autoSplitChunks;
-    const hasBody = Object.keys(bodyData).length > 0;
 
-    const response = await fetch(`${API_URL}/videos/${videoId}/subtitles?${params.toString()}`, {
-      method: "POST",
-      headers: {
-        ...(hasBody ? { "Content-Type": "application/json" } : {}),
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-      ...(hasBody ? { body: JSON.stringify(bodyData) } : {}),
+    const response = await api.post(`/api/videos/${videoId}/subtitles?${params.toString()}`, bodyData, {
+      timeout: 180000,
     });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `Subtitle generation failed: ${response.status}`);
-    }
-    return response.json();
+    return response.data;
   },
 
   async getSubtitleSegments(videoId: number, language: string) {
-    const response = await fetch(`${API_URL}/videos/${videoId}/subtitles/${language}/segments`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `Failed to fetch subtitle segments: ${response.status}`);
-    }
-    return response.json();
+    const response = await api.get(`/api/videos/${videoId}/subtitles/${language}/segments`);
+    return response.data;
   },
 
   async updateSubtitleSegments(
@@ -388,93 +255,51 @@ export const videoService = {
     segments: any[],
     style?: any
   ) {
-    const response = await fetch(`${API_URL}/videos/${videoId}/subtitles/${language}/segments`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-      body: JSON.stringify({ segments, style }),
+    const response = await api.put(`/api/videos/${videoId}/subtitles/${language}/segments`, {
+      segments,
+      style,
     });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `Failed to update subtitle segments: ${response.status}`);
-    }
-    return response.json();
+    return response.data;
   },
 
-  async downloadSubtitles(videoId: number, language: string, format: string) {
-    const response = await fetch(
-      `${API_URL}/videos/${videoId}/subtitles/${language}/download?format=${format}`,
-      {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-      }
+  async downloadSubtitles(videoId: number, language: string, format: string): Promise<Blob> {
+    const response = await api.get<Blob>(
+      `/api/videos/${videoId}/subtitles/${language}/download?format=${format}`,
+      { responseType: "blob" }
     );
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || "Failed to download subtitles");
-    }
-    return response.blob();
+    return response.data;
   },
 
   // TTS / Voices
   async listVoices(videoId: number) {
-    const response = await fetch(`${API_URL}/videos/${videoId}/voices`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-    return response.json();
+    const response = await api.get(`/api/videos/${videoId}/voices`);
+    return response.data;
   },
 
   async generateTTS(videoId: number, language: string, speakerId: number, style: string, speed: number) {
-    const response = await fetch(
-      `${API_URL}/videos/${videoId}/tts?language=${language}&speaker_id=${speakerId}&style=${style}&speed=${speed}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-      }
+    const response = await api.post(
+      `/api/videos/${videoId}/tts?language=${language}&speaker_id=${speakerId}&style=${style}&speed=${speed}`,
+      {},
+      { timeout: 300000 }
     );
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `TTS generation failed: ${response.status}`);
-    }
-    return response.json();
+    return response.data;
   },
 
   async getTTS(videoId: number, language: string, preview: boolean = false): Promise<any | Blob> {
     const url = preview
-      ? `${API_URL}/videos/${videoId}/tts/${language}?preview=true`
-      : `${API_URL}/videos/${videoId}/tts/${language}`;
-
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `Failed to get TTS: ${response.status}`);
-    }
+      ? `/api/videos/${videoId}/tts/${language}?preview=true`
+      : `/api/videos/${videoId}/tts/${language}`;
 
     if (preview) {
-      const blob = await response.blob();
-      if (blob.size < 1024) {
-        throw new Error(`TTS audio file is corrupted or empty (${blob.size} bytes)`);
+      const response = await api.get<Blob>(url, { responseType: "blob" });
+      if (response.data.size < 1024) {
+        throw new Error(`TTS audio file is corrupted or empty (${response.data.size} bytes)`);
       }
-      const contentType = blob.type;
-      if (!contentType.startsWith('audio/')) {
-        console.warn(`Expected audio, got: ${contentType}`);
-      }
-      return blob;
+      return response.data;
     }
 
-    return response.json();
+    const response = await api.get(url);
+    return response.data;
   },
 
   async getTTSBlob(videoId: number, language: string): Promise<Blob> {
@@ -483,21 +308,11 @@ export const videoService = {
 
   async getSpeakerSampleBlob(videoId: number, speakerId?: number): Promise<Blob> {
     const url = speakerId
-      ? `${API_URL}/videos/${videoId}/speakers/${speakerId}/sample`
-      : `${API_URL}/videos/${videoId}/vocal/sample`;
+      ? `/api/videos/${videoId}/speakers/${speakerId}/sample`
+      : `/api/videos/${videoId}/vocal/sample`;
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `Failed to get speaker sample: ${response.status}`);
-    }
-
-    return response.blob();
+    const response = await api.get<Blob>(url, { responseType: "blob" });
+    return response.data;
   },
 
   // Dubbing
@@ -508,67 +323,30 @@ export const videoService = {
     quality: string,
     burnSubtitles: boolean = true
   ) {
-    const response = await fetch(
-      `${API_URL}/videos/${videoId}/dub?language=${language}&video_format=${format}&quality=${quality}&burn_subtitles=${burnSubtitles}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-      }
+    const response = await api.post(
+      `/api/videos/${videoId}/dub?language=${language}&video_format=${format}&quality=${quality}&burn_subtitles=${burnSubtitles}`,
+      {},
+      { timeout: 600000 }
     );
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      const errorMsg = err.detail || `Dubbing generation failed: ${response.status}`;
-      throw new Error(errorMsg);
-    }
-    return response.json();
+    return response.data;
   },
 
   async getSubtitleBlob(videoId: number, language: string, format: string = "vtt"): Promise<Blob> {
-    const response = await fetch(
-      `${API_URL}/videos/${videoId}/subtitles/${language}/download?format=${format}`,
-      {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-      }
+    const response = await api.get<Blob>(
+      `/api/videos/${videoId}/subtitles/${language}/download?format=${format}`,
+      { responseType: "blob" }
     );
-    if (!response.ok) {
-      throw new Error(`Failed to download subtitles: ${response.status}`);
-    }
-    return response.blob();
+    return response.data;
   },
 
   async getDubbingStatus(videoId: number) {
-    const response = await fetch(`${API_URL}/videos/${videoId}/dub`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `Failed to get dubbing status: ${response.status}`);
-    }
-    return response.json();
+    const response = await api.get(`/api/videos/${videoId}/dub`);
+    return response.data;
   },
 
   async downloadDubbedVideo(videoId: number, language: string, format: string = "mp4", quality: string = "1080p"): Promise<Blob> {
-    const response = await fetch(
-      `${API_URL}/videos/${videoId}/dub/${language}/download?format=${format}&quality=${encodeURIComponent(quality)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || "Failed to download dubbed video");
-    }
-
-    const data = await response.json();
+    const response = await api.get(`/api/videos/${videoId}/dub/${language}/download?format=${format}&quality=${encodeURIComponent(quality)}`);
+    const data = response.data;
 
     if (data && data.url) {
       try {
@@ -585,88 +363,61 @@ export const videoService = {
         }
 
         return fileResponse.blob();
-
       } catch (error) {
         console.error('S3 fetch error:', error);
         throw new Error('Failed to download from S3 storage');
       }
     }
 
-    return response.blob();
+    if (data instanceof Blob) {
+      return data;
+    }
+
+    const blobResponse = await api.get<Blob>(`/api/videos/${videoId}/dub/${language}/download?format=${format}&quality=${encodeURIComponent(quality)}`, {
+      responseType: "blob",
+    });
+    return blobResponse.data;
   },
 
   // Playback
   async getPlaybackInfo(videoId: number) {
-    const response = await fetch(`${API_URL}/videos/${videoId}/play`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-    return response.json();
+    const response = await api.get(`/api/videos/${videoId}/play`);
+    return response.data;
   },
 
   // Export
   async getExportOptions(videoId: number) {
-    const response = await fetch(`${API_URL}/videos/${videoId}/export/options`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to load export options: ${response.status}`);
-    }
-    return response.json();
+    const response = await api.get(`/api/videos/${videoId}/export/options`);
+    return response.data;
   },
+
   async getDubbedVideoPreview(videoId: number, language: string, quality: string = "1080p"): Promise<string> {
-    const response = await fetch(
-      `${API_URL}/videos/${videoId}/dub/${language}/download?format=mp4&preview=true&quality=${encodeURIComponent(quality)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-      }
+    const response = await api.get(
+      `/api/videos/${videoId}/dub/${language}/download?format=mp4&preview=true&quality=${encodeURIComponent(quality)}`
     );
+    const data = response.data;
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || "Failed to get video preview URL");
+    if (data && data.url) {
+      return data.url;
     }
 
-    const contentType = response.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      const data = await response.json();
-      if (data && data.url) {
-        return data.url;
-      }
-      throw new Error('No preview URL received');
-    }
-
-    // Binary video stream (e.g. video/mp4 from FileResponse)
-    const blob = await response.blob();
-    return URL.createObjectURL(blob);
+    const blobResponse = await api.get<Blob>(
+      `/api/videos/${videoId}/dub/${language}/download?format=mp4&preview=true&quality=${encodeURIComponent(quality)}`,
+      { responseType: "blob" }
+    );
+    return URL.createObjectURL(blobResponse.data);
   },
   
   async exportVideo(videoId: number, type: string, format: string, quality?: string, language?: string): Promise<Blob> {
-    let url = `${API_URL}/videos/${videoId}/export?export_type=${type}&format=${format}`;
+    let url = `/api/videos/${videoId}/export?export_type=${type}&format=${format}`;
     if (quality) url += `&quality=${quality}`;
     if (language) url += `&language=${language}`;
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `Export failed: ${response.status}`);
-    }
-
-    const data = await response.json();
+    const response = await api.get(url, { timeout: 600000 });
+    const data = response.data;
 
     if (data && data.url) {
       try {
-        // ✅ Fetch directly with CORS - no redirect expected with path-style URLs
         const fileResponse = await fetch(data.url, {
           mode: 'cors',
           credentials: 'omit',
@@ -684,18 +435,58 @@ export const videoService = {
           throw new Error('Downloaded file is empty');
         }
         return blob;
-
       } catch (error) {
         console.error('S3 fetch error:', error);
         throw new Error('Failed to download from S3 storage. Please try again.');
       }
     }
 
-    if (response.headers.get('content-type')?.includes('video') ||
-      response.headers.get('content-type')?.includes('audio')) {
-      return response.blob();
+    if (data instanceof Blob) {
+      return data;
     }
 
-    throw new Error('Unexpected response format');
-  }
+    const blobRes = await api.get<Blob>(url, { responseType: "blob", timeout: 600000 });
+    return blobRes.data;
+  },
+
+  // =========================================================
+  // Thumbnail CRUD & Streaming APIs
+  // =========================================================
+  getThumbnailUrl(videoId: number, timestamp?: number): string {
+    const ts = timestamp || Date.now();
+    return `/api/videos/${videoId}/thumbnail?t=${ts}`;
+  },
+
+  getVideoStreamUrl(videoId: number, kind: "output" | "original" = "output"): string {
+    const token = localStorage.getItem("access_token");
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
+    return `/api/videos/${videoId}/stream?kind=${kind}${tokenParam}`;
+  },
+
+  async captureThumbnail(videoId: number, timestamp: number, source: "original" | "output" = "output") {
+    const response = await api.post(`/api/videos/${videoId}/thumbnail/capture`, {
+      timestamp,
+      source,
+    });
+    return response.data;
+  },
+
+  async uploadThumbnail(videoId: number, file: File | Blob) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await api.post(`/api/videos/${videoId}/thumbnail/upload`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return response.data;
+  },
+
+  async autoGenerateThumbnail(videoId: number) {
+    const response = await api.post(`/api/videos/${videoId}/thumbnail/auto`);
+    return response.data;
+  },
+
+  async deleteThumbnail(videoId: number) {
+    const response = await api.delete(`/api/videos/${videoId}/thumbnail`);
+    return response.data;
+  },
 };

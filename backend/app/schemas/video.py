@@ -1,5 +1,5 @@
 # app/schemas/video.py - UPDATED
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -129,6 +129,8 @@ class VideoListItem(BaseModel):
     created_at: datetime
     updated_at: datetime
     has_hls: bool = False
+    thumbnail_path: Optional[str] = None
+    thumbnail_url: Optional[str] = None
 
 
 class VideoDetailResponse(BaseModel):
@@ -145,6 +147,8 @@ class VideoDetailResponse(BaseModel):
     subtitle_path: Optional[str] = None
     dubbed_audio_path: Optional[str] = None
     output_path: Optional[str] = None
+    thumbnail_path: Optional[str] = None
+    thumbnail_url: Optional[str] = None
     duration: Optional[float] = None
     fps: Optional[float] = None
     resolution: Optional[str] = None
@@ -158,6 +162,11 @@ class VideoDetailResponse(BaseModel):
     source_language: Optional[str] = None
     segments: Optional[List[SegmentOut]] = None
     job_info: Optional[Dict[str, Any]] = None
+
+
+class ThumbnailCaptureRequest(BaseModel):
+    timestamp: float = Field(default=1.0, ge=0.0)
+    source: str = Field(default="output", description="'output' or 'original'")
 
 
 class PlaybackInfoResponse(BaseModel):

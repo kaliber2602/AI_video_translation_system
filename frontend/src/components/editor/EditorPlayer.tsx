@@ -164,6 +164,10 @@ export const EditorPlayer: React.FC<EditorPlayerProps> = ({
         ? `0 2px 4px ${styleConfig.outlineColor || "#000000"}CC`
         : "0 2px 8px rgba(0,0,0,0.8)",
     backgroundColor: styleConfig.backgroundColor || "transparent",
+    wordBreak: "keep-all",
+    overflowWrap: "break-word",
+    whiteSpace: "normal",
+    textAlign: "center",
   };
 
   // Vertical position
@@ -270,12 +274,12 @@ export const EditorPlayer: React.FC<EditorPlayerProps> = ({
             <div
               key={`${currentSubtitle.start}-${styleConfig.effect}`}
               style={subtitleStyles}
-              className={`px-4 py-1.5 rounded-lg max-w-[90%] text-center leading-snug tracking-wide select-none whitespace-pre-line ${getEffectClass()}`}
+              className={`px-4 py-1.5 rounded-lg max-w-[min(90%,840px)] text-center leading-snug tracking-wide select-none whitespace-normal break-words ${getEffectClass()}`}
             >
               {formatSubtitleLines(
                 currentSubtitle.translated_text || currentSubtitle.text || "",
-                aspectRatio === "9:16" ? 26 : 38,
-                styleConfig.maxLines || 2
+                styleConfig.maxLines || 2,
+                aspectRatio === "9:16" ? 26 : 38
               )}
             </div>
           </div>

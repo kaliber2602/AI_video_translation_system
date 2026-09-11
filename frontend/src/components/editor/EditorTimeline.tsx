@@ -10,8 +10,10 @@ import {
   Video,
   FileText,
   Volume2,
+  Clock,
 } from "lucide-react";
 import type { SubtitleSegment } from "../../types/video";
+import { AudioWaveformCanvas } from "./AudioWaveformCanvas";
 
 interface EditorTimelineProps {
   duration: number;
@@ -24,6 +26,7 @@ interface EditorTimelineProps {
   onSplitSegment: (index: number, splitTime: number) => void;
   onDeleteSegment: (index: number) => void;
   onAddSegment: (time: number) => void;
+  audioUrl?: string | null;
 }
 
 export const EditorTimeline: React.FC<EditorTimelineProps> = ({
@@ -37,6 +40,7 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
   onSplitSegment,
   onDeleteSegment,
   onAddSegment,
+  audioUrl,
 }) => {
   const timelineRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -74,6 +78,14 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
     [zoom]
   );
 
+  // Format seconds to mm:ss.ms
+  const formatTimecode = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    const ms = Math.floor((sec % 1) * 10);
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${ms}`;
+  };
+
   // Handle Timeline Click / Scrub
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!timelineRef.current) return;
@@ -103,7 +115,6 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
         onSeek(newTime);
       } else if (dragInfo && timelineRef.current) {
         const deltaPx = e.clientX - dragInfo.startX;
-        // Require at least 4px drag movement to distinguish drag from click
         if (Math.abs(deltaPx) < 4) return;
 
         const deltaTime = deltaPx / zoom;
@@ -192,7 +203,6 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
     if (targetIdx !== -1 && segments[targetIdx]) {
       const activeSeg = segments[targetIdx];
       let splitTime = currentTime;
-      // If playhead is right at start or end or outside, split cleanly at midpoint
       if (splitTime <= activeSeg.start + 0.2 || splitTime >= activeSeg.end - 0.2) {
         splitTime = parseFloat(((activeSeg.start + activeSeg.end) / 2).toFixed(3));
       }
@@ -203,7 +213,6 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
   // Keyboard shortcut listener: S for split, Delete for delete
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if user is typing in an input or textarea
       if (
         document.activeElement?.tagName === "INPUT" ||
         document.activeElement?.tagName === "TEXTAREA"
@@ -233,10 +242,28 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-zinc-950 border-t border-zinc-800/90 select-none">
-      {/* TIMELINE TOOLBAR */}
-      <div className="flex items-center justify-between px-4 py-2 bg-zinc-900/90 border-b border-zinc-800 text-zinc-300 text-xs">
-        {/* Left: Editing Tools */}
-        <div className="flex items-center gap-1.5">
+      
+      {/* ========================================================================= */}
+      {/* TIMELINE TOOLBAR (CENTER-ALIGNED ACTION BUTTONS DIRECTLY OVER PLAYHEAD) */}
+      {/* ========================================================================= */}
+      <div className="flex items-center justify-between px-4 py-1.5 bg-zinc-900/90 border-b border-zinc-800 text-zinc-300 text-xs">
+        
+        {/* Left: Timecode and Segments Count */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 font-mono text-[11px] bg-zinc-950 px-2.5 py-1 rounded-lg border border-zinc-800 text-zinc-300">
+            <Clock className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="text-white font-semibold">{formatTimecode(currentTime)}</span>
+            <span className="text-zinc-600">/</span>
+            <span>{formatTimecode(duration || 60)}</span>
+          </div>
+
+          <span className="text-[11px] text-zinc-500 hidden sm:inline">
+            {segments.length} phụ đề
+          </span>
+        </div>
+
+        {/* Center: Ergonomic Editing Tools (Centered directly over playhead line) */}
+        <div className="flex items-center gap-1.5 bg-zinc-950/70 p-1 rounded-xl border border-zinc-800/80 shadow-xs">
           <button
             onClick={handleSplitAtPlayhead}
             className="flex items-center gap-1 px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white rounded-lg border border-zinc-700/60 font-medium transition active:scale-95 shadow"
@@ -249,7 +276,7 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
           <button
             onClick={() => onAddSegment(currentTime)}
             className="flex items-center gap-1 px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white rounded-lg border border-zinc-700/60 font-medium transition active:scale-95 shadow"
-            title="Thêm phụ đề mới tại vị trí này"
+            title="Thêm phụ đề mới tại vị trí con trỏ"
           >
             <Plus className="w-3.5 h-3.5 text-emerald-400" />
             <span>Thêm</span>
@@ -263,7 +290,7 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
             className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border font-medium transition ${
               activeSegmentIndex !== null
                 ? "bg-zinc-800 hover:bg-red-950/40 text-red-400 border-red-500/30 hover:border-red-500/60"
-                : "bg-zinc-900/50 text-zinc-600 border-zinc-800 cursor-not-allowed"
+                : "bg-zinc-900/50 text-zinc-600 border-zinc-800/40 cursor-not-allowed"
             }`}
             title="Xóa phụ đề đã chọn (Delete)"
           >
@@ -271,7 +298,7 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
             <span>Xóa</span>
           </button>
 
-          <div className="h-4 w-px bg-zinc-700/80 mx-1" />
+          <div className="h-4 w-px bg-zinc-800 mx-0.5" />
 
           {/* Snap toggle */}
           <button
@@ -279,16 +306,16 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
             className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs transition ${
               isSnapEnabled
                 ? "bg-indigo-950/60 text-indigo-300 border-indigo-500/40"
-                : "bg-zinc-800/60 text-zinc-400 border-zinc-700"
+                : "bg-zinc-900 text-zinc-500 border-zinc-800"
             }`}
             title="Bắt dính điểm đầu/cuối (Snap)"
           >
             <Magnet className="w-3.5 h-3.5" />
-            <span>Bắt dính</span>
+            <span className="hidden md:inline">Bắt dính</span>
           </button>
         </div>
 
-        {/* Right: Zoom Level Controls */}
+        {/* Right: Zoom Controls */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setZoom((z) => Math.max(10, z - 10))}
@@ -304,7 +331,7 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
             step={5}
             value={zoom}
             onChange={(e) => setZoom(parseFloat(e.target.value))}
-            className="w-24 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+            className="w-20 sm:w-24 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
           />
           <button
             onClick={() => setZoom((z) => Math.min(100, z + 10))}
@@ -313,8 +340,8 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
           >
             <ZoomIn className="w-3.5 h-3.5" />
           </button>
-          <span className="text-zinc-500 font-mono text-[11px] min-w-[32px] text-right">
-            {zoom}px/s
+          <span className="text-zinc-500 font-mono text-[10px] min-w-[28px] text-right">
+            {zoom}px
           </span>
         </div>
       </div>
@@ -322,7 +349,7 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
       {/* TRACK HEADER + SCROLLABLE TIMELINE BODY */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* Track Headers (Fixed on left) */}
-        <div className="w-32 bg-zinc-900 border-r border-zinc-800 flex flex-col z-20 shadow-md">
+        <div className="w-32 bg-zinc-900 border-r border-zinc-800 flex flex-col z-20 shadow-md flex-shrink-0">
           {/* Ruler spacer */}
           <div className="h-6 border-b border-zinc-800/80 bg-zinc-900/90" />
 
@@ -406,7 +433,7 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
                 <div className="flex items-center gap-2 z-10 pointer-events-none">
                   <Video className="w-3.5 h-3.5 text-blue-400" />
                   <span className="font-mono truncate font-medium text-[11px]">
-                    Video Track ({Math.round(duration || 0)}s) • Nhấp để định vị
+                    Video Track ({Math.round(duration || 0)}s)
                   </span>
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 h-1 flex justify-between px-1 opacity-25 pointer-events-none">
@@ -417,24 +444,19 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
               </div>
             </div>
 
-            {/* TRACK 2: AUDIO WAVEFORM TRACK */}
-            <div className="h-12 border-b border-zinc-900/80 bg-zinc-900/20 relative flex items-center px-2">
+            {/* TRACK 2: REAL AUDIO WAVEFORM TRACK (Web Audio API peaks on HTML5 Canvas) */}
+            <div className="h-12 border-b border-zinc-900/80 bg-zinc-900/20 relative flex items-center px-1">
               <div
                 style={{ width: `${timeToPx(duration || 60)}px` }}
-                className="h-9 bg-amber-950/30 border border-amber-800/30 rounded-lg flex items-center px-2 gap-1 overflow-hidden"
+                className="h-9 bg-amber-950/25 border border-amber-800/30 rounded-lg flex items-center overflow-hidden relative"
               >
-                {/* Simulated Waveform Bars */}
-                {Array.from({ length: Math.min(120, Math.floor(totalWidth / 8)) }).map((_, idx) => {
-                  const heights = [30, 50, 80, 40, 95, 65, 35, 75, 55, 90];
-                  const barHeight = heights[idx % heights.length];
-                  return (
-                    <div
-                      key={idx}
-                      style={{ height: `${barHeight}%` }}
-                      className="w-1 bg-amber-500/40 rounded-full flex-shrink-0"
-                    />
-                  );
-                })}
+                <AudioWaveformCanvas
+                  audioUrl={audioUrl}
+                  duration={duration}
+                  zoom={zoom}
+                  height={36}
+                  barColor="#f59e0b"
+                />
               </div>
             </div>
 
@@ -498,12 +520,12 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
                     />
 
                     {/* Clip Content Preview */}
-                    <div className="flex items-center gap-1.5 mx-2 min-w-0 overflow-hidden pointer-events-none">
-                      <span className="text-[10px] font-mono px-1 py-0.5 rounded bg-zinc-900/80 text-zinc-400 border border-zinc-700/50 flex-shrink-0">
-                        #{(idx + 1).toString().padStart(2, "0")}
+                    <div className="flex items-center gap-1.5 overflow-hidden select-none pointer-events-none">
+                      <span className="text-[10px] font-mono text-indigo-300 font-bold flex-shrink-0">
+                        #{idx + 1}
                       </span>
-                      <span className="text-xs font-medium truncate">
-                        {seg.translated_text || seg.text}
+                      <span className="text-xs truncate font-medium">
+                        {seg.translated_text || seg.text || "Phụ đề trống"}
                       </span>
                     </div>
 
@@ -527,18 +549,19 @@ export const EditorTimeline: React.FC<EditorTimelineProps> = ({
               })}
             </div>
 
-            {/* PLAYHEAD SCRUBBER */}
+            {/* RED TIMELINE PLAYHEAD */}
             <div
               style={{ left: `${timeToPx(currentTime)}px` }}
               className="absolute top-0 bottom-0 z-30 pointer-events-none flex flex-col items-center"
             >
-              {/* Playhead Flag Handle */}
+              {/* Playhead Handle */}
               <div
                 onMouseDown={handlePlayheadMouseDown}
-                className="w-4 h-4 bg-indigo-500 rotate-45 -mt-1.5 rounded-sm shadow-md pointer-events-auto cursor-ew-resize border border-white/60 hover:scale-110 transition-transform"
+                className="w-4 h-4 bg-red-500 rounded-sm rotate-45 -mt-1 cursor-ew-resize pointer-events-auto shadow-md shadow-red-500/50 flex items-center justify-center hover:scale-110 transition-transform"
+                title="Kéo Playhead để tua video"
               />
-              {/* Playhead Line */}
-              <div className="w-0.5 flex-1 bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
+              {/* Vertical Playhead Line */}
+              <div className="w-0.5 bg-red-500 flex-1 shadow-sm shadow-red-500/80" />
             </div>
           </div>
         </div>

@@ -37,6 +37,15 @@ export function setAccessToken(
   );
 }
 
+export function setRefreshToken(
+  refreshToken: string
+) {
+  localStorage.setItem(
+    REFRESH_TOKEN_KEY,
+    refreshToken
+  );
+}
+
 export function clearTokens() {
   localStorage.removeItem(
     ACCESS_TOKEN_KEY

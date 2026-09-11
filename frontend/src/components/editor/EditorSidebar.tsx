@@ -262,8 +262,16 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
               })}
 
               {filteredSegments.length === 0 && (
-                <div className="py-8 text-center text-zinc-500 text-xs">
-                  Không tìm thấy phụ đề nào.
+                <div className="py-8 text-center text-zinc-500 text-xs flex flex-col items-center gap-2.5">
+                  <p>Không tìm thấy phụ đề nào.</p>
+                  <button
+                    type="button"
+                    onClick={() => onAddSegment(currentTime)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition shadow-sm cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Thêm phụ đề tại {currentTime.toFixed(1)}s</span>
+                  </button>
                 </div>
               )}
             </div>

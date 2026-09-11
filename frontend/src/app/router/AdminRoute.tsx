@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ShieldAlert, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getAccessToken, getRefreshToken } from "../../services/api/token";
@@ -8,8 +8,9 @@ import { toast } from "../../lib/toast";
 import type { UserResponse } from "../../types/auth";
 
 export default function AdminRoute() {
-  const { t } = useTranslation(["admin", "common"]);
+  const { t } = useTranslation(["admin", "common", "navigation"]);
   const location = useLocation();
+  const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<UserResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -89,8 +90,14 @@ export default function AdminRoute() {
               role: currentUser?.role || "user"
             })}
           </p>
-          <div className="mt-6 flex gap-3">
-            <Navigate to="/workspace" replace />
+          <div className="mt-6 flex justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate("/workspace")}
+              className="inline-flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)] cursor-pointer"
+            >
+              {t("navigation:backToWorkspace", "Quay lại Không gian làm việc")}
+            </button>
           </div>
         </div>
       </div>

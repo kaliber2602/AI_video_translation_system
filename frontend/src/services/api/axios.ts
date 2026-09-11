@@ -1,6 +1,6 @@
 import axios from "axios";
 import type { AxiosRequestConfig } from "axios";
-import { getAccessToken, getRefreshToken, setAccessToken, clearTokens } from "./token";
+import { getAccessToken, getRefreshToken, setAccessToken, setRefreshToken, clearTokens } from "./token";
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
@@ -80,7 +80,7 @@ api.interceptors.response.use(
       }
 
       try {
-        const refreshResponse = await axios.post<{ access_token: string }>(
+        const refreshResponse = await axios.post<{ access_token: string; refresh_token?: string }>(
           `${baseURL}/api/auth/refresh`,
           { refresh_token: refreshToken },
           { headers: { "Content-Type": "application/json" } }
@@ -88,6 +88,10 @@ api.interceptors.response.use(
 
         const newAccessToken = refreshResponse.data.access_token;
         setAccessToken(newAccessToken);
+
+        if (refreshResponse.data.refresh_token) {
+          setRefreshToken(refreshResponse.data.refresh_token);
+        }
 
         if (originalRequest.headers) {
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;

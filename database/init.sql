@@ -465,6 +465,7 @@ CREATE TABLE project_members (
         UNIQUE (project_id, email)
 );
 
+-- NOTE: Reserved for public shareable links roadmap
 CREATE TABLE project_share_links (
     id SERIAL PRIMARY KEY,
     project_id INTEGER NOT NULL,
@@ -602,6 +603,7 @@ CREATE TABLE videos (
     subtitle_path TEXT,
     dubbed_audio_path TEXT,
     output_path TEXT,
+    thumbnail_path TEXT,
 
     duration DOUBLE PRECISION,
     fps DOUBLE PRECISION,
@@ -801,6 +803,7 @@ CREATE TABLE video_render_outputs (
         UNIQUE (video_id, target_language, resolution)
 );
 
+-- NOTE: Reserved for collaborative video annotation / timeline comments roadmap
 CREATE TABLE video_comments (
     id SERIAL PRIMARY KEY,
     video_id INTEGER NOT NULL,
@@ -870,6 +873,7 @@ CREATE TABLE video_documents (
 
 -- =========================================================
 -- MODULE 7: SEMANTIC SEARCH & VECTOR EMBEDDINGS
+-- NOTE: Reserved for vector semantic search & RAG roadmap
 -- =========================================================
 
 CREATE TABLE video_embeddings (
@@ -1014,6 +1018,9 @@ CREATE INDEX idx_payment_transactions_user ON payment_transactions(user_id);
 CREATE INDEX idx_pipeline_jobs_video ON pipeline_jobs(video_id);
 CREATE INDEX idx_pipeline_jobs_status ON pipeline_jobs(status);
 CREATE INDEX idx_pipeline_task_logs_job ON pipeline_task_logs(job_id);
+CREATE INDEX idx_payment_transactions_status ON payment_transactions(status);
+CREATE INDEX idx_user_subscriptions_period_end ON user_subscriptions(current_period_end);
+CREATE INDEX idx_user_storage_addons_active ON user_storage_addons(user_id, is_active);
 
 -- =========================================================
 -- SEED INITIAL AI MODELS

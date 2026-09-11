@@ -21,11 +21,13 @@ import {
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import VideoCard, { type Video } from "../components/project/VideoCard";
+import ThumbnailModal from "../components/project/ThumbnailModal";
 import ProjectAssetExplorer from "../components/project/ProjectAssetExplorer";
 import FolderIcon from "../components/common/FolderIcon";
 import Dialog from "../components/common/Dialog";
 import ConfirmationDialog from "../components/common/ConfirmationDialog";
 import Button from "../components/common/Button";
+import { toast } from "../lib/toast";
 import {
   getProject,
   getProjectFolders,
@@ -53,6 +55,8 @@ export default function ProjectDetail() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"progress" | "assets">("progress");
 
+  const isViewOnly = project?.my_role === "viewer" || project?.my_role === "commenter";
+
   // Folder Modals State
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -75,6 +79,22 @@ export default function ProjectDetail() {
 
   const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
   const [isVideoDeleting, setIsVideoDeleting] = useState(false);
+
+  // Thumbnail Manager Modal State
+  const [managingThumbnailVideo, setManagingThumbnailVideo] = useState<Video | null>(null);
+
+  const handleThumbnailUpdated = (videoId: number, newThumbnailUrl: string) => {
+    setVideos((prev) =>
+      prev.map((v) =>
+        v.id === videoId ? { ...v, thumbnail: newThumbnailUrl } : v
+      )
+    );
+    setManagingThumbnailVideo((prev) =>
+      prev && prev.id === videoId
+        ? { ...prev, thumbnail: newThumbnailUrl }
+        : prev
+    );
+  };
 
   // Documents & Chapters Viewer Modal State
   const [viewingDocsVideo, setViewingDocsVideo] = useState<Video | null>(null);
@@ -128,11 +148,13 @@ export default function ProjectDetail() {
     }
   }, []);
 
-  const loadVideos = useCallback(async (projectIdNum: number, silent = false) => {
+  const loadVideos = useCallback(async (projectIdNum: number, silent = false, folderIdFilter: number | null = activeFolderId) => {
     if (!silent) setIsLoadingVideos(true);
     try {
       const videoList = await videoService.listVideos({
         project_id: projectIdNum,
+        folder_id: folderIdFilter !== null ? folderIdFilter : undefined,
+        root_only: folderIdFilter === null,
         limit: 100,
       });
 
@@ -156,7 +178,14 @@ export default function ProjectDetail() {
     } finally {
       if (!silent) setIsLoadingVideos(false);
     }
-  }, []);
+  }, [activeFolderId]);
+
+  // Reload videos when switching active folder
+  useEffect(() => {
+    if (projectId) {
+      loadVideos(parseInt(projectId), true, activeFolderId);
+    }
+  }, [activeFolderId, projectId, loadVideos]);
 
   // Initial load
   useEffect(() => {
@@ -267,7 +296,7 @@ export default function ProjectDetail() {
       await loadFolders(parseInt(projectId));
     } catch (err: any) {
       console.error("[ProjectDetail] Create folder failed:", err);
-      alert(err?.response?.data?.detail || "Failed to create folder");
+      toast.error(err?.response?.data?.detail || t("project:errors.createFolderFailed", "Không thể tạo thư mục"));
     } finally {
       setIsFolderSubmitting(false);
     }
@@ -285,9 +314,10 @@ export default function ProjectDetail() {
       setEditingFolder(null);
       setEditFolderName("");
       await loadFolders(parseInt(projectId));
+      toast.success(t("common:success", "Thành công"), t("project:folderUpdated", "Đã cập nhật thư mục"));
     } catch (err: any) {
       console.error("[ProjectDetail] Update folder failed:", err);
-      alert(err?.response?.data?.detail || "Failed to update folder");
+      toast.error(err?.response?.data?.detail || t("project:errors.updateFolderFailed", "Không thể cập nhật thư mục"));
     } finally {
       setIsFolderSubmitting(false);
     }
@@ -304,9 +334,10 @@ export default function ProjectDetail() {
       }
       setFolderToDelete(null);
       await Promise.all([loadFolders(parseInt(projectId)), loadVideos(parseInt(projectId))]);
+      toast.success(t("common:success", "Thành công"), t("project:folderDeleted", "Đã xóa thư mục"));
     } catch (err: any) {
       console.error("[ProjectDetail] Delete folder failed:", err);
-      alert(err?.response?.data?.detail || "Failed to delete folder");
+      toast.error(err?.response?.data?.detail || t("project:errors.deleteFolderFailed", "Không thể xóa thư mục"));
     } finally {
       setIsFolderDeleting(false);
     }
@@ -327,9 +358,10 @@ export default function ProjectDetail() {
       setEditingVideo(null);
       setEditVideoTitle("");
       if (projectId) await loadVideos(parseInt(projectId), true);
+      toast.success(t("common:success", "Thành công"), t("project:videoRenamed", "Đã đổi tên video thành công"));
     } catch (err: any) {
       console.error("[ProjectDetail] Rename video failed:", err);
-      alert(err?.response?.data?.detail || "Failed to rename video");
+      toast.error(err?.response?.data?.detail || t("project:errors.renameVideoFailed", "Không thể đổi tên video"));
     } finally {
       setIsVideoRenaming(false);
     }
@@ -346,9 +378,10 @@ export default function ProjectDetail() {
       });
       setMovingVideo(null);
       if (projectId) await loadVideos(parseInt(projectId), true);
+      toast.success(t("common:success", "Thành công"), t("project:videoMoved", "Đã di chuyển video"));
     } catch (err: any) {
       console.error("[ProjectDetail] Move video failed:", err);
-      alert(err?.response?.data?.detail || "Failed to move video");
+      toast.error(err?.response?.data?.detail || t("project:errors.moveVideoFailed", "Không thể di chuyển video"));
     } finally {
       setIsVideoMoving(false);
     }
@@ -367,7 +400,7 @@ export default function ProjectDetail() {
       document.body.removeChild(a);
     } catch (err: any) {
       console.error("[ProjectDetail] Download failed:", err);
-      alert(err?.response?.data?.detail || "Failed to download video file");
+      toast.error(err?.response?.data?.detail || t("project:errors.downloadFailed", "Không thể tải video file"));
     }
   };
 
@@ -379,9 +412,10 @@ export default function ProjectDetail() {
       await videoService.deleteVideo(videoToDelete.id);
       setVideoToDelete(null);
       await loadVideos(parseInt(projectId), true);
+      toast.success(t("common:success", "Thành công"), t("project:videoDeleted", "Đã xóa video"));
     } catch (err: any) {
       console.error("[ProjectDetail] Delete video failed:", err);
-      alert(err?.response?.data?.detail || "Failed to delete video");
+      toast.error(err?.response?.data?.detail || t("project:errors.deleteVideoFailed", "Không thể xóa video"));
     } finally {
       setIsVideoDeleting(false);
     }
@@ -418,9 +452,10 @@ export default function ProjectDetail() {
       const refreshedDocs = await videoService.getVideoDocuments(viewingDocsVideo.id);
       setVideoDocs(refreshedDocs);
       setSelectedDoc(newDoc);
+      toast.success(t("common:success", "Thành công"), t("project:docGenerated", "Đã tạo tài liệu tóm tắt"));
     } catch (err: any) {
       console.error("[ProjectDetail] Generate doc failed:", err);
-      alert(err?.response?.data?.detail || "Failed to generate document");
+      toast.error(err?.response?.data?.detail || t("project:errors.docGenerateFailed", "Không thể tạo tài liệu"));
     } finally {
       setIsGeneratingDoc(false);
     }
@@ -555,29 +590,33 @@ export default function ProjectDetail() {
             <button
               type="button"
               onClick={handleRefresh}
-              className="flex h-11 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+              className="flex h-11 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] cursor-pointer"
             >
               <RefreshCw size={16} />
               Refresh
             </button>
 
-            <button
-              type="button"
-              onClick={() => setIsCreateFolderOpen(true)}
-              className="flex h-11 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-            >
-              <Plus size={17} />
-              {t("project:newFolder") || "New Folder"}
-            </button>
+            {!isViewOnly && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateFolderOpen(true)}
+                  className="flex h-11 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] cursor-pointer"
+                >
+                  <Plus size={17} />
+                  {t("project:newFolder") || "New Folder"}
+                </button>
 
-            <button
-              type="button"
-              onClick={handleUploadVideo}
-              className="flex h-11 items-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)]"
-            >
-              <Upload size={18} />
-              {t("project:uploadVideo") || "Upload Video"}
-            </button>
+                <button
+                  type="button"
+                  onClick={handleUploadVideo}
+                  className="flex h-11 items-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)] cursor-pointer"
+                >
+                  <Upload size={18} />
+                  {t("project:uploadVideo") || "Upload Video"}
+                </button>
+              </>
+            )}
           </div>
         </section>
 
@@ -668,13 +707,15 @@ export default function ProjectDetail() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-11 rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-4 text-sm text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)]"
+              className="h-11 rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-4 text-sm text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)] cursor-pointer"
             >
-              <option value="all">All Status</option>
-              <option value="completed">Completed</option>
-              <option value="processing">Processing</option>
-              <option value="uploaded">Uploaded</option>
-              <option value="failed">Failed</option>
+              <option value="all">Tất cả trạng thái (All)</option>
+              <option value="completed">Completed (Đã xong)</option>
+              <option value="processing">Processing (Đang xử lý)</option>
+              <option value="editing">Editing (Đang biên tập)</option>
+              <option value="draft">Draft (Bản nháp)</option>
+              <option value="uploaded">Uploaded (Đã tải lên)</option>
+              <option value="failed">Failed (Thất bại)</option>
             </select>
           </div>
         </section>
@@ -691,8 +732,17 @@ export default function ProjectDetail() {
                 return (
                   <div
                     key={folder.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Mở thư mục ${folder.name}`}
                     onClick={() => setActiveFolderId(folder.id)}
-                    className="group relative flex cursor-pointer items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 transition-all hover:border-[var(--color-primary)] hover:shadow-md"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setActiveFolderId(folder.id);
+                      }
+                    }}
+                    className="group relative flex cursor-pointer items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 transition-all hover:border-[var(--color-primary)] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <FolderIconLucide className="text-[var(--color-primary)] shrink-0" size={24} />
@@ -706,30 +756,34 @@ export default function ProjectDetail() {
                       </div>
                     </div>
 
-                    <div
-                      className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingFolder(folder);
-                          setEditFolderName(folder.name);
-                        }}
-                        title="Rename Folder"
-                        className="rounded-lg p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
+                    {!isViewOnly && (
+                      <div
+                        className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFolderToDelete(folder)}
-                        title="Delete Folder"
-                        className="rounded-lg p-1.5 text-[var(--color-text-muted)] hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingFolder(folder);
+                            setEditFolderName(folder.name);
+                          }}
+                          title="Rename Folder"
+                          aria-label="Rename Folder"
+                          className="rounded-lg p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)] cursor-pointer"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFolderToDelete(folder)}
+                          title="Delete Folder"
+                          aria-label="Delete Folder"
+                          className="rounded-lg p-1.5 text-[var(--color-text-muted)] hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 cursor-pointer"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -791,6 +845,7 @@ export default function ProjectDetail() {
                   onDownload={(v) => handleDownloadVideo(v)}
                   onDelete={(v) => setVideoToDelete(v)}
                   onViewDocuments={(v) => handleViewDocuments(v)}
+                  onManageThumbnail={(v) => setManagingThumbnailVideo(v)}
                 />
               ))}
             </div>
@@ -1133,6 +1188,16 @@ export default function ProjectDetail() {
             </div>
           </div>
         </Dialog>
+
+        {/* -------------------------------------------------------- */}
+        {/* Video Thumbnail Management Modal */}
+        {/* -------------------------------------------------------- */}
+        <ThumbnailModal
+          isOpen={!!managingThumbnailVideo}
+          video={managingThumbnailVideo}
+          onClose={() => setManagingThumbnailVideo(null)}
+          onThumbnailUpdated={handleThumbnailUpdated}
+        />
       </main>
     </div>
   );

@@ -253,12 +253,15 @@ export default function SecuritySection() {
                     <h5 className="text-xs font-bold text-[var(--color-text-primary)]">
                       Authenticator App (TOTP)
                     </h5>
+                    <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                      Preview
+                    </span>
                     <SettingsBadge variant={twoFactorEnabled ? "success" : "warning"} size="sm">
                       {twoFactorEnabled ? "ENABLED" : "DISABLED"}
                     </SettingsBadge>
                   </div>
                   <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
-                    Google Authenticator, 1Password, or Authy
+                    Google Authenticator, 1Password, or Authy (Client Preview)
                   </p>
                 </div>
               </div>

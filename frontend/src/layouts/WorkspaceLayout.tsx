@@ -87,6 +87,10 @@ export default function WorkspaceLayout() {
   const [isNavbarCollapsed, setIsNavbarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(12);
+
   // Modals
   const [projectModalMode, setProjectModalMode] = useState<"create" | "edit" | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -180,6 +184,7 @@ export default function WorkspaceLayout() {
 
   const handleTabChange = (tab: WorkspaceTab) => {
     setCurrentTab(tab);
+    setCurrentPage(1);
     loadProjects(tab);
     updateTrashCount();
   };
@@ -270,11 +275,23 @@ export default function WorkspaceLayout() {
     return result;
   }, [projects, selectedTagId, searchQuery, sortOption]);
 
+  // Reset page to 1 when search or tag filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedTagId, sortOption]);
+
+  // Slice projects for current page view
+  const paginatedProjects = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return processedProjects.slice(start, start + pageSize);
+  }, [processedProjects, currentPage, pageSize]);
+
   const isFilteringActive = Boolean(searchQuery.trim() || selectedTagId !== null);
 
   const handleClearFilters = () => {
     setSearchQuery("");
     setSelectedTagId(null);
+    setCurrentPage(1);
   };
 
   // Project Modal Actions
@@ -500,7 +517,7 @@ export default function WorkspaceLayout() {
             <>
               {viewMode === "grid" && (
                 <ProjectGridView
-                  projects={processedProjects}
+                  projects={paginatedProjects}
                   onProjectClick={handleProjectClick}
                   onEditProject={handleOpenEditModal}
                   onDeleteProject={handleOpenDeleteModal}
@@ -513,7 +530,7 @@ export default function WorkspaceLayout() {
 
               {viewMode === "freedom" && (
                 <ProjectFreedomView
-                  projects={processedProjects}
+                  projects={paginatedProjects}
                   onProjectClick={handleProjectClick}
                   onEditProject={handleOpenEditModal}
                   onDeleteProject={handleOpenDeleteModal}
@@ -526,7 +543,7 @@ export default function WorkspaceLayout() {
 
               {viewMode === "list" && (
                 <ProjectTable
-                  projects={processedProjects}
+                  projects={paginatedProjects}
                   onProjectClick={handleProjectClick}
                   onEditProject={handleOpenEditModal}
                   onDeleteProject={handleOpenDeleteModal}
@@ -539,7 +556,7 @@ export default function WorkspaceLayout() {
 
               {viewMode === "card" && (
                 <ProjectCardView
-                  projects={processedProjects}
+                  projects={paginatedProjects}
                   onProjectClick={handleProjectClick}
                   onEditProject={handleOpenEditModal}
                   onDeleteProject={handleOpenDeleteModal}
@@ -550,7 +567,16 @@ export default function WorkspaceLayout() {
                 />
               )}
 
-              <ProjectPagination totalItems={processedProjects.length} />
+              <ProjectPagination
+                totalItems={processedProjects.length}
+                currentPage={currentPage}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setCurrentPage(1);
+                }}
+              />
             </>
           )}
         </main>

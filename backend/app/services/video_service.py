@@ -108,15 +108,19 @@ class VideoService:
     def extract_thumbnail(
         video_path: str,
         output_path: str,
-        timestamp: float = 0
+        timestamp: float = 1.0,
+        width: int = 640
     ) -> str:
-        """Extract a thumbnail from video at specified timestamp"""
+        """Extract a high quality thumbnail from video at specified timestamp"""
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        safe_ts = max(0.0, float(timestamp))
         command = [
             "ffmpeg", "-y",
+            "-ss", f"{safe_ts:.3f}",
             "-i", video_path,
-            "-ss", str(timestamp),
-            "-vframes", "1",
-            "-vf", "scale=320:-1",
+            "-frames:v", "1",
+            "-vf", f"scale={width}:-1",
+            "-q:v", "2",
             output_path
         ]
         

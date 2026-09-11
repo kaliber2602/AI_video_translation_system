@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -54,9 +54,10 @@ export default function VideoEditor() {
     uppercase: false,
   });
 
-  // Undo / Redo Stacks
+  // Undo / Redo Stacks & Debounce Ref
   const [history, setHistory] = useState<SubtitleSegment[][]>([]);
   const [historyPointer, setHistoryPointer] = useState<number>(-1);
+  const historyDebounceRef = useRef<any>(null);
 
   // Status & Quota
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -137,8 +138,8 @@ export default function VideoEditor() {
             setRemainingWords(quotaRes.effective_quota.credits.remaining_credits * 150);
           }
         } catch {
-          // Fallback quota
-          if (isMounted) setRemainingWords(84250);
+          // Gracefully keep quota null if fetch fails
+          if (isMounted) setRemainingWords(null);
         }
       } catch (err) {
         console.error("Failed to load editor data:", err);
@@ -165,13 +166,25 @@ export default function VideoEditor() {
   }, []);
 
   const handleUpdateSegment = useCallback(
-    (index: number, updated: Partial<SubtitleSegment>) => {
+    (index: number, updated: Partial<SubtitleSegment>, immediateHistory: boolean = false) => {
       setSegments((prev) => {
         const next = [...prev];
         if (next[index]) {
           next[index] = { ...next[index], ...updated };
         }
-        pushHistory(next);
+        setSaveStatus("unsaved");
+
+        if (immediateHistory) {
+          pushHistory(next);
+        } else {
+          // Debounce history snapshot for typing so 30 keystrokes don't create 30 full clones
+          if (historyDebounceRef.current) {
+            clearTimeout(historyDebounceRef.current);
+          }
+          historyDebounceRef.current = setTimeout(() => {
+            pushHistory(next);
+          }, 800);
+        }
         return next;
       });
     },
@@ -268,12 +281,14 @@ export default function VideoEditor() {
   // Hotkey listener for Ctrl+S, Ctrl+Z, Ctrl+Y, Space
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement as HTMLElement | null;
+      const isEditingText =
+        activeEl?.tagName === "INPUT" ||
+        activeEl?.tagName === "TEXTAREA" ||
+        Boolean(activeEl?.isContentEditable);
+
       // Space: Play / Pause (only if not typing in input)
-      if (
-        e.code === "Space" &&
-        document.activeElement?.tagName !== "INPUT" &&
-        document.activeElement?.tagName !== "TEXTAREA"
-      ) {
+      if (e.code === "Space" && !isEditingText) {
         e.preventDefault();
         setIsPlaying((p) => !p);
       }
@@ -284,16 +299,17 @@ export default function VideoEditor() {
         handleSave();
       }
 
-      // Ctrl + Z: Undo
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey) {
+      // Ctrl + Z: Undo (only if not typing in text fields)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey && !isEditingText) {
         e.preventDefault();
         handleUndo();
       }
 
-      // Ctrl + Y or Ctrl + Shift + Z: Redo
+      // Ctrl + Y or Ctrl + Shift + Z: Redo (only if not typing in text fields)
       if (
-        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") ||
-        ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "z")
+        (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") ||
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "z")) &&
+        !isEditingText
       ) {
         e.preventDefault();
         handleRedo();
@@ -408,6 +424,13 @@ export default function VideoEditor() {
             </div>
           )}
 
+          <div
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-emerald-950/40 border border-emerald-500/25 rounded-xl text-[11px] text-emerald-400 font-medium"
+            title="Chỉnh sửa nội dung & kiểu dáng phụ đề không tiêu tốn credit"
+          >
+            <span>Sửa phụ đề: 0 Credits</span>
+          </div>
+
           {/* Shortcuts Help */}
           <button
             onClick={() => setShowShortcutsModal(true)}
@@ -475,15 +498,20 @@ export default function VideoEditor() {
           />
         </div>
 
-        {/* Right: Active Segment Inspector & Quick AI */}
-        <div className="w-full xl:w-72 flex-shrink-0 h-[400px] xl:h-full overflow-hidden border-b xl:border-b-0 xl:border-l border-zinc-800">
+        {/* Right: Active Segment Inspector & Global Theme */}
+        <div className="w-full xl:w-80 flex-shrink-0 h-[400px] xl:h-full overflow-hidden border-b xl:border-b-0 xl:border-l border-zinc-800">
           <EditorInspector
             segment={activeSegmentIndex !== null ? segments[activeSegmentIndex] : null}
             segmentIndex={activeSegmentIndex}
             currentTime={currentTime}
             onUpdateSegment={handleUpdateSegment}
             onSplitSegment={handleSplitSegment}
-            maxLines={styleConfig.maxLines}
+            onClearSelection={() => setActiveSegmentIndex(null)}
+            styleConfig={styleConfig}
+            onChangeStyle={(updated) => {
+              setStyleConfig((prev) => ({ ...prev, ...updated }));
+              setSaveStatus("unsaved");
+            }}
           />
         </div>
       </div>
@@ -505,6 +533,7 @@ export default function VideoEditor() {
           onSplitSegment={handleSplitSegment}
           onDeleteSegment={handleDeleteSegment}
           onAddSegment={handleAddSegment}
+          audioUrl={videoUrl}
         />
       </div>
 

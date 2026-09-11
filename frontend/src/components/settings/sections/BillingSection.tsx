@@ -86,6 +86,15 @@ export default function BillingSection() {
 
   useEffect(() => {
     loadBillingData();
+
+    const handleSubscriptionRefresh = () => {
+      loadBillingData();
+    };
+
+    window.addEventListener("subscription-updated", handleSubscriptionRefresh);
+    return () => {
+      window.removeEventListener("subscription-updated", handleSubscriptionRefresh);
+    };
   }, []);
 
   const handleSelectPlanToUpgrade = (plan: Plan) => {

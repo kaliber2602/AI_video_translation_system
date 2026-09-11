@@ -345,6 +345,9 @@ export default function WorkspaceTopbar({
 
           <button
             type="button"
+            aria-label="User profile menu"
+            aria-expanded={profileOpen}
+            aria-haspopup="menu"
             disabled={
               loggingOut || loadingUser
             }

@@ -369,6 +369,38 @@ export default function DubbingStep() {
       
     } catch (error: any) {
       console.error("Dubbing generation failed:", error);
+      // Fallback: Check if backend actually completed it
+      try {
+        const dubStatus = await videoService.getDubbingStatus(state.video.videoId);
+        if (dubStatus && (dubStatus.status === "completed" || dubStatus.path)) {
+          setDubbedVideo(dubStatus);
+          setDubbingStatus("completed");
+          try {
+            const previewUrl = await videoService.getDubbedVideoPreview(
+              state.video.videoId,
+              selectedLanguage
+            );
+            setVideoUrl((prev) => {
+              if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+              return previewUrl;
+            });
+          } catch (previewErr) {
+            console.warn("Failed preview fetch during recovery:", previewErr);
+          }
+          dispatch({
+            type: "SET_DUBBED_VIDEO",
+            payload: dubStatus,
+          });
+          window.dispatchEvent(new CustomEvent("subscription-updated"));
+          setTimeout(() => {
+            dispatch({ type: "SET_STEP", payload: 6 });
+          }, 1500);
+          return;
+        }
+      } catch (checkErr) {
+        console.warn("Status check failed after dubbing error:", checkErr);
+      }
+
       setDubbingError(error.message || "Failed to generate dubbed video");
       setDubbingStatus("failed");
     } finally {
@@ -901,12 +933,12 @@ export default function DubbingStep() {
               <div className="mt-3">
                 <div className="h-2 overflow-hidden rounded-full bg-[var(--color-border)]">
                   <div
-                    className="h-full rounded-full bg-[var(--color-primary)] transition-all duration-500"
-                    style={{ width: "60%" }}
+                    className="h-full rounded-full bg-[var(--color-primary)] transition-all duration-500 animate-pulse"
+                    style={{ width: "75%" }}
                   />
                 </div>
                 <p className="mt-2 text-xs text-[var(--color-text-muted)]">
-                  Generating dubbed video... This may take a few minutes.
+                  {t("dubbing.rendering_status", "Đang xử lý hòa âm, nhúng phụ đề và đóng gói video (có thể mất 1 - 2 phút tùy độ dài video)...")}
                 </p>
               </div>
             )}

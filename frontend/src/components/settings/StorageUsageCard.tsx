@@ -46,7 +46,7 @@ export default function StorageUsageCard({ onManageStorage }: StorageUsageCardPr
     if (onManageStorage) {
       onManageStorage();
     } else {
-      navigate("/settings?tab=privacy");
+      navigate("/workspace/settings?tab=privacy");
     }
   };
 
@@ -57,7 +57,7 @@ export default function StorageUsageCard({ onManageStorage }: StorageUsageCardPr
     : "0 MB";
 
   const totalFormatted = `${breakdown?.plan.total_gb ?? 5} GB`;
-  const usagePercent = breakdown?.plan.usage_percent ?? 0;
+  const usagePercent = Math.min(100, Math.max(0, Number(breakdown?.plan.usage_percent) || 0));
 
   return (
     <SettingCard

@@ -9,6 +9,7 @@ import {
   Download,
   Trash2,
   Sparkles,
+  Image as ImageIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -42,6 +43,7 @@ export type VideoCardProps = {
   onDownload?: (video: Video) => void;
   onDelete?: (video: Video) => void;
   onViewDocuments?: (video: Video) => void;
+  onManageThumbnail?: (video: Video) => void;
 };
 
 const statusClasses: Record<VideoStatus, string> = {
@@ -62,6 +64,7 @@ export default function VideoCard({
   onDownload,
   onDelete,
   onViewDocuments,
+  onManageThumbnail,
 }: VideoCardProps) {
   const { t } = useTranslation(["project"]);
   const statusClassName = statusClasses[video.status] || statusClasses.uploaded;
@@ -321,8 +324,24 @@ export default function VideoCard({
     >
       {/* Thumbnail */}
       <div className="relative h-[165px] sm:h-[190px] overflow-hidden rounded-t-2xl bg-gradient-to-br from-[#15212B] via-[#334854] to-[#78919A]">
-        {/* Background Gradient */}
+        {/* Fallback Gradient */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,189,0.3),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(255,255,255,0.14),transparent_30%)]" />
+
+        {/* Real Video Thumbnail */}
+        {video.thumbnail && (
+          <img
+            src={video.thumbnail}
+            alt={video.title}
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+            loading="lazy"
+            onError={(e) => {
+              (e.target as HTMLElement).style.display = "none";
+            }}
+          />
+        )}
+
+        {/* Cinematic dark overlay to keep play button & badges readable */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/35 pointer-events-none" />
 
         {/* Play Button */}
         <div className="absolute inset-0 flex items-center justify-center">
@@ -374,6 +393,20 @@ export default function VideoCard({
                 <Sparkles size={14} />
                 Mở Video Editor
               </button>
+
+              {onManageThumbnail && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onManageThumbnail(video);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-xs font-medium text-[var(--color-text-primary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
+                >
+                  <ImageIcon size={14} />
+                  {t("project:manageThumbnail", "Chỉnh sửa Thumbnail")}
+                </button>
+              )}
               {onRename && (
                 <button
                   type="button"

@@ -9,7 +9,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom";
 
 import UploadStep from "../components/pipeline/UploadStep";
 import TranscriptStep from "../components/pipeline/TranscriptStep";
@@ -23,6 +23,24 @@ import { videoService } from "../services/video.service";
 // Import Pipeline context
 import { usePipeline } from "../hooks/usePipeline";
 import { PipelineProvider } from "../contexts/PipelineContext";
+
+const STEP_ID_TO_NUM: Record<string, number> = {
+  upload: 1,
+  transcript: 2,
+  translation: 3,
+  subtitle: 4,
+  dubbing: 5,
+  "review-export": 6,
+};
+
+const STEP_NUM_TO_ID: Record<number, string> = {
+  1: "upload",
+  2: "transcript",
+  3: "translation",
+  4: "subtitle",
+  5: "dubbing",
+  6: "review-export",
+};
 
 function renderStep(step: string) {
   switch (step) {
@@ -49,9 +67,13 @@ function VideoPipelineContent() {
   const navigate = useNavigate();
   const { projectId, videoId } = useParams();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { state, dispatch } = usePipeline();
   
-  const [activeStep, setActiveStep] = useState("upload");
+  const initialQueryStep = searchParams.get("step");
+  const [activeStep, setActiveStep] = useState<string>(() =>
+    initialQueryStep && STEP_ID_TO_NUM[initialQueryStep] ? initialQueryStep : "upload"
+  );
   const [isSaved, setIsSaved] = useState(true);
   const [projectName, setProjectName] = useState<string>("");
   const [isLoadingVideo, setIsLoadingVideo] = useState(false);
@@ -117,9 +139,12 @@ function VideoPipelineContent() {
               });
             }
 
-            // Route to appropriate step based on available assets
+            // Route to appropriate step: respect URL query param first, then deduce from available assets
+            const queryStepParam = searchParams.get("step");
             let targetStep = 2; // Default to transcript if uploaded
-            if (videoData.output_path || videoData.status === "completed") {
+            if (queryStepParam && STEP_ID_TO_NUM[queryStepParam]) {
+              targetStep = STEP_ID_TO_NUM[queryStepParam];
+            } else if (videoData.output_path || videoData.status === "completed") {
               targetStep = 6;
             } else if (videoData.dubbed_audio_path) {
               targetStep = 5;
@@ -132,6 +157,11 @@ function VideoPipelineContent() {
             }
 
             dispatch({ type: "SET_STEP", payload: targetStep });
+            const resolvedStepId = STEP_NUM_TO_ID[targetStep] || "upload";
+            setActiveStep(resolvedStepId);
+            if (searchParams.get("step") !== resolvedStepId) {
+              setSearchParams({ step: resolvedStepId }, { replace: true });
+            }
           })
           .catch((err: any) => {
             console.error("❌ Failed to load video details:", err);
@@ -145,17 +175,13 @@ function VideoPipelineContent() {
 
     // Set active step based on current step from context or URL
     if (state.step) {
-      const stepMap: { [key: number]: string } = {
-        1: "upload",
-        2: "transcript",
-        3: "translation",
-        4: "subtitle",
-        5: "dubbing",
-        6: "review-export",
-      };
-      setActiveStep(stepMap[state.step] || "upload");
+      const stepId = STEP_NUM_TO_ID[state.step] || "upload";
+      setActiveStep(stepId);
+      if (searchParams.get("step") !== stepId) {
+        setSearchParams({ step: stepId }, { replace: true });
+      }
     }
-  }, [projectId, videoId, location.state, dispatch, state.step]);
+  }, [projectId, videoId, location.state, dispatch, state.step, searchParams, setSearchParams]);
 
   const pipelineSteps = [
     {
@@ -208,16 +234,10 @@ function VideoPipelineContent() {
     setActiveStep(stepId);
     setIsSaved(false);
     
-    // Update the context step
-    const stepMap: { [key: string]: number } = {
-      "upload": 1,
-      "transcript": 2,
-      "translation": 3,
-      "subtitle": 4,
-      "dubbing": 5,
-      "review-export": 6,
-    };
-    dispatch({ type: "SET_STEP", payload: stepMap[stepId] || 1 });
+    // Update the context step and sync URL query params
+    const stepNum = STEP_ID_TO_NUM[stepId] || 1;
+    dispatch({ type: "SET_STEP", payload: stepNum });
+    setSearchParams({ step: stepId }, { replace: true });
   };
 
   const handleSave = () => {
@@ -264,8 +284,8 @@ function VideoPipelineContent() {
             </div>
 
             <p className="mt-0.5 truncate text-xs text-[var(--color-text-muted)]">
-              {projectDisplayName} / {videoDisplayName}
-              {state.video?.videoId && ` · ID: ${state.video.videoId}`}
+              {projectDisplayName} • {videoDisplayName}
+              {state.video?.fileSize ? ` (${(state.video.fileSize / (1024 * 1024)).toFixed(1)} MB)` : ""}
             </p>
           </div>
         </div>
@@ -456,23 +476,38 @@ function VideoPipelineContent() {
             </p>
           </div>
 
-          {/* Project info card */}
-          {state.projectId && (
-            <div className="mt-4 rounded-xl border border-[var(--color-border-muted)] bg-[var(--color-surface-muted)] p-3">
+          {/* Media Asset Summary Card */}
+          {state.video?.filename && (
+            <div className="mt-4 rounded-xl border border-[var(--color-border-muted)] bg-[var(--color-surface-muted)] p-3.5">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
-                Project Information
+                Media Asset Overview
               </p>
-              <p className="mt-1 text-sm font-medium text-[var(--color-text-primary)]">
-                {projectDisplayName}
+              <p className="mt-1 text-sm font-semibold truncate text-[var(--color-text-primary)]">
+                {videoDisplayName}
               </p>
-              <p className="text-xs text-[var(--color-text-muted)]">
-                ID: {state.projectId}
-              </p>
-              {state.video?.videoId && (
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  Video ID: {state.video.videoId}
-                </p>
-              )}
+              <div className="mt-2 flex flex-col gap-1 text-xs text-[var(--color-text-muted)]">
+                <div className="flex justify-between">
+                  <span>Trạng thái:</span>
+                  <span className="font-medium text-[var(--color-primary)] capitalize">
+                    {state.video.status || "Ready"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Ngôn ngữ đích:</span>
+                  <span className="font-mono font-medium text-[var(--color-text-primary)] uppercase">
+                    {state.targetLanguage || "VI"}
+                  </span>
+                </div>
+                {state.video.duration ? (
+                  <div className="flex justify-between">
+                    <span>Thời lượng:</span>
+                    <span className="font-mono font-medium text-[var(--color-text-primary)]">
+                      {Math.floor(state.video.duration / 60)}:
+                      {String(Math.floor(state.video.duration % 60)).padStart(2, "0")}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
             </div>
           )}
         </aside>

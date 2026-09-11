@@ -1,5 +1,6 @@
 # app/api/video_routes.py - CLEANED with authentication
 import os
+import asyncio
 import shutil
 import subprocess
 import uuid
@@ -57,6 +58,7 @@ from app.schemas.video import (
     ProcessingStatusResponse,
     VideoChapterResponse,
     VideoDocumentResponse,
+    ThumbnailCaptureRequest,
 )
 from app.services.video_understanding_service import VideoUnderstandingService
 from fastapi.responses import JSONResponse
@@ -285,6 +287,19 @@ async def upload_video(
     input_path = UPLOAD_DIR / safe_filename
     shutil.move(str(temp_path), str(input_path))
     video.original_path = str(input_path)
+
+    # Auto-extract default thumbnail from uploaded video (at 1.0s or 0.0s)
+    try:
+        thumb_filename = f"thumb_{video.id}.jpg"
+        thumb_local_path = UPLOAD_DIR / thumb_filename
+        duration_val = float(video_info.get("duration") or 0)
+        ts = 1.0 if duration_val > 1.5 else 0.0
+        VideoService.extract_thumbnail(str(input_path), str(thumb_local_path), timestamp=ts)
+        thumb_s3_key = f"thumbnails/{video.id}/thumb_default.jpg"
+        storage_manager.upload_file(str(thumb_local_path), thumb_s3_key, content_type="image/jpeg")
+        video.thumbnail_path = thumb_s3_key
+    except Exception as exc:
+        logger.warning(f"Could not auto-extract initial thumbnail for video {video.id}: {exc}")
     
     # Create pipeline config
     config = VideoPipelineConfig(
@@ -356,24 +371,30 @@ async def list_videos(
     
     videos = query.order_by(Video.created_at.desc()).offset(offset).limit(limit).all()
     
-    return [
-        VideoListItem(
-            id=v.id,
-            project_id=v.project_id,
-            folder_id=v.folder_id,
-            title=v.title,
-            original_filename=v.original_filename,
-            file_size=v.file_size,
-            status=v.status,
-            progress=v.progress,
-            current_step=v.current_step,
-            duration=v.duration,
-            created_at=v.created_at,
-            updated_at=v.updated_at,
-            has_hls=bool(v.output_path and v.output_path.startswith("videos/"))
+    items = []
+    for v in videos:
+        t_path = getattr(v, "thumbnail_path", None)
+        t_url = storage_manager.generate_presigned_url(t_path, expires_in=86400) if t_path else f"/api/videos/{v.id}/thumbnail"
+        items.append(
+            VideoListItem(
+                id=v.id,
+                project_id=v.project_id,
+                folder_id=v.folder_id,
+                title=v.title,
+                original_filename=v.original_filename,
+                file_size=v.file_size,
+                status=v.status,
+                progress=v.progress,
+                current_step=v.current_step,
+                duration=v.duration,
+                created_at=v.created_at,
+                updated_at=v.updated_at,
+                has_hls=bool(v.output_path and v.output_path.startswith("videos/")),
+                thumbnail_path=t_path,
+                thumbnail_url=t_url,
+            )
         )
-        for v in videos
-    ]
+    return items
 
 
 @router.get("/{video_id}", response_model=VideoDetailResponse)
@@ -394,6 +415,9 @@ async def get_video_details(
                 segments = json.load(f).get('segments', [])
         except Exception as e:
             logger.warning(f"Could not load transcript: {e}")
+
+    thumb_path = getattr(video, "thumbnail_path", None)
+    thumb_url = storage_manager.generate_presigned_url(thumb_path, expires_in=86400) if thumb_path else f"/api/videos/{video.id}/thumbnail"
     
     return VideoDetailResponse(
         id=video.id,
@@ -409,6 +433,8 @@ async def get_video_details(
         subtitle_path=video.subtitle_path,
         dubbed_audio_path=video.dubbed_audio_path,
         output_path=video.output_path,
+        thumbnail_path=thumb_path,
+        thumbnail_url=thumb_url,
         duration=video.duration,
         fps=video.fps,
         resolution=video.resolution,
@@ -497,6 +523,264 @@ async def download_video(
         media_type="application/octet-stream",
         filename=target_filename,
         headers={"Content-Disposition": f'attachment; filename="{target_filename}"'}
+    )
+
+
+# ============================================================
+# VIDEO THUMBNAIL MANAGEMENT (CRUD & STREAMING)
+# ============================================================
+
+@router.get("/{video_id}/thumbnail")
+async def get_video_thumbnail(
+    video_id: int,
+    db: Session = Depends(get_db),
+    t: Optional[str] = Query(None, description="Cache buster"),
+):
+    """
+    Get video thumbnail.
+    Serves existing thumbnail or auto-extracts from output/original video on-the-fly.
+    """
+    video = db.query(Video).filter(Video.id == video_id, Video.deleted_at.is_(None)).first()
+    if not video:
+        raise HTTPException(404, "Video not found")
+
+    thumb_path = getattr(video, "thumbnail_path", None)
+    
+    # 1. If thumbnail_path is already set, check local or S3
+    if thumb_path:
+        local_thumb = Path(UPLOAD_DIR) / f"thumb_{video_id}.jpg"
+        if local_thumb.exists():
+            return FileResponse(
+                str(local_thumb),
+                media_type="image/jpeg",
+                headers={"Cache-Control": "public, max-age=86400"}
+            )
+        tmp_target = Path(UPLOAD_DIR) / f"tmp_thumb_{video_id}.jpg"
+        if storage_manager.download_file(thumb_path, str(tmp_target)):
+            return FileResponse(
+                str(tmp_target),
+                media_type="image/jpeg",
+                headers={"Cache-Control": "public, max-age=86400"}
+            )
+        presigned = storage_manager.generate_presigned_url(thumb_path, expires_in=86400)
+        if presigned:
+            return RedirectResponse(presigned, status_code=307)
+
+    # 2. Auto-extract from available video file
+    source_path = None
+    if video.output_path and os.path.exists(video.output_path):
+        source_path = str(video.output_path)
+    elif video.original_path and os.path.exists(video.original_path):
+        source_path = str(video.original_path)
+    else:
+        for f in UPLOAD_DIR.glob(f"{video_id}_*"):
+            if f.exists() and f.suffix.lower() in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+                source_path = str(f)
+                break
+
+    if not source_path and video.original_path and video.original_path.startswith("uploads/"):
+        tmp_vid = Path(UPLOAD_DIR) / f"cached_{video_id}.mp4"
+        if storage_manager.download_file(video.original_path, str(tmp_vid)):
+            source_path = str(tmp_vid)
+
+    if not source_path or not os.path.exists(source_path):
+        raise HTTPException(404, "Video media file not available for thumbnail extraction")
+
+    try:
+        thumb_filename = f"thumb_{video_id}_{uuid.uuid4().hex[:6]}.jpg"
+        local_thumb_path = Path(UPLOAD_DIR) / thumb_filename
+        duration_val = float(getattr(video, "duration", 0) or 0)
+        ts = 1.0 if duration_val > 1.5 else 0.0
+        VideoService.extract_thumbnail(source_path, str(local_thumb_path), timestamp=ts)
+        
+        s3_key = f"thumbnails/{video_id}/{thumb_filename}"
+        storage_manager.upload_file(str(local_thumb_path), s3_key, content_type="image/jpeg")
+        
+        video.thumbnail_path = s3_key
+        video.updated_at = datetime.utcnow()
+        db.commit()
+
+        return FileResponse(
+            str(local_thumb_path),
+            media_type="image/jpeg",
+            headers={"Cache-Control": "public, max-age=86400"}
+        )
+    except Exception as e:
+        logger.error(f"Error auto-extracting thumbnail for video {video_id}: {e}")
+        raise HTTPException(500, f"Failed to generate thumbnail: {str(e)}")
+
+
+@router.post("/{video_id}/thumbnail/capture")
+async def capture_video_thumbnail(
+    video_id: int,
+    payload: ThumbnailCaptureRequest,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Capture a frame from original or output video at specified timestamp."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
+    
+    source_path = None
+    if payload.source == "output":
+        if video.output_path and os.path.exists(video.output_path):
+            source_path = str(video.output_path)
+        elif video.output_path and video.output_path.startswith("videos/"):
+            tmp_out = Path(UPLOAD_DIR) / f"temp_out_{video_id}.mp4"
+            if storage_manager.download_file(video.output_path, str(tmp_out)):
+                source_path = str(tmp_out)
+    
+    if not source_path:
+        if video.original_path and os.path.exists(video.original_path):
+            source_path = str(video.original_path)
+        else:
+            for f in UPLOAD_DIR.glob(f"{video_id}_*"):
+                if f.exists() and f.suffix.lower() in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+                    source_path = str(f)
+                    break
+        if not source_path and video.original_path and video.original_path.startswith("uploads/"):
+            tmp_orig = Path(UPLOAD_DIR) / f"temp_orig_{video_id}.mp4"
+            if storage_manager.download_file(video.original_path, str(tmp_orig)):
+                source_path = str(tmp_orig)
+
+    if not source_path or not os.path.exists(source_path):
+        raise HTTPException(404, f"Source video ({payload.source}) not found on disk or storage")
+
+    ts = max(0.0, float(payload.timestamp))
+    thumb_filename = f"thumb_{video_id}_{int(ts * 1000)}_{uuid.uuid4().hex[:6]}.jpg"
+    local_thumb_path = Path(UPLOAD_DIR) / thumb_filename
+    
+    try:
+        VideoService.extract_thumbnail(source_path, str(local_thumb_path), timestamp=ts)
+        s3_key = f"thumbnails/{video_id}/{thumb_filename}"
+        storage_manager.upload_file(str(local_thumb_path), s3_key, content_type="image/jpeg")
+        
+        video.thumbnail_path = s3_key
+        video.updated_at = datetime.utcnow()
+        db.commit()
+
+        presigned = storage_manager.generate_presigned_url(s3_key, expires_in=86400)
+        return {
+            "message": "Thumbnail captured successfully",
+            "thumbnail_path": s3_key,
+            "thumbnail_url": presigned or f"/api/videos/{video_id}/thumbnail?t={int(datetime.utcnow().timestamp())}",
+            "timestamp": ts,
+            "source": payload.source
+        }
+    except Exception as e:
+        logger.error(f"Failed to capture thumbnail for video {video_id}: {e}")
+        raise HTTPException(500, f"Error capturing frame: {str(e)}")
+
+
+@router.post("/{video_id}/thumbnail/upload")
+async def upload_custom_thumbnail(
+    video_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Upload a custom image as video thumbnail."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
+    
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/jpg"]
+    content_type = file.content_type or "image/jpeg"
+    if content_type not in allowed_types:
+        raise HTTPException(400, "Only JPEG, PNG, and WebP images are allowed")
+
+    thumb_filename = f"thumb_custom_{video_id}_{uuid.uuid4().hex[:8]}.jpg"
+    local_path = Path(UPLOAD_DIR) / thumb_filename
+    
+    with open(local_path, "wb") as f_out:
+        shutil.copyfileobj(file.file, f_out)
+        
+    s3_key = f"thumbnails/{video_id}/{thumb_filename}"
+    storage_manager.upload_file(str(local_path), s3_key, content_type=content_type)
+    
+    video.thumbnail_path = s3_key
+    video.updated_at = datetime.utcnow()
+    db.commit()
+    
+    presigned = storage_manager.generate_presigned_url(s3_key, expires_in=86400)
+    return {
+        "message": "Custom thumbnail uploaded successfully",
+        "thumbnail_path": s3_key,
+        "thumbnail_url": presigned or f"/api/videos/{video_id}/thumbnail?t={int(datetime.utcnow().timestamp())}",
+    }
+
+
+@router.post("/{video_id}/thumbnail/auto")
+async def auto_extract_thumbnail(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Automatically detect and extract optimal thumbnail from video."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
+    
+    source = "output" if (video.output_path and os.path.exists(video.output_path)) else "original"
+    req = ThumbnailCaptureRequest(timestamp=1.0, source=source)
+    return await capture_video_thumbnail(video_id=video_id, payload=req, db=db, user_id=user_id)
+
+
+@router.delete("/{video_id}/thumbnail")
+async def delete_video_thumbnail(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Remove video thumbnail (reverts to default)."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
+    
+    if getattr(video, "thumbnail_path", None):
+        try:
+            delete_file(video.thumbnail_path)
+        except Exception as e:
+            logger.warning(f"Failed to delete thumbnail file from storage: {e}")
+        video.thumbnail_path = None
+        video.updated_at = datetime.utcnow()
+        db.commit()
+        
+    return {"message": "Thumbnail deleted successfully"}
+
+
+@router.get("/{video_id}/stream")
+async def stream_video_file(
+    video_id: int,
+    kind: str = Query("output", description="'output' or 'original'"),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Stream video file for inline HTML5 video playback in modal."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+    
+    target_path = None
+    if kind == "output":
+        if video.output_path and os.path.exists(video.output_path):
+            target_path = Path(video.output_path)
+        elif video.output_path and video.output_path.startswith("videos/"):
+            presigned = storage_manager.generate_presigned_url(video.output_path, expires_in=3600)
+            if presigned:
+                return RedirectResponse(presigned, status_code=307)
+                
+    if not target_path or not target_path.exists():
+        if video.original_path and os.path.exists(video.original_path):
+            target_path = Path(video.original_path)
+        else:
+            for file in UPLOAD_DIR.glob(f"{video_id}_*"):
+                if file.exists() and file.suffix.lower() in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+                    target_path = file
+                    break
+        if not target_path and video.original_path and video.original_path.startswith("uploads/"):
+            presigned = storage_manager.generate_presigned_url(video.original_path, expires_in=3600)
+            if presigned:
+                return RedirectResponse(presigned, status_code=307)
+
+    if not target_path or not target_path.exists():
+        raise HTTPException(404, "Requested video file not found on disk or storage")
+        
+    return FileResponse(
+        str(target_path),
+        media_type="video/mp4",
+        headers={"Accept-Ranges": "bytes", "Content-Disposition": f'inline; filename="{target_path.name}"'}
     )
 
 
@@ -684,7 +968,7 @@ async def start_processing(
         }
     )
     
-    task = process_video_pipeline.delay(video_id, user_id)
+    task = process_video_pipeline.delay(video_id, user_id, str(job.id))
     
     job.config_json = {
         **(job.config_json or {}),
@@ -2487,29 +2771,34 @@ async def generate_dubbed_video(
         with tempfile.TemporaryDirectory() as temp_dir:
             logger.info(f"🔧 Starting audio mixing and muxing in temp dir: {temp_dir}")
             
-            # Resolve subtitle path if subtitle burning is enabled
+            # Resolve subtitle path if subtitle burning is enabled (prioritize styled .ass)
             resolved_sub_path = None
             if burn_subtitles:
-                if video.subtitle_path and os.path.exists(video.subtitle_path):
+                cand_dir = OUTPUT_DIR / f"transcript_{video_id}"
+                ass_file = cand_dir / f"subtitles_{language}.ass" if cand_dir.exists() else None
+                if ass_file and ass_file.exists():
+                    resolved_sub_path = str(ass_file)
+                    video.subtitle_path = resolved_sub_path
+                    db.commit()
+                elif video.subtitle_path and os.path.exists(video.subtitle_path):
                     resolved_sub_path = video.subtitle_path
-                else:
-                    # Look in outputs/transcript_{video_id}/
-                    cand_dir = OUTPUT_DIR / f"transcript_{video_id}"
-                    if cand_dir.exists():
-                        for ext in [".ass", ".srt", ".vtt"]:
-                            sub_candidate = cand_dir / f"subtitles_{language}{ext}"
-                            if sub_candidate.exists():
-                                resolved_sub_path = str(sub_candidate)
-                                video.subtitle_path = resolved_sub_path
-                                db.commit()
-                                break
+                elif cand_dir.exists():
+                    for ext in [".ass", ".srt", ".vtt"]:
+                        sub_candidate = cand_dir / f"subtitles_{language}{ext}"
+                        if sub_candidate.exists():
+                            resolved_sub_path = str(sub_candidate)
+                            video.subtitle_path = resolved_sub_path
+                            db.commit()
+                            break
+
                 if resolved_sub_path:
                     logger.info(f"🔥 Subtitles located for burning: {resolved_sub_path}")
                 else:
                     logger.info(f"No subtitle file found for video {video_id}, proceeding without burning")
 
-            # Generate dubbed video and upload to S3 with HLS
-            result = audio_service.mix_and_mux(
+            # Generate dubbed video and upload to S3 with HLS (non-blocking worker thread)
+            result = await asyncio.to_thread(
+                audio_service.mix_and_mux,
                 video_path=video_path,
                 tts_audio_path=tts_path,
                 bgm_audio_path=bgm_path,
@@ -2549,6 +2838,20 @@ async def generate_dubbed_video(
             video.resolution = quality
             video.file_size = file_size
             video.updated_at = datetime.utcnow()
+
+            # Auto-extract updated thumbnail from translated output video
+            try:
+                if local_path and os.path.exists(local_path):
+                    thumb_out_name = f"thumb_output_{video_id}.jpg"
+                    thumb_local = Path(UPLOAD_DIR) / thumb_out_name
+                    duration_val = float(getattr(video, "duration", 0) or 0)
+                    ts = 1.0 if duration_val > 1.5 else 0.0
+                    VideoService.extract_thumbnail(local_path, str(thumb_local), timestamp=ts)
+                    thumb_s3_key = f"thumbnails/{video_id}/{thumb_out_name}"
+                    storage_manager.upload_file(str(thumb_local), thumb_s3_key, content_type="image/jpeg")
+                    video.thumbnail_path = thumb_s3_key
+            except Exception as exc:
+                logger.warning(f"Could not auto-extract thumbnail from output for video {video_id}: {exc}")
 
             # Clean up all previous renders in video_render_outputs for this video to avoid serving stale videos
             try:

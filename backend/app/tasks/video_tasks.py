@@ -1,6 +1,8 @@
 # app/tasks/video_tasks.py - Standardized Celery Tasks (No SQLAlchemy)
 import os
 import logging
+import uuid
+from typing import Optional, Dict, Any
 import torch
 try:
     from celery import Task
@@ -44,7 +46,7 @@ class PipelineTask(Task):
 
 @celery_app.task(bind=True, base=PipelineTask, name="process_video_pipeline", 
                  max_retries=3, soft_time_limit=7200, time_limit=7800)
-def process_video_pipeline(self, video_id: int, user_id: int):
+def process_video_pipeline(self, video_id: int, user_id: int, job_id: Optional[str] = None):
     """Process a video through the full pipeline with auto device detection"""
     db = self.db
     
@@ -72,18 +74,40 @@ def process_video_pipeline(self, video_id: int, user_id: int):
         target_lang = config.target_language if config and getattr(config, "target_language", None) else "vi"
         source_lang = config.source_language if config and getattr(config, "source_language", None) else "en"
 
-        job = job_service.create_job(
-            video_id=video_id,
-            triggered_by=user_id,
-            config={
-                "target_language": target_lang,
-                "source_language": source_lang,
-                "celery_task_id": self.request.id,
-                "device": "GPU" if cuda_available else "CPU"
-            }
-        )
-        
-        print(f"✅ Job created: {job.id} for video {video_id}", flush=True)
+        job = None
+        if job_id:
+            try:
+                job_uuid = uuid.UUID(job_id) if isinstance(job_id, str) else job_id
+                job = job_service.get_job(job_uuid)
+            except Exception as e:
+                print(f"⚠️ Could not load job {job_id}: {e}", flush=True)
+
+        if not job:
+            job = job_service.create_job(
+                video_id=video_id,
+                triggered_by=user_id,
+                config={
+                    "target_language": target_lang,
+                    "source_language": source_lang,
+                    "celery_task_id": self.request.id,
+                    "device": "GPU" if cuda_available else "CPU"
+                }
+            )
+            print(f"✅ Job created: {job.id} for video {video_id}", flush=True)
+        else:
+            job_config = job.config_json or {}
+            if isinstance(job_config, str):
+                import json
+                try:
+                    job_config = json.loads(job_config)
+                except Exception:
+                    job_config = {}
+            job_config["celery_task_id"] = self.request.id
+            job_config["device"] = "GPU" if cuda_available else "CPU"
+            job.config_json = job_config
+            job.status = JobStatus.PROCESSING.value
+            db.commit()
+            print(f"✅ Reusing existing Job: {job.id} for video {video_id}", flush=True)
         
         self.update_state(
             state="PROCESSING",
