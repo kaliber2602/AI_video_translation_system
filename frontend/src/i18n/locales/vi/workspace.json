@@ -18,6 +18,7 @@
     "tags": "Thẻ"
   },
   "videosCount": "{{count}} video",
+  "projectsCount": "{{count}} dự án",
   "project": {
     "createTitle": "Tạo dự án mới",
     "createSubtitle": "Tạo dự án mới để quản lý quy trình dịch thuật video.",

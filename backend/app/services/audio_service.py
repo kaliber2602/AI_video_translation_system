@@ -99,7 +99,8 @@ class AudioService:
         quality: Optional[str] = "1080p",
         generate_hls: bool = True,
         subtitle_path: Optional[str] = None,
-        burn_subtitles: bool = True
+        burn_subtitles: bool = True,
+        aspect_ratio: Optional[str] = None
     ):
         """
         Mix TTS audio with optional BGM and mux with video.
@@ -192,8 +193,30 @@ class AudioService:
             }
             target_h = quality_map.get(quality.lower() if quality else "1080p", 1080)
 
-            # Build video filters (scaling + optional burned subtitles)
-            vf_filters = [f"scale=-2:{target_h}"]
+            # Build video filters (scaling/cropping per aspect_ratio + optional burned subtitles)
+            clean_aspect = (aspect_ratio or "").strip().lower()
+            if clean_aspect in ["9:16", "portrait", "doc", "vertical"]:
+                # TikTok / Shorts standard vertical: 1080x1920 (or scaled based on quality)
+                vert_map = {360: (360, 640), 720: (720, 1280), 1080: (1080, 1920), 1440: (1440, 2560), 2160: (2160, 3840)}
+                w, h = vert_map.get(target_h, (1080, 1920))
+                crop_scale_filter = f"crop='min(iw,ih*9/16)':'min(ih,iw*16/9)':(iw-ow)/2:(ih-oh)/2,scale={w}:{h}"
+            elif clean_aspect in ["1:1", "square", "vuong"]:
+                w = h = target_h
+                crop_scale_filter = f"crop='min(iw,ih)':'min(iw,ih)':(iw-ow)/2:(ih-oh)/2,scale={w}:{h}"
+            elif clean_aspect in ["4:3"]:
+                w = int(round(target_h * 4 / 3 / 2) * 2)
+                h = target_h
+                crop_scale_filter = f"crop='min(iw,ih*4/3)':'min(ih,iw*3/4)':(iw-ow)/2:(ih-oh)/2,scale={w}:{h}"
+            elif clean_aspect in ["4:5"]:
+                w = int(round(target_h * 4 / 5 / 2) * 2)
+                h = target_h
+                crop_scale_filter = f"crop='min(iw,ih*4/5)':'min(ih,iw*5/4)':(iw-ow)/2:(ih-oh)/2,scale={w}:{h}"
+            elif clean_aspect in ["16:9", "landscape"]:
+                crop_scale_filter = f"crop='min(iw,ih*16/9)':'min(ih,iw*9/16)':(iw-ow)/2:(ih-oh)/2,scale=-2:{target_h}"
+            else:
+                crop_scale_filter = f"scale=-2:{target_h}"
+
+            vf_filters = [crop_scale_filter]
             if burn_subtitles and subtitle_path:
                 chosen_sub = subtitle_path
                 # If .srt was given, prefer .ass if available for styled fonts and layout
@@ -210,7 +233,7 @@ class AudioService:
                 if os.path.exists(chosen_sub):
                     escaped_sub = chosen_sub.replace('\\', '/').replace(':', '\\:')
                     vf_filters.append(f"subtitles={escaped_sub}")
-                    logger.info(f"🔥 Burning subtitles into video: {chosen_sub}")
+                    logger.info(f"🔥 Burning subtitles into video ({clean_aspect or 'original'}): {chosen_sub}")
                 else:
                     logger.warning(f"⚠️ Subtitle path provided but file not found on disk: {chosen_sub}")
 

@@ -44,6 +44,8 @@ export type VideoCardProps = {
   onDelete?: (video: Video) => void;
   onViewDocuments?: (video: Video) => void;
   onManageThumbnail?: (video: Video) => void;
+  isSelected?: boolean;
+  onToggleSelect?: (video: Video) => void;
 };
 
 const statusClasses: Record<VideoStatus, string> = {
@@ -65,6 +67,8 @@ export default function VideoCard({
   onDelete,
   onViewDocuments,
   onManageThumbnail,
+  isSelected,
+  onToggleSelect,
 }: VideoCardProps) {
   const { t } = useTranslation(["project"]);
   const statusClassName = statusClasses[video.status] || statusClasses.uploaded;
@@ -324,6 +328,23 @@ export default function VideoCard({
     >
       {/* Thumbnail */}
       <div className="relative h-[165px] sm:h-[190px] overflow-hidden rounded-t-2xl bg-gradient-to-br from-[#15212B] via-[#334854] to-[#78919A]">
+        {/* Selection Checkbox (UX-11) */}
+        {onToggleSelect && (
+          <div
+            className="absolute left-3 top-3 z-30"
+            data-no-drag
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={Boolean(isSelected)}
+              onChange={() => onToggleSelect(video)}
+              aria-label={`Select ${video.title}`}
+              className="h-5 w-5 rounded border-white/40 bg-black/50 text-[var(--color-primary)] focus:ring-offset-0 focus:ring-2 focus:ring-[var(--color-primary)] cursor-pointer backdrop-blur-xs transition"
+            />
+          </div>
+        )}
+
         {/* Fallback Gradient */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(52,211,189,0.3),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(255,255,255,0.14),transparent_30%)]" />
 

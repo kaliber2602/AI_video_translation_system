@@ -3,7 +3,6 @@ import { useState, useRef, useEffect } from "react";
 import {
   CheckCircle2,
   FileVideo,
-  Languages,
   UploadCloud,
   Loader2,
   ArrowRight,
@@ -25,6 +24,7 @@ export default function UploadStep() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadComplete, setUploadComplete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Auto-transition to transcript step when upload is complete
   useEffect(() => {
@@ -39,7 +39,33 @@ export default function UploadStep() {
     }
   }, [uploadComplete, state.video?.videoId, state.projectId, dispatch, navigate]);
 
+  const cancelUpload = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsUploading(false);
+    setUploadProgress(0);
+    setUploadStatusText("");
+  };
+
   const handleFileUpload = async (file: File) => {
+    // Client-side file validation (Checkpoint 6)
+    const validExtensions = [".mp4", ".mov", ".avi", ".mkv", ".webm"];
+    const fileExt = "." + file.name.split(".").pop()?.toLowerCase();
+    if (!validExtensions.includes(fileExt)) {
+      setUploadError("Định dạng video không được hỗ trợ. Vui lòng chọn tệp .MP4, .MOV, .AVI, .MKV hoặc .WEBM.");
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024 * 1024) {
+      setUploadError("Dung lượng video vượt quá giới hạn 2GB của hệ thống. Vui lòng chọn video khác hoặc nén tệp.");
+      return;
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsUploading(true);
     setUploadProgress(0);
     setUploadStatusText("Uploading video file...");
@@ -55,7 +81,8 @@ export default function UploadStep() {
         (percent) => {
           setUploadProgress(Math.min(percent, 90));
           setUploadStatusText(`Uploading video file (${percent}%)...`);
-        }
+        },
+        controller.signal
       );
 
       console.log("📦 Upload response:", response);
@@ -157,15 +184,33 @@ export default function UploadStep() {
       </div>
 
       {uploadError && (
-        <div className="rounded-2xl border border-red-500/50 bg-red-500/10 p-4 text-red-500">
-          <p className="text-sm font-medium">Error: {uploadError}</p>
-          <button
-            type="button"
-            onClick={() => setUploadError(null)}
-            className="mt-2 text-xs underline hover:text-red-400 transition-colors"
-          >
-            Dismiss
-          </button>
+        <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-red-500">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-red-400">Lỗi tải lên video</p>
+              <p className="text-xs text-red-300/90 mt-0.5">{uploadError}</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setUploadError(null);
+                  fileInputRef.current?.click();
+                }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-red-500 text-white text-xs font-semibold hover:bg-red-600 transition shadow-xs"
+              >
+                <RefreshCw size={12} />
+                <span>Thử lại tải tệp</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setUploadError(null)}
+                className="px-3 py-1.5 rounded-xl border border-red-500/30 text-xs font-semibold text-red-400 hover:bg-red-500/10 transition"
+              >
+                Bỏ qua
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -225,7 +270,7 @@ export default function UploadStep() {
               isDragging
                 ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)]"
                 : "border-[var(--color-border)] bg-[var(--color-surface-muted)] hover:border-[var(--color-primary)]"
-            } ${isUploading ? "pointer-events-none opacity-60" : ""} ${
+            } ${isUploading ? "opacity-90" : ""} ${
               uploadComplete ? "border-green-500 bg-green-500/5" : ""
             }`}
             onDrop={handleDrop}
@@ -245,9 +290,18 @@ export default function UploadStep() {
                     style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  {state.video?.filename || "Processing..."}
-                </p>
+                <div className="flex items-center gap-3 mt-1">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      cancelUpload();
+                    }}
+                    className="px-3 py-1 rounded-lg border border-red-500/40 bg-red-500/10 text-xs font-semibold text-red-400 hover:bg-red-500/20 transition"
+                  >
+                    Hủy tải lên (Cancel)
+                  </button>
+                </div>
               </div>
             ) : uploadComplete ? (
               <div className="flex flex-col items-center gap-4">
@@ -307,52 +361,7 @@ export default function UploadStep() {
         )}
       </div>
 
-      {/* Language Selection Card */}
-      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)]">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
-            <Languages size={19} />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-[var(--color-text-primary)]">
-              {t("pipeline:steps.upload.translationLanguage")}
-            </h3>
-            <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-              {t("pipeline:steps.upload.autoDetectionNote")}
-            </p>
-          </div>
-        </div>
 
-        <div className="mt-6">
-          <label className="mb-2 block text-sm font-semibold text-[var(--color-text-secondary)]">
-            {t("pipeline:steps.upload.translateTo")}
-          </label>
-          <select
-            value={state.targetLanguage || "vi"}
-            onChange={(e) =>
-              dispatch({
-                type: "SET_TARGET_LANGUAGE",
-                payload: e.target.value,
-              })
-            }
-            disabled={isUploading || uploadComplete}
-            className="h-12 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-4 text-sm text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)] focus:ring-4 focus:ring-[var(--color-primary)]/10 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <option value="vi">Tiếng Việt (Vietnamese)</option>
-            <option value="en">Tiếng Anh (English)</option>
-            <option value="zh">Tiếng Trung (Chinese)</option>
-            <option value="ja">Tiếng Nhật (Japanese)</option>
-            <option value="ko">Tiếng Hàn (Korean)</option>
-            <option value="fr">Tiếng Pháp (French)</option>
-            <option value="de">Tiếng Đức (German)</option>
-            <option value="es">Tiếng Tây Ban Nha (Spanish)</option>
-            <option value="ar">Tiếng Ả Rập (Arabic)</option>
-            <option value="ru">Tiếng Nga (Russian)</option>
-            <option value="pt">Tiếng Bồ Đào Nha (Portuguese)</option>
-            <option value="it">Tiếng Ý (Italian)</option>
-          </select>
-        </div>
-      </div>
 
       {/* Persistent Bottom Action Bar */}
       {state.video?.videoId && !isUploading && (

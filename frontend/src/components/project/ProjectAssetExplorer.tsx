@@ -18,12 +18,16 @@ import {
   Copy,
   Check,
   Filter,
+  Trash2,
 } from "lucide-react";
 import Dialog from "../common/Dialog";
+import ConfirmationDialog from "../common/ConfirmationDialog";
 import { Button } from "../common/Button";
 import {
   getProjectAssets,
   triggerAssetZipDownload,
+  deleteProjectAsset,
+  bulkDeleteProjectAssets,
 } from "../../services/project.service";
 import type {
   ProjectAssetItem,
@@ -53,6 +57,13 @@ export default function ProjectAssetExplorer({
   const [scopeToFolder, setScopeToFolder] = useState<boolean>(false);
   const [previewAsset, setPreviewAsset] = useState<ProjectAssetItem | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Asset Selection & Lifecycle Delete States (UX-01, UX-11)
+  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
+  const [assetToDelete, setAssetToDelete] = useState<ProjectAssetItem | null>(null);
+  const [isDeletingAsset, setIsDeletingAsset] = useState(false);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   const activeFolder = folders.find((f) => f.id === activeFolderId) || null;
 
@@ -97,6 +108,53 @@ export default function ProjectAssetExplorer({
     navigator.clipboard.writeText(path);
     setCopiedKey(path);
     setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  const handleToggleSelectAsset = (assetId: string) => {
+    setSelectedAssetIds((prev) =>
+      prev.includes(assetId) ? prev.filter((id) => id !== assetId) : [...prev, assetId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (!data?.assets) return;
+    if (selectedAssetIds.length === data.assets.length) {
+      setSelectedAssetIds([]);
+    } else {
+      setSelectedAssetIds(data.assets.map((a) => a.id));
+    }
+  };
+
+  const handleDeleteSingleAsset = async () => {
+    if (!assetToDelete) return;
+    try {
+      setIsDeletingAsset(true);
+      await deleteProjectAsset(projectId, assetToDelete.id);
+      setSelectedAssetIds((prev) => prev.filter((id) => id !== assetToDelete.id));
+      setAssetToDelete(null);
+      await loadAssets(true);
+    } catch (err: any) {
+      console.error("[ProjectAssetExplorer] Delete failed:", err);
+      alert(err?.response?.data?.detail || "Không thể xóa tệp này.");
+    } finally {
+      setIsDeletingAsset(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedAssetIds.length === 0) return;
+    try {
+      setIsBulkDeleting(true);
+      await bulkDeleteProjectAssets(projectId, selectedAssetIds);
+      setSelectedAssetIds([]);
+      setIsBulkDeleteModalOpen(false);
+      await loadAssets(true);
+    } catch (err: any) {
+      console.error("[ProjectAssetExplorer] Bulk delete failed:", err);
+      alert(err?.response?.data?.detail || "Không thể xóa các tệp đã chọn.");
+    } finally {
+      setIsBulkDeleting(false);
+    }
   };
 
   const getCategoryIcon = (category: string) => {
@@ -271,6 +329,17 @@ export default function ProjectAssetExplorer({
             </button>
           )}
 
+          {selectedAssetIds.length > 0 && (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setIsBulkDeleteModalOpen(true)}
+              icon={<Trash2 size={14} />}
+            >
+              Xóa ({selectedAssetIds.length}) tệp
+            </Button>
+          )}
+
           <Button
             variant="secondary"
             size="sm"
@@ -287,8 +356,9 @@ export default function ProjectAssetExplorer({
             onClick={handleDownloadZip}
             isLoading={isDownloadingZip}
             icon={<Archive size={15} />}
+            title="Tải toàn bộ tệp tài nguyên hiện tại dưới dạng gói nén ZIP"
           >
-            Download ZIP
+            Tải ZIP ({data?.assets.length || 0} tệp)
           </Button>
         </div>
       </section>
@@ -363,7 +433,16 @@ export default function ProjectAssetExplorer({
             <table className="w-full text-left text-xs text-[var(--color-text-secondary)]">
               <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-muted)]/50 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
                 <tr>
-                  <th className="px-5 py-3.5">File Name & Format</th>
+                  <th className="w-10 px-3 py-3.5 text-center">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(data.assets.length > 0 && selectedAssetIds.length === data.assets.length)}
+                      onChange={handleSelectAll}
+                      aria-label="Chọn tất cả"
+                      className="h-4 w-4 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer"
+                    />
+                  </th>
+                  <th className="px-4 py-3.5">File Name & Format</th>
                   <th className="px-4 py-3.5">Category</th>
                   <th className="px-4 py-3.5">Associated Video / Folder</th>
                   <th className="px-4 py-3.5">Storage</th>
@@ -375,10 +454,21 @@ export default function ProjectAssetExplorer({
                 {data.assets.map((asset) => (
                   <tr
                     key={asset.id}
-                    className="transition hover:bg-[var(--color-surface-muted)]/40"
+                    className={`transition hover:bg-[var(--color-surface-muted)]/40 ${
+                      selectedAssetIds.includes(asset.id) ? "bg-[var(--color-primary-soft)]/20" : ""
+                    }`}
                   >
+                    <td className="px-3 py-3.5 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedAssetIds.includes(asset.id)}
+                        onChange={() => handleToggleSelectAsset(asset.id)}
+                        aria-label={`Chọn ${asset.name}`}
+                        className="h-4 w-4 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer"
+                      />
+                    </td>
                     {/* File Name & Format */}
-                    <td className="px-5 py-3.5">
+                    <td className="px-4 py-3.5">
                       <div className="flex items-center gap-3">
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
                           {getCategoryIcon(asset.category)}
@@ -483,6 +573,16 @@ export default function ProjectAssetExplorer({
                             )}
                           </button>
                         )}
+
+                        {/* Delete button (UX-01) */}
+                        <button
+                          type="button"
+                          onClick={() => setAssetToDelete(asset)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-danger)] transition hover:border-[var(--color-danger)] hover:bg-[var(--color-danger)]/10"
+                          title="Xóa tệp này"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -605,6 +705,30 @@ export default function ProjectAssetExplorer({
           </div>
         )}
       </Dialog>
+
+      {/* Delete Single Asset Confirmation (UX-01) */}
+      <ConfirmationDialog
+        isOpen={Boolean(assetToDelete)}
+        onClose={() => setAssetToDelete(null)}
+        onConfirm={handleDeleteSingleAsset}
+        title="Xóa tệp tài nguyên"
+        message={`Bạn có chắc chắn muốn xóa tệp "${assetToDelete?.name}"? Thao tác này sẽ xóa tệp vĩnh viễn khỏi hệ thống.`}
+        confirmLabel="Xóa tệp"
+        isDestructive
+        isLoading={isDeletingAsset}
+      />
+
+      {/* Bulk Delete Assets Confirmation (UX-01, UX-11) */}
+      <ConfirmationDialog
+        isOpen={isBulkDeleteModalOpen}
+        onClose={() => setIsBulkDeleteModalOpen(false)}
+        onConfirm={handleBulkDelete}
+        title="Xóa các tệp đã chọn"
+        message={`Bạn có chắc chắn muốn xóa ${selectedAssetIds.length} tệp tài nguyên đã chọn? Thao tác này không thể hoàn tác.`}
+        confirmLabel={`Xóa ${selectedAssetIds.length} tệp`}
+        isDestructive
+        isLoading={isBulkDeleting}
+      />
     </div>
   );
 }

@@ -18,6 +18,7 @@
     "tags": "Tags"
   },
   "videosCount": "{{count}} videos",
+  "projectsCount": "{{count}} projects",
   "project": {
     "createTitle": "Create Project",
     "createSubtitle": "Create a new project to organize your video translation pipeline.",

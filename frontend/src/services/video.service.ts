@@ -1,5 +1,5 @@
-// services/video.service.ts
 import api from "./api/axios";
+import type { VideoUpdateRequest } from "../types/video";
 
 export const videoService = {
   // Upload with real progress tracking and folder support
@@ -8,7 +8,8 @@ export const videoService = {
     targetLanguage: string,
     projectId?: number,
     folderId?: number,
-    onProgress?: (percent: number) => void
+    onProgress?: (percent: number) => void,
+    signal?: AbortSignal
   ) {
     const formData = new FormData();
     formData.append("file", file);
@@ -18,6 +19,7 @@ export const videoService = {
 
     const response = await api.post(`/api/videos/upload?${params.toString()}`, formData, {
       headers: { "Content-Type": "multipart/form-data" },
+      signal,
       onUploadProgress: (progressEvent) => {
         if (progressEvent.total && onProgress) {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -34,9 +36,30 @@ export const videoService = {
     return response.data;
   },
 
+  // Update video metadata / settings
+  async updateVideo(videoId: number, payload: Partial<VideoUpdateRequest>) {
+    const response = await api.patch(`/api/videos/${videoId}`, payload);
+    return response.data;
+  },
+
+  // Save pipeline progress snapshot
+  async savePipelineSnapshot(
+    videoId: number,
+    snapshot: {
+      active_step?: number;
+      current_step?: string;
+      target_language?: string;
+      progress?: number;
+      state_data?: Record<string, any>;
+    }
+  ) {
+    const response = await api.post(`/api/videos/${videoId}/snapshot`, snapshot);
+    return response.data;
+  },
+
   // Audio extraction
   async extractAudio(videoId: number) {
-    const response = await api.post(`/api/videos/${videoId}/audio/extract`);
+    const response = await api.post(`/api/videos/${videoId}/audio/extract`, {}, { timeout: 180000 });
     return response.data;
   },
 
@@ -98,11 +121,7 @@ export const videoService = {
     }
   },
 
-  // Update video (rename title, move folder)
-  async updateVideo(videoId: number, data: { title?: string; folder_id?: number | null }) {
-    const response = await api.patch(`/api/videos/${videoId}`, data);
-    return response.data;
-  },
+
 
   // Delete video
   async deleteVideo(videoId: number) {
@@ -160,7 +179,7 @@ export const videoService = {
   },
 
   async startTranscription(videoId: number) {
-    const response = await api.post(`/api/videos/${videoId}/transcription`);
+    const response = await api.post(`/api/videos/${videoId}/transcription`, {}, { timeout: 300000 });
     return response.data;
   },
 
@@ -182,9 +201,11 @@ export const videoService = {
     return response.data;
   },
 
-  async startTranslation(videoId: number, targetLanguage: string) {
+  async startTranslation(videoId: number, targetLanguage: string, model?: string) {
+    const params = new URLSearchParams({ target_language: targetLanguage });
+    if (model) params.append("model", model);
     const response = await api.post(
-      `/api/videos/${videoId}/translations?target_language=${targetLanguage}`,
+      `/api/videos/${videoId}/translations?${params.toString()}`,
       {},
       { timeout: 180000 }
     );
@@ -218,6 +239,9 @@ export const videoService = {
       aspectRatio?: string;
       autoSplitChunks?: boolean;
       segments?: Array<{ start: number; end: number; text?: string; translated_text?: string }>;
+      alignment?: string;
+      positionY?: number;
+      lineSpacing?: number;
     }
   ) {
     const params = new URLSearchParams({
@@ -232,11 +256,17 @@ export const videoService = {
     if (options?.maxLines !== undefined) params.append("max_lines", String(options.maxLines));
     if (options?.effect) params.append("effect", options.effect);
     if (options?.aspectRatio) params.append("aspect_ratio", options.aspectRatio);
+    if (options?.alignment) params.append("alignment", options.alignment);
+    if (options?.positionY !== undefined) params.append("position_y", String(options.positionY));
+    if (options?.lineSpacing !== undefined) params.append("line_spacing", String(options.lineSpacing));
 
     const bodyData: Record<string, any> = {};
     if (options?.segments && options.segments.length > 0) bodyData.segments = options.segments;
     if (options?.aspectRatio) bodyData.aspect_ratio = options.aspectRatio;
     if (options?.autoSplitChunks !== undefined) bodyData.auto_split_chunks = options.autoSplitChunks;
+    if (options?.alignment) bodyData.alignment = options.alignment;
+    if (options?.positionY !== undefined) bodyData.position_y = options.positionY;
+    if (options?.lineSpacing !== undefined) bodyData.line_spacing = options.lineSpacing;
 
     const response = await api.post(`/api/videos/${videoId}/subtitles?${params.toString()}`, bodyData, {
       timeout: 180000,
@@ -321,13 +351,14 @@ export const videoService = {
     language: string,
     format: string,
     quality: string,
-    burnSubtitles: boolean = true
+    burnSubtitles: boolean = true,
+    aspectRatio?: string
   ) {
-    const response = await api.post(
-      `/api/videos/${videoId}/dub?language=${language}&video_format=${format}&quality=${quality}&burn_subtitles=${burnSubtitles}`,
-      {},
-      { timeout: 600000 }
-    );
+    let url = `/api/videos/${videoId}/dub?language=${language}&video_format=${format}&quality=${quality}&burn_subtitles=${burnSubtitles}`;
+    if (aspectRatio) {
+      url += `&aspect_ratio=${encodeURIComponent(aspectRatio)}`;
+    }
+    const response = await api.post(url, {}, { timeout: 600000 });
     return response.data;
   },
 
@@ -392,20 +423,20 @@ export const videoService = {
   },
 
   async getDubbedVideoPreview(videoId: number, language: string, quality: string = "1080p"): Promise<string> {
-    const response = await api.get(
-      `/api/videos/${videoId}/dub/${language}/download?format=mp4&preview=true&quality=${encodeURIComponent(quality)}`
-    );
-    const data = response.data;
+    try {
+      const response = await api.get(
+        `/api/videos/${videoId}/dub/${language}/download?format=mp4&preview=true&quality=${encodeURIComponent(quality)}`
+      );
+      const data = response.data;
 
-    if (data && data.url) {
-      return data.url;
+      if (data && data.url) {
+        return data.url;
+      }
+    } catch (e) {
+      console.warn("Could not get presigned preview URL, falling back to stream endpoint:", e);
     }
 
-    const blobResponse = await api.get<Blob>(
-      `/api/videos/${videoId}/dub/${language}/download?format=mp4&preview=true&quality=${encodeURIComponent(quality)}`,
-      { responseType: "blob" }
-    );
-    return URL.createObjectURL(blobResponse.data);
+    return this.getVideoStreamUrl(videoId, "output");
   },
   
   async exportVideo(videoId: number, type: string, format: string, quality?: string, language?: string): Promise<Blob> {
@@ -437,6 +468,18 @@ export const videoService = {
         return blob;
       } catch (error) {
         console.error('S3 fetch error:', error);
+        if (type === "final_video") {
+          try {
+            const token = localStorage.getItem("access_token");
+            const streamRes = await fetch(`/api/videos/${videoId}/stream?kind=output${token ? `&token=${encodeURIComponent(token)}` : ''}`);
+            if (streamRes.ok) {
+              const streamBlob = await streamRes.blob();
+              if (streamBlob.size > 0) return streamBlob;
+            }
+          } catch (streamErr) {
+            console.warn('Fallback stream download failed:', streamErr);
+          }
+        }
         throw new Error('Failed to download from S3 storage. Please try again.');
       }
     }

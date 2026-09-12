@@ -58,7 +58,7 @@ export default function WorkspaceHeader({
             <span>
               {isFiltered
                 ? t("workspace:filters.filteredResults", { count: matchingCount })
-                : t("workspace:videosCount", { count: totalProjects })}
+                : t("workspace:projectsCount", { count: totalProjects })}
             </span>
           </div>
         </div>

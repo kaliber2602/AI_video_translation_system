@@ -379,23 +379,53 @@ class SubtitleService:
         aspect_ratio: Optional[str] = None,
         video_width: Optional[int] = None,
         video_height: Optional[int] = None,
+        alignment: str = "center",
+        position_y: Optional[float] = None,
+        line_spacing: Optional[float] = 1.2,
     ) -> str:
-        """Generate ASS subtitle content with styling, colors, limits, animation effects, and multi-aspect ratio adaptation."""
-        position_map = {"top": 6, "middle": 4, "bottom": 2}
-        alignment = position_map.get(position, 2)
+        """Generate ASS subtitle content with styling, colors, limits, animation effects, alignment, and multi-aspect ratio adaptation."""
+        align_clean = (alignment or "center").lower().strip()
+        align_col = 2  # default center
+        if align_clean in ["left", "justify"]:
+            align_col = 1
+        elif align_clean == "right":
+            align_col = 3
+
+        pos_clean = (position or "bottom").lower().strip()
+        if pos_clean == "top":
+            ass_alignment = 6 + align_col  # 7, 8, 9
+        elif pos_clean == "middle":
+            ass_alignment = 3 + align_col  # 4, 5, 6
+        else:
+            ass_alignment = align_col      # 1, 2, 3
 
         layout = SubtitleService.resolve_aspect_layout(
             aspect_ratio=aspect_ratio,
             is_portrait=is_portrait,
             video_width=video_width,
             video_height=video_height,
-            position=position,
+            position=pos_clean,
             font_size=font_size,
         )
 
         play_res_x = layout["play_res_x"]
         play_res_y = layout["play_res_y"]
         margin_v = layout["margin_v"]
+
+        # Calculate exact MarginV if position_y (% from top) is provided
+        if position_y is not None:
+            try:
+                py = max(5.0, min(95.0, float(position_y)))
+                if pos_clean == "top":
+                    margin_v = int((py / 100.0) * play_res_y)
+                elif pos_clean == "middle":
+                    margin_v = int(abs(py - 50.0) / 100.0 * play_res_y)
+                else:  # bottom
+                    margin_v = int(((100.0 - py) / 100.0) * play_res_y)
+                margin_v = max(10, margin_v)
+            except Exception:
+                pass
+
         margin_lr = layout["margin_lr"]
         scaled_font_size = layout["scaled_font_size"]
         max_chars = layout["max_chars"]
@@ -453,8 +483,11 @@ class SubtitleService:
         aspect_ratio: Optional[str] = None,
         video_width: Optional[int] = None,
         video_height: Optional[int] = None,
+        alignment: str = "center",
+        position_y: Optional[float] = None,
+        line_spacing: Optional[float] = 1.2,
     ) -> str:
-        """Generate subtitles in specified format with aspect ratio support"""
+        """Generate subtitles in specified format with aspect ratio and positioning support"""
         fmt = (format or "srt").lower().lstrip(".")
         if fmt == "srt":
             return SubtitleService.generate_srt(segments, text_key=text_key, max_lines=max_lines)
@@ -475,6 +508,9 @@ class SubtitleService:
                 aspect_ratio=aspect_ratio,
                 video_width=video_width,
                 video_height=video_height,
+                alignment=alignment,
+                position_y=position_y,
+                line_spacing=line_spacing,
             )
         return SubtitleService.generate_srt(segments, text_key=text_key, max_lines=max_lines)
     
@@ -495,6 +531,9 @@ class SubtitleService:
         aspect_ratio: Optional[str] = None,
         video_width: Optional[int] = None,
         video_height: Optional[int] = None,
+        alignment: str = "center",
+        position_y: Optional[float] = None,
+        line_spacing: Optional[float] = 1.2,
     ) -> str:
         """Generate and save subtitles to file"""
         content = SubtitleService.generate_subtitles(
@@ -512,6 +551,9 @@ class SubtitleService:
             aspect_ratio=aspect_ratio,
             video_width=video_width,
             video_height=video_height,
+            alignment=alignment,
+            position_y=position_y,
+            line_spacing=line_spacing,
         )
         
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -537,6 +579,9 @@ class SubtitleService:
         video_width: Optional[int] = None,
         video_height: Optional[int] = None,
         auto_split: bool = True,
+        alignment: str = "center",
+        position_y: Optional[float] = None,
+        line_spacing: Optional[float] = 1.2,
     ) -> Dict[str, str]:
         """Generate and save subtitles in srt, vtt, and ass formats with automatic long-chunk splitting and aspect ratio adaptation."""
         os.makedirs(base_dir, exist_ok=True)
@@ -568,6 +613,9 @@ class SubtitleService:
                 aspect_ratio=aspect_ratio,
                 video_width=video_width,
                 video_height=video_height,
+                alignment=alignment,
+                position_y=position_y,
+                line_spacing=line_spacing,
             )
             paths[fmt] = out_path
         return paths

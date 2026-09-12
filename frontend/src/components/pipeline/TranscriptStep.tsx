@@ -1,7 +1,5 @@
-// TranscriptStep.tsx
 import { useEffect, useState, useRef, useMemo } from "react";
 import {
-  CheckCircle2,
   Download,
   FileText,
   Play,
@@ -12,10 +10,15 @@ import {
   Merge,
   User,
   ArrowRight,
+  Cpu,
+  Check,
+  Search,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePipeline } from "../../hooks/usePipeline";
 import { videoService } from "../../services/video.service";
+import PipelineStepLayout from "./PipelineStepLayout";
 
 export default function TranscriptStep() {
   const { t } = useTranslation(["pipeline", "common"]);
@@ -23,12 +26,18 @@ export default function TranscriptStep() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [whisperModel, setWhisperModel] = useState("whisper-medium");
   const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const segmentRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const [activeRightTab, setActiveRightTab] = useState<"transcript" | "tools">("transcript");
+  const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const hasInitializedTab = useRef(false);
 
   const [transcript, setTranscript] = useState<{
     segments: Array<{ start: number; end: number; text: string; speaker: string }>;
@@ -43,6 +52,35 @@ export default function TranscriptStep() {
     loadTranscript();
     loadVideoPreview();
   }, [state.video?.videoId]);
+
+  useEffect(() => {
+    if (!hasInitializedTab.current && !isLoading) {
+      if (!transcript || !transcript.segments || transcript.segments.length === 0) {
+        setActiveRightTab("tools");
+      } else {
+        setActiveRightTab("transcript");
+      }
+      hasInitializedTab.current = true;
+    }
+  }, [isLoading, transcript]);
+
+  const handleToggleTranscriptTab = () => {
+    if (isPanelOpen && activeRightTab === "transcript") {
+      setIsPanelOpen(false);
+    } else {
+      setActiveRightTab("transcript");
+      setIsPanelOpen(true);
+    }
+  };
+
+  const handleToggleToolsTab = () => {
+    if (isPanelOpen && activeRightTab === "tools") {
+      setIsPanelOpen(false);
+    } else {
+      setActiveRightTab("tools");
+      setIsPanelOpen(true);
+    }
+  };
 
   const loadVideoPreview = async () => {
     if (!state.video?.videoId) return;
@@ -64,7 +102,6 @@ export default function TranscriptStep() {
 
     try {
       const data = await videoService.getTranscript(state.video.videoId);
-      // ✅ Make sure we have valid data
       if (data && data.segments && Array.isArray(data.segments)) {
         setTranscript(data);
         dispatch({
@@ -75,8 +112,6 @@ export default function TranscriptStep() {
         setTranscript(null);
       }
     } catch (error) {
-      // Transcript not found - user needs to generate it
-      console.log("No transcript found, ready to generate");
       setTranscript(null);
     } finally {
       setIsLoading(false);
@@ -89,17 +124,14 @@ export default function TranscriptStep() {
     setTranscriptionError(null);
 
     try {
-      // 1. Ensure audio is extracted first so transcription doesn't fail with HTTP 400
       try {
         await videoService.extractAudio(state.video.videoId);
       } catch (extractErr: any) {
         console.log("Audio extraction status:", extractErr.message || extractErr);
       }
 
-      // 2. Start transcription
       const data = await videoService.startTranscription(state.video.videoId);
       
-      // ✅ Make sure we have valid data
       if (data && data.segments && Array.isArray(data.segments)) {
         setTranscript(data);
         dispatch({
@@ -107,7 +139,18 @@ export default function TranscriptStep() {
           payload: data,
         });
 
-        // Notify sidebar & settings to update credit balance
+        if (state.video) {
+          dispatch({
+            type: "SET_VIDEO",
+            payload: {
+              ...state.video,
+              transcriptPath: data.transcript_path || `outputs/transcript_${state.video.videoId}/transcript.json`,
+              progress: Math.max(state.video.progress || 0, 40),
+              currentStep: "transcript",
+            },
+          });
+        }
+
         window.dispatchEvent(new CustomEvent("subscription-updated"));
       } else {
         throw new Error(data?.message || "Invalid transcript data received");
@@ -115,7 +158,8 @@ export default function TranscriptStep() {
       
     } catch (error: any) {
       console.error("Transcription failed:", error);
-      setTranscriptionError(error.message || "Transcription failed");
+      const msg = error.response?.data?.detail || error.response?.data?.message || error.message || "Transcription failed";
+      setTranscriptionError(msg);
     } finally {
       setIsGenerating(false);
     }
@@ -157,7 +201,7 @@ export default function TranscriptStep() {
     if (activeSegmentIndex !== -1 && segmentRefs.current[activeSegmentIndex]) {
       segmentRefs.current[activeSegmentIndex]?.scrollIntoView({
         behavior: "smooth",
-        block: "nearest",
+        block: "center",
       });
     }
   }, [activeSegmentIndex]);
@@ -167,6 +211,8 @@ export default function TranscriptStep() {
       videoRef.current.currentTime = time;
       videoRef.current.play().catch(() => {});
       setIsPlaying(true);
+      setIsPanelOpen(true);
+      setActiveRightTab("transcript");
     }
     setCurrentTime(time);
   };
@@ -252,144 +298,152 @@ export default function TranscriptStep() {
     return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
+  const filteredSegments = useMemo(() => {
+    if (!transcript?.segments) return [];
+    if (!searchQuery.trim()) return transcript.segments;
+    const q = searchQuery.toLowerCase();
+    return transcript.segments.filter((s) => s.text && s.text.toLowerCase().includes(q));
+  }, [transcript?.segments, searchQuery]);
+
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 size={32} className="animate-spin text-[var(--color-primary)]" />
-        <span className="ml-3 text-[var(--color-text-muted)]">Loading transcript...</span>
+        <span className="ml-3 text-[var(--color-text-muted)]">Đang tải bản bóc băng...</span>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm font-semibold text-[var(--color-primary)]">
-          {t("pipeline:header.stepBadge", { current: "02", total: "06" })}
-        </p>
-        <h2 className="mt-2 text-3xl font-bold tracking-[-0.8px] text-[var(--color-text-primary)]">
-          {t("pipeline:steps.transcript.title")}
-        </h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-text-muted)]">
-          {t("pipeline:steps.transcript.description")}
-        </p>
-      </div>
-
-      {transcriptionError && (
-        <div className="rounded-2xl border border-red-500/50 bg-red-500/10 p-4 text-red-500">
-          <p className="text-sm font-medium">Error: {transcriptionError}</p>
+    <PipelineStepLayout
+      stepBadge={t("pipeline:header.stepBadge", { current: "02", total: "06" })}
+      stepCategory="Speech-to-Text Studio"
+      stepTitle={t("pipeline:steps.transcript.title")}
+      stepDescription={t("pipeline:steps.transcript.description")}
+      error={transcriptionError}
+      onDismissError={() => setTranscriptionError(null)}
+      hideDefaultToggle={true}
+      isPanelOpen={isPanelOpen}
+      onTogglePanel={(open) => setIsPanelOpen(open)}
+      panelWidth={
+        activeRightTab === "transcript"
+          ? "w-full lg:w-[460px] xl:w-[500px]"
+          : "w-full lg:w-[360px]"
+      }
+      headerActions={
+        <div className="flex items-center gap-2">
+          {/* Toggle Transcript Tab Button */}
           <button
             type="button"
-            onClick={() => setTranscriptionError(null)}
-            className="mt-2 text-xs underline hover:text-red-400 transition-colors"
+            onClick={handleToggleTranscriptTab}
+            title={
+              isPanelOpen && activeRightTab === "transcript"
+                ? t("pipeline:steps.transcript.hideTranscript", "Ẩn lời thoại")
+                : t("pipeline:steps.transcript.showTranscript", "Xem lời thoại")
+            }
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-2xs active:scale-95 ${
+              isPanelOpen && activeRightTab === "transcript"
+                ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white shadow-xs"
+                : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:border-[var(--color-primary)]"
+            }`}
           >
-            Dismiss
+            <FileText size={13} />
+            <span>{t("pipeline:steps.transcript.transcriptTab", "Bản bóc băng")}</span>
+            {transcript?.segments?.length ? (
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                  isPanelOpen && activeRightTab === "transcript"
+                    ? "bg-white/20 text-white"
+                    : "bg-[var(--color-primary-soft)] text-[var(--color-primary)]"
+                }`}
+              >
+                {transcript.segments.length}
+              </span>
+            ) : null}
+          </button>
+
+          {/* Toggle Tools Tab Button */}
+          <button
+            type="button"
+            onClick={handleToggleToolsTab}
+            title={
+              isPanelOpen && activeRightTab === "tools"
+                ? t("pipeline:steps.transcript.hideTools", "Ẩn tùy chọn")
+                : t("pipeline:steps.transcript.showTools", "Hiện tùy chọn")
+            }
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-2xs active:scale-95 ${
+              isPanelOpen && activeRightTab === "tools"
+                ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white shadow-xs"
+                : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:border-[var(--color-primary)]"
+            }`}
+          >
+            <SlidersHorizontal size={13} />
+            <span>{t("pipeline:steps.transcript.toolsTab", "Tùy chọn Whisper")}</span>
           </button>
         </div>
-      )}
-
-      <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-        {/* Responsive Media Player */}
-        <div className="rounded-2xl border border-[var(--color-border)] bg-[#101920] p-4 sm:p-5">
-          <div className="relative flex max-h-[460px] min-h-[260px] w-full items-center justify-center overflow-hidden rounded-xl bg-black">
-            {videoUrl ? (
-              <video
-                ref={videoRef}
-                src={videoUrl}
-                controls
-                playsInline
-                onTimeUpdate={() => {
-                  if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
-                }}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                className="max-h-[460px] w-full object-contain"
-              />
-            ) : (
-              <>
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(45,90,95,0.4),transparent_65%)]" />
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-[var(--color-primary)] shadow-xl">
-                  <Play size={22} fill="currentColor" />
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="mt-4 flex items-center justify-between">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-white truncate max-w-xs flex items-center gap-2">
-                <span>{state.video?.filename || "Video"}</span>
-                <span className="inline-flex items-center gap-1 text-[10px] text-zinc-400 font-mono px-2 py-0.5 rounded bg-zinc-800/80">
-                  {isPlaying ? <Pause size={10} className="text-emerald-400" /> : <Play size={10} />}
-                  {isPlaying ? "Đang phát" : "Tạm dừng"}
+      }
+      toolPanelIcon={
+        activeRightTab === "transcript" ? (
+          <FileText size={15} className="text-[var(--color-primary)] shrink-0" />
+        ) : (
+          <SlidersHorizontal size={15} className="text-[var(--color-primary)] shrink-0" />
+        )
+      }
+      toolPanelTitle={
+        activeRightTab === "transcript"
+          ? `${t("pipeline:steps.transcript.transcriptTab", "Bản bóc băng")}${
+              transcript?.segments?.length ? ` (${transcript.segments.length})` : ""
+            }`
+          : t("pipeline:steps.transcript.toolsTab", "Tùy chọn Whisper")
+      }
+      toolPanel={
+        activeRightTab === "transcript" ? (
+          <div className="space-y-3">
+            {/* Search & Saving status */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="w-3.5 h-3.5 text-[var(--color-text-muted)] absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t("pipeline:steps.transcript.searchPlaceholder", "Tìm kiếm lời thoại...")}
+                  className="w-full h-8 rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-8 pr-3 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] transition"
+                />
+              </div>
+              {isSaving && (
+                <span className="text-[11px] text-amber-400 animate-pulse font-medium shrink-0 flex items-center gap-1">
+                  <Loader2 size={11} className="animate-spin" />
+                  <span>{t("pipeline:steps.transcript.saving", "Đang lưu...")}</span>
                 </span>
-              </p>
-              <p className="text-xs text-[var(--color-text-muted)] font-mono">
-                {transcript?.segments?.length || 0} câu thoại • {transcript?.language?.toUpperCase() || "Tự động"}
-              </p>
+              )}
             </div>
 
-            <span
-              className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                transcript ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-800 text-zinc-400"
-              }`}
-            >
-              {transcript ? "✓ Đã bóc băng" : "Chưa tạo"}
-            </span>
-          </div>
-        </div>
-
-        {/* Synchronized Transcript Segments List */}
-        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)] flex flex-col">
-          <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
-                <FileText size={19} />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-[var(--color-text-primary)]">
-                  Transcript Lời thoại
-                </h3>
-                <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
-                  {transcript?.language?.toUpperCase() || "Tự động"} • {transcript?.segments?.length || 0} câu thoại
+            {/* Segments list or empty state */}
+            {!transcript || !transcript.segments || transcript.segments.length === 0 ? (
+              <div className="py-10 flex flex-col items-center justify-center text-center px-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)] mb-3">
+                  <Cpu size={24} />
+                </div>
+                <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                  {t(
+                    "pipeline:steps.transcript.emptyTranscript",
+                    "Chưa có bản bóc băng cho video này. Chọn thẻ 'Tùy chọn Whisper' và nhấn 'Bắt đầu bóc băng Whisper' để khởi chạy."
+                  )}
                 </p>
+                <button
+                  type="button"
+                  onClick={() => setActiveRightTab("tools")}
+                  className="mt-3.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--color-primary)] text-white text-xs font-bold hover:bg-[var(--color-primary-hover)] transition"
+                >
+                  <SlidersHorizontal size={13} />
+                  <span>{t("pipeline:steps.transcript.openTools", "Mở tùy chọn")}</span>
+                </button>
               </div>
-            </div>
-            {transcript && transcript.segments && transcript.segments.length > 0 && (
-              <button
-                type="button"
-                onClick={handleExportTranscript}
-                className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-              >
-                <Download size={14} />
-                {t("common:export")}
-              </button>
-            )}
-          </div>
-
-          {!transcript || !transcript.segments || transcript.segments.length === 0 ? (
-            <div className="mt-8 flex flex-col items-center justify-center gap-4 py-8">
-              <p className="text-sm text-[var(--color-text-muted)]">
-                Chưa có bản bóc băng cho video này. Nhấn nút dưới đây để trích xuất tự động bằng Whisper.
-              </p>
-              <button
-                type="button"
-                onClick={generateTranscript}
-                disabled={isGenerating}
-                className="flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(24,195,170,0.2)] transition hover:bg-[var(--color-primary-hover)] disabled:opacity-50 active:scale-95"
-              >
-                {isGenerating ? (
-                  <Loader2 size={17} className="animate-spin" />
-                ) : (
-                  <Sparkles size={17} />
-                )}
-                {isGenerating ? "Đang trích xuất lời thoại..." : "Bắt đầu Bóc băng Whisper"}
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="mt-5 max-h-[480px] space-y-3 overflow-y-auto pr-2 custom-scrollbar">
-                {transcript.segments.map((seg, index) => {
+            ) : (
+              <div className="space-y-2.5 max-h-[calc(100vh-250px)] overflow-y-auto pr-1 custom-scrollbar">
+                {filteredSegments.map((seg) => {
+                  const index = transcript.segments.indexOf(seg);
                   const isActive = activeSegmentIndex === index;
                   return (
                     <div
@@ -397,39 +451,36 @@ export default function TranscriptStep() {
                       ref={(el) => {
                         segmentRefs.current[index] = el;
                       }}
-                      className={`rounded-xl border p-4 transition-all duration-200 ${
+                      className={`rounded-xl border p-3 transition-all duration-200 ${
                         isActive
-                          ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)]/25 ring-2 ring-[var(--color-primary)]/30 shadow-sm"
-                          : "border-[var(--color-border-muted)] bg-[var(--color-surface-muted)] hover:border-[var(--color-primary)]/50"
+                          ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)]/25 ring-2 ring-[var(--color-primary)]/70 shadow-md border-l-4 border-l-[var(--color-primary)] scale-[1.01]"
+                          : "border-[var(--color-border-muted)] bg-[var(--color-surface-muted)] hover:border-[var(--color-primary)]/40"
                       }`}
                     >
-                      {/* Segment Meta & Controls */}
                       <div className="mb-2 flex items-center justify-between text-xs text-[var(--color-text-muted)]">
-                        {/* Clickable timecode seek */}
                         <button
                           type="button"
                           onClick={() => handleSeek(seg.start)}
-                          className={`flex items-center gap-1.5 font-mono font-medium transition ${
+                          className={`flex items-center gap-1 font-mono font-medium transition ${
                             isActive
                               ? "text-[var(--color-primary)] font-bold"
                               : "hover:text-[var(--color-primary)] text-[var(--color-text-secondary)]"
                           }`}
-                          title="Nhấp để tua video tới giây này"
+                          title={t("pipeline:steps.transcript.seekTooltip", "Nhấp để tua video")}
                         >
-                          <Play size={11} className={isActive ? "fill-current text-[var(--color-primary)]" : ""} />
-                          <span>
+                          <Play size={10} className={isActive ? "fill-current text-[var(--color-primary)]" : ""} />
+                          <span className="text-[11px]">
                             {formatTime(seg.start)} → {formatTime(seg.end)}
                           </span>
                         </button>
 
-                        {/* Speaker & Action Buttons */}
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           {editingSpeakerIdx === index ? (
                             <input
                               type="text"
                               value={editingSpeakerText}
                               onChange={(e) => setEditingSpeakerText(e.target.value)}
-                              className="h-6 w-28 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 text-xs text-[var(--color-text-primary)] font-medium outline-none focus:border-[var(--color-primary)]"
+                              className="h-5 w-24 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 text-[11px] text-[var(--color-text-primary)] font-medium outline-none focus:border-[var(--color-primary)]"
                               autoFocus
                               onBlur={() => handleSaveSpeaker(index, editingSpeakerText)}
                               onKeyDown={(e) => {
@@ -444,77 +495,74 @@ export default function TranscriptStep() {
                                 setEditingSpeakerIdx(index);
                                 setEditingSpeakerText(seg.speaker || "Speaker");
                               }}
-                              className="flex items-center gap-1 font-medium text-[var(--color-primary)] hover:underline"
-                              title="Nhấp để đổi tên người nói"
+                              className="flex items-center gap-1 text-[11px] font-medium text-[var(--color-primary)] hover:underline"
+                              title={t("pipeline:steps.transcript.renameSpeakerTooltip", "Nhấp để đổi tên người nói")}
                             >
-                              <User size={12} />
-                              <span>{seg.speaker || "Speaker"}</span>
+                              <User size={11} />
+                              <span className="truncate max-w-[80px]">{seg.speaker || "Speaker"}</span>
                             </button>
                           )}
 
                           <div className="h-3 w-px bg-[var(--color-border)] mx-0.5" />
 
-                          {/* Split button */}
                           <button
                             type="button"
                             onClick={() => handleSplitSegment(index)}
                             className="p-1 text-[var(--color-text-muted)] hover:text-amber-500 hover:bg-[var(--color-surface)] rounded transition"
-                            title="Chia đôi câu thoại tại con trỏ"
+                            title={t("pipeline:steps.transcript.splitTooltip", "Chia đôi câu thoại")}
                           >
-                            <Scissors size={13} />
+                            <Scissors size={12} />
                           </button>
 
-                          {/* Merge with next */}
                           {index < transcript.segments.length - 1 && (
                             <button
                               type="button"
                               onClick={() => handleMergeWithNext(index)}
                               className="p-1 text-[var(--color-text-muted)] hover:text-indigo-500 hover:bg-[var(--color-surface)] rounded transition"
-                              title="Gộp với câu thoại tiếp theo"
+                              title={t("pipeline:steps.transcript.mergeTooltip", "Gộp với câu tiếp theo")}
                             >
-                              <Merge size={13} />
+                              <Merge size={12} />
                             </button>
                           )}
                         </div>
                       </div>
 
-                      {/* Segment Text / Edit Input */}
                       {editingSegment === index ? (
                         <div>
                           <textarea
                             value={editingText}
                             onChange={(e) => setEditingText(e.target.value)}
-                            className="min-h-[80px] w-full resize-none rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-sm leading-6 text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
+                            className="min-h-[60px] w-full resize-none rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-xs leading-relaxed text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
                             onKeyDown={(e) => {
                               if (e.key === "Escape") setEditingSegment(null);
                             }}
                           />
-                          <div className="mt-2 flex gap-2">
+                          <div className="mt-1.5 flex gap-2">
                             <button
                               type="button"
                               onClick={() => handleUpdateSegment(index, editingText)}
                               disabled={isSaving}
-                              className="rounded-lg bg-[var(--color-primary)] px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
+                              className="rounded-lg bg-[var(--color-primary)] px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
                             >
-                              {isSaving ? <Loader2 size={14} className="animate-spin" /> : "Lưu"}
+                              {isSaving ? <Loader2 size={11} className="animate-spin" /> : t("pipeline:steps.transcript.save", "Lưu")}
                             </button>
                             <button
                               type="button"
                               onClick={() => setEditingSegment(null)}
-                              className="rounded-lg border border-[var(--color-border)] px-4 py-1.5 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]"
+                              className="rounded-lg border border-[var(--color-border)] px-2.5 py-1 text-[11px] font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)]"
                             >
-                              Hủy
+                              {t("pipeline:steps.transcript.cancel", "Hủy")}
                             </button>
                           </div>
                         </div>
                       ) : (
                         <p
-                          className="cursor-pointer text-sm leading-6 text-[var(--color-text-primary)] hover:text-[var(--color-primary)]"
+                          className="cursor-pointer text-xs leading-relaxed text-[var(--color-text-primary)] hover:text-[var(--color-primary)]"
                           onClick={() => {
                             setEditingSegment(index);
                             setEditingText(seg.text);
                           }}
-                          title="Nhấp để chỉnh sửa nội dung văn bản"
+                          title={t("pipeline:steps.transcript.editTextTooltip", "Nhấp để chỉnh sửa nội dung")}
                         >
                           {seg.text}
                         </p>
@@ -523,32 +571,161 @@ export default function TranscriptStep() {
                   );
                 })}
               </div>
-            </>
-          )}
-        </div>
-      </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Clean Single Dropdown for Whisper Model */}
+            <div>
+              <label className="text-xs font-bold text-[var(--color-text-primary)] block mb-1.5">
+                {t("pipeline:steps.transcript.modelSelectLabel", "Mô hình nhận dạng:")}
+              </label>
+              <select
+                value={whisperModel}
+                onChange={(e) => setWhisperModel(e.target.value)}
+                disabled={isGenerating}
+                className="w-full h-9 rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs font-semibold text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)]"
+              >
+                <option value="whisper-medium">Whisper Medium (Cân bằng & Chuẩn xác)</option>
+                <option value="whisper-large-v3">Whisper Large-v3 (Chính xác cao nhất)</option>
+                <option value="whisper-base">Whisper Base (Tốc độ nhanh)</option>
+              </select>
+            </div>
 
-      {/* Persistent Bottom Action Bar */}
-      {transcript && transcript.segments && transcript.segments.length > 0 && (
-        <div className="sticky bottom-4 z-30 flex items-center justify-between gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-xl backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            <CheckCircle2 size={20} className="text-emerald-500 shrink-0" />
-            <div className="text-xs">
-              <span className="font-semibold text-[var(--color-text-primary)]">Bản bóc băng hoàn tất: </span>
-              <span className="text-[var(--color-text-muted)]">{transcript.segments.length} câu thoại sẵn sàng dịch thuật</span>
+            {/* Live Stats */}
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3 space-y-2">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-[var(--color-text-muted)]">
+                    {t("pipeline:steps.transcript.totalSegments", "Tổng số câu:")}
+                  </span>
+                  <p className="font-bold text-[var(--color-text-primary)] font-mono text-sm mt-0.5">
+                    {transcript?.segments?.length || 0} câu
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-[var(--color-text-muted)]">
+                    {t("pipeline:steps.transcript.sourceLang", "Ngôn ngữ gốc:")}
+                  </span>
+                  <p className="font-bold text-[var(--color-text-primary)] font-mono text-sm mt-0.5 uppercase">
+                    {transcript?.language || "Tự động"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Export TXT */}
+            {transcript && transcript.segments && transcript.segments.length > 0 && (
+              <div>
+                <button
+                  type="button"
+                  onClick={handleExportTranscript}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+                >
+                  <Download size={13} />
+                  <span>{t("pipeline:steps.transcript.exportTxt", "Xuất tệp văn bản (.TXT)")}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="space-y-2.5 pt-1">
+              <button
+                type="button"
+                onClick={generateTranscript}
+                disabled={isGenerating}
+                className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary-soft)] px-4 py-2.5 text-xs font-bold text-[var(--color-primary)] transition hover:bg-[var(--color-primary)] hover:text-white disabled:opacity-50 active:scale-98 shadow-xs"
+              >
+                {isGenerating ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Sparkles size={15} />
+                )}
+                <span>
+                  {isGenerating
+                    ? t("pipeline:steps.transcript.extracting", "Đang trích xuất lời thoại...")
+                    : transcript
+                    ? t("pipeline:steps.transcript.retranscribe", "Bóc băng lại Whisper")
+                    : t("pipeline:steps.transcript.startTranscribe", "Bắt đầu bóc băng Whisper")}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => dispatch({ type: "SET_STEP", payload: 3 })}
+                disabled={!transcript || !transcript.segments || transcript.segments.length === 0}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 py-2.5 text-xs font-bold text-white shadow-[0_8px_20px_rgba(24,195,170,0.25)] transition hover:bg-[var(--color-primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed active:scale-98"
+              >
+                <span>{t("pipeline:steps.transcript.continueTranslation", "Tiếp tục: Dịch thuật (Translation)")}</span>
+                <ArrowRight size={15} />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-[var(--color-text-muted)] pt-1">
+              <span className="flex items-center gap-1">
+                <Check size={12} className="text-emerald-400" />
+                <span>{t("pipeline:steps.transcript.permanentStorage", "Lưu trữ vĩnh viễn")}</span>
+              </span>
+              <span className="font-semibold text-emerald-400">{t("pipeline:steps.transcript.synced", "Đã đồng bộ")}</span>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={() => dispatch({ type: "SET_STEP", payload: 3 })}
-            className="flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-[var(--color-primary)]/30 transition hover:bg-[var(--color-primary-hover)] active:scale-95"
-          >
-            <span>Tiếp tục: Dịch thuật (Translation)</span>
-            <ArrowRight size={15} />
-          </button>
+        )
+      }
+    >
+      {/* CENTER WORKSPACE: DEDICATED MEDIA STUDIO (NO SCROLL DOWN REQUIRED) */}
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[#101920] p-4 sm:p-6 shadow-[var(--shadow-card)] flex flex-col justify-center">
+        {/* Video Player */}
+        <div className="relative flex min-h-[300px] sm:min-h-[400px] max-h-[580px] w-full items-center justify-center overflow-hidden rounded-xl bg-black">
+          {videoUrl ? (
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              controls
+              playsInline
+              onTimeUpdate={() => {
+                if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
+              }}
+              onPlay={() => {
+                setIsPlaying(true);
+                setIsPanelOpen(true);
+                setActiveRightTab("transcript");
+              }}
+              onPause={() => setIsPlaying(false)}
+              className="max-h-[580px] w-full object-contain"
+            />
+          ) : (
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-[var(--color-primary)] shadow-xl">
+              <Play size={24} fill="currentColor" />
+            </div>
+          )}
         </div>
-      )}
-    </div>
+
+        {/* Video Player Footer Bar */}
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-zinc-800">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-white truncate max-w-md flex items-center gap-2">
+              <span>{state.video?.filename || "Video"}</span>
+              <span className="inline-flex items-center gap-1 text-[10px] text-zinc-400 font-mono px-2 py-0.5 rounded bg-zinc-800/80">
+                {isPlaying ? <Pause size={10} className="text-emerald-400" /> : <Play size={10} />}
+                {isPlaying
+                  ? t("pipeline:steps.transcript.playing", "Đang phát")
+                  : t("pipeline:steps.transcript.paused", "Tạm dừng")}
+              </span>
+            </p>
+            <p className="text-xs text-[var(--color-text-muted)] font-mono mt-0.5">
+              {transcript?.segments?.length || 0} {t("pipeline:steps.reviewExport.segmentCount", "câu thoại")} • {transcript?.language?.toUpperCase() || "AUTO"}
+            </p>
+          </div>
+
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-semibold shrink-0 ${
+              transcript?.segments?.length ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-800 text-zinc-400"
+            }`}
+          >
+            {transcript?.segments?.length ? "✓ Đã bóc băng" : "Chưa bóc băng"}
+          </span>
+        </div>
+      </div>
+    </PipelineStepLayout>
   );
 }

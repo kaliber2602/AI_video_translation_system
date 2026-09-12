@@ -19,6 +19,10 @@ export interface PipelineState {
     transcriptPath?: string;
     extractedVocalPath?: string;
     projectId?: number;
+    hasTranslation?: boolean;
+    translationPath?: string;
+    progress?: number;
+    currentStep?: string;
   } | null;
   job: {
     jobId?: string;

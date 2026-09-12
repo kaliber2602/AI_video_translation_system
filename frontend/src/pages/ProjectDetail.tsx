@@ -79,6 +79,9 @@ export default function ProjectDetail() {
 
   const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
   const [isVideoDeleting, setIsVideoDeleting] = useState(false);
+  const [selectedVideoIds, setSelectedVideoIds] = useState<number[]>([]);
+  const [isBulkVideoDeleteOpen, setIsBulkVideoDeleteOpen] = useState(false);
+  const [isBulkDeletingVideos, setIsBulkDeletingVideos] = useState(false);
 
   // Thumbnail Manager Modal State
   const [managingThumbnailVideo, setManagingThumbnailVideo] = useState<Video | null>(null);
@@ -421,6 +424,23 @@ export default function ProjectDetail() {
     }
   };
 
+  const handleBulkDeleteVideos = async () => {
+    if (!projectId || selectedVideoIds.length === 0) return;
+    try {
+      setIsBulkDeletingVideos(true);
+      await Promise.all(selectedVideoIds.map((id) => videoService.deleteVideo(id)));
+      setSelectedVideoIds([]);
+      setIsBulkVideoDeleteOpen(false);
+      await loadVideos(parseInt(projectId), true);
+      toast.success(t("common:success", "Thành công"), `Đã xóa ${selectedVideoIds.length} video thành công`);
+    } catch (err: any) {
+      console.error("[ProjectDetail] Bulk delete videos failed:", err);
+      toast.error(err?.response?.data?.detail || "Không thể xóa các video đã chọn");
+    } finally {
+      setIsBulkDeletingVideos(false);
+    }
+  };
+
   const handleViewDocuments = async (video: Video) => {
     setViewingDocsVideo(video);
     setIsLoadingDocs(true);
@@ -554,7 +574,7 @@ export default function ProjectDetail() {
                 </h1>
 
                 <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-                  {videos.length} {t("workspace:videosCount", { count: videos.length })} ·{" "}
+                  {t("workspace:videosCount", { count: videos.length })} ·{" "}
                   {folders.length} folders ·{" "}
                   {t("workspace:columns.updated")} {formatDate(project.updated_at)}
                 </p>
@@ -793,10 +813,43 @@ export default function ProjectDetail() {
 
         {/* Video List */}
         <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-              Videos ({filteredVideos.length})
-            </h2>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                Videos ({filteredVideos.length})
+              </h2>
+              {filteredVideos.length > 0 && !isViewOnly && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedVideoIds.length === filteredVideos.length) {
+                      setSelectedVideoIds([]);
+                    } else {
+                      setSelectedVideoIds(filteredVideos.map((v) => v.id));
+                    }
+                  }}
+                  className="text-xs font-semibold text-[var(--color-primary)] hover:underline cursor-pointer"
+                >
+                  {selectedVideoIds.length === filteredVideos.length ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+                </button>
+              )}
+            </div>
+
+            {selectedVideoIds.length > 0 && !isViewOnly && (
+              <div className="flex items-center gap-2.5 animate-fade-in">
+                <span className="text-xs text-[var(--color-text-muted)] font-medium">
+                  Đã chọn {selectedVideoIds.length} video
+                </span>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => setIsBulkVideoDeleteOpen(true)}
+                  icon={<Trash2 size={14} />}
+                >
+                  Xóa ({selectedVideoIds.length}) video
+                </Button>
+              </div>
+            )}
           </div>
 
           {isLoadingVideos ? (
@@ -827,11 +880,22 @@ export default function ProjectDetail() {
               </button>
             </div>
           ) : (
-            <div className="grid gap-5 xl:grid-cols-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
               {filteredVideos.map((video) => (
                 <VideoCard
                   key={video.id}
                   video={video}
+                  isSelected={selectedVideoIds.includes(video.id)}
+                  onToggleSelect={
+                    !isViewOnly
+                      ? (v) =>
+                          setSelectedVideoIds((prev) =>
+                            prev.includes(v.id)
+                              ? prev.filter((id) => id !== v.id)
+                              : [...prev, v.id]
+                          )
+                      : undefined
+                  }
                   onOpen={() => handleOpenVideo(video.id)}
                   onOpenEditor={() => navigate(`/workspace/project/${projectId}/video/${video.id}/editor`)}
                   onRename={(v) => {
@@ -1044,6 +1108,20 @@ export default function ProjectDetail() {
           confirmLabel="Delete Video"
           isDestructive
           isLoading={isVideoDeleting}
+        />
+
+        {/* -------------------------------------------------------- */}
+        {/* Bulk Delete Videos Confirmation (UX-01, UX-11) */}
+        {/* -------------------------------------------------------- */}
+        <ConfirmationDialog
+          isOpen={isBulkVideoDeleteOpen}
+          onClose={() => setIsBulkVideoDeleteOpen(false)}
+          onConfirm={handleBulkDeleteVideos}
+          title="Xóa nhiều video đã chọn"
+          message={`Bạn có chắc chắn muốn xóa ${selectedVideoIds.length} video đã chọn? Toàn bộ file âm thanh, phụ đề và dữ liệu phân tích liên quan sẽ bị xóa vĩnh viễn.`}
+          confirmLabel={`Xóa ${selectedVideoIds.length} video`}
+          isDestructive
+          isLoading={isBulkDeletingVideos}
         />
 
         {/* -------------------------------------------------------- */}

@@ -415,3 +415,101 @@ def create_project_zip_bundle(
 
     zip_buffer.seek(0)
     return zip_buffer
+
+
+def delete_project_asset(db: DatabaseSession, project_id: int, asset_id: Any) -> bool:
+    """
+    Deletes an individual asset (file on disk or DB record).
+    """
+    try:
+        aid_str = str(asset_id)
+        if aid_str.startswith("doc_"):
+            doc_id = int(aid_str.replace("doc_", ""))
+            doc = db.query(VideoDocument).filter(VideoDocument.id == doc_id).first()
+            if doc:
+                db.delete(doc)
+                db.commit()
+                return True
+        elif aid_str.startswith("speaker_"):
+            prof_id = int(aid_str.replace("speaker_", ""))
+            prof = db.query(SpeakerProfile).filter(SpeakerProfile.id == prof_id).first()
+            if prof:
+                if prof.voice_sample_path and os.path.exists(prof.voice_sample_path):
+                    try:
+                        os.remove(prof.voice_sample_path)
+                    except Exception:
+                        pass
+                db.delete(prof)
+                db.commit()
+                return True
+        elif aid_str.startswith("video_"):
+            parts = aid_str.split("_")
+            if len(parts) >= 3:
+                vid = int(parts[1])
+                asset_type = "_".join(parts[2:])
+                video = db.query(Video).filter(Video.id == vid, Video.project_id == project_id).first()
+                if video:
+                    if asset_type == "dubbed" and video.output_path:
+                        if os.path.exists(video.output_path):
+                            try:
+                                os.remove(video.output_path)
+                            except Exception:
+                                pass
+                        video.output_path = None
+                        db.commit()
+                        return True
+                    elif asset_type == "dubbed_audio" and video.dubbed_audio_path:
+                        if os.path.exists(video.dubbed_audio_path):
+                            try:
+                                os.remove(video.dubbed_audio_path)
+                            except Exception:
+                                pass
+                        video.dubbed_audio_path = None
+                        db.commit()
+                        return True
+                    elif asset_type == "vocal" and video.extracted_vocal_path:
+                        if os.path.exists(video.extracted_vocal_path):
+                            try:
+                                os.remove(video.extracted_vocal_path)
+                            except Exception:
+                                pass
+                        video.extracted_vocal_path = None
+                        db.commit()
+                        return True
+                    elif asset_type == "subtitle" and video.subtitle_path:
+                        if os.path.exists(video.subtitle_path):
+                            try:
+                                os.remove(video.subtitle_path)
+                            except Exception:
+                                pass
+                        video.subtitle_path = None
+                        db.commit()
+                        return True
+                    elif asset_type == "transcript" and video.transcript_path:
+                        if os.path.exists(video.transcript_path):
+                            try:
+                                os.remove(video.transcript_path)
+                            except Exception:
+                                pass
+                        video.transcript_path = None
+                        db.commit()
+                        return True
+                    elif asset_type == "original":
+                        video.deleted_at = datetime.utcnow()
+                        db.commit()
+                        return True
+        return False
+    except Exception as e:
+        logger.error(f"Error deleting asset {asset_id}: {e}")
+        return False
+
+
+def bulk_delete_project_assets(db: DatabaseSession, project_id: int, asset_ids: List[str]) -> int:
+    """
+    Deletes multiple assets and returns the number of deleted items.
+    """
+    deleted_count = 0
+    for aid in asset_ids:
+        if delete_project_asset(db, project_id, aid):
+            deleted_count += 1
+    return deleted_count

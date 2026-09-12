@@ -26,6 +26,8 @@ from app.services.subscription_service import validate_project_quota
 from app.services.project_asset_service import (
     get_project_assets,
     create_project_zip_bundle,
+    delete_project_asset,
+    bulk_delete_project_assets,
 )
 from app.services.folder_service import (
     get_project_folders,
@@ -674,5 +676,49 @@ def download_project_assets_zip_route(
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.delete(
+    "/{project_id}/assets/{asset_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Delete an individual asset or generated stem",
+)
+def delete_project_asset_route(
+    project_id: int,
+    asset_id: str,
+    user_id: int = Depends(get_current_user_id),
+    db: DatabaseSession = Depends(get_db),
+):
+    project = get_project(user_id=user_id, project_id=project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+
+    success = delete_project_asset(db=db, project_id=project_id, asset_id=asset_id)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found or could not be deleted.")
+    return {"success": True, "message": f"Asset {asset_id} deleted successfully."}
+
+
+@router.post(
+    "/{project_id}/assets/bulk-delete",
+    status_code=status.HTTP_200_OK,
+    summary="Delete multiple assets at once",
+)
+def bulk_delete_project_assets_route(
+    project_id: int,
+    payload: dict,
+    user_id: int = Depends(get_current_user_id),
+    db: DatabaseSession = Depends(get_db),
+):
+    project = get_project(user_id=user_id, project_id=project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+
+    asset_ids = payload.get("asset_ids", [])
+    if not asset_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No asset IDs provided.")
+
+    deleted_count = bulk_delete_project_assets(db=db, project_id=project_id, asset_ids=asset_ids)
+    return {"success": True, "deleted_count": deleted_count}
 
 

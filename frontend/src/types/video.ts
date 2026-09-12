@@ -21,6 +21,7 @@ export interface Video {
   created_at: string;
   updated_at: string;
   has_hls?: boolean;
+  has_translation?: boolean;
   thumbnail_path?: string | null;
   thumbnail_url?: string | null;
 }
@@ -33,11 +34,14 @@ export interface VideoDetail extends Video {
   subtitle_path?: string | null;
   dubbed_audio_path?: string | null;
   output_path?: string | null;
+  has_translation?: boolean;
+  translation_path?: string | null;
   fps?: number | null;
   resolution?: string | null;
   error_message?: string | null;
   target_language?: string | null;
   source_language?: string | null;
+  snapshot_data?: Record<string, any> | null;
   segments?: Array<{
     start: number;
     end: number;
@@ -50,6 +54,10 @@ export interface VideoDetail extends Video {
 export interface VideoUpdateRequest {
   title?: string;
   folder_id?: number | null;
+  current_step?: string | null;
+  target_language?: string | null;
+  progress?: number | null;
+  snapshot_data?: Record<string, any> | null;
 }
 
 export interface VideoDocument {

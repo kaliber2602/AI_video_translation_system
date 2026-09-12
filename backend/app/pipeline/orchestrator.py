@@ -122,6 +122,46 @@ def run_full_pipeline(
             target_lang,
             temp_dir
         )
+
+        # Preserve all intermediate assets permanently in OUTPUT_DIR before temp_dir cleanup
+        try:
+            from app.core.config import OUTPUT_DIR
+            persistent_dir = OUTPUT_DIR / f"transcript_{video_id}"
+            persistent_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Copy transcript.json
+            src_transcript = os.path.join(temp_dir, "transcript.json")
+            if os.path.exists(src_transcript):
+                dst_transcript = persistent_dir / "transcript.json"
+                shutil.copy2(src_transcript, str(dst_transcript))
+                video.transcript_path = str(dst_transcript)
+
+            # Copy translation_{target_lang}.json
+            src_translation = os.path.join(temp_dir, f"translation_{target_lang}.json")
+            if os.path.exists(src_translation):
+                dst_translation = persistent_dir / f"translation_{target_lang}.json"
+                shutil.copy2(src_translation, str(dst_translation))
+
+            # Copy subtitle files
+            for ext in [".ass", ".srt", ".vtt"]:
+                src_sub = os.path.join(temp_dir, f"subtitles_{target_lang}{ext}")
+                if os.path.exists(src_sub):
+                    dst_sub = persistent_dir / f"subtitles_{target_lang}{ext}"
+                    shutil.copy2(src_sub, str(dst_sub))
+                    if ext == ".ass" or not video.subtitle_path:
+                        video.subtitle_path = str(dst_sub)
+
+            # Copy TTS audio track
+            src_tts = os.path.join(temp_dir, "tts_track.wav")
+            if os.path.exists(src_tts):
+                dst_tts = persistent_dir / f"tts_{target_lang}.wav"
+                shutil.copy2(src_tts, str(dst_tts))
+                video.dubbed_audio_path = str(dst_tts)
+
+            video.target_language = target_lang
+            session.commit()
+        except Exception as copy_err:
+            print(f"[Pipeline] Warning preserving assets: {copy_err}", flush=True)
         
         # STEP 8: Convert to HLS
         hls_result = pipeline.step_hls_convert(

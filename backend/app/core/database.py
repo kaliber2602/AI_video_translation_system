@@ -166,6 +166,10 @@ def ensure_db_schema():
                     CONSTRAINT uq_user_app UNIQUE (user_id, app_id)
                 );
             """)
+            # 6. videos language and snapshot columns
+            cur.execute("ALTER TABLE videos ADD COLUMN IF NOT EXISTS target_language VARCHAR(20);")
+            cur.execute("ALTER TABLE videos ADD COLUMN IF NOT EXISTS source_language VARCHAR(20);")
+            cur.execute("ALTER TABLE videos ADD COLUMN IF NOT EXISTS snapshot_data JSONB DEFAULT '{}'::jsonb;")
             logger.info("Database schema verification and dynamic migration completed successfully.")
     except Exception as exc:
         logger.warning(f"Error checking/migrating DB schema: {exc}")

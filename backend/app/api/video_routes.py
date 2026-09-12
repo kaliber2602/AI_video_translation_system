@@ -11,6 +11,7 @@ from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, Depends, status, Body
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.responses import FileResponse, RedirectResponse
+from starlette.concurrency import run_in_threadpool
 import logging
 import json
 try:
@@ -49,6 +50,7 @@ from app.core.tokenizer import TokenizerService
 from app.schemas.video import (
     VideoUploadResponse,
     VideoUpdateRequest,
+    VideoSnapshotRequest,
     StartProcessingResponse,
     JobStatusResponse,
     JobCancelResponse,
@@ -325,6 +327,88 @@ async def upload_video(
     )
 
 
+def compute_video_progress_and_step(video: Video, config: Optional[VideoPipelineConfig] = None, db: Optional[Session] = None):
+    """
+    Computes true physical pipeline progress, current_step, status, has_translation, and translation_path
+    based on actual generated assets and artifacts.
+    """
+    target_lang = (config.target_language if config and getattr(config, "target_language", None) else (video.get("target_language") or "vi")).lower().strip()
+    canonical_dir = OUTPUT_DIR / f"transcript_{video.id}"
+    translation_file = canonical_dir / f"translation_{target_lang}.json"
+    
+    # Check if translation file exists or alternate
+    has_translation = translation_file.exists()
+    translation_path = str(translation_file) if has_translation else None
+    
+    if not has_translation and video.transcript_path:
+        alt_trans = Path(os.path.dirname(video.transcript_path)) / f"translation_{target_lang}.json"
+        if alt_trans.exists():
+            has_translation = True
+            translation_path = str(alt_trans)
+            
+    # Check any translation_*.json in canonical_dir
+    if not has_translation and canonical_dir.exists():
+        for f in canonical_dir.glob("translation_*.json"):
+            has_translation = True
+            translation_path = str(f)
+            break
+
+    # If not on disk, check if downstream assets exist (subtitles/dubbing implies translation succeeded)
+    if not has_translation:
+        if video.subtitle_path or video.dubbed_audio_path or video.output_path:
+            has_translation = True
+            
+    # Calculate true progress & milestone step
+    if video.output_path or video.status == "completed":
+        progress = 100
+        current_step = "completed"
+        status = "completed"
+    elif video.dubbed_audio_path:
+        progress = max(int(video.progress or 0), 85)
+        current_step = "dubbing"
+        status = "processing"
+    elif video.subtitle_path:
+        progress = max(int(video.progress or 0), 75)
+        current_step = "subtitle"
+        status = "processing"
+    elif has_translation:
+        progress = max(int(video.progress or 0), 60)
+        current_step = "translation"
+        status = "processing"
+    elif video.transcript_path:
+        progress = max(int(video.progress or 0), 40)
+        current_step = "transcript"
+        status = "processing"
+    elif video.extracted_vocal_path:
+        progress = max(int(video.progress or 0), 25)
+        current_step = "audio_extract"
+        status = "processing"
+    else:
+        progress = max(int(video.progress or 0), 15)
+        current_step = "upload"
+        status = video.status or "uploaded"
+        
+    # Sync back to video entity if out of date
+    changed = False
+    if video.progress != progress:
+        video.progress = progress
+        changed = True
+    if video.current_step != current_step:
+        video.current_step = current_step
+        changed = True
+    if status == "completed" and video.status != "completed":
+        video.status = "completed"
+        changed = True
+        
+    if changed and db:
+        try:
+            db.commit()
+        except Exception:
+            pass
+            
+    return progress, current_step, status, has_translation, translation_path
+
+
 @router.get("/", response_model=List[VideoListItem])
 async def list_videos(
     project_id: Optional[int] = Query(None),
@@ -373,6 +457,7 @@ async def list_videos(
     
     items = []
     for v in videos:
+        prog, step, stat, has_trans, _ = compute_video_progress_and_step(v, None, db)
         t_path = getattr(v, "thumbnail_path", None)
         t_url = storage_manager.generate_presigned_url(t_path, expires_in=86400) if t_path else f"/api/videos/{v.id}/thumbnail"
         items.append(
@@ -383,13 +468,15 @@ async def list_videos(
                 title=v.title,
                 original_filename=v.original_filename,
                 file_size=v.file_size,
-                status=v.status,
-                progress=v.progress,
-                current_step=v.current_step,
+                status=stat,
+                progress=prog,
+                current_step=step,
+                target_language=v.get("target_language"),
                 duration=v.duration,
                 created_at=v.created_at,
                 updated_at=v.updated_at,
                 has_hls=bool(v.output_path and v.output_path.startswith("videos/")),
+                has_translation=has_trans,
                 thumbnail_path=t_path,
                 thumbnail_url=t_url,
             )
@@ -407,6 +494,7 @@ async def get_video_details(
     video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
     
     config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
+    prog, step, stat, has_trans, trans_path = compute_video_progress_and_step(video, config, db)
     
     segments = []
     if video.transcript_path and os.path.exists(video.transcript_path):
@@ -433,19 +521,22 @@ async def get_video_details(
         subtitle_path=video.subtitle_path,
         dubbed_audio_path=video.dubbed_audio_path,
         output_path=video.output_path,
+        has_translation=has_trans,
+        translation_path=trans_path,
         thumbnail_path=thumb_path,
         thumbnail_url=thumb_url,
         duration=video.duration,
         fps=video.fps,
         resolution=video.resolution,
-        status=video.status,
-        current_step=video.current_step,
-        progress=video.progress,
+        status=stat,
+        current_step=step,
+        progress=prog,
         error_message=video.error_message,
         created_at=video.created_at,
         updated_at=video.updated_at,
-        target_language=config.target_language if config else None,
-        source_language=config.source_language if config else None,
+        target_language=(config.target_language if config and config.target_language else video.target_language),
+        source_language=(config.source_language if config and config.source_language else video.source_language),
+        snapshot_data=getattr(video, "snapshot_data", None) or {},
         segments=segments
     )
 
@@ -457,7 +548,7 @@ async def update_video(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    """Update video metadata (title rename, move folder)."""
+    """Update video metadata (title rename, move folder, progress snapshot)."""
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
     
     if payload.title is not None:
@@ -479,8 +570,96 @@ async def update_video(
                 raise HTTPException(404, f"Folder with ID {payload.folder_id} not found in this project")
             video.folder_id = payload.folder_id
             
+    if payload.current_step is not None:
+        video.current_step = payload.current_step
+    if payload.target_language is not None:
+        video.target_language = payload.target_language
+    if payload.source_language is not None:
+        video.source_language = payload.source_language
+    if payload.progress is not None:
+        video.progress = payload.progress
+    if payload.snapshot_data is not None:
+        current_snap = getattr(video, "snapshot_data", None) or {}
+        if isinstance(current_snap, dict):
+            current_snap.update(payload.snapshot_data)
+            video.snapshot_data = current_snap
+        else:
+            video.snapshot_data = payload.snapshot_data
+            
     video.updated_at = datetime.utcnow()
     db.commit()
+    return await get_video_details(video_id=video_id, db=db, user_id=user_id)
+
+
+STEP_NAMES = {
+    1: "Upload (Bước 1)",
+    2: "Transcript (Bước 2)",
+    3: "Translation (Bước 3)",
+    4: "Subtitle (Bước 4)",
+    5: "Dubbing (Bước 5)",
+    6: "Review & Export (Bước 6)",
+}
+
+
+@router.post("/{video_id}/snapshot", response_model=VideoDetailResponse)
+async def save_video_snapshot(
+    video_id: int,
+    payload: VideoSnapshotRequest,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Save pipeline progress snapshot to database with persistent timestamp and state."""
+    from datetime import timezone, timedelta
+
+    video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
+    
+    current_snap = getattr(video, "snapshot_data", None) or {}
+    if not isinstance(current_snap, dict):
+        current_snap = {}
+
+    now_utc = datetime.utcnow()
+    now_iso = now_utc.isoformat() + "Z"
+    now_epoch = int(now_utc.timestamp() * 1000)
+    tz_vn = timezone(timedelta(hours=7))
+    now_vn_str = datetime.now(tz_vn).strftime("%Y-%m-%d %H:%M:%S (GMT+7)")
+
+    current_snap["saved_at"] = now_iso
+    current_snap["saved_at_epoch"] = now_epoch
+    current_snap["saved_at_local"] = now_vn_str
+    
+    if payload.active_step is not None:
+        current_snap["active_step"] = payload.active_step
+        current_snap["step_name"] = STEP_NAMES.get(payload.active_step, f"Step {payload.active_step}")
+    if payload.state_data is not None:
+        current_snap.update(payload.state_data)
+    
+    video.snapshot_data = current_snap
+    if payload.current_step is not None:
+        video.current_step = payload.current_step
+    if payload.target_language is not None:
+        video.target_language = payload.target_language
+    if payload.progress is not None:
+        video.progress = payload.progress
+        
+    video.updated_at = now_utc
+    db.commit()
+
+    step_display = STEP_NAMES.get(payload.active_step, f"Step {payload.active_step}")
+    banner = f"""
+================================================================================
+💾 [SNAPSHOT API CALLED] Pipeline Progress Saved Successfully!
+   Video ID       : {video_id} ('{getattr(video, 'title', '')}')
+   Active Step    : {payload.active_step} ({step_display})
+   Target Language: {video.target_language}
+   Progress       : {video.progress}%
+   Local Time     : {now_vn_str}
+   UTC Timestamp  : {now_iso}
+   Epoch (ms)     : {now_epoch}
+================================================================================
+"""
+    print(banner, flush=True)
+    logger.warning(f"💾 [SNAPSHOT SAVED] Video {video_id} step={payload.active_step} ({step_display}) progress={video.progress}% at {now_vn_str}")
+
     return await get_video_details(video_id=video_id, db=db, user_id=user_id)
 
 
@@ -1118,8 +1297,10 @@ async def extract_audio(
     output_path = output_dir / "audio.wav"
     
     try:
-        audio_service.extract_audio(video_path, str(output_path))
+        await run_in_threadpool(audio_service.extract_audio, video_path, str(output_path))
         video.extracted_vocal_path = str(output_path)
+        video.current_step = "audio_extract"
+        video.progress = max(int(video.progress or 0), 25)
         db.commit()
         
         return {
@@ -1214,7 +1395,7 @@ async def start_transcription(
     stt_service = STTService()
     
     try:
-        segments, detected_lang = stt_service.transcribe_audio(vocal_path)
+        segments, detected_lang = await run_in_threadpool(stt_service.transcribe_audio, vocal_path)
         
         transcript_dir = OUTPUT_DIR / f"transcript_{video_id}"
         transcript_dir.mkdir(parents=True, exist_ok=True)
@@ -1244,7 +1425,7 @@ async def start_transcription(
         if diar_service.is_available():
             try:
                 logger.info(f"Running pyannote diarization on {vocal_path}...")
-                diar_segments = diar_service.diarize(vocal_path)
+                diar_segments = await run_in_threadpool(diar_service.diarize, vocal_path)
                 segments = diar_service.assign_speakers_to_transcript(
                     str(transcript_path), diar_segments, output_path=str(transcript_path)
                 )
@@ -1302,6 +1483,8 @@ async def start_transcription(
             ))
         
         video.transcript_path = str(transcript_path)
+        video.current_step = "transcript"
+        video.progress = max(int(video.progress or 0), 40)
         db.commit()
 
         # Extract voice samples for each speaker profile
@@ -1364,10 +1547,55 @@ async def get_transcription(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    """Get the transcript with timestamped segments and speaker labels."""
+    """Get the transcript with timestamped segments and speaker labels, with canonical path and DB recovery."""
+    from app.models import TranscriptSegment, SpeakerProfile
     video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
     
-    if not video.transcript_path or not os.path.exists(video.transcript_path):
+    transcript_file = None
+    if video.transcript_path and os.path.exists(video.transcript_path):
+        transcript_file = Path(video.transcript_path)
+    else:
+        # Check canonical directories
+        alt_path1 = OUTPUT_DIR / f"transcript_{video_id}" / "transcript.json"
+        alt_path2 = OUTPUT_DIR / f"video_{video_id}" / "transcript.json"
+        if alt_path1.exists():
+            transcript_file = alt_path1
+            video.transcript_path = str(alt_path1)
+            db.commit()
+        elif alt_path2.exists():
+            transcript_file = alt_path2
+            video.transcript_path = str(alt_path2)
+            db.commit()
+
+    # If file not on disk, check DB transcript_segments and reconstruct!
+    if not transcript_file or not transcript_file.exists():
+        try:
+            from app.models import TranscriptSegment, SpeakerProfile
+            t_segs = db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).order_by(TranscriptSegment.sequence).all()
+            if t_segs:
+                canonical_dir = OUTPUT_DIR / f"transcript_{video_id}"
+                canonical_dir.mkdir(parents=True, exist_ok=True)
+                transcript_file = canonical_dir / "transcript.json"
+                speakers = db.query(SpeakerProfile).filter(SpeakerProfile.video_id == video_id).all()
+                spk_dict = {s.id: s.speaker_label for s in speakers}
+                rebuilt_segs = [
+                    {
+                        "start": s.start_time,
+                        "end": s.end_time,
+                        "text": s.original_text,
+                        "speaker": spk_dict.get(s.speaker_id, "SPEAKER_01"),
+                        "confidence": s.confidence or 1.0
+                    }
+                    for s in t_segs
+                ]
+                with open(transcript_file, 'w', encoding='utf-8') as f:
+                    json.dump({"language": t_segs[0].language or "en", "segments": rebuilt_segs}, f, indent=2, ensure_ascii=False)
+                video.transcript_path = str(transcript_file)
+                db.commit()
+        except Exception as dbe:
+            logger.warning(f"Could not reconstruct transcript from DB: {dbe}")
+
+    if not transcript_file or not transcript_file.exists():
         return {
             "video_id": video_id,
             "status": "not_available",
@@ -1375,7 +1603,7 @@ async def get_transcription(
         }
     
     try:
-        with open(video.transcript_path, 'r', encoding='utf-8') as f:
+        with open(transcript_file, 'r', encoding='utf-8') as f:
             transcript_data = json.load(f)
         
         speakers = db.query(SpeakerProfile).filter(SpeakerProfile.video_id == video_id).all()
@@ -1587,6 +1815,7 @@ async def get_diarization(
 async def start_translation(
     video_id: int,
     target_language: str = Query(..., description="Target language code (e.g., vi, en, fr)"),
+    model: Optional[str] = Query(None, description="Translation model code (e.g. nllb_200_1.3b, nllb_200_3.3b, gpt_4o)"),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
@@ -1600,7 +1829,10 @@ async def start_translation(
     
     # Enforce AI credit deduction for translation from ai_models table
     config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
-    trans_model = config.translation_model if config and config.translation_model else "nllb_200_1.3b"
+    if model and config:
+        config.translation_model = model
+        db.flush()
+    trans_model = model or (config.translation_model if config and config.translation_model else "nllb_200_1.3b")
     cost_per_min = get_model_credit_cost(trans_model, default_cost=1)
     duration_mins = max(1, int(math.ceil((video.duration or 60) / 60.0)))
     credits_needed = duration_mins * cost_per_min
@@ -1638,7 +1870,8 @@ async def start_translation(
             video_id=video_id,
         )
         
-        lang_config = TARGET_LANGUAGE_MAP.get(target_language)
+        target_lang_clean = target_language.lower().strip()
+        lang_config = TARGET_LANGUAGE_MAP.get(target_lang_clean)
         if not lang_config:
             raise HTTPException(400, f"Unsupported target language: {target_language}")
         
@@ -1649,23 +1882,98 @@ async def start_translation(
             segments=segments,
             glossary={},
             src_lang=nllb_src,
-            tgt_lang=nllb_tgt
+            tgt_lang=nllb_tgt,
+            model=trans_model,
         )
         
-        translation_dir = os.path.dirname(video.transcript_path)
-        translation_path = os.path.join(translation_dir, f"translation_{target_language}.json")
+        # Canonical persistent directory for video assets
+        canonical_dir = OUTPUT_DIR / f"transcript_{video_id}"
+        canonical_dir.mkdir(parents=True, exist_ok=True)
+        translation_path = os.path.join(str(canonical_dir), f"translation_{target_lang_clean}.json")
+        
+        # Ensure video transcript_path is canonical
+        canonical_transcript = canonical_dir / "transcript.json"
+        if not canonical_transcript.exists() and video.transcript_path and os.path.exists(video.transcript_path):
+            try:
+                shutil.copy2(video.transcript_path, str(canonical_transcript))
+            except Exception:
+                pass
+        if canonical_transcript.exists():
+            video.transcript_path = str(canonical_transcript)
+        
+        video.target_language = target_lang_clean
+        if config:
+            config.target_language = target_lang_clean
+        video.current_step = "translation"
+        video.progress = max(int(video.progress or 0), 60)
         
         with open(translation_path, 'w', encoding='utf-8') as f:
             json.dump({
                 "source_language": detected_lang,
-                "target_language": target_language,
+                "target_language": target_lang_clean,
+                "translation_model": trans_model,
                 "segments": translated_segments
-            }, f, indent=2)
+            }, f, indent=2, ensure_ascii=False)
         
+        # Persist translated segments to database translation_segments
+        try:
+            from app.models import TranscriptSegment, TranslationSegment
+            t_segs = db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).order_by(TranscriptSegment.sequence).all()
+            for idx, seg in enumerate(translated_segments):
+                if idx < len(t_segs):
+                    t_seg_id = t_segs[idx].id
+                    existing_ts = db.query(TranslationSegment).filter(
+                        TranslationSegment.transcript_segment_id == t_seg_id,
+                        TranslationSegment.target_language == target_lang_clean
+                    ).first()
+                    if existing_ts:
+                        existing_ts.translated_text = seg.get("translated_text", "")
+                        existing_ts.translation_model = trans_model
+                        existing_ts.updated_at = datetime.utcnow()
+                    else:
+                        db.add(TranslationSegment(
+                            transcript_segment_id=t_seg_id,
+                            target_language=target_lang_clean,
+                            translated_text=seg.get("translated_text", ""),
+                            translation_model=trans_model,
+                            created_at=datetime.utcnow(),
+                            updated_at=datetime.utcnow()
+                        ))
+            db.flush()
+        except Exception as dbe:
+            logger.warning(f"Could not persist translation_segments to DB: {dbe}")
+
+        # Automatically pre-generate subtitle files (SRT, VTT, ASS) using translated_text
+        try:
+            subtitle_service = SubtitleService()
+            sub_paths = subtitle_service.save_all_subtitles(
+                segments=translated_segments,
+                base_dir=str(canonical_dir),
+                language=target_lang_clean,
+                text_key="translated_text",
+                font_size=22,
+                position="bottom",
+                font_name="Montserrat",
+                primary_color="#FFFFFF",
+                outline_color="#000000",
+                max_lines=2,
+                effect="pop",
+                auto_split=True,
+            )
+            if sub_paths.get("ass"):
+                video.subtitle_path = sub_paths["ass"]
+            elif sub_paths.get("srt"):
+                video.subtitle_path = sub_paths["srt"]
+        except Exception as sub_err:
+            logger.warning(f"Could not pre-generate subtitles on translation: {sub_err}")
+
+        db.commit()
+
         return {
             "video_id": video_id,
-            "target_language": target_language,
+            "target_language": target_lang_clean,
             "source_language": detected_lang,
+            "translation_model": trans_model,
             "segments": translated_segments,
             "total_segments": len(translated_segments),
             "status": "completed"
@@ -1683,18 +1991,27 @@ async def list_translations(
     """List available translations."""
     video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
     
-    translation_dir = os.path.dirname(video.transcript_path) if video.transcript_path else None
+    possible_dirs = [
+        OUTPUT_DIR / f"transcript_{video_id}",
+        OUTPUT_DIR / f"video_{video_id}",
+    ]
+    if video.transcript_path and os.path.exists(os.path.dirname(video.transcript_path)):
+        possible_dirs.append(Path(os.path.dirname(video.transcript_path)))
     
     translations = []
-    if translation_dir and os.path.exists(translation_dir):
-        for file in os.listdir(translation_dir):
-            if file.startswith("translation_") and file.endswith(".json"):
-                lang = file.replace("translation_", "").replace(".json", "")
-                translations.append({
-                    "language": lang,
-                    "path": os.path.join(translation_dir, file),
-                    "size": os.path.getsize(os.path.join(translation_dir, file))
-                })
+    seen_langs = set()
+    for p_dir in possible_dirs:
+        if p_dir.exists():
+            for file in os.listdir(p_dir):
+                if file.startswith("translation_") and file.endswith(".json"):
+                    lang = file.replace("translation_", "").replace(".json", "").lower()
+                    if lang not in seen_langs:
+                        seen_langs.add(lang)
+                        translations.append({
+                            "language": lang,
+                            "path": str(p_dir / file),
+                            "size": os.path.getsize(str(p_dir / file))
+                        })
     
     return {
         "video_id": video_id,
@@ -1710,20 +2027,62 @@ async def get_translation(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    """Get translation for a specific language."""
+    """Get translation for a specific language, with canonical path and DB recovery."""
     video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+    lang_clean = language.lower().strip()
     
-    translation_dir = os.path.dirname(video.transcript_path) if video.transcript_path else None
-    
-    if translation_dir:
-        translation_path = os.path.join(translation_dir, f"translation_{language}.json")
-        if os.path.exists(translation_path):
+    # 1. Search in canonical directories
+    possible_dirs = [
+        OUTPUT_DIR / f"transcript_{video_id}",
+        OUTPUT_DIR / f"video_{video_id}",
+    ]
+    if video.transcript_path and os.path.exists(os.path.dirname(video.transcript_path)):
+        possible_dirs.append(Path(os.path.dirname(video.transcript_path)))
+        
+    for p_dir in possible_dirs:
+        trans_file = p_dir / f"translation_{lang_clean}.json"
+        if trans_file.exists():
             try:
-                with open(translation_path, 'r', encoding='utf-8') as f:
-                    translation_data = json.load(f)
-                return translation_data
+                with open(trans_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
             except Exception as e:
-                raise HTTPException(500, f"Error reading translation: {str(e)}")
+                logger.warning(f"Error reading {trans_file}: {e}")
+                
+    # 2. Reconstruct from DB translation_segments if file on disk was lost
+    try:
+        with db.conn.cursor() as cur:
+            cur.execute("""
+                SELECT ts.edited_text, ts.translated_text, tr.original_text, tr.start_time, tr.end_time
+                FROM translation_segments ts
+                JOIN transcript_segments tr ON ts.transcript_segment_id = tr.id
+                WHERE tr.video_id = %s AND ts.target_language = %s
+                ORDER BY tr.sequence
+            """, (video_id, lang_clean))
+            rows = cur.fetchall()
+        if rows:
+            rebuilt_segments = [
+                {
+                    "start": start_time,
+                    "end": end_time,
+                    "text": original_text,
+                    "translated_text": edited_text or translated_text or original_text,
+                }
+                for edited_text, translated_text, original_text, start_time, end_time in rows
+            ]
+            canonical_dir = OUTPUT_DIR / f"transcript_{video_id}"
+            canonical_dir.mkdir(parents=True, exist_ok=True)
+            cache_file = canonical_dir / f"translation_{lang_clean}.json"
+            result_data = {
+                "source_language": video.source_language or "en",
+                "target_language": lang_clean,
+                "segments": rebuilt_segments,
+                "total_segments": len(rebuilt_segments)
+            }
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(result_data, f, indent=2, ensure_ascii=False)
+            return result_data
+    except Exception as dbe:
+        logger.warning(f"Could not reconstruct translation from DB: {dbe}")
     
     raise HTTPException(404, f"Translation for language '{language}' not found")
 
@@ -1738,14 +2097,19 @@ async def update_translation(
 ):
     """Edit/correct translated segments."""
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
+    lang_clean = language.lower().strip()
     
-    translation_dir = os.path.dirname(video.transcript_path) if video.transcript_path else None
-    if not translation_dir:
-        raise HTTPException(404, "Translation directory not found")
+    canonical_dir = OUTPUT_DIR / f"transcript_{video_id}"
+    canonical_dir.mkdir(parents=True, exist_ok=True)
+    translation_path = canonical_dir / f"translation_{lang_clean}.json"
     
-    translation_path = os.path.join(translation_dir, f"translation_{language}.json")
-    if not os.path.exists(translation_path):
-        raise HTTPException(404, f"Translation for language '{language}' not found")
+    if not translation_path.exists():
+        # Check alternate
+        alt_path = (Path(os.path.dirname(video.transcript_path)) / f"translation_{lang_clean}.json") if video.transcript_path else None
+        if alt_path and alt_path.exists():
+            translation_path = alt_path
+        else:
+            raise HTTPException(404, f"Translation for language '{language}' not found")
     
     try:
         with open(translation_path, 'r', encoding='utf-8') as f:
@@ -1759,18 +2123,56 @@ async def update_translation(
         if segment_id < 0 or segment_id >= len(segments):
             raise HTTPException(404, "Segment not found")
         
+        new_text = updates.get("translated_text", "")
         if "translated_text" in updates:
-            segments[segment_id]["translated_text"] = updates["translated_text"]
+            segments[segment_id]["translated_text"] = new_text
         
         with open(translation_path, 'w', encoding='utf-8') as f:
-            json.dump(translation_data, f, indent=2)
+            json.dump(translation_data, f, indent=2, ensure_ascii=False)
+
+        # Also update DB translation_segments and re-generate subtitle files
+        try:
+            from app.models import TranscriptSegment, TranslationSegment
+            t_segs = db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).order_by(TranscriptSegment.sequence).all()
+            if segment_id < len(t_segs):
+                t_seg_id = t_segs[segment_id].id
+                ts_rec = db.query(TranslationSegment).filter(
+                    TranslationSegment.transcript_segment_id == t_seg_id,
+                    TranslationSegment.target_language == lang_clean
+                ).first()
+                if ts_rec:
+                    ts_rec.edited_text = new_text
+                    ts_rec.updated_at = datetime.utcnow()
+                    db.commit()
+        except Exception as dbe:
+            logger.warning(f"Could not update DB translation segment: {dbe}")
+
+        # Update subtitles immediately with edited translation
+        try:
+            subtitle_service = SubtitleService()
+            subtitle_service.save_all_subtitles(
+                segments=segments,
+                base_dir=str(canonical_dir),
+                language=lang_clean,
+                text_key="translated_text",
+                font_size=22,
+                position="bottom",
+                font_name="Montserrat",
+                primary_color="#FFFFFF",
+                outline_color="#000000",
+                max_lines=2,
+                effect="pop",
+                auto_split=True,
+            )
+        except Exception:
+            pass
         
         return {
             "video_id": video_id,
-            "language": language,
+            "language": lang_clean,
             "segment_id": segment_id,
             "updated": True,
-            "message": "Translation updated"
+            "message": "Translation updated and subtitles synchronized"
         }
     except Exception as e:
         raise HTTPException(500, f"Error updating translation: {str(e)}")
@@ -1821,57 +2223,99 @@ async def generate_subtitles(
     max_lines: int = Query(2, description="Max lines: 1, 2, or 0 (unlimited)"),
     effect: str = Query("none", description="Effect: none, fade, pop, slide, karaoke"),
     aspect_ratio: Optional[str] = Query(None, description="Video aspect ratio: 16:9, 9:16, 1:1, 4:3"),
+    alignment: str = Query("center", description="Subtitle alignment: left, center, right, justify"),
+    position_y: Optional[float] = Query(None, description="Subtitle vertical position in percentage: 5-95"),
+    line_spacing: Optional[float] = Query(1.2, description="Line spacing multiplier: 1.0-2.0"),
     body: Optional[dict] = Body(None),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    """Generate subtitles from transcript/translation with formatting, colors, line limits, and animation effects."""
+    """Generate subtitles from translation with formatting, colors, line limits, and animation effects."""
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
+    lang_clean = language.lower().strip()
     
-    translation_dir = os.path.dirname(video.transcript_path) if video.transcript_path else None
-    if not translation_dir:
-        alt_dir = OUTPUT_DIR / f"transcript_{video_id}"
-        alt_dir.mkdir(parents=True, exist_ok=True)
-        translation_dir = str(alt_dir)
+    canonical_dir = OUTPUT_DIR / f"transcript_{video_id}"
+    canonical_dir.mkdir(parents=True, exist_ok=True)
+    translation_dir = str(canonical_dir)
     
     # Check if custom segments were supplied in request body
     custom_segments = body.get("segments") if body else None
     if custom_segments and isinstance(custom_segments, list) and len(custom_segments) > 0:
         segments = custom_segments
         text_key = "translated_text"
+        for s in segments:
+            if not s.get("translated_text") and s.get("text"):
+                s["translated_text"] = s["text"]
         # Persist custom segments to translation_{language}.json
-        translation_path = os.path.join(translation_dir, f"translation_{language}.json")
+        translation_path = canonical_dir / f"translation_{lang_clean}.json"
         try:
             with open(translation_path, 'w', encoding='utf-8') as f:
                 json.dump({
                     "video_id": video_id,
                     "source_language": video.source_language or "en",
-                    "target_language": language,
+                    "target_language": lang_clean,
                     "segments": segments
                 }, f, indent=2, ensure_ascii=False)
         except Exception as save_err:
             logger.warning(f"Could not persist custom segments: {save_err}")
     else:
-        # Try to use translation first, fallback to transcript
-        translation_path = os.path.join(translation_dir, f"translation_{language}.json")
-        if os.path.exists(translation_path):
-            with open(translation_path, 'r', encoding='utf-8') as f:
+        # Load from canonical translation file first
+        translation_path = canonical_dir / f"translation_{lang_clean}.json"
+        alt_translation_path = (Path(os.path.dirname(video.transcript_path)) / f"translation_{lang_clean}.json") if video.transcript_path else None
+        
+        target_found_path = None
+        if translation_path.exists():
+            target_found_path = translation_path
+        elif alt_translation_path and alt_translation_path.exists():
+            target_found_path = alt_translation_path
+
+        if target_found_path:
+            with open(target_found_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 segments = data.get("segments", [])
                 text_key = "translated_text"
-        elif video.transcript_path and os.path.exists(video.transcript_path):
-            with open(video.transcript_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                segments = data.get("segments", [])
-                text_key = "text"
         else:
-            segments = []
-            text_key = "translated_text"
+            # Check DB translation_segments fallback
+            t_rows = None
+            try:
+                with db.conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT ts.edited_text, ts.translated_text, tr.original_text, tr.start_time, tr.end_time
+                        FROM translation_segments ts
+                        JOIN transcript_segments tr ON ts.transcript_segment_id = tr.id
+                        WHERE tr.video_id = %s AND ts.target_language = %s
+                        ORDER BY tr.sequence
+                    """, (video_id, lang_clean))
+                    t_rows = cur.fetchall()
+            except Exception as e:
+                logger.warning(f"Error querying DB for export_subtitles: {e}")
+                t_rows = None
+
+            if t_rows:
+                segments = [
+                    {
+                        "start": start_time,
+                        "end": end_time,
+                        "text": original_text,
+                        "translated_text": edited_text or translated_text or original_text,
+                        "speaker": "SPEAKER_01"
+                    }
+                    for edited_text, translated_text, original_text, start_time, end_time in t_rows
+                ]
+                text_key = "translated_text"
+            elif video.transcript_path and os.path.exists(video.transcript_path):
+                with open(video.transcript_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    segments = data.get("segments", [])
+                    text_key = "text"
+            else:
+                segments = []
+                text_key = "translated_text"
     
     subtitle_service = SubtitleService()
     if body and body.get("auto_split_chunks"):
         segments = subtitle_service.split_long_segments(segments)
-    subtitle_path = os.path.join(translation_dir, f"subtitles_{language}.{format}")
+    subtitle_path = os.path.join(translation_dir, f"subtitles_{lang_clean}.{format}")
     
     try:
         # Detect aspect ratio and video dimensions for optimal subtitle sizing & margins
@@ -1910,12 +2354,15 @@ async def generate_subtitles(
             pass
 
         final_aspect = req_aspect or detected_aspect
+        final_alignment = (body.get("alignment") if body else None) or alignment or "center"
+        final_position_y = (body.get("position_y") if body else None) or position_y
+        final_line_spacing = (body.get("line_spacing") if body else None) or line_spacing or 1.2
 
-        # Save all 3 formats (srt, vtt, ass) so they are immediately ready for burning, streaming, downloading
+        # Save all 3 formats (srt, vtt, ass) using translated_text
         paths = subtitle_service.save_all_subtitles(
             segments=segments,
             base_dir=translation_dir,
-            language=language,
+            language=lang_clean,
             text_key=text_key,
             font_size=font_size,
             position=position,
@@ -1929,17 +2376,28 @@ async def generate_subtitles(
             video_width=video_width,
             video_height=video_height,
             auto_split=True,
+            alignment=final_alignment,
+            position_y=final_position_y,
+            line_spacing=final_line_spacing,
         )
         subtitle_path = paths.get(format, subtitle_path)
         video.subtitle_path = subtitle_path
-        db.commit()
-        
-        with open(subtitle_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+        video.target_language = lang_clean
+        video.current_step = "subtitle"
+        video.progress = max(int(video.progress or 0), 75)
 
-        return {
-            "video_id": video_id,
-            "language": language,
+        # Invalidate any previously rendered dubbed video since subtitles were just modified
+        video.output_path = None
+        video.status = VideoStatus.PROCESSING.value
+        try:
+            db.query(VideoRenderOutput).filter(
+                VideoRenderOutput.video_id == video_id,
+            ).delete()
+        except Exception as vro_err:
+            logger.warning(f"Could not clear stale render outputs on subtitle update: {vro_err}")
+
+        sub_config = {
+            "language": lang_clean,
             "format": format,
             "font_size": font_size,
             "position": position,
@@ -1948,9 +2406,46 @@ async def generate_subtitles(
             "outline_color": outline_color,
             "max_lines": max_lines,
             "effect": effect,
+            "aspect_ratio": final_aspect,
+            "alignment": final_alignment,
+            "position_y": final_position_y,
+            "line_spacing": final_line_spacing,
+        }
+
+        config_path = canonical_dir / f"subtitle_config_{lang_clean}.json"
+        try:
+            with open(config_path, "w", encoding="utf-8") as cf:
+                json.dump(sub_config, cf, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.warning(f"Failed to write subtitle config file: {e}")
+
+        current_snap = getattr(video, "snapshot_data", None) or {}
+        current_snap["subtitle_config"] = sub_config
+        video.snapshot_data = dict(current_snap)
+        db.commit()
+        
+        with open(subtitle_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        return {
+            "video_id": video_id,
+            "language": lang_clean,
+            "format": format,
+            "font_size": font_size,
+            "position": position,
+            "font_name": font_name,
+            "primary_color": primary_color,
+            "outline_color": outline_color,
+            "max_lines": max_lines,
+            "effect": effect,
+            "aspect_ratio": final_aspect,
+            "alignment": final_alignment,
+            "position_y": final_position_y,
+            "line_spacing": final_line_spacing,
             "segments_count": len(segments),
             "path": subtitle_path,
             "content": content,
+            "config": sub_config,
             "status": "completed",
             "message": f"Subtitles generated in {format} format with {effect} effect"
         }
@@ -1965,40 +2460,115 @@ async def get_subtitle_segments(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    """Get structured subtitle segments list for the subtitle editor."""
+    """Get structured subtitle segments list for the subtitle editor, prioritizing translated segments."""
     video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
-    translation_dir = os.path.dirname(video.transcript_path) if video.transcript_path else None
-    if not translation_dir:
-        alt_dir = OUTPUT_DIR / f"transcript_{video_id}"
-        if alt_dir.exists():
-            translation_dir = str(alt_dir)
-            
+    lang_clean = language.lower().strip()
+    
+    possible_dirs = [
+        OUTPUT_DIR / f"transcript_{video_id}",
+        OUTPUT_DIR / f"video_{video_id}",
+    ]
+    if video.transcript_path and os.path.exists(os.path.dirname(video.transcript_path)):
+        possible_dirs.append(Path(os.path.dirname(video.transcript_path)))
+        
     segments = []
-    if translation_dir:
-        trans_file = os.path.join(translation_dir, f"translation_{language}.json")
-        if os.path.exists(trans_file):
-            with open(trans_file, "r", encoding="utf-8") as f:
+    has_translation = False
+    
+    # 1. Search for translation_{lang}.json
+    for p_dir in possible_dirs:
+        trans_file = p_dir / f"translation_{lang_clean}.json"
+        if trans_file.exists():
+            try:
+                with open(trans_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    raw = data.get("segments", [])
+                    segments = [
+                        {
+                            "start": s.get("start", 0),
+                            "end": s.get("end", 0),
+                            "text": s.get("text", ""),
+                            "translated_text": s.get("translated_text") or s.get("text", ""),
+                            "speaker": s.get("speaker", "SPEAKER_01")
+                        }
+                        for s in raw
+                    ]
+                    has_translation = True
+                    break
+            except Exception as e:
+                logger.warning(f"Error reading {trans_file}: {e}")
+
+    # 2. If not on disk, check DB translation_segments
+    if not has_translation:
+        try:
+            with db.conn.cursor() as cur:
+                cur.execute("""
+                    SELECT ts.edited_text, ts.translated_text, tr.original_text, tr.start_time, tr.end_time
+                    FROM translation_segments ts
+                    JOIN transcript_segments tr ON ts.transcript_segment_id = tr.id
+                    WHERE tr.video_id = %s AND ts.target_language = %s
+                    ORDER BY tr.sequence
+                """, (video_id, lang_clean))
+                rows = cur.fetchall()
+            if rows:
+                for edited_text, translated_text, original_text, start_time, end_time in rows:
+                    segments.append({
+                        "start": start_time,
+                        "end": end_time,
+                        "text": original_text,
+                        "translated_text": edited_text or translated_text or original_text,
+                        "speaker": "SPEAKER_01"
+                    })
+                has_translation = True
+        except Exception as dbe:
+            logger.warning(f"Could not query DB translation segments: {dbe}")
+
+    # 3. If still no translation, and target equals detected source, allow original transcript
+    detected_source = (video.source_language or "en").lower().strip()
+    if not has_translation and (detected_source == lang_clean or lang_clean in ("source", "original")):
+        transcript_file = None
+        for p_dir in possible_dirs:
+            tf = p_dir / "transcript.json"
+            if tf.exists():
+                transcript_file = tf
+                break
+        if transcript_file and transcript_file.exists():
+            with open(transcript_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                segments = data.get("segments", [])
-        elif video.transcript_path and os.path.exists(video.transcript_path):
-            with open(video.transcript_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                raw_segments = data.get("segments", [])
                 segments = [
                     {
                         "start": s.get("start", 0),
                         "end": s.get("end", 0),
                         "text": s.get("text", ""),
-                        "translated_text": s.get("translated_text", s.get("text", ""))
+                        "translated_text": s.get("text", ""),
+                        "speaker": s.get("speaker", "SPEAKER_01")
                     }
-                    for s in raw_segments
+                    for s in data.get("segments", [])
                 ]
-                
+                has_translation = True
+
+    # Read saved subtitle config if available
+    sub_config = None
+    for p_dir in possible_dirs:
+        cfg_file = p_dir / f"subtitle_config_{lang_clean}.json"
+        if cfg_file.exists():
+            try:
+                with open(cfg_file, "r", encoding="utf-8") as cf:
+                    sub_config = json.load(cf)
+                    break
+            except Exception:
+                pass
+
+    if not sub_config:
+        snap = getattr(video, "snapshot_data", None) or {}
+        sub_config = snap.get("subtitle_config")
+
     return {
         "video_id": video_id,
-        "language": language,
+        "language": lang_clean,
         "segments": segments,
-        "count": len(segments)
+        "count": len(segments),
+        "has_translation": has_translation,
+        "config": sub_config,
     }
 
 
@@ -2011,29 +2581,28 @@ async def update_subtitle_segments(
     user_id: int = Depends(get_current_user_id),
 ):
     """
-    Save and update subtitle segments directly from the Video Editor.
+    Save and update subtitle segments directly from the Subtitle Studio / Video Editor.
     Does NOT deduct quota (editing is free).
     Automatically regenerates SRT, VTT, and ASS files with current segments.
     """
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
+    lang_clean = language.lower().strip()
     segments = body.get("segments", [])
     if not isinstance(segments, list):
         raise HTTPException(400, "Invalid segments payload, must be a list")
 
-    translation_dir = os.path.dirname(video.transcript_path) if video.transcript_path else None
-    if not translation_dir:
-        alt_dir = OUTPUT_DIR / f"transcript_{video_id}"
-        alt_dir.mkdir(parents=True, exist_ok=True)
-        translation_dir = str(alt_dir)
+    canonical_dir = OUTPUT_DIR / f"transcript_{video_id}"
+    canonical_dir.mkdir(parents=True, exist_ok=True)
+    translation_dir = str(canonical_dir)
 
     # 1. Save updated segments to translation_{language}.json
-    translation_path = os.path.join(translation_dir, f"translation_{language}.json")
+    translation_path = os.path.join(translation_dir, f"translation_{lang_clean}.json")
     try:
         with open(translation_path, "w", encoding="utf-8") as f:
             json.dump({
                 "video_id": video_id,
                 "source_language": video.source_language or "en",
-                "target_language": language,
+                "target_language": lang_clean,
                 "segments": segments
             }, f, indent=2, ensure_ascii=False)
     except Exception as e:
@@ -2054,8 +2623,8 @@ async def update_subtitle_segments(
     try:
         paths = subtitle_service.save_all_subtitles(
             segments=segments,
-            output_dir=translation_dir,
-            language=language,
+            base_dir=translation_dir,
+            language=lang_clean,
             text_key="translated_text",
             font_size=font_size,
             position=position,
@@ -2065,19 +2634,22 @@ async def update_subtitle_segments(
             max_lines=max_lines,
             effect=effect,
         )
-        if "srt" in paths:
+        if "ass" in paths:
+            video.subtitle_path = paths["ass"]
+        elif "srt" in paths:
             video.subtitle_path = paths["srt"]
-            db.commit()
-    except Exception as e:
-        logger.warning(f"Could not regenerate all subtitle files: {e}")
+        video.target_language = lang_clean
+        db.commit()
+    except Exception as se:
+        logger.warning(f"Could not re-generate all subtitle files on segments update: {se}")
 
     return {
-        "success": True,
         "video_id": video_id,
-        "language": language,
-        "count": len(segments),
+        "language": lang_clean,
         "segments": segments,
-        "message": f"Successfully updated {len(segments)} subtitle segments"
+        "count": len(segments),
+        "status": "updated",
+        "message": f"Successfully updated {len(segments)} subtitle segments and synchronized files"
     }
 
 
@@ -2506,6 +3078,8 @@ async def generate_tts(
         
         # Update video record
         video.dubbed_audio_path = str(tts_path)
+        video.current_step = "dubbing"
+        video.progress = max(int(video.progress or 0), 85)
         db.commit()
         
         logger.info(f"✅ TTS generation completed for video {video_id}")
@@ -2634,12 +3208,13 @@ async def generate_dubbed_video(
     video_format: str = Query("mp4", description="Output video format: mp4, mov, avi"),
     quality: str = Query("1080p", description="Video quality: 360p, 720p, 1080p, 4K"),
     burn_subtitles: bool = Query(True, description="Burn subtitles into video (Hardsub)"),
+    aspect_ratio: Optional[str] = Query(None, description="Aspect ratio crop/scale, e.g. 16:9, 9:16, 1:1, 4:3"),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    """Generate a complete dubbed video with format and quality options."""
+    """Generate a complete dubbed video with format, quality, and aspect ratio options."""
     logger.info(f"🎬 Starting dubbing for video {video_id}")
-    logger.info(f"   Language: {language}, Format: {video_format}, Quality: {quality}, BurnSubtitles: {burn_subtitles}")
+    logger.info(f"   Language: {language}, Format: {video_format}, Quality: {quality}, BurnSubtitles: {burn_subtitles}, AspectRatio: {aspect_ratio}")
     
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
     
@@ -2796,6 +3371,25 @@ async def generate_dubbed_video(
                 else:
                     logger.info(f"No subtitle file found for video {video_id}, proceeding without burning")
 
+            # Auto-resolve aspect ratio from snapshot_data or subtitle config if not provided
+            final_aspect_ratio = aspect_ratio
+            if not final_aspect_ratio:
+                snap = getattr(video, "snapshot_data", None) or {}
+                sub_cfg = snap.get("subtitle_config", {})
+                final_aspect_ratio = sub_cfg.get("aspect_ratio")
+                if not final_aspect_ratio:
+                    cand_dir = OUTPUT_DIR / f"transcript_{video_id}"
+                    cfg_file = cand_dir / f"subtitle_config_{language.lower().strip()}.json"
+                    if cfg_file.exists():
+                        try:
+                            with open(cfg_file, "r", encoding="utf-8") as f:
+                                cfg_data = json.load(f)
+                                final_aspect_ratio = cfg_data.get("aspect_ratio")
+                        except Exception:
+                            pass
+
+            logger.info(f"📐 Applying aspect ratio for dubbing: {final_aspect_ratio or 'original/source'}")
+
             # Generate dubbed video and upload to S3 with HLS (non-blocking worker thread)
             result = await asyncio.to_thread(
                 audio_service.mix_and_mux,
@@ -2810,6 +3404,7 @@ async def generate_dubbed_video(
                 generate_hls=True,  # ✅ Enable HLS generation
                 subtitle_path=resolved_sub_path,
                 burn_subtitles=burn_subtitles,
+                aspect_ratio=final_aspect_ratio,
             )
         
         # Get results
@@ -2835,6 +3430,8 @@ async def generate_dubbed_video(
         if s3_key:
             video.output_path = s3_key
             video.status = VideoStatus.COMPLETED.value
+            video.current_step = "completed"
+            video.progress = 100
             video.resolution = quality
             video.file_size = file_size
             video.updated_at = datetime.utcnow()
@@ -2881,7 +3478,9 @@ async def generate_dubbed_video(
                 "language": language,
                 "video_format": video_format,
                 "quality": quality,
+                "output_path": s3_key,
                 "s3_path": s3_key,
+                "s3_key": s3_key,
                 "s3_uri": f"s3://{AWS_S3_BUCKET}/{s3_key}",
                 "file_size": file_size,
                 "status": "completed",

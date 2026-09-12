@@ -7,12 +7,16 @@
     "completed": "Completed",
     "editing": "Needs Review",
     "processing": "Processing",
-    "draft": "Draft"
+    "draft": "Draft",
+    "uploaded": "Uploaded",
+    "failed": "Failed"
   },
   "action": {
     "reviewVideo": "Review Video",
     "continueEditing": "Continue Editing",
     "viewProgress": "View Progress",
-    "openPipeline": "Open Pipeline"
+    "openPipeline": "Open Pipeline",
+    "deleteVideo": "Delete Video",
+    "deleteSelected": "Delete Selected"
   }
 }

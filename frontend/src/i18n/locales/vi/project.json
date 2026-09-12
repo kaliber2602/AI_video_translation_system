@@ -7,12 +7,16 @@
     "completed": "Hoàn tất",
     "editing": "Cần duyệt",
     "processing": "Đang xử lý",
-    "draft": "Bản nháp"
+    "draft": "Bản nháp",
+    "uploaded": "Đã tải lên",
+    "failed": "Xử lý thất bại"
   },
   "action": {
     "reviewVideo": "Xem lại video",
     "continueEditing": "Tiếp tục chỉnh sửa",
     "viewProgress": "Xem tiến độ",
-    "openPipeline": "Mở quy trình"
+    "openPipeline": "Mở quy trình",
+    "deleteVideo": "Xóa video",
+    "deleteSelected": "Xóa mục đã chọn"
   }
 }

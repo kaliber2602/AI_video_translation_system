@@ -19,7 +19,7 @@ from app.services.s3_service import upload_file, upload_hls_directory
 from app.core.config import SEGMENT_SECONDS, OUTPUT_DIR, UPLOAD_DIR
 from app.core.languages import TARGET_LANGUAGE_MAP, SOURCE_LANGUAGE_MAP
 from app.core.database import DatabaseSession
-from app.models import Video, VideoPipelineConfig, ProjectGlossary, TranscriptSegment, SpeakerProfile
+from app.models import Video, VideoPipelineConfig, ProjectGlossary, TranscriptSegment, TranslationSegment, SpeakerProfile
 from app.models.enums import JobStatus, JobStep
 
 
@@ -69,9 +69,19 @@ class PipelineSteps:
         self.job_service.log_task(job_id, "whisperx", "running", "Transcribing with Whisper...")
         try:
             segments, detected_lang = self.stt_service.transcribe_audio(vocal_path)
-            transcript_path = os.path.join(temp_dir, "transcript.json")
+            
+            # Canonical persistent directory
+            canonical_dir = OUTPUT_DIR / f"transcript_{video_id}"
+            canonical_dir.mkdir(parents=True, exist_ok=True)
+            transcript_path = str(canonical_dir / "transcript.json")
+            
             with open(transcript_path, "w", encoding="utf-8") as f:
-                json.dump({"language": detected_lang, "segments": segments}, f, indent=2)
+                json.dump({"language": detected_lang, "segments": segments}, f, indent=2, ensure_ascii=False)
+
+            # Also mirror in temp_dir for local pipeline step chaining
+            temp_transcript = os.path.join(temp_dir, "transcript.json")
+            with open(temp_transcript, "w", encoding="utf-8") as f:
+                json.dump({"language": detected_lang, "segments": segments}, f, indent=2, ensure_ascii=False)
 
             video = self.db.query(Video).filter(Video.id == video_id).first()
             if video:
@@ -127,7 +137,8 @@ class PipelineSteps:
         self.job_service.update_job_status(job_id, JobStatus.PROCESSING, progress=50, current_step=JobStep.TRANSLATION)
         self.job_service.log_task(job_id, "translation", "running", f"Translating {source_lang} -> {target_lang}...")
         try:
-            lang_config = TARGET_LANGUAGE_MAP.get(target_lang)
+            target_lang_clean = target_lang.lower().strip()
+            lang_config = TARGET_LANGUAGE_MAP.get(target_lang) or TARGET_LANGUAGE_MAP.get(target_lang_clean)
             if not lang_config:
                 raise ValueError(f"Unsupported target language: {target_lang}")
             nllb_tgt = lang_config["nllb"]
@@ -145,12 +156,64 @@ class PipelineSteps:
                 segments=segments, glossary=glossary, src_lang=nllb_src, tgt_lang=nllb_tgt
             )
             
-            translation_path = os.path.join(temp_dir, f"translation_{target_lang}.json")
+            # 1. Save to temp_dir for downstream steps in this job
+            translation_path = os.path.join(temp_dir, f"translation_{target_lang_clean}.json")
             with open(translation_path, "w", encoding="utf-8") as f:
-                json.dump({"source_language": source_lang, "target_language": target_lang, "segments": translated_segments}, f, indent=2)
+                json.dump({"source_language": source_lang, "target_language": target_lang_clean, "segments": translated_segments}, f, indent=2)
             
+            # 2. Save persistently to canonical directory
+            canonical_dir = OUTPUT_DIR / f"transcript_{video_id}"
+            canonical_dir.mkdir(parents=True, exist_ok=True)
+            persistent_path = canonical_dir / f"translation_{target_lang_clean}.json"
+            with open(persistent_path, "w", encoding="utf-8") as f:
+                json.dump({"source_language": source_lang, "target_language": target_lang_clean, "segments": translated_segments}, f, indent=2)
+                
+            # 3. Update video target language
+            video = self.db.query(Video).filter(Video.id == video_id).first()
+            if video:
+                video.target_language = target_lang_clean
+                self.db.commit()
+
+            # 4. Save to DB TranslationSegment
+            try:
+                self.db.query(TranslationSegment).filter(
+                    TranslationSegment.video_id == video_id,
+                    TranslationSegment.target_language == target_lang_clean
+                ).delete()
+                for idx, seg in enumerate(translated_segments):
+                    t_seg = TranslationSegment(
+                        video_id=video_id,
+                        target_language=target_lang_clean,
+                        segment_index=idx,
+                        start_time=float(seg.get("start", 0.0)),
+                        end_time=float(seg.get("end", 0.0)),
+                        translated_text=seg.get("translated_text", "")
+                    )
+                    self.db.add(t_seg)
+                self.db.commit()
+            except Exception as e_db:
+                print(f"[step_translate] Warning saving translation to DB: {e_db}")
+
+            # 5. Pre-generate subtitles into canonical dir immediately
+            try:
+                SubtitleService.save_all_subtitles(
+                    segments=translated_segments,
+                    base_dir=str(canonical_dir),
+                    language=target_lang_clean,
+                    text_key="translated_text",
+                    font_size=22,
+                    position="bottom",
+                    font_name="Montserrat",
+                    primary_color="#FFFFFF",
+                    outline_color="#000000",
+                    max_lines=2,
+                    effect="none",
+                )
+            except Exception as e_sub:
+                print(f"[step_translate] Warning pre-generating subtitles: {e_sub}")
+
             self.job_service.log_task(job_id, "translation", "success", f"Translated {len(translated_segments)} segments")
-            return {"translated_segments": translated_segments, "translation_path": translation_path, "success": True}
+            return {"translated_segments": translated_segments, "translation_path": str(persistent_path), "success": True}
         except Exception as e:
             self.job_service.log_task(job_id, "translation", "failed", error_trace=str(e))
             raise
@@ -229,9 +292,11 @@ class PipelineSteps:
                 except Exception as probe_err:
                     pass
 
+            canonical_dir = OUTPUT_DIR / f"transcript_{video_id}"
+            canonical_dir.mkdir(parents=True, exist_ok=True)
             paths = SubtitleService.save_all_subtitles(
                 segments=translated_segments,
-                base_dir=temp_dir,
+                base_dir=str(canonical_dir),
                 language=target_lang,
                 text_key="translated_text",
                 font_size=22,
@@ -247,13 +312,23 @@ class PipelineSteps:
                 auto_split=True,
             )
 
-            srt_path = paths.get("srt", os.path.join(temp_dir, f"subtitles_{target_lang}.srt"))
-            vtt_path = paths.get("vtt", os.path.join(temp_dir, f"subtitles_{target_lang}.vtt"))
-            ass_path = paths.get("ass", os.path.join(temp_dir, f"subtitles_{target_lang}.ass"))
+            # Copy to temp_dir if needed for downstream muxing
+            for ext, p in paths.items():
+                dest = os.path.join(temp_dir, os.path.basename(p))
+                if os.path.abspath(p) != os.path.abspath(dest):
+                    try:
+                        shutil.copy2(p, dest)
+                    except Exception:
+                        pass
+
+            srt_path = paths.get("srt", str(canonical_dir / f"subtitles_{target_lang}.srt"))
+            vtt_path = paths.get("vtt", str(canonical_dir / f"subtitles_{target_lang}.vtt"))
+            ass_path = paths.get("ass", str(canonical_dir / f"subtitles_{target_lang}.ass"))
 
             if video:
                 # Prefer .ass for rich styles if available, fallback to .srt
                 video.subtitle_path = ass_path if os.path.exists(ass_path) else srt_path
+                video.target_language = target_lang
                 self.db.commit()
 
             self.job_service.log_task(job_id, "subtitle_generate", "success", "Subtitles generated")

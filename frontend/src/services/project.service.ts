@@ -356,3 +356,24 @@ export const triggerAssetZipDownload = async (
   window.URL.revokeObjectURL(url);
 };
 
+export const deleteProjectAsset = async (
+  projectId: number | string,
+  assetId: string
+): Promise<{ success: boolean; message: string }> => {
+  const response = await api.delete<{ success: boolean; message: string }>(
+    `/api/projects/${projectId}/assets/${assetId}`
+  );
+  return response.data;
+};
+
+export const bulkDeleteProjectAssets = async (
+  projectId: number | string,
+  assetIds: string[]
+): Promise<{ success: boolean; deleted_count: number }> => {
+  const response = await api.post<{ success: boolean; deleted_count: number }>(
+    `/api/projects/${projectId}/assets/bulk-delete`,
+    { asset_ids: assetIds }
+  );
+  return response.data;
+};
+

@@ -70,6 +70,19 @@ class VideoUploadResponse(BaseModel):
 class VideoUpdateRequest(BaseModel):
     title: Optional[str] = None
     folder_id: Optional[int] = None
+    target_language: Optional[str] = None
+    source_language: Optional[str] = None
+    current_step: Optional[str] = None
+    progress: Optional[int] = None
+    snapshot_data: Optional[Dict[str, Any]] = None
+
+
+class VideoSnapshotRequest(BaseModel):
+    active_step: Optional[int] = None
+    current_step: Optional[str] = None
+    target_language: Optional[str] = None
+    progress: Optional[int] = None
+    state_data: Optional[Dict[str, Any]] = None
 
 
 class StartProcessingResponse(BaseModel):
@@ -129,6 +142,7 @@ class VideoListItem(BaseModel):
     created_at: datetime
     updated_at: datetime
     has_hls: bool = False
+    has_translation: bool = False
     thumbnail_path: Optional[str] = None
     thumbnail_url: Optional[str] = None
 
@@ -147,6 +161,8 @@ class VideoDetailResponse(BaseModel):
     subtitle_path: Optional[str] = None
     dubbed_audio_path: Optional[str] = None
     output_path: Optional[str] = None
+    has_translation: bool = False
+    translation_path: Optional[str] = None
     thumbnail_path: Optional[str] = None
     thumbnail_url: Optional[str] = None
     duration: Optional[float] = None
@@ -160,6 +176,7 @@ class VideoDetailResponse(BaseModel):
     updated_at: datetime
     target_language: Optional[str] = None
     source_language: Optional[str] = None
+    snapshot_data: Optional[Dict[str, Any]] = None
     segments: Optional[List[SegmentOut]] = None
     job_info: Optional[Dict[str, Any]] = None
 

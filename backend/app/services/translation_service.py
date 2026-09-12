@@ -87,7 +87,7 @@ class TranslationService:
         merged_segments.append(current_merge)
         return merged_segments
 
-    def translate_document(self, segments: list, glossary: dict, src_lang: str, tgt_lang: str):
+    def translate_document(self, segments: list, glossary: dict, src_lang: str, tgt_lang: str, model: str = "nllb_200_1.3b"):
         if not segments:
             return []
             
@@ -97,6 +97,7 @@ class TranslationService:
                 seg["translated_text"] = seg["text"]
             return segments
             
+        print(f"[Translate] Dịch {len(segments)} segments ({src_lang} -> {tgt_lang}) sử dụng model: {model}", flush=True)
         merged_segments = self._smart_merge_segments(segments)
         print(f"[Translate] Đã gộp {len(segments)} đoạn cắt vụn thành {len(merged_segments)} câu hoàn chỉnh ngữ nghĩa.", flush=True)
         
