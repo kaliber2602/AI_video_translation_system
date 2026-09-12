@@ -43,6 +43,13 @@ export default function DubbingStep() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingTTS, setIsGeneratingTTS] = useState(false);
   const [isGeneratingDub, setIsGeneratingDub] = useState(false);
+  const isGlobalTaskRunning = Boolean(
+    state.stepsSummary?.active_task &&
+      (state.stepsSummary.active_task.status === "processing" ||
+        state.stepsSummary.active_task.status === "queued") &&
+      !isGeneratingTTS &&
+      !isGeneratingDub
+  );
   
   // TTS State
   const [ttsStatus, setTtsStatus] = useState<string | null>(null);
@@ -57,6 +64,26 @@ export default function DubbingStep() {
   const [speakerAudioUrl, setSpeakerAudioUrl] = useState<string | null>(null);
   const [isPlayingSpeaker, setIsPlayingSpeaker] = useState(false);
   const [isLoadingSpeakerAudio, setIsLoadingSpeakerAudio] = useState(false);
+
+  // Background Task & Polling States
+  const [ttsProgress, setTtsProgress] = useState<number>(0);
+  const [dubProgress, setDubProgress] = useState<number>(0);
+  const ttsPollingTimerRef = useRef<any>(null);
+  const dubPollingTimerRef = useRef<any>(null);
+
+  const stopTtsPolling = () => {
+    if (ttsPollingTimerRef.current) {
+      clearInterval(ttsPollingTimerRef.current);
+      ttsPollingTimerRef.current = null;
+    }
+  };
+
+  const stopDubPolling = () => {
+    if (dubPollingTimerRef.current) {
+      clearInterval(dubPollingTimerRef.current);
+      dubPollingTimerRef.current = null;
+    }
+  };
   
   // Right sidebar tab state
   const [isPanelOpen, setIsPanelOpen] = useState(true);
@@ -139,6 +166,8 @@ export default function DubbingStep() {
 
   useEffect(() => {
     return () => {
+      stopTtsPolling();
+      stopDubPolling();
       if (activeSpeakerAudio.current) {
         activeSpeakerAudio.current.pause();
         activeSpeakerAudio.current = null;
@@ -244,6 +273,142 @@ export default function DubbingStep() {
     setIsPlayingSpeaker(false);
   };
 
+  const pollTTSStatus = (vidId: number, lang: string) => {
+    stopTtsPolling();
+
+    const checkStatus = async () => {
+      try {
+        const summary = await videoService.getStepsSummary(vidId);
+        const dubStep = summary?.steps?.dubbing;
+        const activeTask = summary?.active_task;
+
+        if (activeTask && (activeTask.current_step === "tts" || activeTask.current_step === "dubbing")) {
+          if (typeof activeTask.progress === "number" && activeTask.progress > 0) {
+            setTtsProgress(activeTask.progress);
+          }
+          if (activeTask.status === "failed") {
+            stopTtsPolling();
+            setIsGeneratingTTS(false);
+            setTtsStatus("failed");
+            setDubbingError(activeTask.error_message || "Tổng hợp giọng nói thất bại trong Celery worker");
+            return;
+          }
+        }
+
+        if (dubStep?.status === "completed" || (dubStep?.dubbed_audio_path && !activeTask)) {
+          stopTtsPolling();
+          setTtsStatus("completed");
+          setTtsProgress(100);
+          setIsGeneratingTTS(false);
+          try {
+            const blob = await videoService.getTTSBlob(vidId, lang);
+            const blobUrl = URL.createObjectURL(blob);
+            setTtsAudioUrl((prev) => {
+              if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+              return blobUrl;
+            });
+          } catch (audioErr) {
+            console.error("Failed to load TTS preview blob:", audioErr);
+          }
+
+          if (state.video) {
+            dispatch({
+              type: "SET_VIDEO",
+              payload: {
+                ...state.video,
+                dubbedAudioPath: dubStep?.dubbed_audio_path || `outputs/tts_${vidId}/tts_${lang}.wav`,
+                progress: Math.max(state.video.progress || 0, 85),
+                currentStep: "dubbing",
+              },
+            });
+          }
+          window.dispatchEvent(new CustomEvent("subscription-updated"));
+        } else if (dubStep?.status === "failed") {
+          stopTtsPolling();
+          setIsGeneratingTTS(false);
+          setTtsStatus("failed");
+          setDubbingError(activeTask?.error_message || "Tạo giọng nói thất bại");
+        }
+      } catch (err) {
+        console.warn("Polling TTS status error:", err);
+      }
+    };
+
+    checkStatus();
+    ttsPollingTimerRef.current = setInterval(checkStatus, 2500);
+  };
+
+  const pollDubbingStatus = (vidId: number, lang: string) => {
+    stopDubPolling();
+
+    const checkStatus = async () => {
+      try {
+        const summary = await videoService.getStepsSummary(vidId);
+        const exportStep = summary?.steps?.export;
+        const activeTask = summary?.active_task;
+
+        if (activeTask && (activeTask.current_step === "dub" || activeTask.current_step === "export")) {
+          if (typeof activeTask.progress === "number" && activeTask.progress > 0) {
+            setDubProgress(activeTask.progress);
+          }
+          if (activeTask.status === "failed") {
+            stopDubPolling();
+            setIsGeneratingDub(false);
+            setDubbingStatus("failed");
+            setDubbingError(activeTask.error_message || "Lồng tiếng video thất bại trong Celery worker");
+            return;
+          }
+        }
+
+        if (exportStep?.status === "completed" || (exportStep?.output_path && !activeTask)) {
+          stopDubPolling();
+          setDubbingStatus("completed");
+          setDubProgress(100);
+          setIsGeneratingDub(false);
+
+          try {
+            const status = await videoService.getDubbingStatus(vidId);
+            setDubbedVideo(status);
+            const previewUrl = await videoService.getDubbedVideoPreview(vidId, lang);
+            if (previewUrl) {
+              setVideoUrl((prev) => {
+                if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+                return previewUrl;
+              });
+              setIsDubbed(true);
+            }
+          } catch (previewErr) {
+            console.error("Failed to load dubbed preview:", previewErr);
+          }
+
+          if (state.video) {
+            dispatch({
+              type: "SET_VIDEO",
+              payload: {
+                ...state.video,
+                outputPath: exportStep?.output_path,
+                status: "completed",
+                progress: 100,
+                currentStep: "completed",
+              },
+            });
+          }
+          window.dispatchEvent(new CustomEvent("subscription-updated"));
+        } else if (exportStep?.status === "failed") {
+          stopDubPolling();
+          setIsGeneratingDub(false);
+          setDubbingStatus("failed");
+          setDubbingError(activeTask?.error_message || "Lồng tiếng video thất bại");
+        }
+      } catch (err) {
+        console.warn("Polling dubbing status error:", err);
+      }
+    };
+
+    checkStatus();
+    dubPollingTimerRef.current = setInterval(checkStatus, 3000);
+  };
+
   const loadDubbingStatus = async () => {
     if (!state.video?.videoId) {
       setIsLoading(false);
@@ -254,6 +419,42 @@ export default function DubbingStep() {
     setDubbingError(null);
 
     try {
+      // 0. Check active Celery tasks for F5 / navigation resilience
+      try {
+        const summary = await videoService.getStepsSummary(vidId);
+        const dubStep = summary?.steps?.dubbing;
+        const exportStep = summary?.steps?.export;
+        const activeTask = summary?.active_task;
+
+        if (
+          dubStep?.status === "processing" ||
+          ((activeTask?.current_step === "tts" || activeTask?.current_step === "dubbing") &&
+            (activeTask?.status === "processing" || activeTask?.status === "queued"))
+        ) {
+          setIsGeneratingTTS(true);
+          setTtsStatus("processing");
+          if (typeof activeTask?.progress === "number") {
+            setTtsProgress(activeTask.progress);
+          }
+          pollTTSStatus(vidId, selectedLanguage);
+        }
+
+        if (
+          exportStep?.status === "processing" ||
+          ((activeTask?.current_step === "dub" || activeTask?.current_step === "export") &&
+            (activeTask?.status === "processing" || activeTask?.status === "queued"))
+        ) {
+          setIsGeneratingDub(true);
+          setDubbingStatus("processing");
+          if (typeof activeTask?.progress === "number") {
+            setDubProgress(activeTask.progress);
+          }
+          pollDubbingStatus(vidId, selectedLanguage);
+        }
+      } catch (sumErr) {
+        console.warn("Could not check steps summary on mount in DubbingStep:", sumErr);
+      }
+
       // 1. Fetch Subtitle Segments & Config from Step 4 (Subtitle Studio)
       try {
         const subData = await videoService.getSubtitleSegments(vidId, selectedLanguage);
@@ -385,6 +586,7 @@ export default function DubbingStep() {
     setIsGeneratingTTS(true);
     setDubbingError(null);
     setTtsStatus("processing");
+    setTtsProgress(20);
 
     try {
       const result = await videoService.generateTTS(
@@ -394,8 +596,14 @@ export default function DubbingStep() {
         ttsStyle,
         ttsSpeed
       );
+
+      if (result?.status === "processing" || result?.job_id) {
+        pollTTSStatus(state.video.videoId, selectedLanguage);
+        return;
+      }
       
       setTtsStatus("completed");
+      setTtsProgress(100);
       try {
         const blob = await videoService.getTTSBlob(state.video.videoId, selectedLanguage);
         const blobUrl = URL.createObjectURL(blob);
@@ -425,12 +633,13 @@ export default function DubbingStep() {
       }
 
       window.dispatchEvent(new CustomEvent("subscription-updated"));
+      setIsGeneratingTTS(false);
     } catch (error: any) {
       console.error("TTS generation failed:", error);
       setDubbingError(error.message || "Failed to generate TTS");
       setTtsStatus("failed");
-    } finally {
       setIsGeneratingTTS(false);
+      setTtsProgress(0);
     }
   };
 
@@ -440,6 +649,7 @@ export default function DubbingStep() {
     setIsGeneratingDub(true);
     setDubbingError(null);
     setDubbingStatus("processing");
+    setDubProgress(20);
 
     try {
       const result = await videoService.generateDubbedVideo(
@@ -450,9 +660,15 @@ export default function DubbingStep() {
         burnSubtitles,
         aspectRatio
       );
+
+      if (result?.status === "processing" || result?.job_id) {
+        pollDubbingStatus(state.video.videoId, selectedLanguage);
+        return;
+      }
       
       setDubbedVideo(result);
       setDubbingStatus("completed");
+      setDubProgress(100);
       
       try {
         const previewUrl = await videoService.getDubbedVideoPreview(
@@ -489,15 +705,16 @@ export default function DubbingStep() {
       }
 
       window.dispatchEvent(new CustomEvent("subscription-updated"));
-      
+      setIsGeneratingDub(false);
     } catch (error: any) {
       console.error("Dubbing generation failed:", error);
       setDubbingError(error.message || "Failed to generate dubbed video");
       setDubbingStatus("failed");
-    } finally {
       setIsGeneratingDub(false);
+      setDubProgress(0);
     }
   };
+
 
   const handleDownload = async () => {
     if (!state.video?.videoId || !dubbedVideo) return;
@@ -837,12 +1054,18 @@ export default function DubbingStep() {
               <button
                 type="button"
                 onClick={generateTTS}
-                disabled={isGeneratingTTS}
+                disabled={isGeneratingTTS || isGlobalTaskRunning}
                 className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary-soft)] px-3 py-2.5 text-xs font-bold text-[var(--color-primary)] transition hover:bg-[var(--color-primary)] hover:text-white disabled:opacity-50 active:scale-98 shadow-xs"
               >
                 {isGeneratingTTS ? <Loader2 size={13} className="animate-spin" /> : <Mic size={13} />}
                 <span>
-                  {isGeneratingTTS ? "Đang tạo giọng AI..." : isTTSReady ? "Tạo lại giọng đọc AI" : "Tạo giọng đọc AI (TTS)"}
+                  {isGeneratingTTS
+                    ? `Đang tạo giọng AI...${ttsProgress > 0 ? ` (${ttsProgress}%)` : ""}`
+                    : isGlobalTaskRunning
+                    ? "Tác vụ ngầm đang chạy (Đã khóa)"
+                    : isTTSReady
+                    ? "Tạo lại giọng đọc AI"
+                    : "Tạo giọng đọc AI (TTS)"}
                 </span>
               </button>
 
@@ -1084,11 +1307,19 @@ export default function DubbingStep() {
               <button
                 type="button"
                 onClick={generateDubbedVideo}
-                disabled={isGeneratingDub || !isTTSReady}
+                disabled={isGeneratingDub || !isTTSReady || isGlobalTaskRunning}
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-[var(--color-primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed active:scale-98"
               >
                 {isGeneratingDub ? <Loader2 size={14} className="animate-spin" /> : <Film size={14} />}
-                <span>{isGeneratingDub ? "Đang render video..." : isDubReady ? "Tạo lại Video Lồng Tiếng" : "Tạo Video Lồng Tiếng"}</span>
+                <span>
+                  {isGeneratingDub
+                    ? `Đang render video...${dubProgress > 0 ? ` (${dubProgress}%)` : ""}`
+                    : isGlobalTaskRunning
+                    ? "Tác vụ ngầm đang chạy (Đã khóa)"
+                    : isDubReady
+                    ? "Tạo lại Video Lồng Tiếng"
+                    : "Tạo Video Lồng Tiếng"}
+                </span>
               </button>
             </div>
 

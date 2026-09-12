@@ -5,6 +5,32 @@ import { createContext, useReducer, type ReactNode } from "react";
 // STATE TYPES
 // ============================================================
 
+export interface StepsSummaryData {
+  video_id: number;
+  overall_status?: string;
+  overall_progress?: number;
+  current_step?: string;
+  active_task?: {
+    task_id?: string;
+    job_id?: string;
+    current_step?: string;
+    step?: string;
+    status: string;
+    progress?: number;
+    message?: string;
+    error_message?: string;
+  } | null;
+  steps: {
+    audio?: { status: string; has_vocal?: boolean; has_bgm?: boolean; vocal_path?: string; bgm_path?: string };
+    transcript?: { status: string; segment_count?: number; language?: string; transcript_path?: string };
+    translation?: { status: string; target_language?: string; languages?: string[]; segment_count?: number };
+    subtitle?: { status: string; subtitle_path?: string; count?: number; formats?: string[] };
+    dubbing?: { status: string; dubbed_audio_path?: string; count?: number; languages?: string[] };
+    export?: { status: string; output_path?: string; count?: number; latest_render?: any };
+    [key: string]: any;
+  };
+}
+
 export interface PipelineState {
   step: number;
   video: {
@@ -24,6 +50,7 @@ export interface PipelineState {
     progress?: number;
     currentStep?: string;
   } | null;
+  stepsSummary: StepsSummaryData | null;
   job: {
     jobId?: string;
     status?: string;
@@ -44,6 +71,7 @@ export interface PipelineState {
 export type PipelineAction =
   | { type: "SET_STEP"; payload: number }
   | { type: "SET_VIDEO"; payload: any }
+  | { type: "SET_STEPS_SUMMARY"; payload: StepsSummaryData | null }
   | { type: "SET_JOB"; payload: any }
   | { type: "UPDATE_JOB_STATUS"; payload: any }
   | { type: "SET_TARGET_LANGUAGE"; payload: string }
@@ -63,6 +91,7 @@ export type PipelineAction =
 export const initialState: PipelineState = {
   step: 1,
   video: null,
+  stepsSummary: null,
   job: null,
   targetLanguage: "vi",
   projectId: undefined,
@@ -89,6 +118,7 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
         video: action.payload,
         ...(isNewVideo
           ? {
+              stepsSummary: null,
               transcript: null,
               translation: null,
               subtitles: null,
@@ -99,6 +129,8 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
           : {}),
       };
     }
+    case "SET_STEPS_SUMMARY":
+      return { ...state, stepsSummary: action.payload };
     case "SET_JOB":
       return { ...state, job: action.payload };
     case "UPDATE_JOB_STATUS":

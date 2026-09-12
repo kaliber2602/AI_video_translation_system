@@ -515,7 +515,7 @@ def create_notification(
         elif safe_type == "collaboration":
             email_allowed = prefs.get("email_on_project_invitation", True)
 
-        if email_allowed and background_tasks is not None:
+        if email_allowed:
             # Query user email
             user_email = None
             conn = get_connection()
@@ -529,13 +529,22 @@ def create_notification(
                 conn.close()
 
             if user_email:
-                background_tasks.add_task(
-                    _send_notification_email_safe,
-                    user_email,
-                    safe_title,
-                    safe_message,
-                    cleaned_url,
-                )
+                if background_tasks is not None:
+                    background_tasks.add_task(
+                        _send_notification_email_safe,
+                        user_email,
+                        safe_title,
+                        safe_message,
+                        cleaned_url,
+                    )
+                else:
+                    # In Celery worker context, background_tasks is None: dispatch directly
+                    _send_notification_email_safe(
+                        user_email,
+                        safe_title,
+                        safe_message,
+                        cleaned_url,
+                    )
 
         return created_notification
     except Exception as exc:

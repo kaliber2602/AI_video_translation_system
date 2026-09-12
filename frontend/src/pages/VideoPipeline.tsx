@@ -142,9 +142,20 @@ function VideoPipelineContent() {
         setIsLoadingVideo(true);
         setVideoError(null);
 
-        videoService.getVideo(vidNum)
-          .then((videoData: any) => {
+        Promise.all([
+          videoService.getVideo(vidNum),
+          videoService.getStepsSummary(vidNum).catch(() => null),
+        ])
+          .then(([videoData, summaryData]: [any, any]) => {
             console.log("📹 Loaded video data:", videoData);
+            if (summaryData) {
+              console.log("📊 Loaded steps summary:", summaryData);
+              dispatch({
+                type: "SET_STEPS_SUMMARY",
+                payload: summaryData,
+              });
+            }
+
             dispatch({
               type: "SET_VIDEO",
               payload: {
@@ -181,7 +192,7 @@ function VideoPipelineContent() {
               }
             }
 
-            // Route to appropriate step: respect URL query param first, then saved snapshot, then available assets
+            // Route to appropriate step: respect URL query param first, then saved snapshot, then steps summary, then available assets
             const queryStepParam = searchParams.get("step");
             let targetStep = 2; // Default to transcript if uploaded
             
@@ -199,17 +210,17 @@ function VideoPipelineContent() {
               targetStep = STEP_ID_TO_NUM[queryStepParam];
             } else if (savedStepNum && savedStepNum >= 1 && savedStepNum <= 6) {
               targetStep = savedStepNum;
-            } else if (videoData.output_path || videoData.status === "completed") {
+            } else if (summaryData?.steps?.export?.status === "completed" || videoData.output_path || videoData.status === "completed") {
               targetStep = 6;
-            } else if (videoData.dubbed_audio_path) {
+            } else if (summaryData?.steps?.dubbing?.status === "completed" || videoData.dubbed_audio_path) {
               targetStep = 5;
-            } else if (videoData.subtitle_path) {
+            } else if (summaryData?.steps?.subtitle?.status === "completed" || videoData.subtitle_path) {
               targetStep = 4;
-            } else if (videoData.has_translation) {
+            } else if (summaryData?.steps?.translation?.status === "completed" || videoData.has_translation) {
               targetStep = 4;
-            } else if (videoData.transcript_path) {
+            } else if (summaryData?.steps?.transcript?.status === "completed" || videoData.transcript_path) {
               targetStep = 3;
-            } else if (videoData.extracted_vocal_path) {
+            } else if (summaryData?.steps?.audio?.status === "completed" || videoData.extracted_vocal_path) {
               targetStep = 2;
             }
 
@@ -239,6 +250,81 @@ function VideoPipelineContent() {
       }
     }
   }, [projectId, videoId, location.state, dispatch, state.step, searchParams, setSearchParams]);
+
+  // Polling for active background tasks (Phase 4 Re-hydration & Live Sync)
+  useEffect(() => {
+    const vidId = state.video?.videoId;
+    if (!vidId) return;
+
+    const currentActiveTask = state.stepsSummary?.active_task;
+    const isRunning = Boolean(
+      currentActiveTask &&
+      (currentActiveTask.status === "processing" || currentActiveTask.status === "queued")
+    );
+
+    if (!isRunning) return;
+
+    console.log("🔄 Background task active, polling steps-summary for video:", vidId);
+
+    const timer = setInterval(async () => {
+      try {
+        const freshSummary = await videoService.getStepsSummary(vidId);
+        if (freshSummary) {
+          dispatch({
+            type: "SET_STEPS_SUMMARY",
+            payload: freshSummary,
+          });
+
+          const stillRunning = Boolean(
+            freshSummary.active_task &&
+            (freshSummary.active_task.status === "processing" || freshSummary.active_task.status === "queued")
+          );
+
+          if (!stillRunning) {
+            console.log("✅ Background task finished! Refreshing video data and notifying navbar...");
+            clearInterval(timer);
+            // Refresh video metadata
+            try {
+              const freshVideo = await videoService.getVideo(vidId);
+              dispatch({
+                type: "SET_VIDEO",
+                payload: {
+                  videoId: freshVideo.id,
+                  filename: freshVideo.original_filename || freshVideo.title,
+                  fileSize: freshVideo.file_size || 0,
+                  status: freshVideo.status,
+                  progress: freshVideo.progress,
+                  currentStep: freshVideo.current_step,
+                  duration: freshVideo.duration,
+                  outputPath: freshVideo.output_path,
+                  dubbedAudioPath: freshVideo.dubbed_audio_path,
+                  subtitlePath: freshVideo.subtitle_path,
+                  transcriptPath: freshVideo.transcript_path,
+                  extractedVocalPath: freshVideo.extracted_vocal_path,
+                  projectId: freshVideo.project_id,
+                  hasTranslation: freshVideo.has_translation,
+                  translationPath: freshVideo.translation_path,
+                  snapshot_data: freshVideo.snapshot_data,
+                },
+              });
+            } catch (e) {
+              console.warn("Failed to refresh video metadata:", e);
+            }
+
+            // Dispatch global events for Navbar NotificationBell and Quotas
+            window.dispatchEvent(new CustomEvent("notifications-updated"));
+            window.dispatchEvent(new CustomEvent("subscription-updated"));
+            setSaveSuccessMessage("Tác vụ xử lý ngầm đã hoàn tất thành công!");
+            setTimeout(() => setSaveSuccessMessage(null), 5000);
+          }
+        }
+      } catch (pollErr) {
+        console.warn("Error polling steps summary:", pollErr);
+      }
+    }, 3000);
+
+    return () => clearInterval(timer);
+  }, [state.video?.videoId, state.stepsSummary?.active_task?.status, dispatch]);
 
   const pipelineSteps = [
     {
@@ -283,13 +369,21 @@ function VideoPipelineContent() {
     (step) => step.id === activeStep,
   );
 
-  // Decouple Step Checkpoint Completion from Step Index (UX-02, UX-07)
+  // Decouple Step Checkpoint Completion from Step Index (UX-02, UX-07, Phase 4)
   const isStepCheckpointCompleted = (stepId: string): boolean => {
+    // 1. Authoritative check via backend stepsSummary
+    const stepSummary = state.stepsSummary?.steps?.[stepId];
+    if (stepSummary && stepSummary.status === "completed") {
+      return true;
+    }
+
+    // 2. Fallback check via context state / video attributes
     switch (stepId) {
       case "upload":
         return Boolean(state.video?.videoId);
       case "transcript":
         return Boolean(
+          state.stepsSummary?.steps?.transcript?.status === "completed" ||
           state.video?.transcriptPath ||
           state.transcript ||
           state.video?.hasTranslation ||
@@ -303,6 +397,7 @@ function VideoPipelineContent() {
         );
       case "translation":
         return Boolean(
+          state.stepsSummary?.steps?.translation?.status === "completed" ||
           (state.translation?.segments && state.translation.segments.length > 0) ||
           state.video?.hasTranslation ||
           state.video?.translationPath ||
@@ -315,6 +410,7 @@ function VideoPipelineContent() {
         );
       case "subtitle":
         return Boolean(
+          state.stepsSummary?.steps?.subtitle?.status === "completed" ||
           state.subtitles ||
           state.video?.subtitlePath ||
           state.video?.dubbedAudioPath ||
@@ -324,6 +420,7 @@ function VideoPipelineContent() {
         );
       case "dubbing":
         return Boolean(
+          state.stepsSummary?.steps?.dubbing?.status === "completed" ||
           state.dubbedVideo?.output_path ||
           (state.dubbedVideo as any)?.s3_path ||
           state.video?.outputPath ||
@@ -334,6 +431,7 @@ function VideoPipelineContent() {
         );
       case "review-export":
         return Boolean(
+          state.stepsSummary?.steps?.export?.status === "completed" ||
           state.dubbedVideo?.output_path ||
           (state.dubbedVideo as any)?.s3_path ||
           state.video?.outputPath ||
@@ -349,9 +447,16 @@ function VideoPipelineContent() {
 
   const canNavigateToStep = (index: number): boolean => {
     if (index === 0) return true;
-    if (index <= activeStepIndex) return true;
-    const prevStepId = pipelineSteps[index - 1].id;
-    return isStepCheckpointCompleted(prevStepId);
+    // Allow reviewing already completed steps or current active step
+    if (index <= activeStepIndex && isStepCheckpointCompleted(pipelineSteps[index].id)) return true;
+    // Strict DAG Check: All prior prerequisite steps must be completed
+    for (let i = 0; i < index; i++) {
+      const prevStepId = pipelineSteps[i].id;
+      if (!isStepCheckpointCompleted(prevStepId)) {
+        return false;
+      }
+    }
+    return true;
   };
 
   // True pipeline completion percentage based on actual completed milestones (UX-07)
@@ -745,6 +850,38 @@ function VideoPipelineContent() {
         )}
 
         <section className="min-w-0 flex-1">
+          {/* Active Background Task Soft-Locking Banner (Phase 4) */}
+          {state.stepsSummary?.active_task &&
+            (state.stepsSummary.active_task.status === "processing" ||
+              state.stepsSummary.active_task.status === "queued") && (
+              <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 shadow-sm backdrop-blur-xs animate-fade-in">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-500">
+                    <Loader2 size={18} className="animate-spin" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-bold text-amber-500 uppercase tracking-wider">
+                        Tác vụ ngầm đang chạy: {state.stepsSummary.active_task.step || state.stepsSummary.active_task.current_step || "Đang xử lý"}
+                      </h4>
+                      {typeof state.stepsSummary.active_task.progress === "number" && (
+                        <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-500">
+                          {state.stepsSummary.active_task.progress}%
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs text-[var(--color-text-secondary)]">
+                      {state.stepsSummary.active_task.message || "Hệ thống đang xử lý tác vụ trong Celery worker. Thao tác điều hướng và chỉnh sửa đồng thời được bảo vệ để tránh xung đột."}
+                    </p>
+                  </div>
+                </div>
+                <div className="hidden sm:flex items-center gap-2">
+                  <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse" />
+                  <span className="text-[11px] font-semibold text-amber-500">Đang đồng bộ</span>
+                </div>
+              </div>
+            )}
+
           {isLoadingVideo ? (
             <div className="flex min-h-[400px] flex-col items-center justify-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-[var(--shadow-card)]">
               <Loader2 size={36} className="animate-spin text-[var(--color-primary)]" />

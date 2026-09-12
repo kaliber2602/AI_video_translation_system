@@ -19,7 +19,8 @@ A starter full-stack project for an AI video translation and understanding platf
    ```
 2. Open the frontend at http://localhost:5173
 3. Open the API docs at http://localhost:8000/docs
-
+## Speed up mode: GPU
+   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 ## Optional local models
 The default Docker image uses a lightweight fallback pipeline so builds stay reliable.
 If you want to run real Whisper/diarization models locally, install the optional extras separately:

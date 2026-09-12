@@ -23,6 +23,12 @@ export default function TranslationStep() {
   const { state, dispatch } = usePipeline();
   const [isLoading, setIsLoading] = useState(true);
   const [isTranslating, setIsTranslating] = useState(false);
+  const isGlobalTaskRunning = Boolean(
+    state.stepsSummary?.active_task &&
+      (state.stepsSummary.active_task.status === "processing" ||
+        state.stepsSummary.active_task.status === "queued") &&
+      !isTranslating
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<number>(0);
@@ -36,6 +42,21 @@ export default function TranslationStep() {
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const hasInitializedTab = useRef(false);
   const [translationModel, setTranslationModel] = useState("nllb_200_1.3b");
+  const [taskProgress, setTaskProgress] = useState<number>(0);
+  const pollingTimerRef = useRef<any>(null);
+
+  const stopPolling = () => {
+    if (pollingTimerRef.current) {
+      clearInterval(pollingTimerRef.current);
+      pollingTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopPolling();
+    };
+  }, []);
 
   const [translation, setTranslation] = useState<{
     source_language: string;
@@ -105,6 +126,76 @@ export default function TranslationStep() {
     }
   };
 
+  const pollTranslationStatus = (videoId: number, targetLang: string) => {
+    stopPolling();
+
+    const checkStatus = async () => {
+      try {
+        const summary = await videoService.getStepsSummary(videoId);
+        const transStep = summary?.steps?.translation;
+        const activeTask = summary?.active_task;
+
+        if (activeTask && (activeTask.current_step === "translation" || activeTask.current_step === "translate")) {
+          if (typeof activeTask.progress === "number" && activeTask.progress > 0) {
+            setTaskProgress(activeTask.progress);
+          }
+          if (activeTask.status === "failed") {
+            stopPolling();
+            setIsTranslating(false);
+            setTranslationError(activeTask.error_message || "Dịch thuật thất bại trong Celery worker");
+            return;
+          }
+        }
+
+        if (
+          transStep?.status === "completed" ||
+          (transStep?.segment_count && transStep.segment_count > 0 && !activeTask)
+        ) {
+          stopPolling();
+          try {
+            const data = await videoService.getTranslation(videoId, targetLang);
+            if (data && data.segments && Array.isArray(data.segments)) {
+              setTranslation(data);
+              dispatch({
+                type: "SET_TRANSLATION",
+                payload: data,
+              });
+
+              if (state.video) {
+                dispatch({
+                  type: "SET_VIDEO",
+                  payload: {
+                    ...state.video,
+                    hasTranslation: true,
+                    translationPath: `outputs/transcript_${videoId}/translation_${targetLang}.json`,
+                    progress: Math.max(state.video.progress || 0, 60),
+                    currentStep: "translation",
+                  },
+                });
+              }
+              window.dispatchEvent(new CustomEvent("subscription-updated"));
+            }
+          } catch (loadErr) {
+            console.warn("Failed to load completed translation:", loadErr);
+          }
+          setIsTranslating(false);
+          setTaskProgress(100);
+          setActiveRightTab("translation");
+          setIsPanelOpen(true);
+        } else if (transStep?.status === "failed") {
+          stopPolling();
+          setIsTranslating(false);
+          setTranslationError(activeTask?.error_message || "Dịch thuật thất bại");
+        }
+      } catch (err) {
+        console.warn("Polling translation status error:", err);
+      }
+    };
+
+    checkStatus();
+    pollingTimerRef.current = setInterval(checkStatus, 2500);
+  };
+
   const loadTranslation = async (lang?: string) => {
     if (!state.video?.videoId) {
       setIsLoading(false);
@@ -116,6 +207,27 @@ export default function TranslationStep() {
     const targetLang = lang || selectedTargetLang || state.targetLanguage || "vi";
 
     try {
+      // Check active Celery task for F5 / navigation resilience
+      try {
+        const summary = await videoService.getStepsSummary(state.video.videoId);
+        const transStep = summary?.steps?.translation;
+        const activeTask = summary?.active_task;
+
+        if (
+          transStep?.status === "processing" ||
+          ((activeTask?.current_step === "translation" || activeTask?.current_step === "translate") &&
+            (activeTask?.status === "processing" || activeTask?.status === "queued"))
+        ) {
+          setIsTranslating(true);
+          if (typeof activeTask?.progress === "number") {
+            setTaskProgress(activeTask.progress);
+          }
+          pollTranslationStatus(state.video.videoId, targetLang);
+        }
+      } catch (sumErr) {
+        console.warn("Could not check steps summary on mount:", sumErr);
+      }
+
       const data = await videoService.getTranslation(state.video.videoId, targetLang);
       setTranslation(data);
       if (data?.translation_model) {
@@ -162,18 +274,25 @@ export default function TranslationStep() {
     if (!state.video?.videoId) return;
     setIsTranslating(true);
     setTranslationError(null);
+    setTaskProgress(15);
 
     try {
       const targetLang = selectedTargetLang || state.targetLanguage || "vi";
-      const data = await videoService.startTranslation(
+      const res = await videoService.startTranslation(
         state.video.videoId,
         targetLang,
         translationModel
       );
-      setTranslation(data);
+
+      if (res?.status === "processing" || res?.job_id) {
+        pollTranslationStatus(state.video.videoId, targetLang);
+        return;
+      }
+
+      setTranslation(res);
       dispatch({
         type: "SET_TRANSLATION",
-        payload: data,
+        payload: res,
       });
 
       if (state.video) {
@@ -190,11 +309,13 @@ export default function TranslationStep() {
       }
 
       window.dispatchEvent(new CustomEvent("subscription-updated"));
+      setIsTranslating(false);
+      setTaskProgress(100);
     } catch (error: any) {
       console.error("Translation generation failed:", error);
       setTranslationError(error.message || "Failed to generate translation");
-    } finally {
       setIsTranslating(false);
+      setTaskProgress(0);
     }
   };
 
@@ -564,7 +685,7 @@ export default function TranslationStep() {
                 <button
                   type="button"
                   onClick={handleRetranslateClick}
-                  disabled={isTranslating}
+                  disabled={isTranslating || isGlobalTaskRunning}
                   className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary-soft)] px-4 py-2.5 text-xs font-bold text-[var(--color-primary)] transition hover:bg-[var(--color-primary)] hover:text-white disabled:opacity-50 active:scale-98 shadow-xs cursor-pointer"
                 >
                   {isTranslating ? (
@@ -574,12 +695,25 @@ export default function TranslationStep() {
                   )}
                   <span>
                     {isTranslating
-                      ? t("pipeline:steps.translation.translating", "Đang dịch AI...")
+                      ? taskProgress > 0
+                        ? `Đang dịch AI (${taskProgress}%)...`
+                        : t("pipeline:steps.translation.translating", "Đang dịch AI...")
+                      : isGlobalTaskRunning
+                      ? "Tác vụ ngầm đang chạy (Đã khóa)"
                       : translation?.segments?.length
                       ? t("pipeline:steps.translation.retranslate", { lang: selectedTargetLang.toUpperCase() })
                       : t("pipeline:steps.translation.startTranslate", { lang: selectedTargetLang.toUpperCase() })}
                   </span>
                 </button>
+
+                {isTranslating && (
+                  <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-[var(--color-primary)] h-1.5 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(100, Math.max(5, taskProgress))}%` }}
+                    />
+                  </div>
+                )}
 
                 <button
                   type="button"
