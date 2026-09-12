@@ -239,15 +239,27 @@ class AudioService:
 
             vf_string = ",".join(vf_filters)
 
+            # Check if NVENC hardware encoder is available on GPU
+            hw_flags = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23"]
+            is_nvenc = False
+            hw_accel_env = os.getenv("FFMPEG_HWACCEL", "").lower()
+            if hw_accel_env in ("nvenc", "cuda", "gpu", "auto", "1", "true"):
+                try:
+                    enc_check = subprocess.run(["ffmpeg", "-hide_banner", "-encoders"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+                    if "h264_nvenc" in enc_check.stdout:
+                        hw_flags = ["-c:v", "h264_nvenc", "-preset", "p4", "-tune", "hq", "-b:v", "5M"]
+                        is_nvenc = True
+                        logger.info("🚀 [FFmpeg NVENC] Kích hoạt tăng tốc phần cứng h264_nvenc cho xuất video!")
+                except Exception as ne:
+                    logger.warning(f"Could not check NVENC encoder: {ne}")
+
             # ✅ REMOVED -shortest flag since audio is now padded to full video length
             command = [
                 "ffmpeg", "-y",
                 "-i", video_path,
                 "-i", mixed_audio_path,
                 "-vf", vf_string,
-                "-c:v", "libx264",
-                "-preset", "veryfast",
-                "-crf", "23",
+                *hw_flags,
                 "-c:a", "aac",
                 "-b:a", "192k",
                 "-map", "0:v:0",
@@ -264,6 +276,26 @@ class AudioService:
                 text=True
             )
             
+            # If NVENC failed (e.g. driver mismatch), fallback gracefully to libx264
+            if result.returncode != 0 and is_nvenc:
+                logger.warning(f"⚠️ [FFmpeg NVENC] Thất bại ({result.stderr[:200]}). Đang tự động fallback về libx264...")
+                command_fb = [
+                    "ffmpeg", "-y",
+                    "-i", video_path,
+                    "-i", mixed_audio_path,
+                    "-vf", vf_string,
+                    "-c:v", "libx264",
+                    "-preset", "veryfast",
+                    "-crf", "23",
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    "-map", "0:v:0",
+                    "-map", "1:a:0",
+                    "-movflags", "+faststart",
+                    final_output_path
+                ]
+                result = subprocess.run(command_fb, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
             if result.returncode != 0:
                 logger.error(f"FFmpeg failed with error: {result.stderr}")
                 raise subprocess.CalledProcessError(result.returncode, command, result.stderr)

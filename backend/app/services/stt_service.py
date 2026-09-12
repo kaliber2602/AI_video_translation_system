@@ -1,20 +1,46 @@
+import os
+import gc
 from faster_whisper import WhisperModel
 import torch
 
+_model_cache = {}
+
+def unload_whisper_models():
+    """Giải phóng toàn bộ cache mô hình Faster-Whisper và thu hồi VRAM GPU."""
+    global _model_cache
+    _model_cache.clear()
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    print("[STT] 🧹 Đã giải phóng bộ nhớ Faster-Whisper khỏi VRAM.", flush=True)
+
 class STTService:
     def __init__(self, model_size="small"):
-        print("[STT] Đang khởi tạo mô hình Faster-Whisper...", flush=True)
-        
         # Auto-detect CUDA
+        env_device = os.getenv("WHISPER_DEVICE")
         cuda_available = torch.cuda.is_available()
+        device = env_device if env_device else ("cuda" if cuda_available else "cpu")
+        if device == "cuda" and not cuda_available:
+            print("[STT] ⚠️ WHISPER_DEVICE=cuda nhưng torch.cuda.is_available()=False, fallback sang CPU.", flush=True)
+            device = "cpu"
+
+        env_compute = os.getenv("WHISPER_COMPUTE_TYPE")
+        if env_compute:
+            compute_type = env_compute
+        else:
+            compute_type = "int8_float16" if device == "cuda" else "int8"
         
+        cache_key = f"{model_size}_{device}_{compute_type}"
+
+        if cache_key in _model_cache:
+            print(f"[STT] ⚡ Reusing cached Faster-Whisper model ({cache_key})", flush=True)
+            self.model = _model_cache[cache_key]
+            return
+
+        print(f"[STT] Đang khởi tạo mô hình Faster-Whisper ({model_size}) trên {device.upper()}...", flush=True)
         if cuda_available:
-            device = "cuda"
-            compute_type = "float16"
             print(f"[STT] ✅ CUDA detected, using GPU", flush=True)
         else:
-            device = "cpu"
-            compute_type = "int8"
             print(f"[STT] ⚠️ CUDA not detected, using CPU", flush=True)
         
         try:
@@ -26,16 +52,22 @@ class STTService:
                 num_workers=1
             )
             print(f"[STT] ✅ Model loaded successfully on {device.upper()}", flush=True)
+            _model_cache[cache_key] = self.model
         except Exception as e:
             print(f"[STT] ❌ Failed to load on {device}: {e}", flush=True)
             print("[STT] 🔄 Falling back to CPU with int8...", flush=True)
-            self.model = WhisperModel(
-                model_size, 
-                device="cpu", 
-                compute_type="int8",
-                cpu_threads=4,
-                num_workers=1
-            )
+            fallback_key = f"{model_size}_cpu_int8"
+            if fallback_key in _model_cache:
+                self.model = _model_cache[fallback_key]
+            else:
+                self.model = WhisperModel(
+                    model_size, 
+                    device="cpu", 
+                    compute_type="int8",
+                    cpu_threads=4,
+                    num_workers=1
+                )
+                _model_cache[fallback_key] = self.model
 
     def transcribe_audio(self, audio_path: str):
         """

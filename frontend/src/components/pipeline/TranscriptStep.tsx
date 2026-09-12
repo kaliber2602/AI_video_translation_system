@@ -25,9 +25,17 @@ export default function TranscriptStep() {
   const { state, dispatch } = usePipeline();
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const isGlobalTaskRunning = Boolean(
+    state.stepsSummary?.active_task &&
+      (state.stepsSummary.active_task.status === "processing" ||
+        state.stepsSummary.active_task.status === "queued") &&
+      !isGenerating
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [whisperModel, setWhisperModel] = useState("whisper-medium");
+  const [enableDiarization, setEnableDiarization] = useState<boolean>(true);
   const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
+  const [transcriptionNotice, setTranscriptionNotice] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -48,7 +56,24 @@ export default function TranscriptStep() {
   const [editingSpeakerIdx, setEditingSpeakerIdx] = useState<number | null>(null);
   const [editingSpeakerText, setEditingSpeakerText] = useState<string>("");
 
+  const [taskProgress, setTaskProgress] = useState<number>(0);
+  const pollingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = () => {
+    if (pollingTimerRef.current) {
+      clearInterval(pollingTimerRef.current);
+      pollingTimerRef.current = null;
+    }
+  };
+
   useEffect(() => {
+    return () => {
+      stopPolling();
+    };
+  }, []);
+
+  useEffect(() => {
+    stopPolling();
     loadTranscript();
     loadVideoPreview();
   }, [state.video?.videoId]);
@@ -93,6 +118,75 @@ export default function TranscriptStep() {
     }
   };
 
+  const pollTranscriptionStatus = (videoId: number) => {
+    stopPolling();
+
+    const checkStatus = async () => {
+      try {
+        const summary = await videoService.getStepsSummary(videoId);
+        const transcriptStep = summary?.steps?.transcript;
+        const activeTask = summary?.active_task;
+
+        if (activeTask && activeTask.current_step === "transcript") {
+          if (typeof activeTask.progress === "number" && activeTask.progress > 0) {
+            setTaskProgress(activeTask.progress);
+          }
+          if (activeTask.status === "failed") {
+            stopPolling();
+            setIsGenerating(false);
+            setTranscriptionError(activeTask.error_message || "Bóc băng thất bại trong Celery worker");
+            return;
+          }
+        }
+
+        if (
+          transcriptStep?.status === "completed" ||
+          (transcriptStep?.segment_count && transcriptStep.segment_count > 0 && !activeTask)
+        ) {
+          stopPolling();
+          try {
+            const data = await videoService.getTranscript(videoId);
+            if (data && data.segments && Array.isArray(data.segments)) {
+              setTranscript(data);
+              dispatch({
+                type: "SET_TRANSCRIPT",
+                payload: data,
+              });
+
+              if (state.video) {
+                dispatch({
+                  type: "SET_VIDEO",
+                  payload: {
+                    ...state.video,
+                    transcriptPath: transcriptStep?.transcript_path || data.transcript_path || `outputs/transcript_${videoId}/transcript.json`,
+                    progress: Math.max(state.video.progress || 0, 40),
+                    currentStep: "transcript",
+                  },
+                });
+              }
+              window.dispatchEvent(new CustomEvent("subscription-updated"));
+            }
+          } catch (loadErr: any) {
+            console.warn("Failed to load completed transcript:", loadErr);
+          }
+          setIsGenerating(false);
+          setTaskProgress(100);
+          setActiveRightTab("transcript");
+          setIsPanelOpen(true);
+        } else if (transcriptStep?.status === "failed") {
+          stopPolling();
+          setIsGenerating(false);
+          setTranscriptionError(activeTask?.error_message || "Bóc băng thất bại");
+        }
+      } catch (err: any) {
+        console.warn("Polling transcript status error:", err);
+      }
+    };
+
+    checkStatus();
+    pollingTimerRef.current = setInterval(checkStatus, 2500);
+  };
+
   const loadTranscript = async () => {
     if (!state.video?.videoId) {
       setIsLoading(false);
@@ -101,6 +195,27 @@ export default function TranscriptStep() {
     setIsLoading(true);
 
     try {
+      // Check active Celery task for F5 resilience
+      try {
+        const summary = await videoService.getStepsSummary(state.video.videoId);
+        const transcriptStep = summary?.steps?.transcript;
+        const activeTask = summary?.active_task;
+
+        if (
+          transcriptStep?.status === "processing" ||
+          (activeTask?.current_step === "transcript" &&
+            (activeTask?.status === "processing" || activeTask?.status === "queued"))
+        ) {
+          setIsGenerating(true);
+          if (typeof activeTask?.progress === "number") {
+            setTaskProgress(activeTask.progress);
+          }
+          pollTranscriptionStatus(state.video.videoId);
+        }
+      } catch (sumErr) {
+        console.warn("Could not check steps summary on mount:", sumErr);
+      }
+
       const data = await videoService.getTranscript(state.video.videoId);
       if (data && data.segments && Array.isArray(data.segments)) {
         setTranscript(data);
@@ -121,7 +236,9 @@ export default function TranscriptStep() {
   const generateTranscript = async () => {
     if (!state.video?.videoId) return;
     setIsGenerating(true);
+    setTaskProgress(10);
     setTranscriptionError(null);
+    setTranscriptionNotice(null);
 
     try {
       try {
@@ -130,10 +247,14 @@ export default function TranscriptStep() {
         console.log("Audio extraction status:", extractErr.message || extractErr);
       }
 
-      const data = await videoService.startTranscription(state.video.videoId);
+      const data = await videoService.startTranscription(state.video.videoId, enableDiarization);
       
+      // Case 1: Synchronous response (if sync=True or data returned directly)
       if (data && data.segments && Array.isArray(data.segments)) {
         setTranscript(data);
+        if (data.message && data.message.includes("fallback")) {
+          setTranscriptionNotice(data.message);
+        }
         dispatch({
           type: "SET_TRANSCRIPT",
           payload: data,
@@ -152,6 +273,13 @@ export default function TranscriptStep() {
         }
 
         window.dispatchEvent(new CustomEvent("subscription-updated"));
+        setIsGenerating(false);
+        setTaskProgress(100);
+      } 
+      // Case 2: Asynchronous HTTP 202 Accepted response (Celery worker running)
+      else if (data && (data.status === "processing" || data.job_id || data.celery_task_id)) {
+        setTaskProgress(15);
+        pollTranscriptionStatus(state.video.videoId);
       } else {
         throw new Error(data?.message || "Invalid transcript data received");
       }
@@ -160,7 +288,6 @@ export default function TranscriptStep() {
       console.error("Transcription failed:", error);
       const msg = error.response?.data?.detail || error.response?.data?.message || error.message || "Transcription failed";
       setTranscriptionError(msg);
-    } finally {
       setIsGenerating(false);
     }
   };
@@ -421,25 +548,50 @@ export default function TranscriptStep() {
 
             {/* Segments list or empty state */}
             {!transcript || !transcript.segments || transcript.segments.length === 0 ? (
-              <div className="py-10 flex flex-col items-center justify-center text-center px-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)] mb-3">
-                  <Cpu size={24} />
+              isGenerating ? (
+                <div className="py-10 flex flex-col items-center justify-center text-center px-4 space-y-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
+                    <Loader2 size={24} className="animate-spin" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-[var(--color-text-primary)]">
+                      Đang bóc băng và nhận dạng giọng nói...
+                    </p>
+                    <p className="text-[11px] text-[var(--color-text-muted)] font-mono">
+                      Tiến trình Celery Worker: {taskProgress}%
+                    </p>
+                  </div>
+                  <div className="w-48 bg-[var(--color-border)] h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className="bg-[var(--color-primary)] h-full rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${Math.max(8, taskProgress)}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-[var(--color-text-muted)] max-w-xs">
+                    Tác vụ đang chạy nền trên Celery worker. Bạn có thể tải lại trang (F5) mà không làm gián đoạn tiến trình.
+                  </p>
                 </div>
-                <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-                  {t(
-                    "pipeline:steps.transcript.emptyTranscript",
-                    "Chưa có bản bóc băng cho video này. Chọn thẻ 'Tùy chọn Whisper' và nhấn 'Bắt đầu bóc băng Whisper' để khởi chạy."
-                  )}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setActiveRightTab("tools")}
-                  className="mt-3.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--color-primary)] text-white text-xs font-bold hover:bg-[var(--color-primary-hover)] transition"
-                >
-                  <SlidersHorizontal size={13} />
-                  <span>{t("pipeline:steps.transcript.openTools", "Mở tùy chọn")}</span>
-                </button>
-              </div>
+              ) : (
+                <div className="py-10 flex flex-col items-center justify-center text-center px-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)] mb-3">
+                    <Cpu size={24} />
+                  </div>
+                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+                    {t(
+                      "pipeline:steps.transcript.emptyTranscript",
+                      "Chưa có bản bóc băng cho video này. Chọn thẻ 'Tùy chọn Whisper' và nhấn 'Bắt đầu bóc băng Whisper' để khởi chạy."
+                    )}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveRightTab("tools")}
+                    className="mt-3.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--color-primary)] text-white text-xs font-bold hover:bg-[var(--color-primary-hover)] transition"
+                  >
+                    <SlidersHorizontal size={13} />
+                    <span>{t("pipeline:steps.transcript.openTools", "Mở tùy chọn")}</span>
+                  </button>
+                </div>
+              )
             ) : (
               <div className="space-y-2.5 max-h-[calc(100vh-250px)] overflow-y-auto pr-1 custom-scrollbar">
                 {filteredSegments.map((seg) => {
@@ -590,7 +742,38 @@ export default function TranscriptStep() {
                 <option value="whisper-large-v3">Whisper Large-v3 (Chính xác cao nhất)</option>
                 <option value="whisper-base">Whisper Base (Tốc độ nhanh)</option>
               </select>
+
+              {/* Speaker Diarization Checkbox */}
+              <label className="flex items-center gap-2 cursor-pointer mt-2.5 text-xs text-[var(--color-text-secondary)] select-none">
+                <input
+                  type="checkbox"
+                  checked={enableDiarization}
+                  onChange={(e) => setEnableDiarization(e.target.checked)}
+                  disabled={isGenerating}
+                  className="h-3.5 w-3.5 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer"
+                />
+                <span>{t("pipeline:steps.transcript.enableDiarization", "Phân tách người nói (Pyannote Diarization)")}</span>
+              </label>
+              {!enableDiarization && (
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-1 pl-5.5">
+                  Tắt để nhận diện nhanh trên CPU (mặc định 1 người nói).
+                </p>
+              )}
             </div>
+
+            {transcriptionNotice && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-600 dark:text-amber-400 flex items-start gap-2">
+                <span className="font-bold shrink-0">ℹ️ Lưu ý:</span>
+                <span>{transcriptionNotice}</span>
+              </div>
+            )}
+
+            {transcriptionError && (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-2.5 text-xs text-red-600 dark:text-red-400 flex items-start gap-2">
+                <span className="font-bold shrink-0">⚠️ Lỗi:</span>
+                <span className="break-words flex-1">{transcriptionError}</span>
+              </div>
+            )}
 
             {/* Live Stats */}
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3 space-y-2">
@@ -628,12 +811,42 @@ export default function TranscriptStep() {
               </div>
             )}
 
+            {/* Celery Async Progress Indicator */}
+            {isGenerating && (
+              <div className="rounded-xl border border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)]/20 p-3 space-y-2">
+                <div className="flex items-center justify-between text-xs font-semibold text-[var(--color-text-primary)]">
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 size={13} className="animate-spin text-[var(--color-primary)]" />
+                    <span>
+                      {taskProgress < 30
+                        ? "Đang chuẩn bị âm thanh..."
+                        : taskProgress < 70
+                        ? "Đang bóc băng Whisper..."
+                        : taskProgress < 95
+                        ? "Đang phân tách người nói (Diarization)..."
+                        : "Đang lưu trữ dữ liệu..."}
+                    </span>
+                  </span>
+                  <span className="font-mono font-bold text-[var(--color-primary)]">{taskProgress}%</span>
+                </div>
+                <div className="w-full bg-[var(--color-border)] h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className="bg-[var(--color-primary)] h-full rounded-full transition-all duration-500 ease-out"
+                    style={{ width: `${Math.max(8, taskProgress)}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-[var(--color-text-muted)]">
+                  Tác vụ đang chạy nền trên Celery worker. Bạn có thể tải lại trang (F5) mà không làm gián đoạn tiến trình.
+                </p>
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="space-y-2.5 pt-1">
               <button
                 type="button"
                 onClick={generateTranscript}
-                disabled={isGenerating}
+                disabled={isGenerating || isGlobalTaskRunning}
                 className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary-soft)] px-4 py-2.5 text-xs font-bold text-[var(--color-primary)] transition hover:bg-[var(--color-primary)] hover:text-white disabled:opacity-50 active:scale-98 shadow-xs"
               >
                 {isGenerating ? (
@@ -644,6 +857,8 @@ export default function TranscriptStep() {
                 <span>
                   {isGenerating
                     ? t("pipeline:steps.transcript.extracting", "Đang trích xuất lời thoại...")
+                    : isGlobalTaskRunning
+                    ? "Tác vụ ngầm đang chạy (Đã khóa)"
                     : transcript
                     ? t("pipeline:steps.transcript.retranscribe", "Bóc băng lại Whisper")
                     : t("pipeline:steps.transcript.startTranscribe", "Bắt đầu bóc băng Whisper")}

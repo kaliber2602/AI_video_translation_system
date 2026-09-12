@@ -8,12 +8,23 @@ from app.core.database import DatabaseSession, RowRecord
 from app.models import SpeakerProfile
 
 
+_cached_pipeline = None
+_pipeline_initialized = False
+
+
 class DiarizationService:
     """Service for speaker diarization using pyannote"""
     
     def __init__(self):
+        global _cached_pipeline, _pipeline_initialized
+        if _pipeline_initialized:
+            self.pipeline = _cached_pipeline
+            return
+
         self.pipeline = None
         self._load_pipeline()
+        _cached_pipeline = self.pipeline
+        _pipeline_initialized = True
     
     def _load_pipeline(self):
         """Load pyannote pipeline with auto device detection"""
@@ -27,6 +38,7 @@ class DiarizationService:
             from pyannote.audio import Pipeline
             import torch
             
+            print("[Diarization] Loading pyannote/speaker-diarization-3.1...", flush=True)
             self.pipeline = Pipeline.from_pretrained(
                 "pyannote/speaker-diarization-3.1",
                 use_auth_token=hf_token
@@ -67,7 +79,12 @@ class DiarizationService:
                 "duration": 999999.0
             }]
         
-        diarization = self.pipeline(audio_path)
+        import warnings
+        with warnings.catch_warnings():
+            # Suppress torch std() degrees of freedom warning on silent frames
+            warnings.filterwarnings("ignore", message=".*degrees of freedom.*")
+            warnings.filterwarnings("ignore", category=UserWarning)
+            diarization = self.pipeline(audio_path)
         
         segments = []
         for turn, _, speaker in diarization.itertracks(yield_label=True):
