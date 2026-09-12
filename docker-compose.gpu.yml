@@ -1,0 +1,33 @@
+services:
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.gpu
+    command: celery -A app.tasks.celery_app worker --pool=solo --loglevel=info
+    environment:
+      WHISPER_DEVICE: "cuda"
+      WHISPER_COMPUTE_TYPE: "int8_float16"
+      TRANSLATION_DEVICE: "cuda"
+      PYANNOTE_DEVICE: "cuda"
+      FFMPEG_HWACCEL: "nvenc"
+      NVIDIA_VISIBLE_DEVICES: "all"
+      NVIDIA_DRIVER_CAPABILITIES: "compute,utility,video"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  tts-service:
+    environment:
+      NVIDIA_VISIBLE_DEVICES: "all"
+      NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

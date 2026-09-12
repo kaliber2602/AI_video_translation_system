@@ -33,6 +33,20 @@ class TranslationService:
             ).to(self.device)
             print(f"[Translate] ✅ Model loaded on CPU", flush=True)
 
+    def unload_model(self):
+        """Giải phóng mô hình NLLB khỏi VRAM và dọn dẹp bộ nhớ đệm PyTorch."""
+        if hasattr(self, "model") and self.model is not None:
+            del self.model
+            self.model = None
+        if hasattr(self, "tokenizer") and self.tokenizer is not None:
+            del self.tokenizer
+            self.tokenizer = None
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        print("[Translate] 🧹 Đã giải phóng bộ nhớ NLLB khỏi VRAM.", flush=True)
+
     def mask_keywords(self, text: str, glossary: dict):
         """Bảo vệ các từ khóa (Tên riêng, Thuật ngữ) không bị AI dịch sai."""
         if not glossary:
@@ -104,8 +118,8 @@ class TranslationService:
         self.tokenizer.src_lang = src_lang
         tgt_lang_id = self.tokenizer.convert_tokens_to_ids(tgt_lang)
         
-        # Auto-adjust batch size based on device
-        batch_size = 4 if self.device == "cuda" else 2
+        # Auto-adjust batch size based on device (8 on CUDA for high throughput on 8GB VRAM)
+        batch_size = 8 if self.device == "cuda" else 2
         
         for i in range(0, len(merged_segments), batch_size):
             batch = merged_segments[i:i + batch_size]

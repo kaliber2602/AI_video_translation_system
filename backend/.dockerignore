@@ -1,0 +1,15 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+tmp/
+*.tmp
+uploads/
+outputs/
+*.mp4
+*.wav
+*.mp3
+.git
+.env
+.venv
