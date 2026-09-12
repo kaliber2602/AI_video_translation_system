@@ -8,7 +8,7 @@ import math
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, Depends, status, Body
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, Depends, status, Body, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.responses import FileResponse, RedirectResponse
 from starlette.concurrency import run_in_threadpool
@@ -66,7 +66,14 @@ from app.services.video_understanding_service import VideoUnderstandingService
 from fastapi.responses import JSONResponse
 
 # Import Celery task
-from app.tasks.video_tasks import process_video_pipeline, check_task_status
+from app.tasks.video_tasks import (
+    process_video_pipeline,
+    check_task_status,
+    task_transcribe_step,
+    task_translate_step,
+    task_generate_tts_step,
+    task_dub_mux_step,
+)
 
 logger = logging.getLogger("app.api.video_routes")
 
@@ -1357,10 +1364,13 @@ async def get_audio(
 @router.post("/{video_id}/transcription")
 async def start_transcription(
     video_id: int,
+    response: Response,
+    enable_diarization: bool = Query(True, description="Enable Pyannote speaker diarization"),
+    sync: bool = Query(False, description="Run synchronously instead of dispatching to Celery worker"),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    """Start Whisper/WhisperX transcription with speaker detection."""
+    """Start Whisper/WhisperX transcription with speaker detection (supports 202 Async & Sync)."""
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
     
     # ✅ Check if vocal track exists (separated audio)
@@ -1371,7 +1381,6 @@ async def start_transcription(
     # ✅ If the vocal path ends with "audio.wav", it's raw audio - suggest separation
     if vocal_path.endswith("audio.wav"):
         logger.warning(f"Raw audio used for transcription, not separated vocals")
-        # Still proceed, but log warning
     
     # Enforce AI credit deduction for STT from ai_models table
     config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
@@ -1392,11 +1401,104 @@ async def start_transcription(
             f"Insufficient AI credits for transcription ({credits_needed} required). Please upgrade your plan or top up credits."
         )
     
+    # ============================================================
+    # ASYNCHRONOUS CELERY DISPATCH (Default Mode: HTTP 202 Accepted)
+    # ============================================================
+    if not sync:
+        from app.services.job_service import JobService
+        from app.tasks.video_tasks import task_transcribe_step
+        from app.core.config import REDIS_URL
+        import redis
+
+        # Concurrency Lock via Redis
+        lock_key = f"lock:video:{video_id}:step:transcript"
+        r = None
+        try:
+            r = redis.Redis.from_url(REDIS_URL)
+            acquired = r.set(lock_key, "active", nx=True, ex=1800)
+            if not acquired:
+                refund_user_credits(
+                    user_id=user_id,
+                    credits_amount=credits_needed,
+                    reason=f"Duplicate transcription request for video #{video_id}",
+                    video_id=video_id,
+                )
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    "Transcription task is already in progress for this video."
+                )
+        except HTTPException:
+            raise
+        except Exception as re_err:
+            logger.warning(f"Could not check Redis lock: {re_err}")
+
+        try:
+            job_service = JobService(db)
+            job = job_service.create_job(
+                video_id=video_id,
+                triggered_by=user_id,
+                config={
+                    "stt_model": stt_model,
+                    "credits_needed": credits_needed,
+                    "enable_diarization": enable_diarization,
+                    "mode": "single_step",
+                    "step": "transcript"
+                },
+                step="transcript"
+            )
+
+            task = task_transcribe_step.delay(video_id, user_id, enable_diarization, str(job.id))
+            job_cfg = job.config_json or {}
+            if isinstance(job_cfg, str):
+                try:
+                    job_cfg = json.loads(job_cfg)
+                except Exception:
+                    job_cfg = {}
+            job_cfg["celery_task_id"] = task.id
+            job.config_json = job_cfg
+            db.commit()
+
+            response.status_code = status.HTTP_202_ACCEPTED
+            return {
+                "video_id": video_id,
+                "job_id": str(job.id),
+                "celery_task_id": task.id,
+                "step": "transcript",
+                "status": "processing",
+                "message": "Transcription task dispatched to background worker"
+            }
+        except Exception as te:
+            logger.error(f"Failed to dispatch Celery task for video {video_id}: {te}")
+            if r:
+                try:
+                    r.delete(lock_key)
+                except Exception:
+                    pass
+            refund_user_credits(
+                user_id=user_id,
+                credits_amount=credits_needed,
+                reason=f"Failed to dispatch transcription task for video #{video_id}",
+                video_id=video_id,
+            )
+            raise HTTPException(500, f"Failed to dispatch transcription worker: {str(te)}")
+
+    # ============================================================
+    # SYNCHRONOUS FALLBACK EXECUTION (When sync=True)
+    # ============================================================
     stt_service = STTService()
     
     try:
+        # ============================================================
+        # MILESTONE 1: Whisper STT (Immediate Persistence)
+        # ============================================================
+        logger.info(f"🎙️ Starting Whisper STT for video #{video_id} on {vocal_path}...")
         segments, detected_lang = await run_in_threadpool(stt_service.transcribe_audio, vocal_path)
         
+        # Ensure default speaker label on all segments
+        for seg in segments:
+            if not seg.get("speaker"):
+                seg["speaker"] = "SPEAKER_01"
+
         transcript_dir = OUTPUT_DIR / f"transcript_{video_id}"
         transcript_dir.mkdir(parents=True, exist_ok=True)
         transcript_path = transcript_dir / "transcript.json"
@@ -1419,59 +1521,25 @@ async def start_transcription(
             video_id=video_id,
         )
 
-        # Diarization: use Pyannote if available, otherwise default to single speaker (SPEAKER_01)
-        from app.services.diarization_service import DiarizationService
-        diar_service = DiarizationService()
-        if diar_service.is_available():
-            try:
-                logger.info(f"Running pyannote diarization on {vocal_path}...")
-                diar_segments = await run_in_threadpool(diar_service.diarize, vocal_path)
-                segments = diar_service.assign_speakers_to_transcript(
-                    str(transcript_path), diar_segments, output_path=str(transcript_path)
-                )
-            except Exception as e:
-                logger.warning(f"Diarization error: {e}, falling back to single speaker")
-                for seg in segments:
-                    seg["speaker"] = "SPEAKER_01"
-        else:
-            logger.info("Diarization model unavailable or single speaker, defaulting to SPEAKER_01")
-            for seg in segments:
-                seg["speaker"] = "SPEAKER_01"
-
-        with open(transcript_path, 'w', encoding='utf-8') as f:
-            json.dump({
-                "language": detected_lang,
-                "segments": segments
-            }, f, indent=2)
-        
-        # Clean up existing speaker profiles and transcript segments for clean re-runs
+        # Commit Milestone 1 immediately: DB records with default SPEAKER_01
         db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).delete()
         db.query(SpeakerProfile).filter(SpeakerProfile.video_id == video_id).delete()
         db.flush()
 
-        unique_speakers = sorted(list(set(seg.get("speaker") or "SPEAKER_01" for seg in segments)))
-        if not unique_speakers:
-            unique_speakers = ["SPEAKER_01"]
+        default_speaker = SpeakerProfile(
+            video_id=video_id,
+            speaker_label="SPEAKER_01",
+            language=detected_lang,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        db.add(default_speaker)
+        db.flush()
 
-        speaker_id_map = {}
-        for speaker_label in unique_speakers:
-            speaker = SpeakerProfile(
-                video_id=video_id,
-                speaker_label=speaker_label,
-                language=detected_lang,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
-            )
-            db.add(speaker)
-            db.flush()
-            speaker_id_map[speaker_label] = speaker.id
-        
-        # Populate TranscriptSegment records (BUG-12 fix)
         for idx, seg in enumerate(segments):
-            spk_label = seg.get("speaker") or "SPEAKER_01"
             db.add(TranscriptSegment(
                 video_id=video_id,
-                speaker_id=speaker_id_map.get(spk_label),
+                speaker_id=default_speaker.id,
                 sequence=idx + 1,
                 start_time=float(seg.get("start", 0.0)),
                 end_time=float(seg.get("end", 0.0)),
@@ -1481,43 +1549,119 @@ async def start_transcription(
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow()
             ))
-        
+
         video.transcript_path = str(transcript_path)
         video.current_step = "transcript"
         video.progress = max(int(video.progress or 0), 40)
         db.commit()
+        logger.info(f"✅ STT Milestone 1 committed to DB: video #{video_id}, {len(segments)} segments, {transcribed_words} words")
 
-        # Extract voice samples for each speaker profile
-        for speaker_label, spk_id in speaker_id_map.items():
-            try:
-                spk_seg = next((s for s in segments if s.get("speaker") == speaker_label and (float(s.get("end", 0)) - float(s.get("start", 0))) >= 1.0), None)
-                start_sec = float(spk_seg.get("start", 0.0)) if spk_seg else 0.0
-                dur_sec = min(float(spk_seg.get("end", start_sec + 8.0)) - start_sec, 8.0) if spk_seg else 8.0
-                if dur_sec < 3.0:
-                    dur_sec = 8.0
+        # ============================================================
+        # MILESTONE 2: Diarization Enrichment (Soft Timeout & Fallback)
+        # ============================================================
+        diarization_message = "Transcription completed"
+        if enable_diarization:
+            from app.services.diarization_service import DiarizationService
+            diar_service = DiarizationService()
+            if diar_service.is_available():
+                diar_timeout = int(os.getenv("DIARIZATION_TIMEOUT", "150"))
+                try:
+                    logger.info(f"👥 Running Pyannote diarization on {vocal_path} (soft timeout: {diar_timeout}s)...")
+                    import asyncio
+                    diar_segments = await asyncio.wait_for(
+                        run_in_threadpool(diar_service.diarize, vocal_path),
+                        timeout=diar_timeout
+                    )
+                    segments = diar_service.assign_speakers_to_transcript(
+                        str(transcript_path), diar_segments, output_path=str(transcript_path)
+                    )
+                    
+                    unique_speakers = sorted(list(set(seg.get("speaker") or "SPEAKER_01" for seg in segments)))
+                    if not unique_speakers:
+                        unique_speakers = ["SPEAKER_01"]
 
-                sample_dir = OUTPUT_DIR / f"audio_{video_id}"
-                sample_dir.mkdir(parents=True, exist_ok=True)
-                sample_file = sample_dir / f"speaker_{spk_id}_sample.wav"
-                
-                import subprocess
-                cmd = [
-                    "ffmpeg", "-y",
-                    "-ss", str(start_sec),
-                    "-t", str(dur_sec),
-                    "-i", vocal_path,
-                    "-vn", "-ac", "1", "-ar", "24000",
-                    "-c:a", "pcm_s16le",
-                    str(sample_file)
-                ]
-                subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                if sample_file.exists():
-                    spk_record = db.query(SpeakerProfile).filter(SpeakerProfile.id == spk_id).first()
-                    if spk_record:
-                        spk_record.voice_sample_path = str(sample_file)
+                    # Only update DB if multiple speakers were found
+                    if len(unique_speakers) > 1 or unique_speakers != ["SPEAKER_01"]:
+                        logger.info(f"👥 Updating speaker profiles for {unique_speakers} on video #{video_id}")
+                        db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).delete()
+                        db.query(SpeakerProfile).filter(SpeakerProfile.video_id == video_id).delete()
+                        db.flush()
+
+                        speaker_id_map = {}
+                        for speaker_label in unique_speakers:
+                            speaker = SpeakerProfile(
+                                video_id=video_id,
+                                speaker_label=speaker_label,
+                                language=detected_lang,
+                                created_at=datetime.utcnow(),
+                                updated_at=datetime.utcnow()
+                            )
+                            db.add(speaker)
+                            db.flush()
+                            speaker_id_map[speaker_label] = speaker.id
+
+                        for idx, seg in enumerate(segments):
+                            spk_label = seg.get("speaker") or "SPEAKER_01"
+                            db.add(TranscriptSegment(
+                                video_id=video_id,
+                                speaker_id=speaker_id_map.get(spk_label),
+                                sequence=idx + 1,
+                                start_time=float(seg.get("start", 0.0)),
+                                end_time=float(seg.get("end", 0.0)),
+                                original_text=str(seg.get("text", "")).strip(),
+                                language=detected_lang,
+                                confidence=float(seg.get("confidence", 1.0)) if seg.get("confidence") is not None else 1.0,
+                                created_at=datetime.utcnow(),
+                                updated_at=datetime.utcnow()
+                            ))
                         db.commit()
-            except Exception as se:
-                logger.warning(f"Could not pre-extract voice sample for speaker {spk_id}: {se}")
+                        diarization_message = f"Transcription completed ({len(unique_speakers)} speakers detected)"
+
+                        # Extract voice samples non-critically
+                        for speaker_label, spk_id in speaker_id_map.items():
+                            try:
+                                spk_seg = next((s for s in segments if s.get("speaker") == speaker_label and (float(s.get("end", 0)) - float(s.get("start", 0))) >= 1.0), None)
+                                start_sec = float(spk_seg.get("start", 0.0)) if spk_seg else 0.0
+                                dur_sec = min(float(spk_seg.get("end", start_sec + 8.0)) - start_sec, 8.0) if spk_seg else 8.0
+                                if dur_sec < 3.0:
+                                    dur_sec = 8.0
+
+                                sample_dir = OUTPUT_DIR / f"audio_{video_id}"
+                                sample_dir.mkdir(parents=True, exist_ok=True)
+                                sample_file = sample_dir / f"speaker_{spk_id}_sample.wav"
+                                
+                                import subprocess
+                                cmd = [
+                                    "ffmpeg", "-y",
+                                    "-ss", str(start_sec),
+                                    "-t", str(dur_sec),
+                                    "-i", vocal_path,
+                                    "-vn", "-ac", "1", "-ar", "24000",
+                                    "-c:a", "pcm_s16le",
+                                    str(sample_file)
+                                ]
+                                subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                if sample_file.exists():
+                                    spk_record = db.query(SpeakerProfile).filter(SpeakerProfile.id == spk_id).first()
+                                    if spk_record:
+                                        spk_record.voice_sample_path = str(sample_file)
+                                        db.commit()
+                            except Exception as se:
+                                logger.warning(f"Could not pre-extract voice sample for speaker {spk_id}: {se}")
+                    else:
+                        diarization_message = "Transcription completed (single speaker detected)"
+                except asyncio.TimeoutError:
+                    logger.warning(f"⚠️ Pyannote diarization timed out after {diar_timeout}s for video #{video_id}. Retaining single-speaker fallback.")
+                    diarization_message = "Transcription completed (single-speaker fallback due to CPU timeout)"
+                except Exception as de:
+                    logger.warning(f"⚠️ Pyannote diarization error for video #{video_id}: {de}. Retaining single-speaker fallback.")
+                    diarization_message = f"Transcription completed (single-speaker fallback: {de})"
+            else:
+                logger.info("Diarization model unavailable or HF_TOKEN not set, defaulting to SPEAKER_01")
+                diarization_message = "Transcription completed (single-speaker mode)"
+        else:
+            logger.info(f"Diarization skipped as per enable_diarization=False for video #{video_id}")
+            diarization_message = "Transcription completed (diarization disabled)"
         
         return {
             "video_id": video_id,
@@ -1525,7 +1669,7 @@ async def start_transcription(
             "language": detected_lang,
             "segments": segments,
             "total_segments": len(segments),
-            "message": "Transcription completed"
+            "message": diarization_message
         }
     except Exception as e:
         logger.exception(f"Transcription failed for video #{video_id}: {e}")
@@ -1538,7 +1682,121 @@ async def start_transcription(
             )
         except Exception as ref_err:
             logger.error(f"Failed to refund credits for user {user_id}: {ref_err}")
-        raise HTTPException(500, f"Transcription failed: {str(e)}")
+@router.get("/{video_id}/steps-summary")
+async def get_video_steps_summary(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """
+    Get comprehensive real-time status, active Celery tasks, and artifacts of all 6 pipeline steps.
+    Provides data for step gating, F5 resilience, and active task progress.
+    """
+    from app.models import TranscriptSegment, TranslationSegment
+    from app.services.job_service import JobService
+    from app.models.enums import JobStatus
+    
+    video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+    
+    job_service = JobService(db)
+    latest_job = job_service.get_job_by_video(video_id)
+    
+    # Check active Celery task from latest job
+    active_task = None
+    if latest_job and latest_job.status in (JobStatus.PROCESSING.value, JobStatus.QUEUED.value):
+        cfg = latest_job.config_json or {}
+        if isinstance(cfg, str):
+            try:
+                cfg = json.loads(cfg)
+            except Exception:
+                cfg = {}
+        celery_task_id = cfg.get("celery_task_id")
+        active_task = {
+            "job_id": str(latest_job.id),
+            "celery_task_id": celery_task_id,
+            "status": latest_job.status,
+            "current_step": latest_job.current_step,
+            "progress": latest_job.progress or 0,
+            "error_message": latest_job.error_message
+        }
+    
+    # Check artifacts on disk and DB
+    has_vocal = bool(video.extracted_vocal_path and os.path.exists(video.extracted_vocal_path))
+    has_bgm = bool(video.background_music_path and os.path.exists(video.background_music_path))
+    
+    transcript_count = db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).count()
+    has_transcript = transcript_count > 0 or bool(video.transcript_path and os.path.exists(video.transcript_path))
+    
+    translation_count = 0
+    try:
+        cur = db.conn.cursor()
+        cur.execute(
+            "SELECT COUNT(*) FROM translation_segments ts JOIN transcript_segments tr ON ts.transcript_segment_id = tr.id WHERE tr.video_id = %s",
+            (video_id,)
+        )
+        row = cur.fetchone()
+        translation_count = row[0] if row else 0
+    except Exception:
+        translation_count = 0
+
+    has_trans_file = False
+    trans_dir = OUTPUT_DIR / f"transcript_{video_id}"
+    if trans_dir.exists():
+        try:
+            has_trans_file = any(f.name.startswith("translation_") and f.name.endswith(".json") for f in trans_dir.iterdir())
+        except Exception:
+            has_trans_file = False
+
+    has_translation = translation_count > 0 or has_trans_file or bool(getattr(video, "has_translation", False))
+    
+    has_subtitle = bool(video.subtitle_path and os.path.exists(video.subtitle_path))
+    has_dubbing = bool(video.dubbed_audio_path and os.path.exists(video.dubbed_audio_path))
+    has_export = bool(video.output_path and os.path.exists(video.output_path))
+    
+    active_step = active_task.get("current_step") if active_task else None
+    
+    return {
+        "video_id": video_id,
+        "overall_status": video.status,
+        "overall_progress": video.progress,
+        "current_step": video.current_step,
+        "active_task": active_task,
+        "steps": {
+            "audio": {
+                "status": "completed" if has_vocal else "ready",
+                "has_vocal": has_vocal,
+                "has_bgm": has_bgm,
+                "vocal_path": video.extracted_vocal_path,
+                "bgm_path": video.background_music_path
+            },
+            "transcript": {
+                "status": "processing" if active_step == "transcript" 
+                          else ("completed" if has_transcript else ("ready" if has_vocal else "locked")),
+                "segment_count": transcript_count,
+                "transcript_path": video.transcript_path
+            },
+            "translation": {
+                "status": "processing" if active_step == "translation" 
+                          else ("completed" if has_translation else ("ready" if has_transcript else "locked")),
+                "segment_count": translation_count,
+                "target_language": video.target_language
+            },
+            "subtitle": {
+                "status": "completed" if has_subtitle else ("ready" if has_translation else "locked"),
+                "subtitle_path": video.subtitle_path
+            },
+            "dubbing": {
+                "status": "processing" if active_step in ("dubbing", "tts") 
+                          else ("completed" if has_dubbing else ("ready" if has_translation else "locked")),
+                "dubbed_audio_path": video.dubbed_audio_path
+            },
+            "export": {
+                "status": "processing" if active_step in ("export", "dub") 
+                          else ("completed" if has_export else ("ready" if (has_subtitle or has_dubbing) else "locked")),
+                "output_path": video.output_path
+            }
+        }
+    }
 
 
 @router.get("/{video_id}/transcription")
@@ -1814,12 +2072,14 @@ async def get_diarization(
 @router.post("/{video_id}/translations")
 async def start_translation(
     video_id: int,
+    response: Response,
     target_language: str = Query(..., description="Target language code (e.g., vi, en, fr)"),
     model: Optional[str] = Query(None, description="Translation model code (e.g. nllb_200_1.3b, nllb_200_3.3b, gpt_4o)"),
+    sync: bool = Query(False, description="Run synchronously instead of dispatching to Celery worker"),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    """Translate transcript into a target language."""
+    """Translate transcript into a target language (supports HTTP 202 Async & Sync)."""
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
     
     if not video.transcript_path or not os.path.exists(video.transcript_path):
@@ -1849,8 +2109,6 @@ async def start_translation(
             f"Insufficient AI credits for translation ({credits_needed} required). Please upgrade your plan or top up credits."
         )
     
-    translation_service = TranslationService()
-    
     try:
         with open(video.transcript_path, 'r', encoding='utf-8') as f:
             transcript_data = json.load(f)
@@ -1874,7 +2132,101 @@ async def start_translation(
         lang_config = TARGET_LANGUAGE_MAP.get(target_lang_clean)
         if not lang_config:
             raise HTTPException(400, f"Unsupported target language: {target_language}")
-        
+
+        # ============================================================
+        # ASYNCHRONOUS CELERY DISPATCH (Default Mode: HTTP 202 Accepted)
+        # ============================================================
+        if not sync:
+            from app.services.job_service import JobService
+            from app.core.config import REDIS_URL
+            import redis
+
+            lock_key = f"lock:video:{video_id}:step:translate"
+            r = None
+            try:
+                r = redis.Redis.from_url(REDIS_URL)
+                acquired = r.set(lock_key, "active", nx=True, ex=1800)
+                if not acquired:
+                    refund_user_credits(
+                        user_id=user_id,
+                        credits_amount=credits_needed,
+                        reason=f"Duplicate translation request for video #{video_id}",
+                        video_id=video_id,
+                    )
+                    refund_user_words(
+                        user_id=user_id,
+                        words_amount=trans_words,
+                        reason=f"Duplicate translation request for video #{video_id}",
+                        video_id=video_id,
+                    )
+                    raise HTTPException(
+                        status.HTTP_409_CONFLICT,
+                        "Translation task is already in progress for this video."
+                    )
+            except HTTPException:
+                raise
+            except Exception as re_err:
+                logger.warning(f"Could not check Redis lock: {re_err}")
+
+            try:
+                job_service = JobService(db)
+                job = job_service.create_job(
+                    video_id=video_id,
+                    triggered_by=user_id,
+                    config={
+                        "target_language": target_lang_clean,
+                        "model": trans_model,
+                        "credits_needed": credits_needed,
+                        "mode": "single_step",
+                        "step": "translation"
+                    },
+                    step="translation"
+                )
+
+                task = task_translate_step.delay(video_id, user_id, target_lang_clean, trans_model, str(job.id))
+                job_cfg = job.config_json or {}
+                if isinstance(job_cfg, str):
+                    try:
+                        job_cfg = json.loads(job_cfg)
+                    except Exception:
+                        job_cfg = {}
+                job_cfg["celery_task_id"] = task.id
+                job.config_json = job_cfg
+                db.commit()
+
+                response.status_code = status.HTTP_202_ACCEPTED
+                return {
+                    "video_id": video_id,
+                    "job_id": str(job.id),
+                    "celery_task_id": task.id,
+                    "step": "translation",
+                    "target_language": target_lang_clean,
+                    "status": "processing",
+                    "message": "Translation task dispatched to background worker"
+                }
+            except Exception as te:
+                logger.error(f"Failed to dispatch Celery translation task for video {video_id}: {te}")
+                if r:
+                    try:
+                        r.delete(lock_key)
+                    except Exception:
+                        pass
+                refund_user_credits(
+                    user_id=user_id,
+                    credits_amount=credits_needed,
+                    reason=f"Failed to dispatch translation task for video #{video_id}",
+                    video_id=video_id,
+                )
+                refund_user_words(
+                    user_id=user_id,
+                    words_amount=trans_words,
+                    reason=f"Failed to dispatch translation task for video #{video_id}",
+                    video_id=video_id,
+                )
+                raise HTTPException(500, f"Failed to start async translation: {te}")
+
+        # Fallback Synchronous Execution (only when sync=True)
+        translation_service = TranslationService()
         nllb_tgt = lang_config["nllb"]
         nllb_src = SOURCE_LANGUAGE_MAP.get(detected_lang, "eng_Latn")
         
@@ -2940,14 +3292,16 @@ async def get_speaker_sample(
 @router.post("/{video_id}/tts")
 async def generate_tts(
     video_id: int,
+    response: Response,
     language: str = Query(..., description="Target language for TTS"),
     speaker_id: Optional[int] = Query(None, description="Speaker ID for voice cloning"),
     style: str = Query("neutral", description="Speaking style"),
     speed: float = Query(1.0, description="Speaking speed multiplier (0.5 - 2.0)"),
+    sync: bool = Query(False, description="Run synchronously instead of dispatching to Celery worker"),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    """Generate speech from translated text with voice selection and style."""
+    """Generate speech from translated text with voice selection and style (supports HTTP 202 Async & Sync)."""
     logger.info(f"🎤 Starting TTS generation for video {video_id}")
     logger.info(f"   Language: {language}, Style: {style}, Speed: {speed}")
     
@@ -3008,7 +3362,103 @@ async def generate_tts(
     if not segments:
         logger.error(f"❌ No segments found in translation for video {video_id}")
         raise HTTPException(400, "No segments found in translation")
-    
+
+    # ============================================================
+    # ASYNCHRONOUS CELERY DISPATCH (Default Mode: HTTP 202 Accepted)
+    # ============================================================
+    if not sync:
+        from app.services.job_service import JobService
+        from app.core.config import REDIS_URL
+        import redis
+
+        lock_key = f"lock:video:{video_id}:step:tts"
+        r = None
+        try:
+            r = redis.Redis.from_url(REDIS_URL)
+            acquired = r.set(lock_key, "active", nx=True, ex=3600)
+            if not acquired:
+                refund_user_credits(
+                    user_id=user_id,
+                    credits_amount=credits_needed,
+                    reason=f"Duplicate TTS synthesis request for video #{video_id}",
+                    video_id=video_id,
+                )
+                refund_user_words(
+                    user_id=user_id,
+                    words_amount=tts_words,
+                    reason=f"Duplicate TTS synthesis request for video #{video_id}",
+                    video_id=video_id,
+                )
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    "Voice synthesis task is already in progress for this video."
+                )
+        except HTTPException:
+            raise
+        except Exception as re_err:
+            logger.warning(f"Could not check Redis lock: {re_err}")
+
+        try:
+            job_service = JobService(db)
+            job = job_service.create_job(
+                video_id=video_id,
+                triggered_by=user_id,
+                config={
+                    "language": language,
+                    "speaker_id": speaker_id,
+                    "style": style,
+                    "speed": speed,
+                    "credits_needed": credits_needed,
+                    "mode": "single_step",
+                    "step": "tts"
+                },
+                step="tts"
+            )
+
+            task = task_generate_tts_step.delay(
+                video_id, user_id, language, speaker_id, style, speed, str(job.id)
+            )
+            job_cfg = job.config_json or {}
+            if isinstance(job_cfg, str):
+                try:
+                    job_cfg = json.loads(job_cfg)
+                except Exception:
+                    job_cfg = {}
+            job_cfg["celery_task_id"] = task.id
+            job.config_json = job_cfg
+            db.commit()
+
+            response.status_code = status.HTTP_202_ACCEPTED
+            return {
+                "video_id": video_id,
+                "job_id": str(job.id),
+                "celery_task_id": task.id,
+                "step": "tts",
+                "language": language,
+                "status": "processing",
+                "message": "Voice synthesis task dispatched to background worker"
+            }
+        except Exception as te:
+            logger.error(f"Failed to dispatch Celery TTS task for video {video_id}: {te}")
+            if r:
+                try:
+                    r.delete(lock_key)
+                except Exception:
+                    pass
+            refund_user_credits(
+                user_id=user_id,
+                credits_amount=credits_needed,
+                reason=f"Failed to dispatch TTS task for video #{video_id}",
+                video_id=video_id,
+            )
+            refund_user_words(
+                user_id=user_id,
+                words_amount=tts_words,
+                reason=f"Failed to dispatch TTS task for video #{video_id}",
+                video_id=video_id,
+            )
+            raise HTTPException(500, f"Failed to start async voice synthesis: {te}")
+
     # Get vocal path for voice cloning
     vocal_path = video.extracted_vocal_path
     if not vocal_path or not os.path.exists(vocal_path):
@@ -3204,15 +3654,17 @@ async def get_tts(
 @router.post("/{video_id}/dub")
 async def generate_dubbed_video(
     video_id: int,
+    response: Response,
     language: str = Query(..., description="Target language for dubbing"),
     video_format: str = Query("mp4", description="Output video format: mp4, mov, avi"),
     quality: str = Query("1080p", description="Video quality: 360p, 720p, 1080p, 4K"),
     burn_subtitles: bool = Query(True, description="Burn subtitles into video (Hardsub)"),
     aspect_ratio: Optional[str] = Query(None, description="Aspect ratio crop/scale, e.g. 16:9, 9:16, 1:1, 4:3"),
+    sync: bool = Query(False, description="Run synchronously instead of dispatching to Celery worker"),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    """Generate a complete dubbed video with format, quality, and aspect ratio options."""
+    """Generate a complete dubbed video with format, quality, and aspect ratio options (supports HTTP 202 Async & Sync)."""
     logger.info(f"🎬 Starting dubbing for video {video_id}")
     logger.info(f"   Language: {language}, Format: {video_format}, Quality: {quality}, BurnSubtitles: {burn_subtitles}, AspectRatio: {aspect_ratio}")
     
@@ -3267,6 +3719,104 @@ async def generate_dubbed_video(
         raise HTTPException(400, f"TTS audio file is corrupted or empty ({tts_size} bytes)")
     
     logger.info(f"✅ TTS file found: {tts_path} ({tts_size} bytes)")
+
+    # ============================================================
+    # ASYNCHRONOUS CELERY DISPATCH (Default Mode: HTTP 202 Accepted)
+    # ============================================================
+    if not sync:
+        from app.services.job_service import JobService
+        from app.core.config import REDIS_URL
+        import redis
+
+        lock_key = f"lock:video:{video_id}:step:dub"
+        r = None
+        try:
+            r = redis.Redis.from_url(REDIS_URL)
+            acquired = r.set(lock_key, "active", nx=True, ex=3600)
+            if not acquired:
+                refund_user_credits(
+                    user_id=user_id,
+                    credits_amount=credits_needed,
+                    reason=f"Duplicate dubbing request for video #{video_id}",
+                    video_id=video_id,
+                )
+                refund_user_words(
+                    user_id=user_id,
+                    words_amount=dub_words,
+                    reason=f"Duplicate dubbing request for video #{video_id}",
+                    video_id=video_id,
+                )
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    "Video dubbing task is already in progress for this video."
+                )
+        except HTTPException:
+            raise
+        except Exception as re_err:
+            logger.warning(f"Could not check Redis lock: {re_err}")
+
+        try:
+            job_service = JobService(db)
+            job = job_service.create_job(
+                video_id=video_id,
+                triggered_by=user_id,
+                config={
+                    "language": language,
+                    "video_format": video_format,
+                    "quality": quality,
+                    "burn_subtitles": burn_subtitles,
+                    "aspect_ratio": aspect_ratio,
+                    "credits_needed": credits_needed,
+                    "mode": "single_step",
+                    "step": "dub"
+                },
+                step="dub"
+            )
+
+            task = task_dub_mux_step.delay(
+                video_id, user_id, language, video_format, quality, burn_subtitles, aspect_ratio, str(job.id)
+            )
+            job_cfg = job.config_json or {}
+            if isinstance(job_cfg, str):
+                try:
+                    job_cfg = json.loads(job_cfg)
+                except Exception:
+                    job_cfg = {}
+            job_cfg["celery_task_id"] = task.id
+            job.config_json = job_cfg
+            db.commit()
+
+            response.status_code = status.HTTP_202_ACCEPTED
+            return {
+                "video_id": video_id,
+                "job_id": str(job.id),
+                "celery_task_id": task.id,
+                "step": "dub",
+                "language": language,
+                "quality": quality,
+                "status": "processing",
+                "message": "Video dubbing & muxing task dispatched to background worker"
+            }
+        except Exception as te:
+            logger.error(f"Failed to dispatch Celery dubbing task for video {video_id}: {te}")
+            if r:
+                try:
+                    r.delete(lock_key)
+                except Exception:
+                    pass
+            refund_user_credits(
+                user_id=user_id,
+                credits_amount=credits_needed,
+                reason=f"Failed to dispatch dubbing task for video #{video_id}",
+                video_id=video_id,
+            )
+            refund_user_words(
+                user_id=user_id,
+                words_amount=dub_words,
+                reason=f"Failed to dispatch dubbing task for video #{video_id}",
+                video_id=video_id,
+            )
+            raise HTTPException(500, f"Failed to start async video dubbing: {te}")
     
     # ============================================================
     # ✅ FIXED: Handle BGM - Search multiple patterns and locations

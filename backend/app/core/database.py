@@ -47,6 +47,10 @@ def _init_pool() -> pool.ThreadedConnectionPool:
     try:
         _POOL = pool.ThreadedConnectionPool(1, 20, dsn=database_url, connect_timeout=1)
         _RESOLVED_DATABASE_URL = database_url
+        try:
+            extras.register_uuid()
+        except Exception:
+            pass
         logger.info("Initialized PostgreSQL ThreadedConnectionPool (min=1, max=20)")
         return _POOL
     except psycopg2.OperationalError as exc:

@@ -178,8 +178,17 @@ export const videoService = {
     return data;
   },
 
-  async startTranscription(videoId: number) {
-    const response = await api.post(`/api/videos/${videoId}/transcription`, {}, { timeout: 300000 });
+  async startTranscription(videoId: number, enableDiarization: boolean = true, sync: boolean = false) {
+    const response = await api.post(
+      `/api/videos/${videoId}/transcription?enable_diarization=${enableDiarization}&sync=${sync}`,
+      {},
+      { timeout: sync ? 300000 : 30000 }
+    );
+    return response.data;
+  },
+
+  async getStepsSummary(videoId: number) {
+    const response = await api.get(`/api/videos/${videoId}/steps-summary`);
     return response.data;
   },
 
@@ -201,13 +210,13 @@ export const videoService = {
     return response.data;
   },
 
-  async startTranslation(videoId: number, targetLanguage: string, model?: string) {
-    const params = new URLSearchParams({ target_language: targetLanguage });
+  async startTranslation(videoId: number, targetLanguage: string, model?: string, sync: boolean = false) {
+    const params = new URLSearchParams({ target_language: targetLanguage, sync: String(sync) });
     if (model) params.append("model", model);
     const response = await api.post(
       `/api/videos/${videoId}/translations?${params.toString()}`,
       {},
-      { timeout: 180000 }
+      { timeout: sync ? 180000 : 30000 }
     );
     return response.data;
   },
@@ -306,11 +315,11 @@ export const videoService = {
     return response.data;
   },
 
-  async generateTTS(videoId: number, language: string, speakerId: number, style: string, speed: number) {
+  async generateTTS(videoId: number, language: string, speakerId: number, style: string, speed: number, sync: boolean = false) {
     const response = await api.post(
-      `/api/videos/${videoId}/tts?language=${language}&speaker_id=${speakerId}&style=${style}&speed=${speed}`,
+      `/api/videos/${videoId}/tts?language=${language}&speaker_id=${speakerId}&style=${style}&speed=${speed}&sync=${sync}`,
       {},
-      { timeout: 300000 }
+      { timeout: sync ? 300000 : 30000 }
     );
     return response.data;
   },
@@ -352,13 +361,14 @@ export const videoService = {
     format: string,
     quality: string,
     burnSubtitles: boolean = true,
-    aspectRatio?: string
+    aspectRatio?: string,
+    sync: boolean = false
   ) {
-    let url = `/api/videos/${videoId}/dub?language=${language}&video_format=${format}&quality=${quality}&burn_subtitles=${burnSubtitles}`;
+    let url = `/api/videos/${videoId}/dub?language=${language}&video_format=${format}&quality=${quality}&burn_subtitles=${burnSubtitles}&sync=${sync}`;
     if (aspectRatio) {
       url += `&aspect_ratio=${encodeURIComponent(aspectRatio)}`;
     }
-    const response = await api.post(url, {}, { timeout: 600000 });
+    const response = await api.post(url, {}, { timeout: sync ? 600000 : 30000 });
     return response.data;
   },
 
