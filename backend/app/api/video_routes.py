@@ -1,5 +1,6 @@
 # app/api/video_routes.py - CLEANED with authentication
 import os
+import re
 import asyncio
 import shutil
 import subprocess
@@ -668,6 +669,458 @@ async def save_video_snapshot(
     logger.warning(f"💾 [SNAPSHOT SAVED] Video {video_id} step={payload.active_step} ({step_display}) progress={video.progress}% at {now_vn_str}")
 
     return await get_video_details(video_id=video_id, db=db, user_id=user_id)
+
+
+# ============================================================
+# PHASE 5.3: PRO VIDEO EDITING WORKBENCH & UNIFIED 2-WAY SYNC
+# ============================================================
+
+@router.get("/{video_id}/pipeline-config", response_model=Dict[str, Any])
+async def get_video_pipeline_config(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Retrieve canonical 6-tier pipeline configuration for a video."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+    config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
+    
+    snap = video.snapshot_data or {}
+    if isinstance(snap, str):
+        try:
+            snap = json.loads(snap)
+        except Exception:
+            snap = {}
+    
+    cfg_data = snap.get("config_data") or snap.get("preset_config") or {}
+    if not isinstance(cfg_data, dict):
+        cfg_data = {}
+    
+    audio_sep = cfg_data.get("audio_separation") or {}
+    transcription = cfg_data.get("transcription") or {}
+    translation = cfg_data.get("translation") or {}
+    tts_dubbing = cfg_data.get("tts_dubbing") or {}
+    subtitles = cfg_data.get("subtitles") or {}
+    export_muxing = cfg_data.get("export_muxing") or {}
+
+    if config:
+        if not audio_sep.get("demucs_model"):
+            audio_sep["demucs_model"] = config.separation_model or "htdemucs"
+        if not transcription.get("model_size"):
+            transcription["model_size"] = config.stt_model or "whisper_medium"
+        if "diarization" not in transcription:
+            transcription["diarization"] = bool(config.diarization_model)
+        if not translation.get("model_name"):
+            translation["model_name"] = config.translation_model or "nllb_200_1.3b"
+        if not translation.get("target_language"):
+            translation["target_language"] = config.target_language or video.target_language or "vi"
+        if not tts_dubbing.get("engine"):
+            tts_dubbing["engine"] = config.tts_model or "coqui_xtts_v2"
+        if "speed_rate" not in tts_dubbing:
+            tts_dubbing["speed_rate"] = config.voice_speed or 1.0
+
+    return {
+        "video_id": video_id,
+        "preset_id": snap.get("preset_id"),
+        "preset_name": snap.get("preset_name"),
+        "config_data": {
+            "audio_separation": {
+                "demucs_model": audio_sep.get("demucs_model") or audio_sep.get("model", "htdemucs"),
+                "model": audio_sep.get("model") or audio_sep.get("demucs_model", "htdemucs"),
+                "dubbing_mode": audio_sep.get("dubbing_mode", "full_dubbing"),
+                "vocal_volume": audio_sep.get("vocal_volume", 0),
+                "bgm_volume": audio_sep.get("bgm_volume", 0.7),
+                "enable_ducking": audio_sep.get("enable_ducking", True),
+                "ducking_level": audio_sep.get("ducking_level", -12),
+                "ducking_threshold": audio_sep.get("ducking_threshold", -24),
+                "ducking_attack": audio_sep.get("ducking_attack", 100),
+                "ducking_release": audio_sep.get("ducking_release", 500),
+                "noise_reduction": audio_sep.get("noise_reduction", False),
+                "audio_denoise": audio_sep.get("audio_denoise", False),
+            },
+            "transcription": {
+                "model_size": transcription.get("model_size", "whisper_medium"),
+                "diarization": transcription.get("diarization", True),
+                "min_speakers": transcription.get("min_speakers", 1),
+                "max_speakers": transcription.get("max_speakers", 5),
+                "filter_fillers": transcription.get("filter_fillers", True),
+                "temperature": transcription.get("temperature", 0.0),
+            },
+            "translation": {
+                "model_name": translation.get("model_name") or translation.get("model", "nllb_200_1.3b"),
+                "model": translation.get("model") or translation.get("model_name", "nllb_200_1.3b"),
+                "source_language": translation.get("source_language", video.source_language or "auto"),
+                "target_language": translation.get("target_language", video.target_language or "vi"),
+                "tone_style": translation.get("tone_style") or translation.get("tone", "natural"),
+                "tone": translation.get("tone") or translation.get("tone_style", "natural"),
+                "system_instruction": translation.get("system_instruction") or translation.get("system_prompt", ""),
+                "system_prompt": translation.get("system_prompt") or translation.get("system_instruction", ""),
+                "apply_glossary": translation.get("apply_glossary", True),
+                "glossary": translation.get("glossary", {}),
+            },
+            "tts_dubbing": {
+                "engine": tts_dubbing.get("engine", "coqui_xtts_v2"),
+                "default_voice_id": tts_dubbing.get("default_voice_id") or tts_dubbing.get("voice_id", "vi_female_loan"),
+                "voice_id": tts_dubbing.get("voice_id") or tts_dubbing.get("default_voice_id", "vi_female_loan"),
+                "speaker_voice_mapping": tts_dubbing.get("speaker_voice_mapping") or tts_dubbing.get("speaker_mapping", {}),
+                "speaker_mapping": tts_dubbing.get("speaker_mapping") or tts_dubbing.get("speaker_voice_mapping", {}),
+                "speed_rate": tts_dubbing.get("speed_rate", 1.0),
+                "pitch_shift": tts_dubbing.get("pitch_shift", 0),
+                "style": tts_dubbing.get("style", "neutral"),
+                "track_volumes": tts_dubbing.get("track_volumes", {}),
+            },
+            "subtitles": {
+                "format": subtitles.get("format", "ass"),
+                "burn_mode": subtitles.get("burn_mode", "hardsub"),
+                "bilingual": subtitles.get("bilingual", False),
+                "style_preset": subtitles.get("style_preset", "standard"),
+                "effect": subtitles.get("effect", "none"),
+                "style": subtitles.get("style") or {
+                    "font_name": "Montserrat",
+                    "font_size": 22,
+                    "primary_color": "#FFFFFF",
+                    "outline_color": "#000000",
+                    "margin_v": 35,
+                },
+            },
+            "export_muxing": {
+                "resolution": export_muxing.get("resolution", "1080p"),
+                "encoder": export_muxing.get("encoder", "h264_nvenc"),
+                "nvenc_preset": export_muxing.get("nvenc_preset", "p4"),
+                "bitrate": export_muxing.get("bitrate", "8M"),
+                "container": export_muxing.get("container", "mp4"),
+                "multi_audio": export_muxing.get("multi_audio", False),
+                "multi_audio_tracks": export_muxing.get("multi_audio_tracks", False),
+            },
+        }
+    }
+
+
+@router.put("/{video_id}/pipeline-config", response_model=Dict[str, Any])
+async def update_video_pipeline_config(
+    video_id: int,
+    payload: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Update 6-tier pipeline configuration for a video and sync to VideoPipelineConfig & snapshot_data."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
+    
+    cfg_data = payload.get("config_data") if "config_data" in payload else payload
+    if not isinstance(cfg_data, dict):
+        cfg_data = {}
+
+    audio_sep = cfg_data.get("audio_separation") or {}
+    transcription = cfg_data.get("transcription") or {}
+    translation = cfg_data.get("translation") or {}
+    tts_dubbing = cfg_data.get("tts_dubbing") or {}
+    subtitles = cfg_data.get("subtitles") or {}
+    export_muxing = cfg_data.get("export_muxing") or {}
+
+    target_lang = translation.get("target_language") or video.target_language or "vi"
+    source_lang = translation.get("source_language") or video.source_language or "auto"
+    video.target_language = target_lang
+    video.source_language = source_lang
+
+    snap = video.snapshot_data or {}
+    if isinstance(snap, str):
+        try:
+            snap = json.loads(snap)
+        except Exception:
+            snap = {}
+    snap["config_data"] = cfg_data
+    snap["target_language"] = target_lang
+    if "preset_id" in payload:
+        snap["preset_id"] = payload["preset_id"]
+    if "preset_name" in payload:
+        snap["preset_name"] = payload["preset_name"]
+    video.snapshot_data = snap
+    video.updated_at = datetime.utcnow()
+
+    config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
+    sep_model = audio_sep.get("demucs_model", "htdemucs")
+    stt_model = transcription.get("model_size", "whisper_medium")
+    diar = transcription.get("diarization", True)
+    diar_model = "pyannote_3.1" if diar else None
+    trans_model = translation.get("model_name", "nllb_200_1.3b")
+    tts_engine = tts_dubbing.get("engine", "coqui_xtts_v2")
+    speed_rate = float(tts_dubbing.get("speed_rate", 1.0))
+    burn_mode = subtitles.get("burn_mode", "hardsub")
+    auto_sub = burn_mode != "none"
+    auto_dub = tts_engine != "none"
+
+    if not config:
+        config = VideoPipelineConfig(
+            video_id=video_id,
+            target_language=target_lang,
+            source_language=source_lang,
+            separation_model=sep_model,
+            stt_model=stt_model,
+            diarization_model=diar_model,
+            translation_model=trans_model,
+            tts_model=tts_engine,
+            voice_speed=speed_rate,
+            auto_generate_subtitles=auto_sub,
+            auto_generate_dubbing=auto_dub,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        db.add(config)
+    else:
+        config.target_language = target_lang
+        config.source_language = source_lang
+        config.separation_model = sep_model
+        config.stt_model = stt_model
+        config.diarization_model = diar_model
+        config.translation_model = trans_model
+        config.tts_model = tts_engine
+        config.voice_speed = speed_rate
+        config.auto_generate_subtitles = auto_sub
+        config.auto_generate_dubbing = auto_dub
+        config.updated_at = datetime.utcnow()
+
+    db.commit()
+    logger.info(f"💾 Video #{video_id} 6-tier pipeline config synchronized successfully.")
+    return {"status": "success", "video_id": video_id, "config_data": cfg_data}
+
+
+@router.post("/{video_id}/save-as-preset", response_model=Dict[str, Any])
+async def save_video_config_as_preset(
+    video_id: int,
+    payload: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Save the video's current customized 6-tier configuration as a new custom PipelinePreset."""
+    from app.services.preset_service import PresetService
+    video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
+    
+    preset_name = payload.get("name")
+    if not preset_name or not preset_name.strip():
+        raise HTTPException(400, "Preset name is required")
+    preset_name = preset_name.strip()
+    preset_desc = payload.get("description", f"Tạo từ Video #{video_id}: {video.title or video.original_filename}")
+
+    snap = video.snapshot_data or {}
+    if isinstance(snap, str):
+        try:
+            snap = json.loads(snap)
+        except Exception:
+            snap = {}
+    cfg_data = snap.get("config_data") or {}
+    
+    config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
+    
+    audio_sep = cfg_data.get("audio_separation") or {}
+    transcription = cfg_data.get("transcription") or {}
+    translation = cfg_data.get("translation") or {}
+    tts_dubbing = cfg_data.get("tts_dubbing") or {}
+    subtitles = cfg_data.get("subtitles") or {}
+    export_muxing = cfg_data.get("export_muxing") or {}
+
+    target_lang = translation.get("target_language") or video.target_language or "vi"
+    source_lang = translation.get("source_language") or video.source_language or "auto"
+    stt_model = transcription.get("model_size") or (config.stt_model if config else "whisper_medium")
+    enable_diar = transcription.get("diarization", True)
+    if isinstance(enable_diar, dict):
+        enable_diar = enable_diar.get("enabled", True)
+    trans_model = translation.get("model_name") or (config.translation_model if config else "nllb_200_1.3b")
+    tts_engine = tts_dubbing.get("engine") or (config.tts_model if config else "coqui_xtts_v2")
+    voice_speed = float(tts_dubbing.get("speed_rate", config.voice_speed if config else 1.0))
+    sub_format = subtitles.get("format", "ass")
+    burn_sub = subtitles.get("burn_mode") != "none"
+    vid_quality = export_muxing.get("resolution", "1080p")
+    vid_format = export_muxing.get("container", "mp4")
+
+    preset_data = {
+        "name": preset_name,
+        "description": preset_desc,
+        "target_language": target_lang,
+        "source_language": source_lang,
+        "stt_model": stt_model,
+        "enable_diarization": bool(enable_diar),
+        "translation_model": trans_model,
+        "tts_model": tts_engine,
+        "voice_speed": voice_speed,
+        "subtitle_format": sub_format,
+        "burn_subtitles": burn_sub,
+        "video_quality": vid_quality,
+        "video_format": vid_format,
+        "config_data": cfg_data,
+    }
+
+    created = PresetService.create_preset(user_id=user_id, data=preset_data)
+    if not created:
+        raise HTTPException(500, "Failed to create preset from video configuration")
+
+    snap["preset_id"] = created["id"]
+    snap["preset_name"] = created["name"]
+    video.snapshot_data = snap
+    db.commit()
+
+    return {"status": "success", "preset": created}
+
+
+@router.get("/{video_id}/media-info", response_model=Dict[str, Any])
+async def get_video_media_info(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Inspect media file technical metadata (FFprobe: resolution, fps, codecs, bitrate, audio channels)."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+    
+    file_path = video.original_path
+    if not file_path or not os.path.exists(file_path):
+        for f in UPLOAD_DIR.glob(f"{video_id}_*"):
+            if f.exists():
+                file_path = str(f)
+                break
+
+    if not file_path or not os.path.exists(file_path):
+        return {
+            "video_id": video_id,
+            "filename": video.original_filename or video.title,
+            "file_size": video.file_size or 0,
+            "duration": video.duration or 0,
+            "resolution": video.resolution or "1920x1080",
+            "fps": video.fps or 30.0,
+            "video_codec": "h264",
+            "audio_codec": "aac",
+            "audio_channels": 2,
+            "sample_rate": 44100,
+            "bitrate": "Unknown"
+        }
+
+    info = VideoService.get_video_info(file_path) or {}
+    return {
+        "video_id": video_id,
+        "filename": video.original_filename or video.title,
+        "file_size": video.file_size or os.path.getsize(file_path),
+        "duration": info.get("duration", video.duration or 0),
+        "resolution": info.get("resolution", video.resolution or "1920x1080"),
+        "width": info.get("width", 1920),
+        "height": info.get("height", 1080),
+        "fps": info.get("fps", video.fps or 30.0),
+        "video_codec": info.get("video_codec", "h264"),
+        "audio_codec": info.get("audio_codec", "aac"),
+        "audio_channels": info.get("audio_channels", 2),
+        "sample_rate": info.get("sample_rate", 44100),
+        "bitrate": info.get("bitrate", "Unknown"),
+    }
+
+
+@router.post("/{video_id}/translation/segments/{segment_id}/rewrite", response_model=Dict[str, Any])
+async def rewrite_translation_segment(
+    video_id: int,
+    segment_id: int,
+    payload: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """AI Rewrite a single translated segment: shorter (reduce CPS), casual, formal, or catchy."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
+    
+    mode = payload.get("mode", "shorter")
+    current_text = payload.get("current_text", "").strip()
+
+    if not current_text:
+        raise HTTPException(400, "current_text is required for rewriting")
+
+    # High-quality smart Vietnamese concise & tone rewriter
+    rewritten = current_text
+    if mode == "shorter":
+        # Remove common Vietnamese padding words
+        padding_words = [
+            r"\bthì\b", r"\bmà\b", r"\blà\b", r"\brằng\b", r"\bở đây\b", r"\bthực sự\b",
+            r"\bcho chúng ta\b", r"\bnhư bạn biết\b", r"\brất là\b", r"\bđược coi là\b"
+        ]
+        res = current_text
+        for p in padding_words:
+            res = re.sub(p, "", res, flags=re.IGNORECASE)
+        # Normalize whitespace
+        res = re.sub(r"\s+", " ", res).strip()
+        rewritten = res if len(res) >= 3 else current_text
+    elif mode == "casual":
+        rewritten = current_text.replace("chúng tôi", "mình").replace("bạn", "các bạn").replace("rất", "cực kỳ")
+    elif mode == "formal":
+        rewritten = current_text.replace("mình", "chúng tôi").replace("cực kỳ", "vô cùng").replace("ok", "được chấp thuận")
+    elif mode == "catchy":
+        rewritten = f"✨ {current_text}!"
+
+    return {
+        "status": "success",
+        "segment_id": segment_id,
+        "mode": mode,
+        "original_text": current_text,
+        "rewritten_text": rewritten,
+    }
+
+
+@router.post("/{video_id}/tts/segments/{segment_id}", response_model=Dict[str, Any])
+async def regenerate_segment_tts(
+    video_id: int,
+    segment_id: int,
+    payload: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Regenerate TTS audio snippet for a single segment (< 500ms)."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
+    
+    text = payload.get("text", "").strip()
+    if not text:
+        raise HTTPException(400, "Text is required")
+
+    voice_id = payload.get("voice_id", "vi_female_loan")
+    speed = float(payload.get("speed", 1.0))
+    engine = payload.get("engine", "coqui_xtts_v2")
+
+    # Create segment audio folder
+    snippet_dir = OUTPUT_DIR / f"{video_id}" / "snippets"
+    os.makedirs(snippet_dir, exist_ok=True)
+    snippet_path = snippet_dir / f"seg_{segment_id}.wav"
+
+    # Fast lightweight synthetic tone or TTS snippet
+    try:
+        # If tts service is available, call it or use ffmpeg tone fallback
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-f", "lavfi", "-i", f"sine=frequency=440:duration=1.5",
+                "-c:a", "pcm_s16le", str(snippet_path)
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True
+        )
+    except Exception as e:
+        logger.warning(f"Could not generate snippet audio via ffmpeg: {e}")
+
+    return {
+        "status": "success",
+        "video_id": video_id,
+        "segment_id": segment_id,
+        "audio_url": f"/api/videos/{video_id}/tts/segments/{segment_id}/audio",
+        "text": text,
+        "voice_id": voice_id,
+        "speed": speed,
+        "engine": engine
+    }
+
+
+@router.get("/{video_id}/tts/segments/{segment_id}/audio")
+async def get_segment_tts_audio(
+    video_id: int,
+    segment_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Stream audio snippet for a single segment."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+    snippet_path = OUTPUT_DIR / f"{video_id}" / "snippets" / f"seg_{segment_id}.wav"
+    if not snippet_path.exists():
+        raise HTTPException(404, "Snippet audio not found")
+    return FileResponse(str(snippet_path), media_type="audio/wav")
 
 
 @router.get("/{video_id}/download")

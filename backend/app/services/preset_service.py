@@ -266,3 +266,127 @@ class PresetService:
         finally:
             conn.close()
 
+    @staticmethod
+    def apply_preset_to_video(video_id: int, preset_id: int, user_id: int) -> Optional[Dict[str, Any]]:
+        """Apply full 6-tier preset configuration to video and its pipeline config."""
+        preset = PresetService.get_preset(preset_id)
+        if not preset:
+            return None
+
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT v.id, v.project_id, v.snapshot_data, v.target_language, p.owner_id
+                    FROM videos v
+                    JOIN projects p ON v.project_id = p.id
+                    WHERE v.id = %s AND (p.owner_id = %s OR EXISTS (
+                        SELECT 1 FROM project_members pm
+                        WHERE pm.project_id = p.id AND (pm.user_id = %s OR pm.email = (SELECT email FROM users WHERE id = %s))
+                        AND pm.role IN ('owner', 'admin', 'editor')
+                    ));
+                    """,
+                    (video_id, user_id, user_id, user_id)
+                )
+                v_row = cur.fetchone()
+                if not v_row:
+                    return None
+
+                existing_snap = v_row[2] or {}
+                if isinstance(existing_snap, str):
+                    try:
+                        existing_snap = json.loads(existing_snap)
+                    except Exception:
+                        existing_snap = {}
+                elif not isinstance(existing_snap, dict):
+                    existing_snap = {}
+
+                cfg_data = preset.get("config_data") or {}
+                existing_snap["preset_id"] = preset["id"]
+                existing_snap["preset_name"] = preset["name"]
+                existing_snap["preset_config"] = cfg_data
+                existing_snap["target_language"] = preset["target_language"]
+
+                cur.execute(
+                    """
+                    UPDATE videos
+                    SET target_language = %s,
+                        source_language = %s,
+                        snapshot_data = %s,
+                        updated_at = NOW()
+                    WHERE id = %s;
+                    """,
+                    (preset["target_language"], preset["source_language"], Json(existing_snap), video_id)
+                )
+
+                audio_sep = cfg_data.get("audio_separation") or {}
+                transcription = cfg_data.get("transcription") or {}
+                translation = cfg_data.get("translation") or {}
+                tts = cfg_data.get("tts_dubbing") or {}
+                subtitles = cfg_data.get("subtitles") or {}
+                export_mux = cfg_data.get("export_muxing") or {}
+
+                sep_model = audio_sep.get("demucs_model", "demucs_v4")
+                stt_model = transcription.get("model_size", preset["stt_model"])
+                enable_diar = transcription.get("diarization", preset["enable_diarization"])
+                if isinstance(enable_diar, dict):
+                    enable_diar = enable_diar.get("enabled", True)
+                diar_model = "pyannote_3.1" if enable_diar else None
+                trans_model = translation.get("model_name", preset["translation_model"])
+                tts_model = tts.get("engine", preset["tts_model"])
+                voice_speed = float(tts.get("speed_rate", preset["voice_speed"]))
+
+                cur.execute(
+                    """
+                    INSERT INTO video_pipeline_configs (
+                        video_id, target_language, source_language,
+                        separation_model, stt_model, diarization_model,
+                        translation_model, tts_model, voice_speed,
+                        auto_generate_subtitles, auto_generate_dubbing,
+                        created_at, updated_at
+                    ) VALUES (
+                        %s, %s, %s,
+                        %s, %s, %s,
+                        %s, %s, %s,
+                        %s, %s,
+                        NOW(), NOW()
+                    )
+                    ON CONFLICT (video_id) DO UPDATE SET
+                        target_language = EXCLUDED.target_language,
+                        source_language = EXCLUDED.source_language,
+                        separation_model = EXCLUDED.separation_model,
+                        stt_model = EXCLUDED.stt_model,
+                        diarization_model = EXCLUDED.diarization_model,
+                        translation_model = EXCLUDED.translation_model,
+                        tts_model = EXCLUDED.tts_model,
+                        voice_speed = EXCLUDED.voice_speed,
+                        auto_generate_subtitles = EXCLUDED.auto_generate_subtitles,
+                        auto_generate_dubbing = EXCLUDED.auto_generate_dubbing,
+                        updated_at = NOW();
+                    """,
+                    (
+                        video_id, preset["target_language"], preset["source_language"],
+                        sep_model, stt_model, diar_model,
+                        trans_model, tts_model, voice_speed,
+                        subtitles.get("burn_mode") != "none" if "burn_mode" in subtitles else True,
+                        tts_model != "none",
+                    )
+                )
+                conn.commit()
+                return {
+                    "status": "success",
+                    "video_id": video_id,
+                    "preset_id": preset["id"],
+                    "preset_name": preset["name"],
+                    "preset": preset
+                }
+        except Exception as e:
+            logger.error(f"[PresetService] Error applying preset to video {video_id}: {e}", exc_info=True)
+            if conn:
+                conn.rollback()
+            return None
+        finally:
+            if conn:
+                conn.close()
+

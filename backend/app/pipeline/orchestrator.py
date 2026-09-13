@@ -105,22 +105,24 @@ def run_full_pipeline(
             temp_dir
         )
         
-        # STEP 6: Mix and mux
+        # STEP 6: Generate subtitles
+        subtitle_result = pipeline.step_generate_subtitles(
+            job_id, video_id,
+            translate_result["translated_segments"],
+            target_lang,
+            temp_dir
+        )
+
+        # STEP 7: Mix and mux (applies NVENC and burns subtitles if configured)
+        sub_candidate = subtitle_result.get("subtitles_path")
         mix_result = pipeline.step_mix_and_mux(
             job_id, video_id,
             video_path,
             tts_result["tts_path"],
             separate_result["bgm_path"],
             target_lang,
-            temp_dir
-        )
-        
-        # STEP 7: Generate subtitles
-        subtitle_result = pipeline.step_generate_subtitles(
-            job_id, video_id,
-            translate_result["translated_segments"],
-            target_lang,
-            temp_dir
+            temp_dir,
+            subtitle_path=sub_candidate
         )
 
         # Preserve all intermediate assets permanently in OUTPUT_DIR before temp_dir cleanup

@@ -41,22 +41,44 @@ class VideoService:
             
             data = json.loads(result.stdout)
             
-            # Extract video stream
+            # Extract video & audio streams
             video_stream = None
+            audio_stream = None
             for stream in data.get("streams", []):
-                if stream.get("codec_type") == "video":
+                if stream.get("codec_type") == "video" and video_stream is None:
                     video_stream = stream
-                    break
+                elif stream.get("codec_type") == "audio" and audio_stream is None:
+                    audio_stream = stream
             
+            fps_val = 30.0
+            if video_stream and "r_frame_rate" in video_stream:
+                parts = str(video_stream["r_frame_rate"]).split("/")
+                if len(parts) == 2 and float(parts[1]) > 0:
+                    fps_val = round(float(parts[0]) / float(parts[1]), 2)
+                elif len(parts) == 1:
+                    try:
+                        fps_val = round(float(parts[0]), 2)
+                    except ValueError:
+                        pass
+
+            w = int(video_stream.get("width", 0)) if video_stream else 0
+            h = int(video_stream.get("height", 0)) if video_stream else 0
+            res_str = f"{w}x{h}" if w and h else ("1080p" if h == 1080 else f"{h}p" if h else "1080p")
+
             info = {
                 "duration": float(data.get("format", {}).get("duration", 0)),
                 "size": int(data.get("format", {}).get("size", 0)),
                 "bitrate": int(data.get("format", {}).get("bit_rate", 0)),
-                "codec": video_stream.get("codec_name") if video_stream else None,
-                "width": int(video_stream.get("width", 0)) if video_stream else 0,
-                "height": int(video_stream.get("height", 0)) if video_stream else 0,
-                "fps": float(video_stream.get("r_frame_rate", "0/1").split("/")[0]) if video_stream else 0,
-                "pixel_format": video_stream.get("pix_fmt") if video_stream else None,
+                "codec": video_stream.get("codec_name") if video_stream else "h264",
+                "video_codec": video_stream.get("codec_name") if video_stream else "h264",
+                "width": w,
+                "height": h,
+                "resolution": res_str,
+                "fps": fps_val,
+                "pixel_format": video_stream.get("pix_fmt") if video_stream else "yuv420p",
+                "audio_codec": audio_stream.get("codec_name") if audio_stream else "aac",
+                "audio_channels": int(audio_stream.get("channels", 2)) if audio_stream else 2,
+                "sample_rate": int(audio_stream.get("sample_rate", 44100)) if audio_stream else 44100,
             }
             
             return info

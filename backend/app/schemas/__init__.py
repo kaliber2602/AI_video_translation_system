@@ -43,3 +43,22 @@ from .asset import (
     ProjectAssetItem,
     ProjectAssetsResponse,
 )
+from .preset_schemas import (
+    AudioDuckingConfig,
+    AudioSeparationConfig,
+    TranscriptionConfig,
+    TranslationConfig,
+    TTSDubbingConfig,
+    SubtitleStyleConfig,
+    SubtitlesConfig,
+    ExportMuxingConfig,
+    PresetConfigData,
+    CreatePresetRequest,
+    UpdatePresetRequest,
+    PresetResponse,
+)
+from .batch_schemas import (
+    CreateBatchRequest,
+    BatchJobItemResponse,
+    BatchJobResponse,
+)

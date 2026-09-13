@@ -243,7 +243,7 @@ class PipelineSteps:
             self.job_service.log_task(job_id, "tts_generate", "failed", error_trace=str(e))
             raise
 
-    def step_mix_and_mux(self, job_id: uuid.UUID, video_id: int, video_path: str, tts_path: str, bgm_path: str, target_lang: str, temp_dir: str) -> Dict[str, Any]:
+    def step_mix_and_mux(self, job_id: uuid.UUID, video_id: int, video_path: str, tts_path: str, bgm_path: str, target_lang: str, temp_dir: str, subtitle_path: Optional[str] = None) -> Dict[str, Any]:
         self.job_service.update_job_status(job_id, JobStatus.PROCESSING, progress=75, current_step=JobStep.RENDER_VIDEO)
         self.job_service.log_task(job_id, "render_video", "running", "Mixing audio and rendering video...")
         try:
@@ -253,7 +253,52 @@ class PipelineSteps:
                 safe_title = "".join(c for c in video.title if c.isalnum() or c in " ._-")[:50]
                 output_filename = f"dubbed_{safe_title}_{target_lang}_{uuid.uuid4().hex[:8]}.mp4"
             output_path = str(OUTPUT_DIR / output_filename)
-            self.audio_service.mix_and_mux(video_path, tts_path, bgm_path, output_path, temp_dir)
+
+            # Extract 6-layer options from job config
+            quality = "1080p"
+            aspect_ratio = None
+            burn_subtitles = True
+            try:
+                job = self.db.query(PipelineJob).filter(PipelineJob.id == str(job_id)).first()
+                if job and getattr(job, "config_json", None):
+                    cj = job.config_json
+                    if isinstance(cj, str):
+                        cj = json.loads(cj)
+                    cfg_data = cj.get("config_data") or {}
+                    export_mux = cfg_data.get("export_muxing") or cj.get("export_muxing") or {}
+                    subtitles_cfg = cfg_data.get("subtitles") or {}
+                    quality = export_mux.get("resolution", "1080p")
+                    aspect_ratio = export_mux.get("aspect_ratio")
+                    if "burn_mode" in subtitles_cfg:
+                        burn_subtitles = subtitles_cfg["burn_mode"] in ("hardcode", "hardsub")
+            except Exception:
+                pass
+
+            # If subtitle_path wasn't passed directly, check temp_dir / canonical dir
+            if not subtitle_path and burn_subtitles:
+                for cand in [
+                    os.path.join(temp_dir, f"subtitles_{target_lang}.ass"),
+                    os.path.join(temp_dir, f"subtitles_{target_lang}.srt"),
+                    str(OUTPUT_DIR / f"transcript_{video_id}" / f"subtitles_{target_lang}.ass"),
+                    str(OUTPUT_DIR / f"transcript_{video_id}" / f"subtitles_{target_lang}.srt"),
+                ]:
+                    if os.path.exists(cand):
+                        subtitle_path = cand
+                        break
+
+            self.audio_service.mix_and_mux(
+                video_path=video_path,
+                tts_audio_path=tts_path,
+                bgm_audio_path=bgm_path,
+                final_output_path=output_path,
+                temp_dir=temp_dir,
+                video_id=video_id,
+                language=target_lang,
+                quality=quality,
+                subtitle_path=subtitle_path,
+                burn_subtitles=burn_subtitles,
+                aspect_ratio=aspect_ratio,
+            )
             if video:
                 video.output_path = output_path
                 self.db.commit()

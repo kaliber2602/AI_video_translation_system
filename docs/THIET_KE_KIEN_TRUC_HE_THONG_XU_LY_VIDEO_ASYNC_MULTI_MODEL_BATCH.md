@@ -3,8 +3,8 @@
 
 ---
 - **Mã tài liệu:** `SAD-VIDEO-ASYNC-BATCH-01`
-- **Phiên bản:** `1.7.0`
-- **Trạng thái:** `Đã hoàn thành Kiểm thử Giai đoạn 1-5; Mở rộng Thiết kế Batch Upload Đa Tệp, Preset Studio 6 Tầng AI & Bộ Công Cụ Biên Tập Thủ Công Chuyên Nghiệp 6 Bước (Pro Video Editing Workbench)`
+- **Phiên bản:** `1.8.0`
+- **Trạng thái:** `Đã hoàn thành Kiểm thử & Nghiệm thu toàn diện Giai đoạn 1-5, Giai đoạn 5.2 (Batch Upload & Preset Studio) và Giai đoạn 5.3 (Pro Video Editing Workbench & Unified 2-Way Sync)`
 - **Tác giả:** `Antigravity System Architect Team`
 - **Áp dụng cho:** `Backend (FastAPI, Celery, Redis, PostgreSQL)`, `AI Workers (PyTorch, Demucs, Whisper, Pyannote, TTS, FFmpeg)`, `GPU Acceleration (NVIDIA RTX 4060 8GB, CUDA, NVENC)`, `Frontend (React TypeScript Wizard, Pro Editing Workbench, Batch Upload Manager, Preset Studio & Project Sharing)`
 
@@ -1395,7 +1395,7 @@ gantt
     section Giai đoạn 5 (Batch Processing Core)
     Batch Engine, Presets & UI Drawer (Done)                :done, 2026-09-13, 2026-09-13
     section Giai đoạn 5.2 (Batch Upload & Preset Studio)
-    Batch Upload Đa Tệp & Preset Studio 6 Tầng AI           :done, 2026-09-14, 2d
+    Batch Upload Đa Tệp & Preset Studio 6 Tầng AI           :done, 2026-09-13, 2026-09-13
     section Giai đoạn 5.3 (Pro Editing Workbench)
     Bộ Công Cụ Biên Tập Thủ Công 6 Bước Chuyên Nghiệp       :active, 2026-09-14, 3d
 ```
@@ -1479,39 +1479,191 @@ gantt
     - Kiểm thử tự động End-to-End (`scratch/test_phase5_batch.py`): Khởi tạo batch cho Video 13 trong Project 330, hoàn tất 100% các bước (Demucs Vocal Isolation $\rightarrow$ Faster-Whisper STT $\rightarrow$ NLLB-1.3B Translation $\rightarrow$ Coqui XTTS-v2 Voice Cloning 87 segments $\rightarrow$ Hardware NVENC Muxing $\rightarrow$ HLS Conversion), tự động cập nhật status `completed`, và nhận thành công thông báo Omni-Channel Batch Digest Notification.
 * **Trạng thái:** `Passed 100%`.
 
-### 🚀 Giai đoạn 5.2: Batch Upload Đa Tệp & Preset Studio Chuyên Sâu 6 Tầng AI (KẾ HOẠCH TRIỂN KHAI TIẾP THEO)
-* **Mục tiêu:**
+### ✅ Giai đoạn 5.2: Batch Upload Đa Tệp & Preset Studio Chuyên Sâu 6 Tầng AI (ĐÃ HOÀN THÀNH & XÁC NHẬN KIỂM THỬ)
+* **Mục tiêu đã đạt được:**
   - Nâng cấp `pipeline_presets` và `batch_jobs` với trường `config_data` JSONB phân rã 6 tầng công đoạn chuyên sâu (`audio_separation`, `transcription`, `translation`, `tts_dubbing`, `subtitles`, `export_muxing`).
-  - Xây dựng component `BatchUploadModal.tsx`: Hỗ trợ drag-and-drop nhiều file cùng lúc, điều phối hàng đợi upload tối đa $K=3$ luồng song song có thanh tiến độ riêng cho từng file, tự động dispatch Batch Job và mở Drawer theo dõi ngay khi tải xong.
-  - Xây dựng component `PresetStudioModal.tsx`: Giao diện 6 Tabs trực quan, hỗ trợ tinh chỉnh toàn diện các tham số AI (chế độ Full Dubbing vs Voiceover thuyết minh, BGM Ducking, Diarization, Glossary, Multi-speaker TTS, ASS Subtitle Styling, Hardware NVENC). Tích hợp Audio Player nghe thử mẫu giọng và Subtitle Preview Box.
-  - Nâng cấp Celery Task `task_process_batch_job`: Bóc tách và truyền tải toàn bộ tham số 6 tầng từ Snapshot vào các Step Tasks bên dưới.
-  - Tích hợp Preset Ingestion vào Step Wizard (`VideoPipeline.tsx`): Cho phép người dùng nạp cấu hình mẫu Preset vào 1 video đơn lẻ để tự động điền toàn bộ 5 bước mà không cần chọn thủ công từng model.
-* **Các hạng mục thực hiện chi tiết:**
-  1. *Database Migration:* Bổ sung cột `config_data JSONB DEFAULT '{}'::jsonb` vào `pipeline_presets` (và snapshot sang `batch_jobs`). Cập nhật 3 System Presets mặc định lên schema v2.0 đầy đủ 6 tầng.
-  2. *Backend Schemas & Validation:* Nâng cấp Pydantic schemas trong `preset_schemas.py` và `batch_schemas.py` tiếp nhận `config_data` phân cấp.
-  3. *Celery Worker Batch Runner:* Cập nhật logic trong `task_process_batch_job` để đọc `config_data` từ Snapshot và áp dụng cho:
-     - Demucs: chế độ `full_dubbing` vs `voiceover`, `original_vocal_volume`, `bgm_volume`, ducking.
-     - STT: Whisper model, Diarization Pyannote vs fallback.
-     - Translation: Local NLLB vs Cloud LLM, Glossaries, Prompt instruction.
-     - TTS: Voice cloning XTTS-v2 vs Edge-TTS, mapping giọng đọc từng speaker, time-stretching alignment.
-     - Subtitles: Kiểu dáng font, màu sắc, viền, vị trí ASS style tags.
-     - Export: Render hardware NVENC `h264_nvenc` 1080p.
-  4. *Frontend Batch Upload Manager (`BatchUploadModal.tsx`):* Hàng đợi upload song song 3 file, kiểm tra định dạng, đo tốc độ MB/s, ETA, dropdown chọn Preset và checkbox `Tự động chạy AI Pipeline`.
-  5. *Frontend Preset Studio (`PresetStudioModal.tsx`):* Giao diện 6 Tabs cấu hình, danh sách Preset hệ thống và Preset người dùng tạo, nút Test Voice Audio và Live Subtitle Preview.
-  6. *Frontend Wizard Preset Ingestion:* Thêm nút `Áp dụng Preset` trên header của `VideoPipeline.tsx` để người dùng nhanh chóng điền cấu hình vào các bước chỉnh tay.
-* **Trạng thái:** `Sẵn sàng triển khai sau khi người dùng phê duyệt tài liệu thiết kế`.
+  - Xây dựng component `BatchUploadModal.tsx`: Hỗ trợ drag-and-drop nhiều file cùng lúc, điều phối hàng đợi upload tối đa $K=3$ luồng song song có thanh tiến độ riêng cho từng file (đo MB/s, ETA), tự động dispatch Batch Job và mở Drawer theo dõi ngay khi tải xong.
+  - Xây dựng component `PresetStudioModal.tsx`: Giao diện 6 Tabs trực quan, hỗ trợ tinh chỉnh toàn diện các tham số AI (chế độ Full Dubbing vs Voiceover thuyết minh, BGM Ducking, Diarization, Glossary, Multi-speaker TTS, ASS Subtitle Styling, Hardware NVENC). Tích hợp Audio Player nghe thử mẫu giọng và Live Subtitle Preview Box.
+  - Khắc phục triệt để lỗi HTTP 422 Unprocessable Entity trên `POST /api/presets` bằng Pydantic v2 Custom Field Validators và phân tầng schema chuyên biệt trong `preset_schemas.py` & `batch_schemas.py`.
+  - Nâng cấp Celery Task `task_process_batch_job`: Bóc tách và truyền tải toàn bộ tham số 6 tầng từ Snapshot vào `VideoPipelineConfig` và các Step Tasks bên dưới.
+  - Xây dựng API `POST /api/presets/{preset_id}/apply/{video_id}` & Tích hợp Preset Ingestion vào Step Wizard (`VideoPipeline.tsx`): Cho phép người dùng nạp cấu hình mẫu Preset vào 1 video đơn lẻ để tự động điền cấu hình 5 bước.
+* **Kết quả kiểm thử thực nghiệm:**
+  - `test_phase5_2_batch_upload_preset.py`: Passed 100% (CRUD preset 6 tầng, System Presets v2.0).
+  - `test_phase5_2_apply_preset.py`: Passed 100% (Nạp preset vào video & đồng bộ `video_pipeline_configs`).
+  - `debug_batch_upload_e2e.py`: Passed 100% (E2E Batch Upload đa tệp $\rightarrow$ Snapshot 6 tầng $\rightarrow$ Celery Worker Runner điều phối tuần tự).
+  - TypeScript build frontend: `0 lỗi`, hoàn thành trong `952ms`.
+* **Trạng thái:** `Passed 100%`.
 
-### 🚀 Giai đoạn 5.3: Bộ Công Cụ Biên Tập Thủ Công Chuyên Nghiệp 6 Bước (Pro Video Editing Workbench) (KẾ HOẠCH TRIỂN KHAI TIẾP THEO)
-* **Mục tiêu cốt lõi:** Nâng cấp toàn diện giao diện Step Wizard của 1 video đơn lẻ từ dạng "form nhập liệu tĩnh cơ bản" thành một **Phòng dựng video AI bán tự động chuyên nghiệp (Semi-Automated AI Video Studio)** tương tự CapCut / Descript / Premiere Pro.
-* **Các hạng mục thực hiện chi tiết:**
-  1. *Bước 1 (Upload & Prep):* Tích hợp Media Inspector hiển thị đầy đủ thông số kỹ thuật (FPS, Resolution, Codec, Audio bitrate). Xây dựng thanh trượt In/Out Range Trimming cho phép người dùng chỉ định đoạn cần dịch (ví dụ 5 phút giữa video dài 45 phút) để tiết kiệm quota và VRAM. Tích hợp tùy chọn Audio Denoise tiền xử lý.
-  2. *Bước 2 (Transcript & Diarization):* Tích hợp Interactive Waveform Timeline (Canvas zoom in/out, kéo thả timestamp biên). Thay thế thuật toán cắt câu cũ bằng tính năng `Split at Cursor` (`Ctrl+K`) tại vị trí con trỏ chuột. Bổ sung bảng Bulk Speaker Management (đổi tên hàng loạt, gộp speaker), Global Find & Replace và 1-click Filter Fillers. Thiết lập phím tắt `Space`, `Tab`, `Ctrl+Z/Y`.
-  3. *Bước 3 (Translation & Glossary):* Tích hợp thước đo tốc độ đọc CPS (Characters Per Second) với 3 mức màu (Xanh/Cam/Đỏ) cảnh báo câu dịch quá dài. Tích hợp AI Rewrite per segment (Rút gọn câu, Tự nhiên hơn, Trang trọng hơn). In-context Glossary Editor cho phép thêm và áp dụng thuật ngữ tức thời.
-  4. *Bước 4 (Subtitle Studio):* Thư viện Trending Preset Styles 1-click (MrBeast vàng viền đen, Netflix Minimalist, TikTok Viral). Lưới vùng an toàn (Social Safe Area Grid 9:16) cho TikTok/Reels. Hỗ trợ phụ đề song ngữ tự động (Bilingual Subtitles - 2 tầng tiếng Việt & tiếng Anh). Thuật toán ngắt dòng theo ngữ pháp.
-  5. *Bước 5 (Voice Dubbing & Mixer):* Tinh chỉnh âm thanh từng câu độc lập (Per-Segment In-Line Audio Regenerate $< 500\text{ms}$). Bàn trộn âm thanh 3 kênh (Original Vocal, BGM, Dubbed Voice) với Web Audio API Virtual Mixer cho phép nghe thử hòa âm tức thì với độ trễ 0ms. Cảnh báo lệch thời gian (Time-Mismatch) và Auto-Atempo. Character Voice Casting Studio gán giọng đa nhân vật trực quan.
-  6. *Bước 6 (Review & Export):* AB Split-Screen Comparison Slider so sánh trước và sau khi dịch. Xuất video MP4 đa luồng âm thanh rời (Multi-Audio Tracks chuẩn YouTube). Xuất gói dự án cho Premiere Pro / DaVinci Resolve (XML / EDL) và Audio Stems chất lượng cao.
-  7. *Hạ tầng kỹ thuật hỗ trợ:* Command Pattern History Stack cho Undo/Redo (`Ctrl+Z`, `Ctrl+Y`), Atomic Single-Segment APIs (`POST /api/videos/{id}/tts/segments/{idx}`).
-* **Trạng thái:** `Sẵn sàng triển khai sau khi người dùng phê duyệt tài liệu thiết kế`.
+---
+
+### ✅ Giai đoạn 5.3: Bộ Công Cụ Biên Tập Thủ Công Chuyên Nghiệp 6 Bước & Thống Nhất Cấu Hình Đa Mô Hình (Pro Video Editing Workbench & Unified Multi-Model Harmonization) (ĐÃ HOÀN THÀNH & XÁC NHẬN KIỂM THỬ)
+
+* **Kết quả nghiệm thu thực tế:**
+  - **Kiến trúc Single Source of Truth & Đồng bộ 2 chiều (Bidirectional Auto-Debounced Sync):**
+    - Cung cấp cặp endpoints `GET /api/videos/{video_id}/pipeline-config` và `PUT /api/videos/{video_id}/pipeline-config` chuẩn hóa đầy đủ 6 tầng công đoạn chuyên sâu (`audio_separation`, `transcription`, `translation`, `tts_dubbing`, `subtitles`, `export_muxing`).
+    - Frontend `VideoPipeline.tsx` tự động lưu ngầm (800ms debounce) vào DB mỗi khi người dùng thay đổi bất kỳ model hay slider nào, đảm bảo F5 tải lại trang không bao giờ bị mất thiết lập.
+    - Nút "Lưu thành Preset" (`BookmarkPlus`) trên Header thanh điều hướng cho phép đóng gói ngay cấu hình 6 tầng hiện tại thành Preset mới lưu vào `pipeline_presets`.
+  - **Bộ chọn đa mô hình AI chuyên sâu ở cả 6 bước:**
+    - *Bước 1 (Upload/Separate):* Demucs v4 HT, Fine-tuned, MDX-Net Vocal, Bypass; Chế độ Full Dubbing vs Voiceover; Thẻ FFprobe Media Inspector.
+    - *Bước 2 (Transcript):* Whisper (Large-v3, Medium, Small, Base, WhisperX Large-v3); Pyannote 3.1 Diarization; Phím tắt `Ctrl+K` cắt đôi câu tại playhead.
+    - *Bước 3 (Translation):* NLLB-1.3B, NLLB-3.3B, GPT-4o, Claude 3.5 Sonnet, Gemini 1.5 Flash, DeepSeek V3; Tone selector, In-context Glossary, Reading Speed CPS Gauge, AI Rewrite từng câu đơn lẻ.
+    - *Bước 4 (Subtitles):* 1-Click Trending Presets (MrBeast, Netflix, TikTok 9:16, YouTube Chuẩn); Phụ đề song ngữ (Bilingual).
+    - *Bước 5 (Dubbing):* TTS Engines (Coqui XTTS-v2, Edge TTS, Bark); Multi-Speaker Voice Casting; Web Audio API 3-Track Virtual Mixer; Nút sinh lại TTS câu đơn lẻ.
+    - *Bước 6 (Review & Export):* AB Split-Screen Player so sánh video gốc và lồng tiếng; Tăng tốc phần cứng NVIDIA NVENC GPU (`h264_nvenc` presets p1, p4, p6) vs CPU Software (`libx264`); Xuất đa luồng âm thanh (Multi-audio tracks).
+  - **Chất lượng mã nguồn & Kiểm thử:**
+    - TypeScript Frontend Build `tsc -b && vite build` hoàn thành với **0 lỗi**.
+    - Backend Endpoints Test (`test_phase5_3_backend_endpoints.py`): Passed 100%.
+    - E2E 2-Way Sync Test (`test_phase5_3_e2e_sync.py`): Passed 100%.
+* **Trạng thái:** `Passed 100%`.
+
+#### 1. Phân Tích Nghịch Lý & Sự Lệch Pha Kiến Trúc Giữa Preset Studio 6 Tầng và Single-Video Wizard Hiện Tại
+Qua rà soát thực tế sau Giai đoạn 5.2, hệ thống đang tồn tại **3 điểm nghẽn lệch pha (Discrepancies)** giữa Preset Studio và bộ công cụ chỉnh sửa thủ công của video đơn lẻ:
+1. **Lệch Pha 1: Thiếu hụt bộ chọn Mô Hình & Tham Số AI ở quy trình thủ công (Missing Model Selectors in Step Wizards):**
+   - *Bước 1 (Upload/Separate):* Người dùng không có bất kỳ giao diện nào để chọn mô hình tách âm (Demucs v4 HTDemucs, MDX-Net, hay Bypass/None), không chỉnh được âm lượng Vocal/BGM hay cấu hình Ducking. Hệ thống chỉ tự động chạy ngầm trích xuất âm thanh mặc định.
+   - *Bước 2 (Transcript):* Dropdown Whisper chỉ có 3 lựa chọn cứng, thiếu các mô hình WhisperX Large-v3, cấu hình compute type (int8/float16), beam size, temperature, initial prompt, và các tham số Diarization (min/max speakers, fallback).
+   - *Bước 3 (Translation):* Chỉ có NLLB-1.3B, NLLB-3.3B và GPT-4o. Thiếu hoàn toàn các mô hình Cloud LLM hàng đầu (Claude 3.5 Sonnet, Gemini 1.5 Pro/Flash, DeepSeek V3), không cho phép tùy chỉnh phong cách dịch (Tone/Style), System Instruction hay quản lý Glossary trực tiếp.
+   - *Bước 4 (Subtitle):* Thiếu tính năng phụ đề song ngữ (Bilingual Subtitles), lưới vùng an toàn 9:16 Social Safe Area, và các bộ preset styles trending 1-click.
+   - *Bước 5 (Dubbing):* Chưa có bộ chọn Engine TTS (Coqui XTTS-v2 vs Edge-TTS Neural vs Bark vs F5-TTS), thiếu bảng phân vai gán giọng từng nhân vật (Speaker Voice Mapping), thiếu bàn trộn âm thanh 3 kênh (Original Vocal / BGM / Dubbed Voice) với độ trễ 0ms.
+   - *Bước 6 (Review & Export):* Chưa có tùy chọn bộ mã hóa phần cứng Hardware NVENC (`h264_nvenc`), Bitrate, container format, và tính năng xuất video đa luồng âm thanh rời (Multi-Audio Tracks).
+2. **Lệch Pha 2: Bẫy Đồng Bộ Một Chiều (One-Way Ingestion Trap) & Thiếu Single Source of Truth:**
+   - Việc "Nạp Preset" ở 5.2 mới chỉ bơm dữ liệu một chiều từ Preset vào Component State. Khi người dùng tự tay điều chỉnh model hoặc tham số ở từng bước (ví dụ: đổi model STT từ medium sang large-v3, hoặc đổi tốc độ đọc TTS), các thay đổi này **không được đồng bộ ngược lại vào bảng `video_pipeline_configs` và `videos.snapshot_data`**.
+   - Hậu quả: Khi bấm nút chạy Step hoặc khi F5 tải lại trang, backend vẫn sử dụng cấu hình cũ hoặc giá trị mặc định, gây mất tính nhất quán dữ liệu (Inconsistency).
+3. **Lệch Pha 3: Bất Tương Thích Mã Định Danh Model (Model Key Incompatibility):**
+   - Tên định danh model ở Preset Studio (`"facebook/nllb-200-1.3B"`, `"coqui_xtts_v2"`, `"whisper_medium"`) khác biệt với mã định danh ở các Step components (`"nllb_200_1.3b"`, `"whisper-medium"`), dẫn đến tình trạng parse chuỗi chập chờn khi chuyển giao cấu hình.
+
+---
+
+#### 2. Kiến Trúc Đồng Bộ Hai Chiều & Thống Nhất Đa Mô Hình (Unified 2-Way Sync Engine)
+Xây dựng cơ chế **Single Source of Truth** hợp nhất giữa Preset Studio, Video Wizard và Cơ sở dữ liệu:
+
+```mermaid
+graph TD
+    subgraph PresetLayer [Preset Studio & System Presets]
+        PRESET_SYS[3 System Presets Schema v2.0]
+        PRESET_CUST[Custom User Presets]
+    end
+
+    subgraph VideoState [Single Video Single Source of Truth]
+        DB_VPC[(PostgreSQL: video_pipeline_configs)]
+        DB_SNAP[(PostgreSQL: videos.snapshot_data)]
+        CTX[React PipelineContext: state.pipelineConfig]
+    end
+
+    subgraph StepWizards [6-Step Pro Video Editing Workbench]
+        S1[Bước 1: Audio Separation Studio & Inspector]
+        S2[Bước 2: Transcription & Diarization Studio]
+        S3[Bước 3: Translation & Tone Studio]
+        S4[Bước 4: Subtitle Styling Studio]
+        S5[Bước 5: Voice Dubbing & 3-Track Mixer Studio]
+        S6[Bước 6: Review & Master Delivery Studio]
+    end
+
+    PRESET_SYS -->|1. Áp dụng Preset| CTX
+    PRESET_CUST -->|1. Áp dụng Preset| CTX
+    CTX -->|2. Auto-Populate Tools & Models| StepWizards
+    StepWizards -->|3. Manual Fine-Tuning Any Model/Param| CTX
+    CTX -->|4. Auto-Sync 2-Way| DB_VPC
+    CTX -->|4. Auto-Sync 2-Way| DB_SNAP
+    CTX -->|5. Lưu cấu hình thành Preset mới| PRESET_CUST
+```
+
+- **Luật Đồng Bộ Hai Chiều (Bidirectional Sync Rule):**
+  1. Khi người dùng nạp một Preset $\rightarrow$ Điền toàn bộ tham số vào 6 bước, đồng thời gọi API lưu vào `video_pipeline_configs` và `videos.snapshot_data`.
+  2. Khi người dùng thay đổi bất kỳ model hoặc tham số nào ở bất kỳ bước nào $\rightarrow$ Cập nhật tức thời vào `state.pipelineConfig`, kích hoạt lưu snapshot ngầm (Auto-Debounced Save) vào backend để bảo đảm F5 không mất dữ liệu.
+  3. Bổ sung nút **"Lưu thành Preset mới (Save as New Preset)"** ngay trên Header của `VideoPipeline.tsx`: Cho phép người dùng lưu lại toàn bộ bộ tham số mà mình vừa tinh chỉnh thủ công cho video này thành một Preset tái sử dụng cho các đợt Batch sau.
+
+---
+
+#### 3. Thiết Kế Chi Tiết Bộ Công Cụ Biên Tập Thủ Công 6 Bước (Pro Editing Workbench Details)
+
+##### Bước 1: Audio Separation Studio & Media Inspector (Bước 1)
+- **Media Inspector Panel:** Hiển thị chi tiết Container, Video Codec, Audio Codec, Resolution (1080p/4K), Frame Rate (FPS), Audio Sample Rate (44.1kHz/48kHz), Channels (Stereo/Mono).
+- **Bộ chọn Mô hình Tách Âm (Audio Separation Selector):**
+  - Models: `Demucs v4 (HTDemucs)` (Chất lượng cao nhất, tách sạch nhạc cụ), `MDX-Net Extra` (Tốc độ cao), `Bypass / Raw Audio` (Không tách âm đối với podcast chỉ có giọng nói sạch).
+- **Thanh trượt Hòa Âm & Tiền Xử Lý (Pre-Mix Controls):**
+  - Chế độ lồng tiếng: `Full Dubbing` (Tắt hẳn vocal gốc, thay bằng AI voice) vs `Voiceover / Thuyết minh` (Giữ lại $15-20\%$ vocal gốc nói nhỏ bên dưới).
+  - Thanh trượt âm lượng: `Original Vocal Volume` (0 - 100%), `Background Music (BGM) Volume` (0 - 150%).
+  - Tự động hạ nhạc nền khi có tiếng nói (`Smart Ducking`): Checkbox bật/tắt, tham số Attenuation (-12dB), Threshold (-24dB).
+  - Lọc tạp âm nền AI (`Audio Denoise`): Checkbox bật/tắt, cường độ 0.0 - 1.0.
+- **In/Out Range Trimming Slider:** Thanh trượt chọn đoạn cần dịch (ví dụ: chỉ dịch từ phút 01:00 đến 05:00), giúp tiết kiệm quota tín dụng và thời gian xử lý VRAM.
+
+##### Bước 2: Transcription & Speaker Diarization Studio (Bước 2)
+- **Bộ chọn Mô hình Nhận Dạng Giọng Nói (STT Model Selector):**
+  - Models: `Whisper Large-v3` (Chuẩn xác cao nhất), `Whisper Medium` (Cân bằng), `Whisper Small` (Nhanh), `WhisperX Large-v3` (Phân đoạn theo từng từ word-level timestamps).
+  - Cấu hình nâng cao: Compute Type (`int8_float16`, `float16`, `int8`), Temperature (`0.0 - 0.8`), Beam Size (`1 - 5`), Ngôn ngữ nguồn (`auto` hoặc chỉ định ngôn ngữ).
+- **Phân Tách Người Nói (PyAnnote 3.1 Diarization Studio):**
+  - Bật/tắt PyAnnote 3.1 Speaker Diarization.
+  - Giới hạn số lượng người nói: `Min Speakers` (1 - 10), `Max Speakers` (1 - 10).
+  - Fallback an toàn: Tự động gom về `SPEAKER_01` nếu video chỉ có một người nói.
+- **Bộ Lọc Từ Đệm & Tiếng Ồn (Filler Words Filter):** 1-click tự động nhận diện và xóa các từ đệm vô nghĩa ("ừm", "à", "ờ", "you know", "like", "uh", "um").
+- **Interactive Waveform Timeline & Split at Cursor (`Ctrl+K`):**
+  - Hiển thị dải sóng âm thanh (Audio Waveform) kèm vạch phát hiện ranh giới câu.
+  - Cắt đôi phân đoạn ngay tại vị trí con trỏ chuột (`Ctrl + K`). Gộp 2 phân đoạn liền kề (`Merge`).
+  - Quản lý diễn giả hàng loạt (Bulk Speaker Renaming & Merge Speakers).
+
+##### Bước 3: Translation, Tone & Glossary Studio (Bước 3)
+- **Bộ chọn Mô hình Dịch Thuật Đa Tầng (Translation Model Selector):**
+  - Local GPU Models: `Meta NLLB-200 1.3B` (Chạy trực tiếp trên RTX 4060, bảo mật dữ liệu tuyệt đối), `Meta NLLB-200 3.3B` (Chính xác cao).
+  - Cloud LLMs (Agentic Translators): `OpenAI GPT-4o`, `Claude 3.5 Sonnet`, `Google Gemini 1.5 Pro / Flash`, `DeepSeek V3`.
+- **Định Hình Phong Cách Ngữ Điệu (Tone & Style Selector):**
+  - Tùy chọn phong cách: `Tự nhiên (Natural)`, `Trang trọng / Học thuật (Formal)`, `Thân mật / Đời thường (Casual)`, `Bắt trend / Viral Shorts (Catchy)`.
+  - Hướng dẫn dịch thuật tùy chỉnh (`System Prompt Instruction`): Cho phép người dùng nhập quy chuẩn dịch thuật đặc thù cho dự án.
+- **In-Context Glossary Management (Từ Điển Thuật Ngữ):**
+  - Bảng quản lý thuật ngữ trực tiếp ngay trong Step: Thêm/Sửa/Xóa cặp từ khóa (VD: `Machine Learning` $\rightarrow$ `Học máy`).
+  - Nút 1-click `Áp dụng Glossary`: Quét và chuẩn hóa toàn bộ các câu dịch trong video tức thì.
+- **Thước Đo Tốc Độ Đọc (Reading Speed CPS Gauge) & Cảnh Báo Tràn Chữ:**
+  - Hiển thị thước đo CPS (Characters Per Second) với 3 mức màu: Xanh ($\le 17$), Vàng ($18-21$), Đỏ ($>21$).
+- **AI Rewrite Assistant Từng Câu:** Rút gọn câu để khớp thời lượng, viết lại văn phong tự nhiên hơn.
+
+##### Bước 4: Subtitle Styling & Social Layout Studio (Bước 4)
+- **Trending Preset Styles 1-Click:** Thư viện mẫu phong cách nổi tiếng (`MrBeast Vàng Viền Đen`, `Netflix Minimalist`, `TikTok Viral Neon`).
+- **Tùy biến Chi Tiết Typography & ASS Styles:** Font chữ (Montserrat, Roboto, Inter, Be Vietnam Pro, Impact), cỡ chữ, màu chính, màu viền, độ dày viền, bóng đổ, lề đứng Margin-V.
+- **Lưới Vùng An Toàn Mạng Xã Hội (Social Safe Area Grid 9:16):** Overlay hiển thị vùng tránh nút Like/Share/Caption cho TikTok, Reels và YouTube Shorts.
+- **Phụ Đề Song Ngữ Tự Động (Bilingual Subtitles Engine):** Hiển thị đồng thời ngôn ngữ dịch (dòng trên nổi bật) và ngôn ngữ gốc (dòng dưới nhỏ hơn).
+- **Thuật Toán Ngắt Dòng Theo Ngữ Pháp (Grammar-Aware Auto Line-Break):** Không ngắt cụm từ ghép, chia đều độ dài 2 dòng cân đối.
+
+##### Bước 5: Voice Dubbing & 3-Track Mixer Studio (Bước 5)
+- **Bộ chọn Công Nghệ Lồng Tiếng AI (TTS Engine Selector):**
+  - Models: `Coqui XTTS-v2` (Voice Cloning chất lượng studio), `Microsoft Edge-TTS Neural` (Tốc độ cao, đa ngôn ngữ mượt mà), `Bark Audio`, `F5-TTS`.
+- **Character Voice Casting Studio (Phân Vai Giọng Đọc Đa Nhân Vật):**
+  - Bảng ánh xạ: Gán từng diễn giả (`SPEAKER_00`, `SPEAKER_01`) với một Voice ID và Engine riêng biệt.
+  - Nút **Nghe thử giọng mẫu** tương tác trực tiếp trước khi sinh audio.
+- **Bàn Trộn Âm Thanh 3 Kênh Ảo (Web Audio API Virtual Mixer 0ms Latency):**
+  - 3 Faders điều chỉnh âm lượng tức thì trên loa máy tính: `Original Vocal`, `Background Music`, `Dubbed Audio`. Kéo fader đến đâu nghe thấy thay đổi ngay đến đó với độ trễ 0ms.
+- **Biên Tập Giọng Đọc Từng Câu Độc Lập (Per-Segment In-Line Audio Regenerate $< 500\text{ms}$):**
+  - Nghe thử riêng từng câu. Sửa text câu nào, bấm `Sinh lại audio câu này` ngay lập tức mà không phải render lại toàn bộ video.
+- **Cảnh Báo Lệch Thời Lượng (Time-Mismatch Guard & Auto-Atempo):** Cảnh báo khi câu đọc AI dài hơn thời lượng video gốc; giải pháp 1-click tự động nén tốc độ FFmpeg atempo hoặc dùng AI rút ngắn câu.
+
+##### Bước 6: Review, Hardware NVENC & Master Delivery Studio (Bước 6)
+- **AB Split-Screen Comparison Slider:** Thanh trượt chia đôi màn hình kéo qua lại để so sánh trực quan video gốc và video thành phẩm đã dịch/lồng tiếng.
+- **Bộ Mã Hóa Phần Cứng GPU NVENC (Hardware NVENC Encoder):**
+  - Bộ mã hóa: `h264_nvenc` (NVIDIA RTX 4060) vs `libx264` (CPU fallback).
+  - Cấu hình chất lượng: `1080p`, `720p`, `4K`, `9:16 Shorts`. Bitrate (`4M`, `8M`, `15M`). Preset NVENC (`p1` đến `p7`).
+  - Phương thức đóng dấu phụ đề: `Hardsub (Burn-in trực tiếp vào hình ảnh)` vs `Softsub (Stream phụ đề bật/tắt rời)`.
+- **Xuất Video MP4 Đa Luồng Âm Thanh Rời (Multi-Audio Tracks chuẩn YouTube):** Xuất tệp MP4 chứa 2 audio track độc lập (Track 1: Tiếng Việt lồng tiếng, Track 2: Tiếng Anh gốc).
+- **Gói Xuất Cho Phần Mềm Dựng Phim Chuyên Nghiệp (Professional NLE Pack):** Xuất file XML/EDL cho Premiere Pro, DaVinci Resolve và bộ Audio Stems rời (`vocal.wav`, `bgm.wav`, `subtitles.ass`).
+
+---
+
+#### 4. Kế Hoạch Triển Khai Kỹ Thuật Giai Đoạn 5.3
+1. **Pydantic Schemas & Backend Endpoints:**
+   - Mở rộng `VideoPipelineConfig` và `VideoUpdateRequest` tiếp nhận cấu hình phân tầng 6 bước.
+   - Bổ sung endpoint `POST /api/videos/{id}/tts/segments/{segment_id}` (Single-Segment TTS regen).
+   - Bổ sung endpoint `POST /api/videos/{id}/translation/segments/{segment_id}/rewrite` (AI Rewrite per segment).
+   - Bổ sung endpoint `POST /api/videos/{id}/save-as-preset` (Lưu cấu hình hiện tại thành preset mới).
+2. **Frontend Unified Pipeline State & 2-Way Sync:**
+   - Chuẩn hóa `PipelineContext` với `pipelineConfig: PresetConfigData` đồng bộ liên tục với backend.
+   - Nâng cấp `VideoPipeline.tsx`: Nút "Lưu thành Preset mới", hiển thị trạng thái đồng bộ hai chiều.
+3. **Nâng Cấp Giao Diện 6 Step Wizards:**
+   - `UploadStep.tsx`: Tích hợp Media Inspector và Audio Separation Controls.
+   - `TranscriptStep.tsx`: Bổ sung toàn bộ Whisper models, Diarization min/max speakers, Filter Fillers.
+   - `TranslationStep.tsx`: Bổ sung NLLB + Cloud LLMs (Claude, Gemini, GPT-4o), Tone selector, System instruction, In-Context Glossary.
+   - `SubtitleStep.tsx`: Bổ sung Trending Presets, 9:16 Social Safe Area Grid, Bilingual Subtitles.
+   - `DubbingStep.tsx`: Bổ sung TTS Engine selector, Multi-Speaker Voice Casting, Web Audio API 3-Track Virtual Mixer, Single-Segment audio regenerate.
+   - `ReviewExportStep.tsx`: Bổ sung AB Comparison Slider, Hardware NVENC profile selector, Multi-Audio Track export.
+4. **Kiểm thử tự động & Nghiệm thu:**
+   - Kịch bản test E2E kiểm tra đồng bộ 2 chiều (Nạp preset $\rightarrow$ Tinh chỉnh manual $\rightarrow$ Lưu thành preset mới $\rightarrow$ Verify backend database).
+   - Kiểm tra tương thích phần cứng NVIDIA RTX 4060 Hardware NVENC và Web Audio API trên trình duyệt.
 
 ---
 

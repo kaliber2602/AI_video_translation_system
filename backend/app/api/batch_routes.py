@@ -6,17 +6,11 @@ from pydantic import BaseModel, Field
 from app.api.notification_routes import get_current_user_id
 from app.services.batch_service import BatchService
 from app.services.project_service import get_project
+from app.schemas.batch_schemas import CreateBatchRequest
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["batch_processing"])
-
-
-class CreateBatchRequest(BaseModel):
-    name: Optional[str] = ""
-    video_ids: List[int] = Field(..., min_length=1)
-    preset_id: Optional[int] = None
-    config_override: Optional[Dict[str, Any]] = None
 
 
 @router.post(
