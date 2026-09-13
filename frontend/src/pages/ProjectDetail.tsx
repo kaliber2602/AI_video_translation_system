@@ -17,6 +17,8 @@ import {
   BookOpen,
   Layers,
   HardDrive,
+  Sliders,
+  UploadCloud,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
@@ -38,6 +40,11 @@ import {
 import { videoService } from "../services/video.service";
 import type { Project, ProjectFolder } from "../types/project";
 import type { VideoDocument, VideoChapter } from "../types/video";
+import BatchProcessModal from "../components/batch/BatchProcessModal";
+import BatchProgressDrawer from "../components/batch/BatchProgressDrawer";
+import BatchUploadModal from "../components/batch/BatchUploadModal";
+import PresetStudioModal from "../components/batch/PresetStudioModal";
+import type { BatchJobDetail } from "../services/batch.service";
 
 export default function ProjectDetail() {
   const { t, i18n } = useTranslation(["project", "navigation", "common", "workspace"]);
@@ -82,6 +89,19 @@ export default function ProjectDetail() {
   const [selectedVideoIds, setSelectedVideoIds] = useState<number[]>([]);
   const [isBulkVideoDeleteOpen, setIsBulkVideoDeleteOpen] = useState(false);
   const [isBulkDeletingVideos, setIsBulkDeletingVideos] = useState(false);
+
+  // Batch AI Processing State
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [isBatchDrawerOpen, setIsBatchDrawerOpen] = useState(false);
+  const [isPresetStudioOpen, setIsPresetStudioOpen] = useState(false);
+  const [isBatchUploadOpen, setIsBatchUploadOpen] = useState(false);
+  const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
+
+  const handleBatchStarted = (batch: BatchJobDetail) => {
+    setActiveBatchId(batch.id);
+    setIsBatchDrawerOpen(true);
+    setSelectedVideoIds([]);
+  };
 
   // Thumbnail Manager Modal State
   const [managingThumbnailVideo, setManagingThumbnailVideo] = useState<Video | null>(null);
@@ -616,6 +636,26 @@ export default function ProjectDetail() {
               Refresh
             </button>
 
+            <button
+              type="button"
+              onClick={() => setIsPresetStudioOpen(true)}
+              className="flex h-11 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] cursor-pointer"
+              title="Mở Preset Studio tùy chỉnh 6 tầng AI"
+            >
+              <Sliders size={16} />
+              Preset Studio
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsBatchDrawerOpen(true)}
+              className="flex h-11 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] cursor-pointer"
+              title="Xem lịch sử và tiến độ xử lý hàng loạt"
+            >
+              <Layers size={16} />
+              Tiến độ Batch
+            </button>
+
             {!isViewOnly && (
               <>
                 <button
@@ -625,6 +665,16 @@ export default function ProjectDetail() {
                 >
                   <Plus size={17} />
                   {t("project:newFolder") || "New Folder"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsBatchUploadOpen(true)}
+                  className="flex h-11 items-center gap-2 rounded-xl border border-indigo-500/30 bg-indigo-50/10 px-4 text-sm font-semibold text-indigo-400 transition hover:bg-indigo-500/20 hover:border-indigo-400 cursor-pointer"
+                  title="Tải lên nhiều video cùng lúc & tự động chạy batch pipeline"
+                >
+                  <UploadCloud size={17} />
+                  Batch Upload
                 </button>
 
                 <button
@@ -840,6 +890,14 @@ export default function ProjectDetail() {
                 <span className="text-xs text-[var(--color-text-muted)] font-medium">
                   Đã chọn {selectedVideoIds.length} video
                 </span>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setIsBatchModalOpen(true)}
+                  icon={<Sparkles size={14} />}
+                >
+                  Xử lý hàng loạt (Batch AI)
+                </Button>
                 <Button
                   variant="danger"
                   size="sm"
@@ -1275,6 +1333,55 @@ export default function ProjectDetail() {
           video={managingThumbnailVideo}
           onClose={() => setManagingThumbnailVideo(null)}
           onThumbnailUpdated={handleThumbnailUpdated}
+        />
+
+        {/* -------------------------------------------------------- */}
+        {/* Preset Studio Modal */}
+        {/* -------------------------------------------------------- */}
+        <PresetStudioModal
+          isOpen={isPresetStudioOpen}
+          onClose={() => setIsPresetStudioOpen(false)}
+        />
+
+        {/* -------------------------------------------------------- */}
+        {/* Batch Multi-File Upload Modal */}
+        {/* -------------------------------------------------------- */}
+        <BatchUploadModal
+          isOpen={isBatchUploadOpen}
+          onClose={() => setIsBatchUploadOpen(false)}
+          projectId={Number(projectId)}
+          folders={folders}
+          defaultFolderId={activeFolderId}
+          onUploadCompleted={() => {
+            handleRefresh();
+          }}
+          onBatchStarted={(batch) => {
+            handleRefresh();
+            handleBatchStarted(batch);
+          }}
+          onOpenPresetStudio={() => setIsPresetStudioOpen(true)}
+        />
+
+        {/* -------------------------------------------------------- */}
+        {/* Batch AI Processing Modal */}
+        {/* -------------------------------------------------------- */}
+        <BatchProcessModal
+          isOpen={isBatchModalOpen}
+          onClose={() => setIsBatchModalOpen(false)}
+          selectedVideoIds={selectedVideoIds}
+          projectId={Number(projectId)}
+          onBatchStarted={handleBatchStarted}
+        />
+
+        {/* -------------------------------------------------------- */}
+        {/* Batch AI Progress Drawer */}
+        {/* -------------------------------------------------------- */}
+        <BatchProgressDrawer
+          isOpen={isBatchDrawerOpen}
+          onClose={() => setIsBatchDrawerOpen(false)}
+          projectId={Number(projectId)}
+          activeBatchId={activeBatchId}
+          onSelectVideo={(videoId) => navigate(`/workspace/project/${projectId}/video/${videoId}`)}
         />
       </main>
     </div>

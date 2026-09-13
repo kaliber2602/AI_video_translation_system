@@ -176,22 +176,30 @@ class PipelineSteps:
 
             # 4. Save to DB TranslationSegment
             try:
-                self.db.query(TranslationSegment).filter(
-                    TranslationSegment.video_id == video_id,
-                    TranslationSegment.target_language == target_lang_clean
-                ).delete()
+                t_segs = self.db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).order_by(TranscriptSegment.sequence).all()
                 for idx, seg in enumerate(translated_segments):
-                    t_seg = TranslationSegment(
-                        video_id=video_id,
-                        target_language=target_lang_clean,
-                        segment_index=idx,
-                        start_time=float(seg.get("start", 0.0)),
-                        end_time=float(seg.get("end", 0.0)),
-                        translated_text=seg.get("translated_text", "")
-                    )
-                    self.db.add(t_seg)
+                    if idx < len(t_segs):
+                        t_seg_id = t_segs[idx].id
+                        existing_ts = self.db.query(TranslationSegment).filter(
+                            TranslationSegment.transcript_segment_id == t_seg_id,
+                            TranslationSegment.target_language == target_lang_clean
+                        ).first()
+                        if existing_ts:
+                            existing_ts.translated_text = seg.get("translated_text", "")
+                            existing_ts.translation_model = "nllb_200_1.3b"
+                            existing_ts.updated_at = datetime.utcnow()
+                        else:
+                            self.db.add(TranslationSegment(
+                                transcript_segment_id=t_seg_id,
+                                target_language=target_lang_clean,
+                                translated_text=seg.get("translated_text", ""),
+                                translation_model="nllb_200_1.3b",
+                                created_at=datetime.utcnow(),
+                                updated_at=datetime.utcnow()
+                            ))
                 self.db.commit()
             except Exception as e_db:
+                self.db.rollback()
                 print(f"[step_translate] Warning saving translation to DB: {e_db}")
 
             # 5. Pre-generate subtitles into canonical dir immediately
@@ -292,6 +300,26 @@ class PipelineSteps:
                 except Exception as probe_err:
                     pass
 
+            # Check custom subtitle style from job config if available
+            font_size = 22
+            font_name = "Montserrat"
+            primary_color = "#FFFFFF"
+            outline_color = "#000000"
+            try:
+                job = self.db.query(PipelineJob).filter(PipelineJob.id == str(job_id)).first()
+                if job and getattr(job, "config_json", None):
+                    cj = job.config_json
+                    if isinstance(cj, str):
+                        cj = json.loads(cj)
+                    style = (cj.get("config_data") or {}).get("subtitles", {}).get("style", {}) or cj.get("subtitle_style", {})
+                    if style:
+                        font_size = int(style.get("font_size", font_size))
+                        font_name = str(style.get("font_name", font_name))
+                        primary_color = str(style.get("primary_color", primary_color))
+                        outline_color = str(style.get("outline_color", outline_color))
+            except Exception:
+                pass
+
             canonical_dir = OUTPUT_DIR / f"transcript_{video_id}"
             canonical_dir.mkdir(parents=True, exist_ok=True)
             paths = SubtitleService.save_all_subtitles(
@@ -299,11 +327,11 @@ class PipelineSteps:
                 base_dir=str(canonical_dir),
                 language=target_lang,
                 text_key="translated_text",
-                font_size=22,
+                font_size=font_size,
                 position="bottom",
-                font_name="Montserrat",
-                primary_color="#FFFFFF",
-                outline_color="#000000",
+                font_name=font_name,
+                primary_color=primary_color,
+                outline_color=outline_color,
                 max_lines=2,
                 effect="pop",
                 aspect_ratio=aspect_ratio,

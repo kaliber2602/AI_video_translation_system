@@ -8,6 +8,7 @@ import {
   Clock3,
   Save,
   Loader2,
+  Sliders,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom";
@@ -18,6 +19,9 @@ import TranslationStep from "../components/pipeline/TranslationStep";
 import SubtitleStep from "../components/pipeline/SubtitleStep";
 import DubbingStep from "../components/pipeline/DubbingStep";
 import ReviewExportStep from "../components/pipeline/ReviewExportStep";
+import PresetStudioModal from "../components/batch/PresetStudioModal";
+import { type PipelinePreset } from "../services/preset.service";
+import { toast } from "../lib/toast";
 
 import { videoService } from "../services/video.service";
 
@@ -108,6 +112,17 @@ function VideoPipelineContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+  const [isPresetStudioOpen, setIsPresetStudioOpen] = useState(false);
+
+  const handleApplyPreset = (preset: PipelinePreset) => {
+    if (preset.target_language) {
+      dispatch({
+        type: "SET_TARGET_LANGUAGE",
+        payload: preset.target_language,
+      });
+    }
+    toast.success(`Đã nạp cấu hình "${preset.name}" cho video.`);
+  };
 
   // Initialize project and video data from URL/state
   useEffect(() => {
@@ -602,6 +617,16 @@ function VideoPipelineContent() {
 
           <button
             type="button"
+            onClick={() => setIsPresetStudioOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs font-bold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] cursor-pointer"
+            title="Mở Preset Studio để nạp hoặc tinh chỉnh cấu hình 6 tầng AI"
+          >
+            <Sliders size={14} />
+            <span className="hidden md:inline">Nạp Preset</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleSave}
             disabled={isSaving}
             className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-all duration-200 ease-out active:scale-95 sm:px-4 ${
@@ -911,6 +936,12 @@ function VideoPipelineContent() {
           )}
         </section>
       </main>
+
+      <PresetStudioModal
+        isOpen={isPresetStudioOpen}
+        onClose={() => setIsPresetStudioOpen(false)}
+        onSelectPreset={handleApplyPreset}
+      />
     </div>
   );
 }

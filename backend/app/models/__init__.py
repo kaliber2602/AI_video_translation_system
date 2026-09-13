@@ -28,6 +28,9 @@ VideoDocument = TableModel("video_documents")
 VideoEmbedding = TableModel("video_embeddings")
 AIModel = TableModel("ai_models")
 VideoRenderOutput = TableModel("video_render_outputs")
+PipelinePreset = TableModel("pipeline_presets")
+BatchJob = TableModel("batch_jobs")
+BatchJobItem = TableModel("batch_job_items")
 
 __all__ = [
     'Base',
@@ -57,4 +60,7 @@ __all__ = [
     'VideoEmbedding',
     'AIModel',
     'VideoRenderOutput',
+    'PipelinePreset',
+    'BatchJob',
+    'BatchJobItem',
 ]

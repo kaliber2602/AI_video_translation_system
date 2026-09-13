@@ -21,6 +21,8 @@ from app.api.contact_routes import router as contact_router
 from app.api.admin_routes import router as admin_router
 from app.api.notification_routes import router as notification_router
 from app.api.integration_routes import router as integration_router
+from app.api.preset_routes import router as preset_router
+from app.api.batch_routes import router as batch_router
 
 logger = logging.getLogger("app.api.routes")
 
@@ -35,6 +37,8 @@ router.include_router(project_router)
 router.include_router(subscription_router)
 router.include_router(video_router)
 router.include_router(integration_router)
+router.include_router(preset_router)
+router.include_router(batch_router)
 
 
 # ============================================================

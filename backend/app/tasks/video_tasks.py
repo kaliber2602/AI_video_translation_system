@@ -1367,3 +1367,330 @@ def clear_task_queue():
                     })
     
     return result
+
+
+@celery_app.task(
+    bind=True,
+    base=PipelineTask,
+    name="task_process_batch_job",
+    soft_time_limit=14400,
+    time_limit=18000
+)
+def task_process_batch_job(self, batch_id: str, user_id: int):
+    """
+    Sequential execution engine for batch video processing.
+    Executes one video at a time to strictly prevent VRAM contention on RTX 4060.
+    Sends an Omni-Channel Batch Digest Notification upon completion.
+    """
+    db = self.db
+    logger.info(f"🚀 [BatchEngine] Starting batch processing job {batch_id} for user {user_id}")
+    
+    from app.services.batch_service import BatchService
+    from app.core.database import get_connection
+    import psycopg2.extras
+    
+    batch = BatchService.get_batch_job(batch_id)
+    if not batch:
+        logger.error(f"[BatchEngine] Batch {batch_id} not found.")
+        return {"status": "failed", "error": "Batch not found"}
+        
+    project_id = batch.get("project_id")
+    batch_name = batch.get("name") or f"Batch {batch_id[:8]}"
+    items = batch.get("items", [])
+    total_videos = len(items)
+    snapshot = batch.get("config_snapshot") or {}
+    
+    # Update batch status to processing
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE batch_jobs
+                SET status = 'processing', started_at = NOW(), updated_at = NOW()
+                WHERE id = %s;
+                """,
+                (batch_id,),
+            )
+            conn.commit()
+    finally:
+        conn.close()
+        
+    self.update_state(
+        state="PROCESSING",
+        meta={
+            "batch_id": batch_id,
+            "status": "processing",
+            "completed": 0,
+            "failed": 0,
+            "total": total_videos,
+            "progress": 0
+        }
+    )
+    
+    completed_count = 0
+    failed_count = 0
+    is_cancelled = False
+    
+    for idx, item in enumerate(items):
+        item_id = item["id"]
+        video_id = item["video_id"]
+        
+        # Check cancellation before starting each video
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT status FROM batch_jobs WHERE id = %s;", (batch_id,))
+                current_batch_status = cur.fetchone()
+                if current_batch_status and current_batch_status[0] == 'cancelled':
+                    is_cancelled = True
+                    break
+        finally:
+            conn.close()
+            
+        logger.info(f"▶️ [BatchEngine] Processing item {idx+1}/{total_videos}: video {video_id} (batch {batch_id})")
+        
+        # Mark item as processing
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE batch_job_items
+                    SET status = 'processing', started_at = NOW(), updated_at = NOW()
+                    WHERE id = %s;
+                    """,
+                    (item_id,),
+                )
+                conn.commit()
+        finally:
+            conn.close()
+            
+        try:
+            # 1. Update or create VideoPipelineConfig for this video using config_snapshot & 6-layer config_data
+            cfg_data = snapshot.get("config_data") or {}
+            if isinstance(cfg_data, str):
+                try:
+                    cfg_data = json.loads(cfg_data)
+                except Exception:
+                    cfg_data = {}
+
+            audio_sep = cfg_data.get("audio_separation", {})
+            transcription = cfg_data.get("transcription", {})
+            translation = cfg_data.get("translation", {})
+            tts = cfg_data.get("tts_dubbing", {})
+            subtitles = cfg_data.get("subtitles", {})
+            export_mux = cfg_data.get("export_muxing", {})
+
+            target_lang = translation.get("target_language") or snapshot.get("target_language", "vi")
+            source_lang = snapshot.get("source_language", "auto")
+            stt_model = transcription.get("model_size") or snapshot.get("stt_model", "whisper_medium")
+            enable_diarization = transcription.get("diarization", snapshot.get("enable_diarization", True))
+            translation_model = translation.get("model_name") or snapshot.get("translation_model", "nllb_200_1.3b")
+            tts_model = tts.get("engine") or snapshot.get("tts_model", "coqui_xtts_v2")
+            voice_speed = float(tts.get("speed_rate", snapshot.get("voice_speed", 1.0)))
+
+            v_cfg = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
+            if not v_cfg:
+                v_cfg = VideoPipelineConfig(
+                    video_id=video_id,
+                    target_language=target_lang,
+                    source_language=source_lang,
+                    stt_model=stt_model,
+                    diarization_model="pyannote_3.1" if enable_diarization else None,
+                    translation_model=translation_model,
+                    tts_model=tts_model,
+                    voice_speed=voice_speed,
+                    auto_generate_subtitles=bool(subtitles.get("burn_mode") != "none") if "burn_mode" in subtitles else True,
+                    auto_generate_dubbing=(tts_model != "none"),
+                    enable_noise_reduction=bool(snapshot.get("enable_noise_reduction", False)),
+                    enable_audio_normalization=bool(snapshot.get("enable_audio_normalization", True)),
+                    enable_vocal_isolation=bool(snapshot.get("enable_vocal_isolation", False)),
+                    enable_filler_word_removal=bool(transcription.get("filter_fillers", snapshot.get("enable_filler_word_removal", False))),
+                )
+                db.add(v_cfg)
+                db.commit()
+            else:
+                v_cfg.target_language = target_lang
+                v_cfg.source_language = source_lang
+                v_cfg.stt_model = stt_model
+                v_cfg.diarization_model = "pyannote_3.1" if enable_diarization else None
+                v_cfg.translation_model = translation_model
+                v_cfg.tts_model = tts_model
+                v_cfg.auto_generate_dubbing = (tts_model != "none")
+                v_cfg.voice_speed = voice_speed
+                if "burn_mode" in subtitles:
+                    v_cfg.auto_generate_subtitles = (subtitles.get("burn_mode") != "none")
+                if "filter_fillers" in transcription:
+                    v_cfg.enable_filler_word_removal = bool(transcription["filter_fillers"])
+                db.commit()
+
+            # 2. Create pipeline job for tracking
+            job_service = JobService(db)
+            job = job_service.create_job(
+                video_id=video_id,
+                triggered_by=user_id,
+                config={
+                    "target_language": v_cfg.target_language,
+                    "source_language": v_cfg.source_language,
+                    "batch_id": batch_id,
+                    "batch_item_id": item_id,
+                    "celery_task_id": self.request.id,
+                    "config_data": cfg_data,
+                    "subtitle_style": subtitles.get("style", {}),
+                    "export_muxing": export_mux,
+                    "audio_separation": audio_sep,
+                    "tts_dubbing": tts,
+                }
+            )
+
+            # Link job_id to batch_job_items
+            conn = get_connection()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE batch_job_items SET job_id = %s WHERE id = %s;",
+                        (str(job.id), item_id),
+                    )
+                    conn.commit()
+            finally:
+                conn.close()
+
+            # 3. Run full pipeline
+            run_full_pipeline(
+                job.id,
+                video_id,
+                user_id,
+                db
+            )
+
+            # 4. Success for this item
+            completed_count += 1
+            conn = get_connection()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE batch_job_items
+                        SET status = 'completed', progress = 100, finished_at = NOW(), updated_at = NOW()
+                        WHERE id = %s;
+                        """,
+                        (item_id,),
+                    )
+                    cur.execute(
+                        """
+                        UPDATE batch_jobs
+                        SET completed_videos = %s, updated_at = NOW()
+                        WHERE id = %s;
+                        """,
+                        (completed_count, batch_id),
+                    )
+                    conn.commit()
+            finally:
+                conn.close()
+
+            logger.info(f"✅ [BatchEngine] Item {idx+1}/{total_videos} (video {video_id}) completed successfully.")
+
+        except Exception as item_err:
+            failed_count += 1
+            err_msg = str(item_err)
+            logger.error(f"❌ [BatchEngine] Item {idx+1}/{total_videos} (video {video_id}) failed: {err_msg}", exc_info=True)
+            conn = get_connection()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE batch_job_items
+                        SET status = 'failed', error_message = %s, finished_at = NOW(), updated_at = NOW()
+                        WHERE id = %s;
+                        """,
+                        (err_msg[:500], item_id),
+                    )
+                    cur.execute(
+                        """
+                        UPDATE batch_jobs
+                        SET failed_videos = %s, updated_at = NOW()
+                        WHERE id = %s;
+                        """,
+                        (failed_count, batch_id),
+                    )
+                    conn.commit()
+            finally:
+                conn.close()
+
+        # Update batch progress in Celery state
+        curr_progress = round(((completed_count + failed_count) / total_videos) * 100) if total_videos > 0 else 0
+        self.update_state(
+            state="PROCESSING",
+            meta={
+                "batch_id": batch_id,
+                "completed": completed_count,
+                "failed": failed_count,
+                "total": total_videos,
+                "progress": curr_progress
+            }
+        )
+
+    # Finalize batch status
+    if is_cancelled:
+        final_status = "cancelled"
+    elif failed_count == total_videos and total_videos > 0:
+        final_status = "failed"
+    else:
+        final_status = "completed"
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE batch_jobs
+                SET status = %s, finished_at = NOW(), updated_at = NOW(),
+                    completed_videos = %s, failed_videos = %s
+                WHERE id = %s;
+                """,
+                (final_status, completed_count, failed_count, batch_id),
+            )
+            conn.commit()
+    finally:
+        conn.close()
+
+    logger.info(f"🏁 [BatchEngine] Batch {batch_id} finished with status '{final_status}' ({completed_count} success, {failed_count} failed)")
+
+    # Dispatch Batch Digest Omni-Channel Notification
+    try:
+        from app.services.notification_service import create_notification
+        digest_title = f"Xử lý hàng loạt hoàn tất ({batch_name})"
+        digest_msg = (
+            f"Đã xử lý xong {total_videos} video trong dự án: "
+            f"{completed_count} video thành công, {failed_count} video thất bại."
+        )
+        create_notification(
+            user_id=user_id,
+            type="pipeline",
+            title=digest_title,
+            message=digest_msg,
+            action_url=f"/workspace/project/{project_id}" if project_id else "/workspace",
+            target_type="project",
+            target_id=str(project_id) if project_id else "0",
+            metadata={
+                "batch_id": batch_id,
+                "total_videos": total_videos,
+                "completed_videos": completed_count,
+                "failed_videos": failed_count,
+                "status": final_status,
+                "event": "batch_completed",
+            },
+            background_tasks=None,
+        )
+        logger.info(f"📬 [BatchEngine] Dispatched batch digest notification for user {user_id}, batch {batch_id}")
+    except Exception as notif_err:
+        logger.warning(f"⚠️ [BatchEngine] Could not dispatch digest notification: {notif_err}")
+
+    return {
+        "status": final_status,
+        "batch_id": batch_id,
+        "total": total_videos,
+        "completed": completed_count,
+        "failed": failed_count,
+    }
