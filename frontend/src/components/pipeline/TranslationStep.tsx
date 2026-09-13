@@ -11,12 +11,17 @@ import {
   Check,
   SlidersHorizontal,
   FileVideo,
+  BookOpen,
+  Plus,
+  Trash2,
+  X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePipeline } from "../../hooks/usePipeline";
 import { videoService } from "../../services/video.service";
 import PipelineStepLayout from "./PipelineStepLayout";
 import ConfirmationDialog from "../common/ConfirmationDialog";
+import { toast } from "../../lib/toast";
 
 export default function TranslationStep() {
   const { t } = useTranslation(["pipeline", "common"]);
@@ -41,9 +46,126 @@ export default function TranslationStep() {
   const [activeRightTab, setActiveRightTab] = useState<"translation" | "tools">("translation");
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const hasInitializedTab = useRef(false);
-  const [translationModel, setTranslationModel] = useState("nllb_200_1.3b");
+  const [translationModel, setTranslationModel] = useState(
+    state.pipelineConfig?.translation?.model_name || "nllb_200_1.3b"
+  );
+  const [translationTone, setTranslationTone] = useState(
+    state.pipelineConfig?.translation?.tone || "standard"
+  );
+  const [systemInstruction, setSystemInstruction] = useState(
+    state.pipelineConfig?.translation?.system_instruction || ""
+  );
+  const [glossaryTerms, setGlossaryTerms] = useState<Array<{ key: string; value: string }>>(() => {
+    const raw = state.pipelineConfig?.translation?.glossary;
+    if (raw && typeof raw === "object") {
+      return Object.entries(raw).map(([key, value]) => ({ key, value: String(value) }));
+    }
+    return [];
+  });
+  const [newTermKey, setNewTermKey] = useState("");
+  const [newTermVal, setNewTermVal] = useState("");
+  const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
+  const [rewritingSegmentIdx, setRewritingSegmentIdx] = useState<number | null>(null);
+  const [isRewriting, setIsRewriting] = useState(false);
   const [taskProgress, setTaskProgress] = useState<number>(0);
   const pollingTimerRef = useRef<any>(null);
+
+  const supportedTargetLanguages = [
+    { code: "vi", label: "Tiếng Việt (Vietnamese)" },
+    { code: "en", label: "English (English)" },
+    { code: "zh", label: "中文 (Chinese)" },
+    { code: "ja", label: "日本語 (Japanese)" },
+    { code: "ko", label: "한국어 (Korean)" },
+    { code: "fr", label: "Français (French)" },
+    { code: "de", label: "Deutsch (German)" },
+    { code: "es", label: "Español (Spanish)" },
+    { code: "ar", label: "العربية (Arabic)" },
+    { code: "ru", label: "Русский (Russian)" },
+    { code: "pt", label: "Português (Portuguese)" },
+    { code: "it", label: "Italiano (Italian)" },
+  ];
+
+  const supportedTranslationModels = [
+    { code: "nllb_200_1.3b", label: "Meta NLLB-200 1.3B (Nhanh & Ổn định)" },
+    { code: "nllb_200_3.3b", label: "Meta NLLB-200 3.3B (Độ chính xác cao)" },
+    { code: "gpt_4o", label: "OpenAI GPT-4o (Đỉnh cao ngữ cảnh & Sáng tạo)" },
+    { code: "claude_3_5_sonnet", label: "Claude 3.5 Sonnet (Văn phong mượt mà tự nhiên)" },
+    { code: "gemini_1_5_flash", label: "Google Gemini 1.5 Flash (Siêu tốc độ)" },
+    { code: "deepseek_v3", label: "DeepSeek V3 (Chi phí thấp & Logic tốt)" },
+  ];
+
+  const supportedTones = [
+    { code: "standard", label: "Tiêu chuẩn (Chuẩn ngữ pháp & Tự nhiên)" },
+    { code: "casual", label: "Đời thường (Thân mật, xưng hô gần gũi)" },
+    { code: "formal", label: "Trang trọng (Tin tức / Phim tài liệu / Doanh nghiệp)" },
+    { code: "energetic", label: "Sôi nổi / Hào hứng (Reviewer / Vlogger / TikTok)" },
+    { code: "concise", label: "Ngắn gọn (Tối ưu độ dài phụ đề đọc nhanh)" },
+  ];
+
+  const updateTranslationConfig = (updates: any) => {
+    dispatch({
+      type: "UPDATE_PIPELINE_CONFIG",
+      payload: {
+        translation: {
+          ...(state.pipelineConfig?.translation || {}),
+          ...updates,
+        },
+      },
+    });
+  };
+
+  const handleAIRewrite = async (segmentIdx: number, style: "shorter" | "casual" | "formal" | "catchy") => {
+    if (!state.video?.videoId || !translation?.segments?.[segmentIdx]) return;
+    try {
+      setIsRewriting(true);
+      const res = await videoService.rewriteTranslationSegment(
+        state.video.videoId,
+        segmentIdx,
+        style,
+        systemInstruction
+      );
+      if (res.rewritten_text) {
+        const updated = [...translation.segments];
+        updated[segmentIdx].translated_text = res.rewritten_text;
+        setTranslation({ ...translation, segments: updated });
+        toast.success(`Đã viết lại câu #${segmentIdx + 1}!`);
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Không thể viết lại câu.");
+    } finally {
+      setIsRewriting(false);
+      setRewritingSegmentIdx(null);
+    }
+  };
+
+  const getCpsInfo = (text: string, start: number, end: number) => {
+    const duration = Math.max(0.2, end - start);
+    const cps = Math.round(((text || "").length / duration) * 10) / 10;
+    if (cps <= 17) {
+      return { cps, label: `${cps} CPS`, color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", tooltip: "Tốc độ đọc lý tưởng (<= 17 ký tự/giây)" };
+    } else if (cps <= 22) {
+      return { cps, label: `${cps} CPS`, color: "bg-amber-500/15 text-amber-400 border-amber-500/30", tooltip: "Đọc hơi nhanh (18-22 ký tự/giây)" };
+    } else {
+      return { cps, label: `${cps} CPS`, color: "bg-red-500/20 text-red-400 border-red-500/40 font-bold", tooltip: "Cảnh báo: Quá dài, khán giả khó đọc kịp (> 22 ký tự/giây)" };
+    }
+  };
+
+  const handleAddGlossaryTerm = () => {
+    if (!newTermKey.trim() || !newTermVal.trim()) return;
+    const updated = [...glossaryTerms, { key: newTermKey.trim(), value: newTermVal.trim() }];
+    setGlossaryTerms(updated);
+    setNewTermKey("");
+    setNewTermVal("");
+    const glossaryObj = updated.reduce((acc, cur) => ({ ...acc, [cur.key]: cur.value }), {});
+    updateTranslationConfig({ glossary: glossaryObj });
+  };
+
+  const handleRemoveGlossaryTerm = (index: number) => {
+    const updated = glossaryTerms.filter((_, i) => i !== index);
+    setGlossaryTerms(updated);
+    const glossaryObj = updated.reduce((acc, cur) => ({ ...acc, [cur.key]: cur.value }), {});
+    updateTranslationConfig({ glossary: glossaryObj });
+  };
 
   const stopPolling = () => {
     if (pollingTimerRef.current) {
@@ -73,32 +195,32 @@ export default function TranslationStep() {
   const [translationError, setTranslationError] = useState<string | null>(null);
   const [selectedTargetLang, setSelectedTargetLang] = useState<string>(state.targetLanguage || "vi");
 
-  const supportedTargetLanguages = [
-    { code: "vi", label: "Tiếng Việt (Vietnamese)" },
-    { code: "en", label: "English (English)" },
-    { code: "zh", label: "中文 (Chinese)" },
-    { code: "ja", label: "日本語 (Japanese)" },
-    { code: "ko", label: "한국어 (Korean)" },
-    { code: "fr", label: "Français (French)" },
-    { code: "de", label: "Deutsch (German)" },
-    { code: "es", label: "Español (Spanish)" },
-    { code: "ar", label: "العربية (Arabic)" },
-    { code: "ru", label: "Русский (Russian)" },
-    { code: "pt", label: "Português (Portuguese)" },
-    { code: "it", label: "Italiano (Italian)" },
-  ];
-
-  const supportedTranslationModels = [
-    { code: "nllb_200_1.3b", label: "Meta NLLB-200 1.3B (Nhanh & Ổn định)" },
-    { code: "nllb_200_3.3b", label: "Meta NLLB-200 3.3B (Độ chính xác cao)" },
-    { code: "gpt_4o", label: "OpenAI GPT-4o (Ngữ cảnh cao cấp)" },
-  ];
 
   useEffect(() => {
     if (state.targetLanguage && state.targetLanguage !== selectedTargetLang) {
       setSelectedTargetLang(state.targetLanguage);
     }
   }, [state.targetLanguage]);
+
+  useEffect(() => {
+    if (state.presetConfig) {
+      const cfg = state.presetConfig;
+      const trans = cfg.config_data?.translation || {};
+      const model = trans.model_name || cfg.translation_model || "";
+      if (model.includes("3.3B") || model.includes("3.3b")) {
+        setTranslationModel("nllb_200_3.3b");
+      } else if (model.includes("gpt") || model.includes("openai") || model.includes("claude")) {
+        setTranslationModel("gpt_4o");
+      } else if (model) {
+        setTranslationModel("nllb_200_1.3b");
+      }
+
+      const targetLang = trans.target_language || cfg.target_language;
+      if (targetLang) {
+        setSelectedTargetLang(targetLang);
+      }
+    }
+  }, [state.presetConfig]);
 
   useEffect(() => {
     loadTranslation(selectedTargetLang);
@@ -557,8 +679,8 @@ export default function TranslationStep() {
                               : "border-[var(--color-border-muted)] bg-[var(--color-surface-muted)]/50 hover:border-zinc-700 hover:bg-[var(--color-surface-muted)]"
                           }`}
                         >
-                          {/* Header: Time + Segment Index */}
-                          <div className="mb-1 flex items-center justify-between text-[11px] text-[var(--color-text-muted)]">
+                          {/* Header: Time + Segment Index + CPS Gauge + AI Rewrite */}
+                          <div className="mb-1.5 flex items-center justify-between text-[11px] text-[var(--color-text-muted)] gap-2">
                             <button
                               type="button"
                               onClick={(e) => {
@@ -575,13 +697,95 @@ export default function TranslationStep() {
                                 {formatTime(seg.start)} → {formatTime(seg.end)}
                               </span>
                             </button>
-                            <span
-                              className={`font-mono text-[10px] ${
-                                isActive ? "text-[var(--color-primary)] font-bold" : "text-[var(--color-text-muted)]"
-                              }`}
-                            >
-                              {isActive ? `▶ #${originalIndex + 1}` : `#${originalIndex + 1}`}
-                            </span>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {/* CPS Badge */}
+                              {(() => {
+                                const cpsInfo = getCpsInfo(seg.translated_text || seg.text || "", seg.start, seg.end);
+                                return (
+                                  <span
+                                    className={`px-1.5 py-0.2 rounded border text-[10px] font-mono ${cpsInfo.color}`}
+                                    title={cpsInfo.tooltip}
+                                  >
+                                    {cpsInfo.label}
+                                  </span>
+                                );
+                              })()}
+
+                              {/* AI Rewrite Button & Popover */}
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRewritingSegmentIdx(rewritingSegmentIdx === originalIndex ? null : originalIndex);
+                                  }}
+                                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 text-[10px] font-bold text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition"
+                                  title="Viết lại câu thoại bằng AI theo phong cách"
+                                >
+                                  {isRewriting && rewritingSegmentIdx === originalIndex ? (
+                                    <Loader2 size={10} className="animate-spin" />
+                                  ) : (
+                                    <Sparkles size={10} />
+                                  )}
+                                  <span>Rewrite</span>
+                                </button>
+
+                                {rewritingSegmentIdx === originalIndex && (
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="absolute right-0 top-6 z-30 w-44 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 shadow-2xl animate-scale-up space-y-1 text-xs"
+                                  >
+                                    <div className="flex items-center justify-between pb-1 border-b border-[var(--color-border-muted)] text-[10px] font-bold text-[var(--color-text-muted)] uppercase">
+                                      <span>Chọn phong cách:</span>
+                                      <button type="button" onClick={() => setRewritingSegmentIdx(null)}>
+                                        <X size={12} />
+                                      </button>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      disabled={isRewriting}
+                                      onClick={() => handleAIRewrite(originalIndex, "shorter")}
+                                      className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-[var(--color-surface-muted)] text-[var(--color-text-primary)] text-xs flex items-center justify-between"
+                                    >
+                                      <span>✂️ Rút ngắn (-25%)</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={isRewriting}
+                                      onClick={() => handleAIRewrite(originalIndex, "casual")}
+                                      className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-[var(--color-surface-muted)] text-[var(--color-text-primary)] text-xs flex items-center justify-between"
+                                    >
+                                      <span>💬 Đời thường</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={isRewriting}
+                                      onClick={() => handleAIRewrite(originalIndex, "formal")}
+                                      className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-[var(--color-surface-muted)] text-[var(--color-text-primary)] text-xs flex items-center justify-between"
+                                    >
+                                      <span>🏛️ Trang trọng</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={isRewriting}
+                                      onClick={() => handleAIRewrite(originalIndex, "catchy")}
+                                      className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-[var(--color-surface-muted)] text-[var(--color-text-primary)] text-xs flex items-center justify-between"
+                                    >
+                                      <span>🔥 Bắt trend</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              <span
+                                className={`font-mono text-[10px] ${
+                                  isActive ? "text-[var(--color-primary)] font-bold" : "text-[var(--color-text-muted)]"
+                                }`}
+                              >
+                                #{originalIndex + 1}
+                              </span>
+                            </div>
                           </div>
 
                           {/* Line 1: Original text (Source) */}
@@ -646,7 +850,10 @@ export default function TranslationStep() {
                 </label>
                 <select
                   value={translationModel}
-                  onChange={(e) => setTranslationModel(e.target.value)}
+                  onChange={(e) => {
+                    setTranslationModel(e.target.value);
+                    updateTranslationConfig({ model_name: e.target.value });
+                  }}
                   disabled={isTranslating}
                   className="w-full h-9 rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs font-semibold text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)]"
                 >
@@ -656,6 +863,114 @@ export default function TranslationStep() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Translation Tone Selection */}
+              <div>
+                <label className="text-xs font-bold text-[var(--color-text-primary)] block mb-1.5">
+                  Văn phong & Giọng điệu (Tone):
+                </label>
+                <select
+                  value={translationTone}
+                  onChange={(e) => {
+                    setTranslationTone(e.target.value);
+                    updateTranslationConfig({ tone: e.target.value });
+                  }}
+                  disabled={isTranslating}
+                  className="w-full h-9 rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs font-semibold text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)]"
+                >
+                  {supportedTones.map((tone) => (
+                    <option key={tone.code} value={tone.code}>
+                      {tone.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* System Instruction Prompt */}
+              <div>
+                <label className="text-xs font-bold text-[var(--color-text-primary)] block mb-1.5">
+                  Chỉ dẫn dịch thuật riêng (System Prompt):
+                </label>
+                <textarea
+                  value={systemInstruction}
+                  onChange={(e) => {
+                    setSystemInstruction(e.target.value);
+                    updateTranslationConfig({ system_instruction: e.target.value });
+                  }}
+                  placeholder="VD: Xưng hô 'mình' và 'các bạn', giữ nguyên thuật ngữ AI, phong cách dí dỏm..."
+                  rows={2}
+                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] p-2.5 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] resize-none"
+                />
+              </div>
+
+              {/* In-context Glossary */}
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+                <button
+                  type="button"
+                  onClick={() => setIsGlossaryOpen(!isGlossaryOpen)}
+                  className="w-full flex items-center justify-between text-xs font-bold text-[var(--color-text-primary)]"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <BookOpen size={13} className="text-[var(--color-primary)]" />
+                    <span>Thuật ngữ chuyên ngành ({glossaryTerms.length})</span>
+                  </span>
+                  <span className="text-[10px] text-[var(--color-primary)]">
+                    {isGlossaryOpen ? "Thu gọn" : "Mở rộng"}
+                  </span>
+                </button>
+
+                {isGlossaryOpen && (
+                  <div className="mt-2.5 space-y-2 pt-2 border-t border-[var(--color-border-muted)]">
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="Từ gốc (vd: Agent)"
+                        value={newTermKey}
+                        onChange={(e) => setNewTermKey(e.target.value)}
+                        className="w-1/2 h-7 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-[11px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Dịch (vd: Đặc vụ AI)"
+                        value={newTermVal}
+                        onChange={(e) => setNewTermVal(e.target.value)}
+                        className="w-1/2 h-7 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-[11px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddGlossaryTerm}
+                        className="px-2 h-7 rounded-lg bg-[var(--color-primary)] text-white text-xs font-bold shrink-0 hover:bg-[var(--color-primary-hover)]"
+                      >
+                        <Plus size={12} />
+                      </button>
+                    </div>
+
+                    {glossaryTerms.length > 0 ? (
+                      <div className="space-y-1 max-h-28 overflow-y-auto">
+                        {glossaryTerms.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between p-1.5 rounded-lg bg-[var(--color-surface-muted)] text-[11px]"
+                          >
+                            <span className="font-semibold text-[var(--color-text-primary)]">{item.key}</span>
+                            <span className="text-[var(--color-text-muted)]">→</span>
+                            <span className="text-[var(--color-primary)] font-medium">{item.value}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveGlossaryTerm(idx)}
+                              className="text-red-400 hover:text-red-500 p-0.5"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-[var(--color-text-muted)]">Chưa có từ khóa nào được thiết lập.</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Live Stats */}

@@ -132,3 +132,8 @@ export async function updatePreset(presetId: number, payload: UpdatePresetPayloa
 export async function deletePreset(presetId: number): Promise<void> {
   await api.delete(`/api/presets/${presetId}`);
 }
+
+export async function applyPresetToVideo(presetId: number, videoId: number): Promise<any> {
+  const response = await api.post(`/api/presets/${presetId}/apply/${videoId}`);
+  return response.data;
+}

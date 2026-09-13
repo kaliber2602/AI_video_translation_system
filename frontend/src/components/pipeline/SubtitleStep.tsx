@@ -75,6 +75,9 @@ export default function SubtitleStep() {
   const [maxLines, setMaxLines] = useState<number>(2);
   const [effect, setEffect] = useState<"none" | "fade" | "pop" | "slide" | "karaoke">("pop");
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16" | "1:1" | "4:3">("16:9");
+  const [isBilingual, setIsBilingual] = useState<boolean>(
+    Boolean(state.pipelineConfig?.subtitles?.bilingual_subtitles)
+  );
 
   // Canvas Viewport & Dragging State
   const [showSafeArea, setShowSafeArea] = useState(false);
@@ -210,8 +213,36 @@ export default function SubtitleStep() {
   ];
 
   // Presets Quick Handler
-  const applyPreset = (preset: "tiktok" | "youtube" | "minimal" | "cinematic") => {
-    if (preset === "tiktok") {
+  const applyPreset = (preset: "mrbeast" | "netflix" | "tiktok" | "youtube" | "minimal" | "cinematic") => {
+    if (preset === "mrbeast") {
+      setFontName("Montserrat");
+      setFontSize("32");
+      setPrimaryColor("#FFDF00");
+      setOutlineColor("#000000");
+      setMaxLines(1);
+      setEffect("pop");
+      setPosition("bottom");
+      setPositionY(80);
+      setAlignment("center");
+      setLineSpacing(1.2);
+      setAspectRatio("16:9");
+      setShowSafeArea(false);
+      setAnimKey((prev) => prev + 1);
+    } else if (preset === "netflix") {
+      setFontName("Roboto");
+      setFontSize("20");
+      setPrimaryColor("#FFFFFF");
+      setOutlineColor("#111111");
+      setMaxLines(2);
+      setEffect("fade");
+      setPosition("bottom");
+      setPositionY(86);
+      setAlignment("center");
+      setLineSpacing(1.3);
+      setAspectRatio("16:9");
+      setShowSafeArea(false);
+      setAnimKey((prev) => prev + 1);
+    } else if (preset === "tiktok") {
       setFontName("Montserrat");
       setFontSize("32");
       setPrimaryColor("#FFE600");
@@ -269,6 +300,58 @@ export default function SubtitleStep() {
       setAnimKey((prev) => prev + 1);
     }
   };
+
+  // Two-way sync to Pipeline Context
+  useEffect(() => {
+    dispatch({
+      type: "UPDATE_PIPELINE_CONFIG",
+      payload: {
+        subtitles: {
+          ...(state.pipelineConfig?.subtitles || {}),
+          format: selectedFormat as any,
+          bilingual_subtitles: isBilingual,
+          style: {
+            font_name: fontName,
+            font_size: parseInt(fontSize, 10) || 22,
+            primary_color: primaryColor,
+            outline_color: outlineColor,
+            alignment: alignment as any,
+            margin_v: positionY,
+          },
+        },
+      },
+    });
+  }, [selectedFormat, fontName, fontSize, primaryColor, outlineColor, alignment, positionY, isBilingual]);
+
+  useEffect(() => {
+    if (state.presetConfig) {
+      const cfg = state.presetConfig;
+      const sub = cfg.config_data?.subtitles || {};
+      const subStyle = sub.style || {};
+      if (sub.format || cfg.subtitle_format) {
+        setSelectedFormat(sub.format || cfg.subtitle_format);
+      }
+      if (subStyle.font_size) {
+        setFontSize(String(subStyle.font_size));
+      }
+      if (subStyle.font_name) {
+        setFontName(subStyle.font_name);
+      }
+      if (subStyle.primary_color) {
+        setPrimaryColor(subStyle.primary_color);
+      }
+      if (subStyle.outline_color) {
+        setOutlineColor(subStyle.outline_color);
+      }
+      if (subStyle.margin_v !== undefined) {
+        setPositionY(subStyle.margin_v);
+      }
+      const exp = cfg.config_data?.export_muxing || {};
+      if (exp.aspect_ratio) {
+        setAspectRatio(exp.aspect_ratio);
+      }
+    }
+  }, [state.presetConfig]);
 
   useEffect(() => {
     loadSubtitles(selectedFormat);
@@ -394,10 +477,15 @@ export default function SubtitleStep() {
       return "";
     }
     if (currentSegment) {
+      if (isBilingual && currentSegment.text && currentSegment.translated_text) {
+        return `${currentSegment.text}\n${currentSegment.translated_text}`;
+      }
       return currentSegment.translated_text || currentSegment.text || "";
     }
-    return "Xử lý ngôn ngữ tự nhiên là một lĩnh vực quan trọng của trí tuệ nhân tạo.";
-  }, [isPlaying, activeSegmentIndex, currentSegment]);
+    return isBilingual
+      ? "AI Video Translation System\nHệ thống dịch video tự động đa ngôn ngữ"
+      : "Xử lý ngôn ngữ tự nhiên là một lĩnh vực quan trọng của trí tuệ nhân tạo.";
+  }, [isPlaying, activeSegmentIndex, currentSegment, isBilingual]);
 
   const displayedPreviewText = useMemo(() => {
     if (!livePreviewText) return "";
@@ -886,23 +974,55 @@ export default function SubtitleStep() {
                 {/* 1-CLICK QUICK PRESETS */}
                 <div>
                   <label className="text-[11px] font-bold text-[var(--color-text-secondary)] block mb-1.5 uppercase tracking-wider">
-                    Kiểu mẫu nhanh (Presets):
+                    Kiểu mẫu xu hướng 1-Click (Trending Presets):
                   </label>
                   <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => applyPreset("mrbeast")}
+                      className={`flex flex-col p-2 rounded-xl border text-left transition ${
+                        primaryColor === "#FFDF00" && effect === "pop"
+                          ? "border-amber-400 bg-amber-500/15 text-amber-300 font-semibold ring-1 ring-amber-400/30"
+                          : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:border-amber-400/60"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs">MrBeast Viral</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/30 text-amber-300 font-bold">HOT</span>
+                      </div>
+                      <span className="text-[10px] opacity-75 mt-0.5">Vàng đậm · Pop · Viền đen 3px</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => applyPreset("netflix")}
+                      className={`flex flex-col p-2 rounded-xl border text-left transition ${
+                        fontName === "Roboto" && effect === "fade"
+                          ? "border-red-400 bg-red-500/15 text-red-300 font-semibold ring-1 ring-red-400/30"
+                          : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:border-red-400/60"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs">Netflix Cinema</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-red-500/30 text-red-300 font-bold">PRO</span>
+                      </div>
+                      <span className="text-[10px] opacity-75 mt-0.5">Trắng thanh lịch · Đổ bóng</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => applyPreset("tiktok")}
                       className={`flex flex-col p-2 rounded-xl border text-left transition ${
                         aspectRatio === "9:16" && effect === "pop"
-                          ? "border-amber-400 bg-amber-500/15 text-amber-300 font-semibold ring-1 ring-amber-400/30"
-                          : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:border-amber-400/60"
+                          ? "border-cyan-400 bg-cyan-500/15 text-cyan-300 font-semibold ring-1 ring-cyan-400/30"
+                          : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:border-cyan-400/60"
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-xs">TikTok / Shorts</span>
                         <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/40">9:16</span>
                       </div>
-                      <span className="text-[10px] opacity-75 mt-0.5">Pop · Neon vàng · Viền</span>
+                      <span className="text-[10px] opacity-75 mt-0.5">Pop · Neon vàng · Safe Area</span>
                     </button>
 
                     <button
@@ -920,38 +1040,27 @@ export default function SubtitleStep() {
                       </div>
                       <span className="text-[10px] opacity-75 mt-0.5">Fade · Trắng viền đen</span>
                     </button>
+                  </div>
 
-                    <button
-                      type="button"
-                      onClick={() => applyPreset("minimal")}
-                      className={`flex flex-col p-2 rounded-xl border text-left transition ${
-                        effect === "none" && fontName === "Roboto"
-                          ? "border-zinc-400 bg-zinc-500/15 text-zinc-200 font-semibold ring-1 ring-zinc-400/30"
-                          : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:border-zinc-400/60"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs">Tối giản Clean</span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/40">18px</span>
-                      </div>
-                      <span className="text-[10px] opacity-75 mt-0.5">Roboto · Tĩnh · Rõ nét</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => applyPreset("cinematic")}
-                      className={`flex flex-col p-2 rounded-xl border text-left transition ${
-                        fontName === "Playfair Display"
-                          ? "border-purple-400 bg-purple-500/15 text-purple-300 font-semibold ring-1 ring-purple-400/30"
-                          : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:border-purple-400/60"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs">Điện ảnh Cinema</span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/40">Serif</span>
-                      </div>
-                      <span className="text-[10px] opacity-75 mt-0.5">Playfair · Sang trọng</span>
-                    </button>
+                  {/* Bilingual Subtitle Toggle Switch */}
+                  <div className="mt-2.5 p-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-[var(--color-text-primary)] block">
+                        Phụ đề song ngữ (Bilingual)
+                      </span>
+                      <span className="text-[10px] text-[var(--color-text-muted)]">
+                        Dòng 1 câu gốc, Dòng 2 câu dịch
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isBilingual}
+                        onChange={(e) => setIsBilingual(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-[var(--color-border)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--color-primary)]"></div>
+                    </label>
                   </div>
                 </div>
 

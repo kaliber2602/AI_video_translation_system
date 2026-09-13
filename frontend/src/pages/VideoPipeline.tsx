@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ArrowLeft,
   Check,
@@ -9,6 +9,8 @@ import {
   Save,
   Loader2,
   Sliders,
+  BookmarkPlus,
+  X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom";
@@ -20,7 +22,7 @@ import SubtitleStep from "../components/pipeline/SubtitleStep";
 import DubbingStep from "../components/pipeline/DubbingStep";
 import ReviewExportStep from "../components/pipeline/ReviewExportStep";
 import PresetStudioModal from "../components/batch/PresetStudioModal";
-import { type PipelinePreset } from "../services/preset.service";
+import { type PipelinePreset, applyPresetToVideo } from "../services/preset.service";
 import { toast } from "../lib/toast";
 
 import { videoService } from "../services/video.service";
@@ -66,27 +68,23 @@ function renderStep(step: string) {
   }
 }
 
-function formatSnapshotTime(snapshot: any): string {
-  if (!snapshot) return "";
-  try {
-    if (snapshot.saved_at_epoch && typeof snapshot.saved_at_epoch === "number") {
-      const d = new Date(snapshot.saved_at_epoch);
-      if (!isNaN(d.getTime())) {
-        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-      }
+function formatSnapshotTime(snapshotData: any): string | null {
+  if (!snapshotData) return null;
+  if (snapshotData.saved_at_local) {
+    const parts = String(snapshotData.saved_at_local).split(" ");
+    if (parts.length >= 2) {
+      return parts[1].replace(/:\d{2}$/, "");
     }
-    if (snapshot.saved_at) {
-      let iso = String(snapshot.saved_at);
-      if (!iso.endsWith("Z") && !iso.includes("+")) {
-        iso += "Z";
+  }
+  if (snapshotData.saved_at) {
+    try {
+      const date = new Date(snapshotData.saved_at);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
       }
-      const d = new Date(iso);
-      if (!isNaN(d.getTime())) {
-        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-      }
+    } catch {
+      // fallback
     }
-  } catch (e) {
-    console.error("Error formatting snapshot time:", e);
   }
   return "";
 }
@@ -114,15 +112,92 @@ function VideoPipelineContent() {
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
   const [isPresetStudioOpen, setIsPresetStudioOpen] = useState(false);
 
-  const handleApplyPreset = (preset: PipelinePreset) => {
+  // Phase 5.3: Save as New Preset modal state
+  const [isSavePresetModalOpen, setIsSavePresetModalOpen] = useState(false);
+  const [newPresetName, setNewPresetName] = useState("");
+  const [newPresetDesc, setNewPresetDesc] = useState("");
+  const [isSavingPreset, setIsSavingPreset] = useState(false);
+
+  const isInitialMount = useRef(true);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleApplyPreset = async (preset: PipelinePreset) => {
+    dispatch({
+      type: "APPLY_PRESET",
+      payload: preset,
+    });
     if (preset.target_language) {
       dispatch({
         type: "SET_TARGET_LANGUAGE",
         payload: preset.target_language,
       });
     }
-    toast.success(`Đã nạp cấu hình "${preset.name}" cho video.`);
+
+    const currentVideoId = state.video?.videoId || (videoId && videoId !== "new" ? parseInt(videoId) : null);
+    if (currentVideoId && preset.id) {
+      try {
+        await applyPresetToVideo(preset.id, currentVideoId);
+      } catch (err) {
+        console.warn("Could not persist preset to backend video record:", err);
+      }
+    }
+
+    toast.success(`Đã nạp và áp dụng cấu hình "${preset.name}" cho video.`);
   };
+
+  const handleSaveAsPreset = async () => {
+    if (!newPresetName.trim()) {
+      toast.error("Vui lòng nhập tên cho Preset.");
+      return;
+    }
+    const currentVideoId = state.video?.videoId || (videoId && videoId !== "new" ? parseInt(videoId) : null);
+    if (!currentVideoId) return;
+
+    try {
+      setIsSavingPreset(true);
+      const res = await videoService.saveVideoAsPreset(currentVideoId, newPresetName.trim(), newPresetDesc.trim());
+      toast.success(`Đã lưu cấu hình thành preset "${res.preset?.name || newPresetName}" thành công!`);
+      setIsSavePresetModalOpen(false);
+      setNewPresetName("");
+      setNewPresetDesc("");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Lưu preset thất bại.");
+    } finally {
+      setIsSavingPreset(false);
+    }
+  };
+
+  // Phase 5.3: Bidirectional auto-debounced sync to backend
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    const currentVideoId = state.video?.videoId || (videoId && videoId !== "new" ? parseInt(videoId) : null);
+    if (!currentVideoId || !state.pipelineConfig) return;
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        await videoService.updateVideoPipelineConfig(currentVideoId, state.pipelineConfig, {
+          preset_id: state.presetConfig?.id,
+          preset_name: state.presetConfig?.name,
+        });
+        console.log("💾 [2-WAY SYNC] Pipeline configuration auto-saved to backend!");
+      } catch (err) {
+        console.warn("⚠️ [2-WAY SYNC] Auto-save config notice:", err);
+      }
+    }, 800);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [state.pipelineConfig, state.video?.videoId]);
 
   // Initialize project and video data from URL/state
   useEffect(() => {
@@ -160,14 +235,22 @@ function VideoPipelineContent() {
         Promise.all([
           videoService.getVideo(vidNum),
           videoService.getStepsSummary(vidNum).catch(() => null),
+          videoService.getVideoPipelineConfig(vidNum).catch(() => null),
         ])
-          .then(([videoData, summaryData]: [any, any]) => {
+          .then(([videoData, summaryData, pipelineConfigData]: [any, any, any]) => {
             console.log("📹 Loaded video data:", videoData);
             if (summaryData) {
               console.log("📊 Loaded steps summary:", summaryData);
               dispatch({
                 type: "SET_STEPS_SUMMARY",
                 payload: summaryData,
+              });
+            }
+
+            if (pipelineConfigData?.config_data) {
+              dispatch({
+                type: "SET_PIPELINE_CONFIG",
+                payload: pipelineConfigData.config_data,
               });
             }
 
@@ -204,6 +287,17 @@ function VideoPipelineContent() {
               const formattedTime = formatSnapshotTime(videoData.snapshot_data);
               if (formattedTime) {
                 setLastSavedTime(formattedTime);
+              }
+              if (videoData.snapshot_data.preset_config) {
+                dispatch({
+                  type: "APPLY_PRESET",
+                  payload: {
+                    id: videoData.snapshot_data.preset_id,
+                    name: videoData.snapshot_data.preset_name || "Custom Preset",
+                    config_data: videoData.snapshot_data.preset_config,
+                    target_language: videoData.target_language || "vi",
+                  },
+                });
               }
             }
 
@@ -618,11 +712,27 @@ function VideoPipelineContent() {
           <button
             type="button"
             onClick={() => setIsPresetStudioOpen(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs font-bold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] cursor-pointer"
+            className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition cursor-pointer ${
+              state.presetConfig
+                ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)] shadow-sm"
+                : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+            }`}
             title="Mở Preset Studio để nạp hoặc tinh chỉnh cấu hình 6 tầng AI"
           >
-            <Sliders size={14} />
-            <span className="hidden md:inline">Nạp Preset</span>
+            <Sliders size={14} className={state.presetConfig ? "text-[var(--color-primary)] animate-pulse" : ""} />
+            <span className="hidden md:inline">
+              {state.presetConfig ? `Preset: ${state.presetConfig.name}` : "Áp dụng Preset"}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsSavePresetModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs font-bold text-[var(--color-text-secondary)] hover:border-emerald-500 hover:text-emerald-500 transition cursor-pointer"
+            title="Lưu cấu hình 6 tầng hiện tại của video thành một Preset mới"
+          >
+            <BookmarkPlus size={14} />
+            <span className="hidden lg:inline">Lưu Preset</span>
           </button>
 
           <button
@@ -942,6 +1052,79 @@ function VideoPipelineContent() {
         onClose={() => setIsPresetStudioOpen(false)}
         onSelectPreset={handleApplyPreset}
       />
+
+      {/* Save as Preset Modal */}
+      {isSavePresetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl animate-scale-up">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
+                  <BookmarkPlus size={18} />
+                </div>
+                <h3 className="text-base font-bold text-[var(--color-text-primary)]">
+                  Lưu cấu hình thành Preset mới
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSavePresetModalOpen(false)}
+                className="rounded-lg p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-text-primary)]"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-xs text-[var(--color-text-muted)] mb-4">
+              Preset này sẽ lưu lại toàn bộ các tham số của 6 bước hiện tại (âm thanh, whisper model, LLM dịch, giọng đọc TTS, ASS styling, NVENC encoder) để bạn tái sử dụng cho các video khác hoặc batch upload.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1">
+                  Tên Preset *
+                </label>
+                <input
+                  type="text"
+                  value={newPresetName}
+                  onChange={(e) => setNewPresetName(e.target.value)}
+                  placeholder="VD: Cấu hình TikTok Voice Clone Vietsub"
+                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1">
+                  Mô tả
+                </label>
+                <textarea
+                  value={newPresetDesc}
+                  onChange={(e) => setNewPresetDesc(e.target.value)}
+                  placeholder="Ghi chú chi tiết về mục đích sử dụng, chất lượng âm thanh hoặc subtitle..."
+                  rows={3}
+                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none resize-none"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsSavePresetModalOpen(false)}
+                className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-muted)]"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAsPreset}
+                disabled={isSavingPreset || !newPresetName.trim()}
+                className="flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {isSavingPreset ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                Lưu Preset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

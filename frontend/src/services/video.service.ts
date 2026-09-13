@@ -1,6 +1,38 @@
 import api from "./api/axios";
 import type { VideoUpdateRequest } from "../types/video";
 
+export interface MediaInfo {
+  format?: string;
+  duration?: number;
+  size?: number;
+  file_size?: number;
+  bitrate?: number | string;
+  video_codec?: string;
+  width?: number;
+  height?: number;
+  fps?: number;
+  audio_codec?: string;
+  sample_rate?: number;
+  channels?: number;
+  audio_channels?: number;
+  aspect_ratio?: string;
+  resolution?: string;
+  video?: {
+    codec?: string;
+    width?: number;
+    height?: number;
+    fps?: number;
+    bitrate?: number | string;
+  };
+  audio?: {
+    codec?: string;
+    sample_rate?: number;
+    channels?: number;
+    bitrate?: number | string;
+  };
+  raw?: Record<string, any>;
+}
+
 export const videoService = {
   // Upload with real progress tracking and folder support
   async uploadVideo(
@@ -54,6 +86,65 @@ export const videoService = {
     }
   ) {
     const response = await api.post(`/api/videos/${videoId}/snapshot`, snapshot);
+    return response.data;
+  },
+
+  // 6-Tier Pipeline Config 2-Way Synchronization
+  async getVideoPipelineConfig(videoId: number) {
+    const response = await api.get(`/api/videos/${videoId}/pipeline-config`);
+    return response.data;
+  },
+
+  async updateVideoPipelineConfig(videoId: number, configData: Record<string, any>, presetInfo?: { preset_id?: number; preset_name?: string }) {
+    const response = await api.put(`/api/videos/${videoId}/pipeline-config`, {
+      config_data: configData,
+      ...(presetInfo || {}),
+    });
+    return response.data;
+  },
+
+  async saveVideoAsPreset(videoId: number, name: string, description?: string) {
+    const response = await api.post(`/api/videos/${videoId}/save-as-preset`, {
+      name,
+      description,
+    });
+    return response.data;
+  },
+
+  // Media Inspector
+  async getVideoMediaInfo(videoId: number): Promise<MediaInfo> {
+    const response = await api.get(`/api/videos/${videoId}/media-info`);
+    const data = response.data || {};
+    return {
+      ...data,
+      video: {
+        codec: data.video_codec || data.video?.codec,
+        width: data.width || data.video?.width,
+        height: data.height || data.video?.height,
+        fps: data.fps || data.video?.fps,
+        bitrate: data.bitrate || data.video?.bitrate,
+      },
+      audio: {
+        codec: data.audio_codec || data.audio?.codec,
+        sample_rate: data.sample_rate || data.audio?.sample_rate,
+        channels: data.audio_channels || data.channels || data.audio?.channels,
+        bitrate: data.audio?.bitrate,
+      },
+    };
+  },
+
+  // Single-Segment AI Rewrite
+  async rewriteTranslationSegment(videoId: number, segmentId: number, mode: "shorter" | "casual" | "formal" | "catchy", currentText: string) {
+    const response = await api.post(`/api/videos/${videoId}/translation/segments/${segmentId}/rewrite`, {
+      mode,
+      current_text: currentText,
+    });
+    return response.data;
+  },
+
+  // Single-Segment TTS Regeneration
+  async regenerateSegmentTTS(videoId: number, segmentId: number, payload: { text: string; voice_id?: string; speed?: number; engine?: string }) {
+    const response = await api.post(`/api/videos/${videoId}/tts/segments/${segmentId}`, payload);
     return response.data;
   },
 

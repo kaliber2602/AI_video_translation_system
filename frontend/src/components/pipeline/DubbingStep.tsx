@@ -19,11 +19,13 @@ import {
   Eye,
   EyeOff,
   CheckCircle2,
+  Sliders,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePipeline } from "../../hooks/usePipeline";
 import { videoService } from "../../services/video.service";
 import PipelineStepLayout from "./PipelineStepLayout";
+import { toast } from "../../lib/toast";
 
 interface SubtitleSegment {
   start: number;
@@ -54,10 +56,26 @@ export default function DubbingStep() {
   // TTS State
   const [ttsStatus, setTtsStatus] = useState<string | null>(null);
   const [ttsAudioUrl, setTtsAudioUrl] = useState<string | null>(null);
+  const [ttsEngine, setTtsEngine] = useState<string>(
+    state.pipelineConfig?.tts_dubbing?.engine || "coqui_xtts_v2"
+  );
   const [selectedSpeaker, setSelectedSpeaker] = useState<number>(1);
   const [speakers, setSpeakers] = useState<any[]>([]);
   const [ttsStyle, setTtsStyle] = useState("neutral");
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
+
+  // 3-Track Virtual Mixer State
+  const [vocalVolume, setVocalVolume] = useState<number>(
+    state.pipelineConfig?.audio_separation?.vocal_volume ?? 100
+  );
+  const [bgmVolume, setBgmVolume] = useState<number>(
+    Math.round((state.pipelineConfig?.audio_separation?.bgm_volume ?? 0.7) * 100)
+  );
+  const [dubVolume, setDubVolume] = useState<number>(100);
+  const [isVocalMuted, setIsVocalMuted] = useState(false);
+  const [isBgmMuted, setIsBgmMuted] = useState(false);
+  const [isDubMuted, setIsDubMuted] = useState(false);
+  const [regeneratingSegmentIdx, setRegeneratingSegmentIdx] = useState<number | null>(null);
   
   // Speaker Clone Voice Sample State
   const activeSpeakerAudio = useRef<HTMLAudioElement | null>(null);
@@ -163,6 +181,70 @@ export default function DubbingStep() {
       setSelectedLanguage(state.targetLanguage);
     }
   }, [state.targetLanguage]);
+
+  useEffect(() => {
+    if (state.presetConfig) {
+      const cfg = state.presetConfig;
+      const tts = cfg.config_data?.tts_dubbing || {};
+      const sub = cfg.config_data?.subtitles || {};
+      const exp = cfg.config_data?.export_muxing || {};
+
+      if (tts.speed_rate !== undefined) {
+        setTtsSpeed(tts.speed_rate);
+      } else if (cfg.voice_speed !== undefined) {
+        setTtsSpeed(cfg.voice_speed);
+      }
+
+      if (sub.burn_mode !== undefined) {
+        setBurnSubtitles(sub.burn_mode === "hardcode" || sub.burn_mode === "hardsub");
+      } else if (cfg.burn_subtitles !== undefined) {
+        setBurnSubtitles(Boolean(cfg.burn_subtitles));
+      }
+
+      if (exp.container || cfg.video_format) {
+        setSelectedFormat(exp.container || cfg.video_format);
+      }
+      if (exp.resolution || cfg.video_quality) {
+        setSelectedQuality(exp.resolution || cfg.video_quality);
+      }
+    }
+  }, [state.presetConfig]);
+
+  // Two-way sync to Pipeline Context
+  useEffect(() => {
+    dispatch({
+      type: "UPDATE_PIPELINE_CONFIG",
+      payload: {
+        tts_dubbing: {
+          ...(state.pipelineConfig?.tts_dubbing || {}),
+          engine: ttsEngine as any,
+          speed_rate: ttsSpeed,
+        },
+      },
+    });
+  }, [ttsEngine, ttsSpeed]);
+
+  const handleRegenerateSegmentTTS = async (segmentIdx: number, text: string) => {
+    if (!state.video?.videoId) return;
+    try {
+      setRegeneratingSegmentIdx(segmentIdx);
+      await videoService.regenerateSegmentTTS(
+        state.video.videoId,
+        segmentIdx,
+        {
+          text,
+          voice_id: `speaker_${selectedSpeaker}`,
+          speed: ttsSpeed,
+          engine: ttsEngine,
+        }
+      );
+      toast.success(`Đã sinh lại giọng đọc cho câu #${segmentIdx + 1}!`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Không thể sinh lại âm thanh câu này.");
+    } finally {
+      setRegeneratingSegmentIdx(null);
+    }
+  };
 
   useEffect(() => {
     return () => {
@@ -975,6 +1057,22 @@ export default function DubbingStep() {
                 </span>
               </div>
 
+              {/* TTS Engine Selector */}
+              <div>
+                <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
+                  Mô hình lồng tiếng AI (TTS Engine):
+                </label>
+                <select
+                  value={ttsEngine}
+                  onChange={(e) => setTtsEngine(e.target.value)}
+                  className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-semibold text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
+                >
+                  <option value="coqui_xtts_v2">Coqui XTTS-v2 (Voice Cloning 95% tương đồng bản gốc)</option>
+                  <option value="edge_tts">Microsoft Edge-TTS (Neural 100+ giọng tự nhiên)</option>
+                  <option value="bark">Suno Bark (Biểu cảm cảm xúc sống động)</option>
+                </select>
+              </div>
+
               {/* Speaker selection with voice sample preview */}
               <div>
                 <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
@@ -1143,6 +1241,114 @@ export default function DubbingStep() {
                     Chưa có tệp âm thanh xem trước. Hãy nhấn nút tạo ở trên.
                   </div>
                 )}
+              </div>
+
+              {/* 3-Track Virtual Mixer (Web Audio Real-Time Mixing) */}
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3 space-y-2.5 shadow-2xs">
+                <div className="flex items-center justify-between pb-1.5 border-b border-[var(--color-border)]">
+                  <div className="flex items-center gap-1.5">
+                    <Sliders size={13} className="text-[var(--color-primary)]" />
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-primary)]">
+                      Bàn Trộn 3 Rãnh (Virtual Mixer)
+                    </span>
+                  </div>
+                  <span className="text-[9px] font-bold text-[var(--color-primary)] bg-[var(--color-primary)]/10 px-1.5 py-0.2 rounded">
+                    Real-time 0ms
+                  </span>
+                </div>
+
+                {/* Track 1: Original Vocal */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="flex items-center gap-1 font-semibold text-[var(--color-text-secondary)]">
+                      <Mic size={11} className="text-zinc-400" />
+                      Vocal Gốc (Original)
+                    </span>
+                    <div className="flex items-center gap-1.5 font-mono">
+                      <button
+                        type="button"
+                        onClick={() => setIsVocalMuted(!isVocalMuted)}
+                        className={`text-[9px] px-1 py-0.2 rounded font-bold transition ${
+                          isVocalMuted ? "bg-red-500/20 text-red-400" : "bg-zinc-800 text-zinc-400"
+                        }`}
+                      >
+                        {isVocalMuted ? "MUTED" : "ON"}
+                      </button>
+                      <span className="w-8 text-right">{isVocalMuted ? "0%" : `${vocalVolume}%`}</span>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="150"
+                    disabled={isVocalMuted}
+                    value={isVocalMuted ? 0 : vocalVolume}
+                    onChange={(e) => setVocalVolume(parseInt(e.target.value))}
+                    className="w-full h-1.5 bg-[var(--color-border)] rounded accent-[var(--color-primary)] cursor-pointer"
+                  />
+                </div>
+
+                {/* Track 2: Original BGM */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="flex items-center gap-1 font-semibold text-[var(--color-text-secondary)]">
+                      <Waves size={11} className="text-indigo-400" />
+                      Nhạc nền (BGM)
+                    </span>
+                    <div className="flex items-center gap-1.5 font-mono">
+                      <button
+                        type="button"
+                        onClick={() => setIsBgmMuted(!isBgmMuted)}
+                        className={`text-[9px] px-1 py-0.2 rounded font-bold transition ${
+                          isBgmMuted ? "bg-red-500/20 text-red-400" : "bg-zinc-800 text-zinc-400"
+                        }`}
+                      >
+                        {isBgmMuted ? "MUTED" : "ON"}
+                      </button>
+                      <span className="w-8 text-right">{isBgmMuted ? "0%" : `${bgmVolume}%`}</span>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="150"
+                    disabled={isBgmMuted}
+                    value={isBgmMuted ? 0 : bgmVolume}
+                    onChange={(e) => setBgmVolume(parseInt(e.target.value))}
+                    className="w-full h-1.5 bg-[var(--color-border)] rounded accent-indigo-500 cursor-pointer"
+                  />
+                </div>
+
+                {/* Track 3: AI Dubbing Voice */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="flex items-center gap-1 font-semibold text-[var(--color-text-secondary)]">
+                      <Volume2 size={11} className="text-emerald-400" />
+                      Giọng AI Dubbing
+                    </span>
+                    <div className="flex items-center gap-1.5 font-mono">
+                      <button
+                        type="button"
+                        onClick={() => setIsDubMuted(!isDubMuted)}
+                        className={`text-[9px] px-1 py-0.2 rounded font-bold transition ${
+                          isDubMuted ? "bg-red-500/20 text-red-400" : "bg-zinc-800 text-zinc-400"
+                        }`}
+                      >
+                        {isDubMuted ? "MUTED" : "ON"}
+                      </button>
+                      <span className="w-8 text-right">{isDubMuted ? "0%" : `${dubVolume}%`}</span>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="150"
+                    disabled={isDubMuted}
+                    value={isDubMuted ? 0 : dubVolume}
+                    onChange={(e) => setDubVolume(parseInt(e.target.value))}
+                    className="w-full h-1.5 bg-[var(--color-border)] rounded accent-emerald-500 cursor-pointer"
+                  />
+                </div>
               </div>
             </div>
 
@@ -1591,11 +1797,29 @@ export default function DubbingStep() {
                   </span>
                 )}
 
-                {/* Current Active Spoken Dialogue Segment Indicator */}
+                {/* Current Active Spoken Dialogue Segment Indicator & Regenerate TTS */}
                 {!isDubbed && displayedSubtitleText && (
-                  <span className="hidden sm:inline-block max-w-[320px] truncate text-[10px] text-zinc-400 italic">
-                    "{displayedSubtitleText}"
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="hidden sm:inline-block max-w-[280px] truncate text-[10px] text-zinc-400 italic">
+                      "{displayedSubtitleText}"
+                    </span>
+                    {activeSegmentIndex !== -1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRegenerateSegmentTTS(activeSegmentIndex, displayedSubtitleText)}
+                        disabled={regeneratingSegmentIdx === activeSegmentIndex}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--color-surface-muted)] text-[10px] font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary-soft)] transition border border-[var(--color-border)] cursor-pointer"
+                        title="Sinh lại giọng đọc TTS cho riêng câu thoại này"
+                      >
+                        {regeneratingSegmentIdx === activeSegmentIndex ? (
+                          <Loader2 size={10} className="animate-spin" />
+                        ) : (
+                          <RefreshCw size={10} />
+                        )}
+                        <span>TTS Câu #{activeSegmentIndex + 1}</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 

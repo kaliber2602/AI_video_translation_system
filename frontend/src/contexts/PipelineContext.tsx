@@ -66,6 +66,8 @@ export interface PipelineState {
   tts: any;
   dubbedVideo: any;
   error: string | null;
+  presetConfig?: any | null;
+  pipelineConfig?: any | null;
 }
 
 export type PipelineAction =
@@ -81,6 +83,9 @@ export type PipelineAction =
   | { type: "SET_SUBTITLES"; payload: any }
   | { type: "SET_TTS"; payload: any }
   | { type: "SET_DUBBED_VIDEO"; payload: any }
+  | { type: "APPLY_PRESET"; payload: any }
+  | { type: "UPDATE_PIPELINE_CONFIG"; payload: any }
+  | { type: "SET_PIPELINE_CONFIG"; payload: any }
   | { type: "SET_ERROR"; payload: string }
   | { type: "CLEAR_ERROR" };
 
@@ -101,6 +106,8 @@ export const initialState: PipelineState = {
   tts: null,
   dubbedVideo: null,
   error: null,
+  presetConfig: null,
+  pipelineConfig: null,
 };
 
 // ============================================================
@@ -125,6 +132,7 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
               tts: null,
               dubbedVideo: null,
               error: null,
+              pipelineConfig: null,
             }
           : {}),
       };
@@ -149,6 +157,58 @@ export function pipelineReducer(state: PipelineState, action: PipelineAction): P
       return { ...state, tts: action.payload };
     case "SET_DUBBED_VIDEO":
       return { ...state, dubbedVideo: action.payload };
+    case "APPLY_PRESET":
+      return {
+        ...state,
+        presetConfig: action.payload,
+        pipelineConfig: action.payload?.config_data || state.pipelineConfig,
+        targetLanguage: action.payload?.target_language || state.targetLanguage,
+      };
+    case "SET_PIPELINE_CONFIG":
+      return {
+        ...state,
+        pipelineConfig: action.payload,
+      };
+    case "UPDATE_PIPELINE_CONFIG": {
+      const current = state.pipelineConfig || {};
+      const p = action.payload || {};
+      const updated = {
+        ...current,
+        ...p,
+        audio_separation: {
+          ...(current.audio_separation || {}),
+          ...(p.audio_separation || {}),
+        },
+        transcription: {
+          ...(current.transcription || {}),
+          ...(p.transcription || {}),
+        },
+        translation: {
+          ...(current.translation || {}),
+          ...(p.translation || {}),
+        },
+        tts_dubbing: {
+          ...(current.tts_dubbing || {}),
+          ...(p.tts_dubbing || {}),
+        },
+        subtitles: {
+          ...(current.subtitles || {}),
+          ...(p.subtitles || {}),
+          style: {
+            ...(current.subtitles?.style || {}),
+            ...(p.subtitles?.style || {}),
+          },
+        },
+        export_muxing: {
+          ...(current.export_muxing || {}),
+          ...(p.export_muxing || {}),
+        },
+      };
+      return {
+        ...state,
+        pipelineConfig: updated,
+      };
+    }
     case "SET_ERROR":
       return { ...state, error: action.payload };
     case "CLEAR_ERROR":

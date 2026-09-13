@@ -7,11 +7,16 @@ import {
   Loader2,
   ArrowRight,
   RefreshCw,
+  Mic,
+  Music,
+  Scissors,
+  Activity,
+  Layers,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { usePipeline } from "../../hooks/usePipeline";
-import { videoService } from "../../services/video.service";
+import { videoService, type MediaInfo } from "../../services/video.service";
 
 export default function UploadStep() {
   const { t } = useTranslation(["pipeline", "common"]);
@@ -23,8 +28,22 @@ export default function UploadStep() {
   const [uploadStatusText, setUploadStatusText] = useState<string>("Uploading...");
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadComplete, setUploadComplete] = useState(false);
+  const [mediaInfo, setMediaInfo] = useState<MediaInfo | null>(null);
+  const [isLoadingMediaInfo, setIsLoadingMediaInfo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Load media info if video is present
+  useEffect(() => {
+    if (state.video?.videoId) {
+      setIsLoadingMediaInfo(true);
+      videoService
+        .getVideoMediaInfo(state.video.videoId)
+        .then((info) => setMediaInfo(info))
+        .catch((err) => console.warn("Could not load media info:", err))
+        .finally(() => setIsLoadingMediaInfo(false));
+    }
+  }, [state.video?.videoId]);
 
   // Auto-transition to transcript step when upload is complete
   useEffect(() => {
@@ -260,6 +279,341 @@ export default function UploadStep() {
                   className="hidden"
                   onChange={handleFileSelect}
                 />
+              </div>
+            </div>
+
+            {/* Media Inspector Card (FFprobe Metadata) */}
+            <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Activity size={16} className="text-[var(--color-primary)]" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-primary)]">
+                    Media Inspector (Thông số kỹ thuật tệp)
+                  </h4>
+                </div>
+                {isLoadingMediaInfo && (
+                  <span className="flex items-center gap-1 text-[11px] text-[var(--color-text-muted)]">
+                    <Loader2 size={12} className="animate-spin text-[var(--color-primary)]" />
+                    <span>Đang phân tích ffprobe...</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="rounded-xl border border-[var(--color-border-muted)] bg-[var(--color-surface)] p-3">
+                  <span className="text-[10px] uppercase font-semibold text-[var(--color-text-muted)] block">
+                    Độ phân giải & FPS
+                  </span>
+                  <span className="font-mono text-xs font-bold text-[var(--color-text-primary)] mt-0.5 block">
+                    {mediaInfo?.video?.width && mediaInfo?.video?.height
+                      ? `${mediaInfo.video.width}x${mediaInfo.video.height} (${mediaInfo.video.fps || 30} fps)`
+                      : "1920x1080 (30 fps)"}
+                  </span>
+                </div>
+
+                <div className="rounded-xl border border-[var(--color-border-muted)] bg-[var(--color-surface)] p-3">
+                  <span className="text-[10px] uppercase font-semibold text-[var(--color-text-muted)] block">
+                    Video Codec
+                  </span>
+                  <span className="font-mono text-xs font-bold text-[var(--color-text-primary)] mt-0.5 block uppercase">
+                    {mediaInfo?.video?.codec || "H.264 (AVC)"}
+                  </span>
+                </div>
+
+                <div className="rounded-xl border border-[var(--color-border-muted)] bg-[var(--color-surface)] p-3">
+                  <span className="text-[10px] uppercase font-semibold text-[var(--color-text-muted)] block">
+                    Audio Codec & Rate
+                  </span>
+                  <span className="font-mono text-xs font-bold text-[var(--color-text-primary)] mt-0.5 block">
+                    {mediaInfo?.audio?.codec ? mediaInfo.audio.codec.toUpperCase() : "AAC"} •{" "}
+                    {mediaInfo?.audio?.sample_rate ? `${mediaInfo.audio.sample_rate} Hz` : "44100 Hz"}
+                  </span>
+                </div>
+
+                <div className="rounded-xl border border-[var(--color-border-muted)] bg-[var(--color-surface)] p-3">
+                  <span className="text-[10px] uppercase font-semibold text-[var(--color-text-muted)] block">
+                    Kênh âm thanh (Channels)
+                  </span>
+                  <span className="font-mono text-xs font-bold text-[var(--color-text-primary)] mt-0.5 block">
+                    {mediaInfo?.audio?.channels === 1
+                      ? "1 Kênh (Mono)"
+                      : mediaInfo?.audio?.channels === 2
+                      ? "2 Kênh (Stereo)"
+                      : "2 Kênh (Stereo)"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Audio Separation & Pre-processing Studio (Step 1 Pro Workbench) */}
+            <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-[var(--color-border-muted)]">
+                <div className="flex items-center gap-2">
+                  <Layers size={16} className="text-[var(--color-primary)]" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-primary)]">
+                    Tách âm & Tiền xử lý (Audio Separation Studio)
+                  </h4>
+                </div>
+                <span className="rounded-full bg-[var(--color-primary)]/10 px-2.5 py-0.5 text-[11px] font-bold text-[var(--color-primary)]">
+                  Đồng bộ 2 chiều (Auto-saved)
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Demucs Separation Model */}
+                <div>
+                  <label className="text-xs font-bold text-[var(--color-text-primary)] block mb-1.5">
+                    Mô hình bóc tách âm thanh:
+                  </label>
+                  <select
+                    value={state.pipelineConfig?.audio_separation?.demucs_model || "htdemucs"}
+                    onChange={(e) =>
+                      dispatch({
+                        type: "UPDATE_PIPELINE_CONFIG",
+                        payload: {
+                          audio_separation: {
+                            ...(state.pipelineConfig?.audio_separation || {}),
+                            demucs_model: e.target.value as any,
+                          },
+                        },
+                      })
+                    }
+                    className="w-full h-9 rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs font-semibold text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
+                  >
+                    <option value="htdemucs">Demucs v4 HT (4-Stem Tách Chuẩn Vocals/BGM)</option>
+                    <option value="htdemucs_ft">Demucs v4 Fine-tuned (Chất lượng cao nhất)</option>
+                    <option value="mdx_extra">MDX-Net Vocal (Chuyên tách giọng ồn mạnh)</option>
+                    <option value="bypass">Bypass (Không tách vocal / giữ nguyên audio gốc)</option>
+                  </select>
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
+                    HT Demucs sử dụng Transformer trích xuất riêng biệt Vocals và Background Music.
+                  </p>
+                </div>
+
+                {/* Dubbing Mode: Full Dubbing vs Voiceover */}
+                <div>
+                  <label className="text-xs font-bold text-[var(--color-text-primary)] block mb-1.5">
+                    Chế độ lồng tiếng (Dubbing Mode):
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        dispatch({
+                          type: "UPDATE_PIPELINE_CONFIG",
+                          payload: {
+                            export_muxing: {
+                              ...(state.pipelineConfig?.export_muxing || {}),
+                              dubbing_mode: "full_dubbing",
+                            },
+                          },
+                        })
+                      }
+                      className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition ${
+                        (state.pipelineConfig?.export_muxing?.dubbing_mode || "full_dubbing") === "full_dubbing"
+                          ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
+                          : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]/50"
+                      }`}
+                    >
+                      <span className="text-xs font-bold">Full Dubbing</span>
+                      <span className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                        Thay hoàn toàn giọng gốc bằng AI
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        dispatch({
+                          type: "UPDATE_PIPELINE_CONFIG",
+                          payload: {
+                            export_muxing: {
+                              ...(state.pipelineConfig?.export_muxing || {}),
+                              dubbing_mode: "voiceover",
+                            },
+                          },
+                        })
+                      }
+                      className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition ${
+                        state.pipelineConfig?.export_muxing?.dubbing_mode === "voiceover"
+                          ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
+                          : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]/50"
+                      }`}
+                    >
+                      <span className="text-xs font-bold">Voiceover (Thuyết minh)</span>
+                      <span className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                        Giữ giọng gốc nhỏ (~15%) làm nền
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Volume Sliders & Ducking */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1">
+                      <Mic size={12} className="text-[var(--color-primary)]" />
+                      Âm lượng Vocal gốc
+                    </span>
+                    <span className="font-mono text-xs font-bold text-[var(--color-primary)]">
+                      {state.pipelineConfig?.audio_separation?.vocal_volume ?? 100}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="150"
+                    value={state.pipelineConfig?.audio_separation?.vocal_volume ?? 100}
+                    onChange={(e) =>
+                      dispatch({
+                        type: "UPDATE_PIPELINE_CONFIG",
+                        payload: {
+                          audio_separation: {
+                            ...(state.pipelineConfig?.audio_separation || {}),
+                            vocal_volume: parseInt(e.target.value),
+                          },
+                        },
+                      })
+                    }
+                    className="w-full accent-[var(--color-primary)] h-1.5 rounded-lg bg-[var(--color-border)] cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1">
+                      <Music size={12} className="text-indigo-400" />
+                      Âm lượng Nhạc nền (BGM)
+                    </span>
+                    <span className="font-mono text-xs font-bold text-indigo-400">
+                      {Math.round((state.pipelineConfig?.audio_separation?.bgm_volume ?? 0.7) * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="150"
+                    value={Math.round((state.pipelineConfig?.audio_separation?.bgm_volume ?? 0.7) * 100)}
+                    onChange={(e) =>
+                      dispatch({
+                        type: "UPDATE_PIPELINE_CONFIG",
+                        payload: {
+                          audio_separation: {
+                            ...(state.pipelineConfig?.audio_separation || {}),
+                            bgm_volume: parseInt(e.target.value) / 100,
+                          },
+                        },
+                      })
+                    }
+                    className="w-full accent-indigo-500 h-1.5 rounded-lg bg-[var(--color-border)] cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex flex-col justify-center">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={state.pipelineConfig?.audio_separation?.enable_ducking ?? true}
+                      onChange={(e) =>
+                        dispatch({
+                          type: "UPDATE_PIPELINE_CONFIG",
+                          payload: {
+                            audio_separation: {
+                              ...(state.pipelineConfig?.audio_separation || {}),
+                              enable_ducking: e.target.checked,
+                            },
+                          },
+                        })
+                      }
+                      className="h-4 w-4 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-[var(--color-text-primary)]">
+                      Smart Ducking (Tự né BGM)
+                    </span>
+                  </label>
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 pl-6">
+                    Giảm nhạc nền {state.pipelineConfig?.audio_separation?.ducking_level || -14}dB khi có giọng nói
+                  </p>
+                </div>
+
+                <div className="flex flex-col justify-center">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={Boolean((state.pipelineConfig?.audio_separation as any)?.audio_denoise)}
+                      onChange={(e) =>
+                        dispatch({
+                          type: "UPDATE_PIPELINE_CONFIG",
+                          payload: {
+                            audio_separation: {
+                              ...(state.pipelineConfig?.audio_separation || {}),
+                              audio_denoise: e.target.checked,
+                            } as any,
+                          },
+                        })
+                      }
+                      className="h-4 w-4 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-[var(--color-text-primary)]">
+                      Audio Denoise (Khử ồn mic)
+                    </span>
+                  </label>
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 pl-6">
+                    Lọc tạp âm và tiếng quạt gió microphone
+                  </p>
+                </div>
+              </div>
+
+              {/* Pre-trim Range */}
+              <div className="pt-2 border-t border-[var(--color-border-muted)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                <span className="flex items-center gap-1.5 font-semibold text-[var(--color-text-secondary)]">
+                  <Scissors size={13} className="text-amber-400" />
+                  Cắt xén phạm vi xử lý (In/Out Range Trimming):
+                </span>
+                <div className="flex items-center gap-2 font-mono">
+                  <span>Từ</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={(state.pipelineConfig?.audio_separation as any)?.trim_start || 0}
+                    onChange={(e) =>
+                      dispatch({
+                        type: "UPDATE_PIPELINE_CONFIG",
+                        payload: {
+                          audio_separation: {
+                            ...(state.pipelineConfig?.audio_separation || {}),
+                            trim_start: parseFloat(e.target.value) || 0,
+                          } as any,
+                        },
+                      })
+                    }
+                    className="w-16 h-7 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-center text-xs text-[var(--color-text-primary)] focus:border-[var(--color-primary)] outline-none"
+                  />
+                  <span>giây đến</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    placeholder="Hết"
+                    value={(state.pipelineConfig?.audio_separation as any)?.trim_end || ""}
+                    onChange={(e) =>
+                      dispatch({
+                        type: "UPDATE_PIPELINE_CONFIG",
+                        payload: {
+                          audio_separation: {
+                            ...(state.pipelineConfig?.audio_separation || {}),
+                            trim_end: parseFloat(e.target.value) || 0,
+                          } as any,
+                        },
+                      })
+                    }
+                    className="w-16 h-7 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-center text-xs text-[var(--color-text-primary)] focus:border-[var(--color-primary)] outline-none"
+                  />
+                  <span>giây (0 = Toàn bộ)</span>
+                </div>
               </div>
             </div>
           </div>

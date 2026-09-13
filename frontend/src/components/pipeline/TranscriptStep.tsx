@@ -32,8 +32,21 @@ export default function TranscriptStep() {
       !isGenerating
   );
   const [isSaving, setIsSaving] = useState(false);
-  const [whisperModel, setWhisperModel] = useState("whisper-medium");
-  const [enableDiarization, setEnableDiarization] = useState<boolean>(true);
+  const [whisperModel, setWhisperModel] = useState(
+    state.pipelineConfig?.transcription?.model_size || "whisper-medium"
+  );
+  const [enableDiarization, setEnableDiarization] = useState<boolean>(
+    state.pipelineConfig?.transcription?.diarization ?? true
+  );
+  const [minSpeakers, setMinSpeakers] = useState<number>(
+    state.pipelineConfig?.transcription?.min_speakers ?? 1
+  );
+  const [maxSpeakers, setMaxSpeakers] = useState<number>(
+    state.pipelineConfig?.transcription?.max_speakers ?? 5
+  );
+  const [filterFillers, setFilterFillers] = useState<boolean>(
+    Boolean(state.pipelineConfig?.transcription?.filter_fillers)
+  );
   const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
   const [transcriptionNotice, setTranscriptionNotice] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -88,6 +101,41 @@ export default function TranscriptStep() {
       hasInitializedTab.current = true;
     }
   }, [isLoading, transcript]);
+
+  useEffect(() => {
+    if (state.presetConfig) {
+      const cfg = state.presetConfig;
+      const transcription = cfg.config_data?.transcription || {};
+      const rawModel = transcription.model_size || cfg.stt_model || "";
+      if (rawModel.includes("large")) {
+        setWhisperModel("whisper-large-v3");
+      } else if (rawModel.includes("base")) {
+        setWhisperModel("whisper-base");
+      } else if (rawModel) {
+        setWhisperModel("whisper-medium");
+      }
+
+      const diarVal = transcription.diarization !== undefined ? transcription.diarization : cfg.enable_diarization;
+      if (diarVal !== undefined) {
+        const isEnabled = typeof diarVal === "object" && diarVal !== null ? Boolean((diarVal as any).enabled) : Boolean(diarVal);
+        setEnableDiarization(isEnabled);
+      }
+      if (transcription.min_speakers) setMinSpeakers(transcription.min_speakers);
+      if (transcription.max_speakers) setMaxSpeakers(transcription.max_speakers);
+      if (transcription.filter_fillers !== undefined) setFilterFillers(Boolean(transcription.filter_fillers));
+    }
+  }, [state.presetConfig]);
+  const updateTranscriptionConfig = (updates: any) => {
+    dispatch({
+      type: "UPDATE_PIPELINE_CONFIG",
+      payload: {
+        transcription: {
+          ...(state.pipelineConfig?.transcription || {}),
+          ...updates,
+        },
+      },
+    });
+  };
 
   const handleToggleTranscriptTab = () => {
     if (isPanelOpen && activeRightTab === "transcript") {
@@ -373,6 +421,20 @@ export default function TranscriptStep() {
     setTranscript({ ...transcript, segments: newSegments });
     dispatch({ type: "SET_TRANSCRIPT", payload: { ...transcript, segments: newSegments } });
   };
+
+  // Pro Video Editing Shortcut: Ctrl+K / Cmd+K splits active segment at playhead
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        if (activeSegmentIndex !== -1) {
+          handleSplitSegment(activeSegmentIndex);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeSegmentIndex, currentTime, transcript]);
 
   const handleMergeWithNext = (index: number) => {
     if (!transcript || !transcript.segments[index] || !transcript.segments[index + 1]) return;
@@ -734,31 +796,98 @@ export default function TranscriptStep() {
               </label>
               <select
                 value={whisperModel}
-                onChange={(e) => setWhisperModel(e.target.value)}
+                onChange={(e) => {
+                  setWhisperModel(e.target.value);
+                  updateTranscriptionConfig({ model_size: e.target.value });
+                }}
                 disabled={isGenerating}
                 className="w-full h-9 rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs font-semibold text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)]"
               >
+                <option value="whisper-large-v3">Whisper Large-v3 (Chính xác cao nhất & Đa ngữ xuất sắc)</option>
                 <option value="whisper-medium">Whisper Medium (Cân bằng & Chuẩn xác)</option>
-                <option value="whisper-large-v3">Whisper Large-v3 (Chính xác cao nhất)</option>
-                <option value="whisper-base">Whisper Base (Tốc độ nhanh)</option>
+                <option value="whisper-small">Whisper Small (Nhanh & Tiết kiệm bộ nhớ)</option>
+                <option value="whisper-base">Whisper Base (Tốc độ tối đa)</option>
+                <option value="whisperx-large-v3">WhisperX Large-v3 (Khớp mốc thời gian từng từ)</option>
               </select>
 
               {/* Speaker Diarization Checkbox */}
-              <label className="flex items-center gap-2 cursor-pointer mt-2.5 text-xs text-[var(--color-text-secondary)] select-none">
+              <label className="flex items-center gap-2 cursor-pointer mt-3 text-xs text-[var(--color-text-secondary)] select-none">
                 <input
                   type="checkbox"
                   checked={enableDiarization}
-                  onChange={(e) => setEnableDiarization(e.target.checked)}
+                  onChange={(e) => {
+                    setEnableDiarization(e.target.checked);
+                    updateTranscriptionConfig({ diarization: e.target.checked });
+                  }}
                   disabled={isGenerating}
                   className="h-3.5 w-3.5 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer"
                 />
-                <span>{t("pipeline:steps.transcript.enableDiarization", "Phân tách người nói (Pyannote Diarization)")}</span>
+                <span className="font-semibold text-[var(--color-text-primary)]">
+                  {t("pipeline:steps.transcript.enableDiarization", "Phân tách người nói (Pyannote 3.1)")}
+                </span>
               </label>
-              {!enableDiarization && (
+
+              {enableDiarization ? (
+                <div className="mt-2.5 space-y-2 p-2.5 rounded-xl border border-[var(--color-border-muted)] bg-[var(--color-surface)]">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-[10px] text-[var(--color-text-muted)] block mb-1">Số người tối thiểu:</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="5"
+                        value={minSpeakers}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 1;
+                          setMinSpeakers(val);
+                          updateTranscriptionConfig({ min_speakers: val });
+                        }}
+                        disabled={isGenerating}
+                        className="w-full h-7 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-xs font-mono text-center text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[var(--color-text-muted)] block mb-1">Số người tối đa:</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={maxSpeakers}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 5;
+                          setMaxSpeakers(val);
+                          updateTranscriptionConfig({ max_speakers: val });
+                        }}
+                        disabled={isGenerating}
+                        className="w-full h-7 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-xs font-mono text-center text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
+                      />
+                    </div>
+                  </div>
+
+                  <label className="flex items-center gap-2 cursor-pointer pt-1 text-xs text-[var(--color-text-secondary)] select-none">
+                    <input
+                      type="checkbox"
+                      checked={filterFillers}
+                      onChange={(e) => {
+                        setFilterFillers(e.target.checked);
+                        updateTranscriptionConfig({ filter_fillers: e.target.checked });
+                      }}
+                      disabled={isGenerating}
+                      className="h-3 w-3 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer"
+                    />
+                    <span className="text-[11px]">Lọc bỏ từ đệm (à, ừm, like, you know...)</span>
+                  </label>
+                </div>
+              ) : (
                 <p className="text-[10px] text-[var(--color-text-muted)] mt-1 pl-5.5">
                   Tắt để nhận diện nhanh trên CPU (mặc định 1 người nói).
                 </p>
               )}
+
+              <div className="mt-2.5 p-2 rounded-lg bg-[var(--color-surface-muted)] text-[11px] text-[var(--color-text-muted)] flex items-center gap-1.5">
+                <Scissors size={12} className="text-amber-400 shrink-0" />
+                <span>Mẹo: Nhấn <strong className="text-[var(--color-text-primary)] font-mono">Ctrl+K</strong> để chia cắt câu thoại ngay tại vị trí video đang phát.</span>
+              </div>
             </div>
 
             {transcriptionNotice && (

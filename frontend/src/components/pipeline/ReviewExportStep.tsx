@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { 
   Download, 
   Loader2, 
@@ -11,6 +11,11 @@ import {
   ExternalLink,
   AlertCircle,
   ChevronLeft,
+  Columns,
+  Cpu,
+  Sliders,
+  Play,
+  Pause,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -33,6 +38,25 @@ export default function ReviewExportStep() {
   const [selectedQuality, setSelectedQuality] = useState("1080p");
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportSuccess, setExportSuccess] = useState(false);
+
+  // Pro Workbench: AB Split-screen comparison
+  const [isSplitScreen, setIsSplitScreen] = useState(false);
+  const [splitPercent, setSplitPercent] = useState(50);
+  const [originalVideoUrl, setOriginalVideoUrl] = useState<string | null>(null);
+  const [isSplitPlaying, setIsSplitPlaying] = useState(false);
+  const origVideoRef = useRef<HTMLVideoElement>(null);
+  const dubbedVideoRef = useRef<HTMLVideoElement>(null);
+
+  // Pro Workbench: Hardware NVENC & Multi-track
+  const [videoEncoder, setVideoEncoder] = useState<string>(
+    state.pipelineConfig?.export_muxing?.encoder || "h264_nvenc"
+  );
+  const [nvencPreset, setNvencPreset] = useState<string>(
+    state.pipelineConfig?.export_muxing?.nvenc_preset || "p4"
+  );
+  const [multiAudioTracks, setMultiAudioTracks] = useState<boolean>(
+    Boolean(state.pipelineConfig?.export_muxing?.multi_audio_tracks)
+  );
 
   // Video state
   const [duration, setDuration] = useState(0);
@@ -74,12 +98,57 @@ export default function ReviewExportStep() {
   }, [state.video?.videoId, state.video?.outputPath, state.dubbedVideo]);
 
   useEffect(() => {
+    if (state.presetConfig) {
+      const cfg = state.presetConfig;
+      const exp = cfg.config_data?.export_muxing || {};
+      if (exp.container || cfg.video_format) {
+        setSelectedFormat(exp.container || cfg.video_format);
+      }
+      if (exp.resolution || cfg.video_quality) {
+        setSelectedQuality(exp.resolution || cfg.video_quality);
+      }
+    }
+  }, [state.presetConfig]);
+
+  useEffect(() => {
+    if (state.video?.videoId) {
+      videoService.getVideoBlob(state.video.videoId)
+        .then((blob) => {
+          if (blob && blob.size > 0) {
+            setOriginalVideoUrl(URL.createObjectURL(blob));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [state.video?.videoId]);
+
+  // Two-way sync to Pipeline Context
+  useEffect(() => {
+    dispatch({
+      type: "UPDATE_PIPELINE_CONFIG",
+      payload: {
+        export_muxing: {
+          ...(state.pipelineConfig?.export_muxing || {}),
+          encoder: videoEncoder as any,
+          nvenc_preset: nvencPreset as any,
+          multi_audio_tracks: multiAudioTracks,
+          resolution: selectedQuality as any,
+          container: selectedFormat as any,
+        },
+      },
+    });
+  }, [videoEncoder, nvencPreset, multiAudioTracks, selectedQuality, selectedFormat]);
+
+  useEffect(() => {
     return () => {
       if (videoUrl && videoUrl.startsWith("blob:")) {
         URL.revokeObjectURL(videoUrl);
       }
+      if (originalVideoUrl && originalVideoUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(originalVideoUrl);
+      }
     };
-  }, [videoUrl]);
+  }, [videoUrl, originalVideoUrl]);
 
   const loadSubtitles = async () => {
     if (!state.video?.videoId) return;
@@ -361,6 +430,22 @@ export default function ReviewExportStep() {
         onDismissError={() => setExportError(null)}
         headerActions={
           <>
+            {videoUrl && originalVideoUrl && (
+              <button
+                type="button"
+                onClick={() => setIsSplitScreen((prev) => !prev)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition shadow-xs ${
+                  isSplitScreen
+                    ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-400"
+                    : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+                }`}
+                title="So sánh A/B Video Gốc vs Đã lồng tiếng"
+              >
+                <Columns size={13} className={isSplitScreen ? "text-emerald-400" : "text-sky-400"} />
+                <span>{isSplitScreen ? "Thoát So Sánh A/B" : "So Sánh A/B"}</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => {
@@ -458,6 +543,62 @@ export default function ReviewExportStep() {
                 </div>
               )}
 
+              {/* HARDWARE ACCELERATION & MUXING (PRO WORKBENCH) */}
+              <div className="border-t border-[var(--color-border)] pt-3.5 space-y-3">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--color-text-primary)]">
+                  <Cpu size={14} className="text-emerald-400" />
+                  <span>Phần Cứng & Muxing</span>
+                </div>
+
+                {/* Video Encoder */}
+                <div>
+                  <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
+                    Trình nén Video (Encoder):
+                  </label>
+                  <select
+                    value={videoEncoder}
+                    onChange={(e) => setVideoEncoder(e.target.value)}
+                    className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-medium text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] font-mono"
+                  >
+                    <option value="h264_nvenc">NVIDIA NVENC (GPU - Nhanh)</option>
+                    <option value="libx264">CPU Software (x264 - Tương thích)</option>
+                  </select>
+                </div>
+
+                {/* NVENC Tuning Preset */}
+                {videoEncoder === "h264_nvenc" && (
+                  <div>
+                    <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
+                      NVENC Tuning Preset:
+                    </label>
+                    <select
+                      value={nvencPreset}
+                      onChange={(e) => setNvencPreset(e.target.value)}
+                      className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-medium text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] font-mono"
+                    >
+                      <option value="p1">p1: Fastest (Xuất siêu tốc)</option>
+                      <option value="p4">p4: Medium (Cân bằng mặc định)</option>
+                      <option value="p6">p6: High Quality (Chất lượng cao)</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Multi-Audio Tracks */}
+                <div className="flex items-start gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="multi_audio_tracks"
+                    checked={multiAudioTracks}
+                    onChange={(e) => setMultiAudioTracks(e.target.checked)}
+                    className="mt-0.5 h-3.5 w-3.5 rounded border-[var(--color-border)] accent-[var(--color-primary)] cursor-pointer"
+                  />
+                  <label htmlFor="multi_audio_tracks" className="text-xs text-[var(--color-text-secondary)] cursor-pointer select-none leading-snug">
+                    <span className="font-semibold text-[var(--color-text-primary)] block">Đa luồng âm thanh</span>
+                    Gộp cả giọng AI & audio gốc vào file xuất
+                  </label>
+                </div>
+              </div>
+
               {/* PRIMARY DOWNLOAD BUTTON */}
               <div className="pt-2">
                 <button
@@ -519,17 +660,129 @@ export default function ReviewExportStep() {
 
             {videoUrl ? (
               <div>
-                <StandardVideoPlayer
-                  src={videoUrl}
-                  selectedQuality={selectedQuality}
-                  availableQualities={["360p", "720p", "1080p", "2k", "4k"]}
-                  onQualityChange={handleQualityChange}
-                  isSwitchingQuality={isSwitchingQuality}
-                  hasBurnedSubtitles={hasBurnedSubtitles}
-                  subtitleSegments={subtitleSegments}
-                  aspectRatio="auto"
-                  onDurationChange={(d) => setDuration(d)}
-                />
+                {isSplitScreen && originalVideoUrl ? (
+                  <div className="space-y-3">
+                    <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-[var(--color-border)] select-none shadow-lg">
+                      {/* Dubbed Video (Underneath full background) */}
+                      <video
+                        ref={dubbedVideoRef}
+                        src={videoUrl}
+                        className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                        playsInline
+                        onPlay={() => setIsSplitPlaying(true)}
+                        onPause={() => setIsSplitPlaying(false)}
+                        onTimeUpdate={() => {
+                          if (dubbedVideoRef.current && origVideoRef.current) {
+                            const diff = Math.abs(dubbedVideoRef.current.currentTime - origVideoRef.current.currentTime);
+                            if (diff > 0.12) {
+                              origVideoRef.current.currentTime = dubbedVideoRef.current.currentTime;
+                            }
+                          }
+                        }}
+                      />
+
+                      {/* Original Video (Overlay with clip-path on right) */}
+                      <div
+                        className="absolute inset-0 pointer-events-none"
+                        style={{
+                          clipPath: `inset(0 ${100 - splitPercent}% 0 0)`,
+                        }}
+                      >
+                        <video
+                          ref={origVideoRef}
+                          src={originalVideoUrl}
+                          className="w-full h-full object-contain"
+                          playsInline
+                          muted
+                        />
+                      </div>
+
+                      {/* Badges */}
+                      <div className="absolute top-3 left-3 z-10 pointer-events-none">
+                        <span className="px-2.5 py-1 rounded-lg bg-black/75 border border-white/20 text-[11px] font-bold text-white uppercase tracking-wider backdrop-blur-md shadow">
+                          Gốc (Original)
+                        </span>
+                      </div>
+                      <div className="absolute top-3 right-3 z-10 pointer-events-none">
+                        <span className="px-2.5 py-1 rounded-lg bg-[var(--color-primary)]/85 border border-[var(--color-primary)]/40 text-[11px] font-bold text-white uppercase tracking-wider backdrop-blur-md shadow">
+                          AI Dubbed ({state.targetLanguage?.toUpperCase() || "VI"})
+                        </span>
+                      </div>
+
+                      {/* Vertical Divider Line */}
+                      <div
+                        className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_12px_rgba(0,0,0,0.9)] pointer-events-none z-10 flex items-center justify-center -translate-x-1/2"
+                        style={{ left: `${splitPercent}%` }}
+                      >
+                        <div className="h-8 w-8 rounded-full bg-white text-zinc-900 shadow-xl flex items-center justify-center border border-zinc-300">
+                          <Sliders size={15} className="rotate-90 text-zinc-800" />
+                        </div>
+                      </div>
+
+                      {/* Invisible Full Range Slider */}
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={splitPercent}
+                        onChange={(e) => setSplitPercent(Number(e.target.value))}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-20"
+                        title="Kéo sang trái/phải để so sánh"
+                      />
+                    </div>
+
+                    {/* Split Player Action Bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-[var(--color-surface-muted)] border border-[var(--color-border)]">
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (dubbedVideoRef.current && origVideoRef.current) {
+                              if (dubbedVideoRef.current.paused) {
+                                dubbedVideoRef.current.play();
+                                origVideoRef.current.play();
+                                setIsSplitPlaying(true);
+                              } else {
+                                dubbedVideoRef.current.pause();
+                                origVideoRef.current.pause();
+                                setIsSplitPlaying(false);
+                              }
+                            }
+                          }}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] transition cursor-pointer"
+                          title={isSplitPlaying ? "Tạm dừng" : "Phát đồng bộ"}
+                        >
+                          {isSplitPlaying ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
+                        </button>
+                        <span className="text-xs text-[var(--color-text-secondary)] font-medium">
+                          Phát song song đồng bộ | Kéo chuột trên khung video để di chuyển vạch chia cắt
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs font-mono text-[var(--color-text-muted)]">
+                        <span>Tỷ lệ: <strong className="text-[var(--color-text-primary)]">{splitPercent}%</strong> / <strong className="text-[var(--color-text-primary)]">{100 - splitPercent}%</strong></span>
+                        <button
+                          type="button"
+                          onClick={() => setSplitPercent(50)}
+                          className="ml-2 px-2 py-0.5 rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-[11px] font-sans hover:bg-[var(--color-surface-hover)] transition cursor-pointer"
+                        >
+                          50:50
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <StandardVideoPlayer
+                    src={videoUrl}
+                    selectedQuality={selectedQuality}
+                    availableQualities={["360p", "720p", "1080p", "2k", "4k"]}
+                    onQualityChange={handleQualityChange}
+                    isSwitchingQuality={isSwitchingQuality}
+                    hasBurnedSubtitles={hasBurnedSubtitles}
+                    subtitleSegments={subtitleSegments}
+                    aspectRatio="auto"
+                    onDurationChange={(d) => setDuration(d)}
+                  />
+                )}
 
                 {/* Video Info Badges */}
                 <div className="mt-3.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
