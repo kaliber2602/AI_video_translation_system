@@ -213,4 +213,54 @@ class VideoDocumentResponse(BaseModel):
     file_path: Optional[str] = None
     content_markdown: Optional[str] = None
     file_size_bytes: Optional[int] = None
-    created_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+
+# ============================================================
+# NLE STUDIO & OVERLAY SCHEMAS (AC-21 to AC-25)
+# ============================================================
+
+class SubtitleMaskConfig(BaseModel):
+    enabled: bool = Field(default=False, description="Enable subtitle eraser / blur mask")
+    x: int = Field(default=0, description="Bounding box X coordinate in video pixels")
+    y: int = Field(default=0, description="Bounding box Y coordinate in video pixels")
+    width: int = Field(default=0, description="Bounding box width in pixels")
+    height: int = Field(default=0, description="Bounding box height in pixels")
+    mask_type: str = Field(default="blur", description="'blur' (delogo/gaussian blur) or 'banner' (solid backdrop)")
+    opacity: float = Field(default=0.85, ge=0.0, le=1.0, description="Opacity of solid banner mask")
+    color: str = Field(default="black", description="Color of solid banner mask (e.g. 'black', 'white', '#000000')")
+
+
+class OverlayConfig(BaseModel):
+    logo_url: Optional[str] = Field(default=None, description="Public URL or static path to logo image")
+    logo_path: Optional[str] = Field(default=None, description="Absolute server filesystem path to logo image")
+    logo_x: int = Field(default=20, description="X coordinate of logo in video pixels")
+    logo_y: int = Field(default=20, description="Y coordinate of logo in video pixels")
+    logo_scale: float = Field(default=1.0, description="Scale factor for logo")
+    logo_opacity: float = Field(default=1.0, ge=0.0, le=1.0, description="Opacity for logo")
+    ticker_text: Optional[str] = Field(default=None, description="Scrolling marquee text at bottom")
+    ticker_speed: int = Field(default=100, description="Marquee scrolling speed in pixels per second")
+    ticker_font_size: int = Field(default=24, description="Font size of ticker")
+    ticker_color: str = Field(default="white", description="Font color of ticker text")
+    ticker_bg_color: str = Field(default="black@0.6", description="Background color of ticker banner")
+
+
+class ResynthesizeSegmentRequest(BaseModel):
+    text: str = Field(..., description="New segment text to synthesize")
+    target_language: Optional[str] = Field(default=None, description="Target language code (e.g. 'vi', 'en')")
+    speaker_id: Optional[int] = Field(default=None, description="Speaker profile ID")
+    speed: Optional[float] = Field(default=1.0, ge=0.5, le=2.0, description="Playback speed factor")
+    voice_id: Optional[str] = Field(default=None, description="Voice identifier")
+
+
+class ResynthesizeSegmentResponse(BaseModel):
+    status: str = "success"
+    video_id: int
+    segment_id: int
+    duration: float
+    chunk_url: str
+    master_audio_url: str
+    text: str
+    speed: float
+    message: str = "Segment audio regenerated and spliced successfully"
+

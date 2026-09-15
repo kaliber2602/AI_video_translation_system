@@ -133,6 +133,7 @@ export default function ProjectAssetExplorer({
       setSelectedAssetIds((prev) => prev.filter((id) => id !== assetToDelete.id));
       setAssetToDelete(null);
       await loadAssets(true);
+      window.dispatchEvent(new CustomEvent("subscription-updated"));
     } catch (err: any) {
       console.error("[ProjectAssetExplorer] Delete failed:", err);
       alert(err?.response?.data?.detail || "Không thể xóa tệp này.");
@@ -149,6 +150,7 @@ export default function ProjectAssetExplorer({
       setSelectedAssetIds([]);
       setIsBulkDeleteModalOpen(false);
       await loadAssets(true);
+      window.dispatchEvent(new CustomEvent("subscription-updated"));
     } catch (err: any) {
       console.error("[ProjectAssetExplorer] Bulk delete failed:", err);
       alert(err?.response?.data?.detail || "Không thể xóa các tệp đã chọn.");

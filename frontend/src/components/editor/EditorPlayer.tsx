@@ -1,4 +1,3 @@
-// frontend/src/components/editor/EditorPlayer.tsx
 import React, { useRef, useEffect, useState, useMemo } from "react";
 import {
   Play,
@@ -13,8 +12,11 @@ import {
   Monitor,
   ChevronLeft,
   ChevronRight,
+  Crop,
+  X,
 } from "lucide-react";
-import type { SubtitleSegment, SubtitleStyleConfig } from "../../types/video";
+
+import type { SubtitleSegment, SubtitleStyleConfig, SubtitleMaskConfig, OverlayConfig } from "../../types/video";
 import { formatSubtitleLines } from "../../utils/subtitleUtils";
 
 interface EditorPlayerProps {
@@ -30,6 +32,11 @@ interface EditorPlayerProps {
   activeSegmentIndex: number | null;
   aspectRatio: "16:9" | "9:16";
   onToggleAspectRatio: () => void;
+  subtitleMask?: SubtitleMaskConfig;
+  onUpdateSubtitleMask?: (mask: SubtitleMaskConfig) => void;
+  isMaskingMode?: boolean;
+  onToggleMaskingMode?: () => void;
+  overlayConfig?: OverlayConfig;
 }
 
 export const EditorPlayer: React.FC<EditorPlayerProps> = ({
@@ -45,6 +52,11 @@ export const EditorPlayer: React.FC<EditorPlayerProps> = ({
   activeSegmentIndex,
   aspectRatio,
   onToggleAspectRatio,
+  subtitleMask,
+  onUpdateSubtitleMask,
+  isMaskingMode = false,
+  onToggleMaskingMode,
+  overlayConfig,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -138,6 +150,44 @@ export const EditorPlayer: React.FC<EditorPlayerProps> = ({
     return segments.find((seg) => currentTime >= seg.start && currentTime <= seg.end) || null;
   }, [segments, currentTime, activeSegmentIndex]);
 
+  // Video Native Dimensions and True WYSIWYG Resolution Scaling
+  const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number }>({
+    width: 1920,
+    height: 1080,
+  });
+  const [playerDisplayWidth, setPlayerDisplayWidth] = useState<number>(800);
+
+  // Drag selection state for Subtitle Eraser Mask
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [dragCurrent, setDragCurrent] = useState<{ x: number; y: number } | null>(null);
+
+  const handleLoadedMetadata = () => {
+    if (videoRef.current) {
+      setVideoDimensions({
+        width: videoRef.current.videoWidth || 1920,
+        height: videoRef.current.videoHeight || 1080,
+      });
+      setPlayerDisplayWidth(videoRef.current.clientWidth || 800);
+    }
+  };
+
+  useEffect(() => {
+    const updateDisplayWidth = () => {
+      if (videoRef.current) {
+        setPlayerDisplayWidth(videoRef.current.clientWidth || 800);
+      }
+    };
+    updateDisplayWidth();
+    window.addEventListener("resize", updateDisplayWidth);
+    return () => window.removeEventListener("resize", updateDisplayWidth);
+  }, []);
+
+  // Scale factor: aligns web player preview exactly with 1920x1080 ASS video buffer
+  const scaleFactor = useMemo(() => {
+    const native = videoDimensions.width || 1920;
+    return playerDisplayWidth > 0 ? playerDisplayWidth / native : 1;
+  }, [playerDisplayWidth, videoDimensions.width]);
+
   // Format timecode (MM:SS.mmm)
   const formatTimecode = (sec: number) => {
     if (isNaN(sec) || sec < 0) return "00:00.000";
@@ -147,20 +197,27 @@ export const EditorPlayer: React.FC<EditorPlayerProps> = ({
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
   };
 
-  // Build Subtitle CSS styles and animations based on styleConfig
+  // Scaled font size & stroke matching 1920x1080 ASS PlayRes
+  const scaledFontSize = Math.max(12, Math.round(styleConfig.fontSize * (scaleFactor > 0 ? scaleFactor * 1.5 : 1)));
+  const scaledOutline =
+    styleConfig.outlineWidth > 0
+      ? Math.max(1, Math.round(styleConfig.outlineWidth * (scaleFactor > 0 ? scaleFactor * 1.5 : 1)))
+      : 0;
+
+  // Build Subtitle CSS styles and animations based on styleConfig (True WYSIWYG)
   const subtitleStyles: React.CSSProperties = {
     fontFamily: styleConfig.fontName || "Montserrat, sans-serif",
-    fontSize: `${styleConfig.fontSize}px`,
+    fontSize: `${scaledFontSize}px`,
     color: styleConfig.primaryColor || "#FFFFFF",
     fontWeight: styleConfig.bold ? 700 : 500,
     fontStyle: styleConfig.italic ? "italic" : "normal",
     textTransform: styleConfig.uppercase ? "uppercase" : "none",
     WebkitTextStroke:
-      styleConfig.outlineWidth > 0
-        ? `${styleConfig.outlineWidth}px ${styleConfig.outlineColor || "#000000"}`
+      scaledOutline > 0
+        ? `${scaledOutline}px ${styleConfig.outlineColor || "#000000"}`
         : "none",
     textShadow:
-      styleConfig.outlineWidth > 0
+      scaledOutline > 0
         ? `0 2px 4px ${styleConfig.outlineColor || "#000000"}CC`
         : "0 2px 8px rgba(0,0,0,0.8)",
     backgroundColor: styleConfig.backgroundColor || "transparent",
@@ -194,6 +251,60 @@ export const EditorPlayer: React.FC<EditorPlayerProps> = ({
     }
   };
 
+  // Mouse handlers for drawing Subtitle Eraser Bounding Box
+  const handleMouseDownOnVideo = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isMaskingMode) return;
+    e.preventDefault();
+    setDragStart({ x: e.clientX, y: e.clientY });
+    setDragCurrent({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseMoveOnVideo = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isMaskingMode || !dragStart) return;
+    setDragCurrent({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseUpOnVideo = () => {
+    if (!isMaskingMode || !dragStart || !dragCurrent || !videoRef.current) {
+
+      setDragStart(null);
+      setDragCurrent(null);
+      return;
+    }
+
+    const vRect = videoRef.current.getBoundingClientRect();
+    const nativeW = videoRef.current.videoWidth || 1920;
+    const nativeH = videoRef.current.videoHeight || 1080;
+    const scaleX = vRect.width / nativeW;
+    const scaleY = vRect.height / nativeH;
+
+    const minX = Math.min(dragStart.x, dragCurrent.x) - vRect.left;
+    const minY = Math.min(dragStart.y, dragCurrent.y) - vRect.top;
+    const dragW = Math.abs(dragCurrent.x - dragStart.x);
+    const dragH = Math.abs(dragCurrent.y - dragStart.y);
+
+    if (dragW > 15 && dragH > 15) {
+      const nativeX = Math.max(0, Math.round(minX / scaleX));
+      const nativeY = Math.max(0, Math.round(minY / scaleY));
+      const nativeBoxW = Math.min(nativeW - nativeX, Math.round(dragW / scaleX));
+      const nativeBoxH = Math.min(nativeH - nativeY, Math.round(dragH / scaleY));
+
+      onUpdateSubtitleMask?.({
+        enabled: true,
+        x: nativeX,
+        y: nativeY,
+        width: nativeBoxW,
+        height: nativeBoxH,
+        mask_type: subtitleMask?.mask_type || "blur",
+        opacity: subtitleMask?.opacity ?? 0.85,
+        color: subtitleMask?.color || "black",
+      });
+    }
+
+    setDragStart(null);
+    setDragCurrent(null);
+  };
+
   return (
     <div
       ref={containerRef}
@@ -219,6 +330,30 @@ export const EditorPlayer: React.FC<EditorPlayerProps> = ({
               </>
             )}
           </button>
+
+          {/* Subtitle Mask Mode Button */}
+          {onToggleMaskingMode && (
+            <button
+              onClick={onToggleMaskingMode}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium backdrop-blur-md transition-all shadow ${
+                isMaskingMode
+                  ? "bg-rose-500/25 border-rose-500 text-rose-300 ring-2 ring-rose-500/40"
+                  : subtitleMask?.enabled
+                  ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
+                  : "bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 hover:text-white border-zinc-700/60"
+              }`}
+              title="Vẽ vùng che phụ đề cũ (Blur hoặc Banner)"
+            >
+              <Crop className="w-3.5 h-3.5" />
+              <span>
+                {isMaskingMode
+                  ? "Đang vẽ vùng che..."
+                  : subtitleMask?.enabled
+                  ? "Đã bật che phụ đề cũ"
+                  : "Che phụ đề cũ"}
+              </span>
+            </button>
+          )}
         </div>
 
         <div className="pointer-events-auto flex items-center gap-2 bg-zinc-900/90 px-3 py-1 rounded-lg border border-zinc-700/60 text-xs font-mono text-zinc-300 backdrop-blur-md">
@@ -230,7 +365,12 @@ export const EditorPlayer: React.FC<EditorPlayerProps> = ({
 
       {/* Video Container Canvas */}
       <div
+        onMouseDown={handleMouseDownOnVideo}
+        onMouseMove={handleMouseMoveOnVideo}
+        onMouseUp={handleMouseUpOnVideo}
         className={`relative flex items-center justify-center overflow-hidden transition-all duration-300 ${
+          isMaskingMode ? "cursor-crosshair" : "cursor-default"
+        } ${
           aspectRatio === "16:9"
             ? "w-full aspect-video max-h-[75vh]"
             : "h-[85%] aspect-[9/16] rounded-xl border border-zinc-700/50 shadow-2xl"
@@ -242,7 +382,8 @@ export const EditorPlayer: React.FC<EditorPlayerProps> = ({
             src={videoUrl}
             className="w-full h-full object-contain bg-black"
             onTimeUpdate={handleTimeUpdate}
-            onClick={onTogglePlay}
+            onLoadedMetadata={handleLoadedMetadata}
+            onClick={isMaskingMode ? undefined : onTogglePlay}
             playsInline
           />
         ) : (
@@ -266,7 +407,104 @@ export const EditorPlayer: React.FC<EditorPlayerProps> = ({
           </div>
         )}
 
-        {/* LIVE SUBTITLE OVERLAY */}
+        {/* 1. SUBTITLE BLUR / BANNER MASK OVERLAY */}
+        {subtitleMask?.enabled && subtitleMask.width > 0 && subtitleMask.height > 0 && (
+          <div
+            style={{
+              position: "absolute",
+              left: `${(subtitleMask.x / (videoDimensions.width || 1920)) * 100}%`,
+              top: `${(subtitleMask.y / (videoDimensions.height || 1080)) * 100}%`,
+              width: `${(subtitleMask.width / (videoDimensions.width || 1920)) * 100}%`,
+              height: `${(subtitleMask.height / (videoDimensions.height || 1080)) * 100}%`,
+              ...(subtitleMask.mask_type === "banner"
+                ? {
+                    backgroundColor: subtitleMask.color || "black",
+                    opacity: subtitleMask.opacity ?? 0.85,
+                  }
+                : {
+                    backdropFilter: "blur(14px)",
+                    WebkitBackdropFilter: "blur(14px)",
+                    backgroundColor: "rgba(0,0,0,0.35)",
+                    boxShadow: "inset 0 0 10px rgba(0,0,0,0.6)",
+                  }),
+            }}
+            className="pointer-events-none rounded transition-all duration-150 z-15"
+          >
+            {isMaskingMode && (
+              <div className="absolute -top-5 left-0 flex items-center gap-1 bg-rose-600 text-white text-[9px] font-mono px-1.5 py-0.5 rounded shadow pointer-events-auto">
+                <span>Vùng che: {subtitleMask.width}x{subtitleMask.height}</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdateSubtitleMask?.({ ...subtitleMask, enabled: false });
+                  }}
+                  className="hover:bg-rose-700 rounded px-0.5"
+                  title="Xóa vùng che"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Active drag bounding box preview */}
+        {dragStart && dragCurrent && videoRef.current && (
+          <div
+            style={{
+              position: "absolute",
+              left: `${Math.min(dragStart.x, dragCurrent.x) - (videoRef.current?.getBoundingClientRect().left || 0)}px`,
+              top: `${Math.min(dragStart.y, dragCurrent.y) - (videoRef.current?.getBoundingClientRect().top || 0)}px`,
+              width: `${Math.abs(dragCurrent.x - dragStart.x)}px`,
+              height: `${Math.abs(dragCurrent.y - dragStart.y)}px`,
+            }}
+            className="border-2 border-dashed border-rose-500 bg-rose-500/20 pointer-events-none z-30 rounded"
+          />
+        )}
+
+        {/* 2. LOGO WATERMARK OVERLAY */}
+        {overlayConfig?.logo_url && (
+          <div
+            style={{
+              position: "absolute",
+              left: `${(overlayConfig.logo_x / (videoDimensions.width || 1920)) * 100}%`,
+              top: `${(overlayConfig.logo_y / (videoDimensions.height || 1080)) * 100}%`,
+              opacity: overlayConfig.logo_opacity ?? 1,
+              transform: `scale(${overlayConfig.logo_scale ?? 1})`,
+              transformOrigin: "top left",
+            }}
+            className="pointer-events-none z-18"
+          >
+            <img
+              src={overlayConfig.logo_url}
+              alt="Watermark Logo"
+              className="max-h-14 object-contain drop-shadow"
+            />
+          </div>
+        )}
+
+        {/* 3. LOWER-THIRD TICKER MARQUEE OVERLAY */}
+        {overlayConfig?.ticker_text && (
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: aspectRatio === "9:16" ? "4.5rem" : "1.2rem",
+              backgroundColor: overlayConfig.ticker_bg_color || "rgba(0,0,0,0.6)",
+              color: overlayConfig.ticker_color || "white",
+              fontSize: `${Math.max(11, Math.round((overlayConfig.ticker_font_size || 20) * scaleFactor))}px`,
+            }}
+            className="z-19 overflow-hidden whitespace-nowrap py-1 font-medium pointer-events-none border-y border-white/10"
+          >
+            <div className="inline-block animate-pulse whitespace-nowrap px-4">
+              {overlayConfig.ticker_text}
+            </div>
+          </div>
+        )}
+
+        {/* 4. LIVE SUBTITLE OVERLAY (Rendered on top of mask) */}
         {currentSubtitle && (
           <div
             className={`absolute left-4 right-4 z-20 flex justify-center pointer-events-none transition-all duration-150 ${getPositionClass()}`}

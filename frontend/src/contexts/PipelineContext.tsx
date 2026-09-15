@@ -36,6 +36,7 @@ export interface PipelineState {
   video: {
     videoId?: number;
     filename?: string;
+    title?: string;
     fileSize?: number;
     status?: string;
     duration?: number;

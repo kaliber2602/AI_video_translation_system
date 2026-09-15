@@ -5,12 +5,10 @@ import {
   MoreVertical,
   PlaySquare,
   RotateCcw,
-  Share2,
   Sparkles,
   Star,
   Tag as TagIcon,
   Trash2,
-  Users,
   Video,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -24,7 +22,6 @@ interface ProjectFreedomViewProps {
   onEditProject: (project: Project) => void;
   onDeleteProject: (project: Project) => void;
   onToggleFavorite?: (project: Project) => void;
-  onShareProject?: (project: Project) => void;
   onRestoreProject?: (project: Project) => void;
   isTrashMode?: boolean;
 }
@@ -35,7 +32,6 @@ export default function ProjectFreedomView({
   onEditProject,
   onDeleteProject,
   onToggleFavorite,
-  onShareProject,
   onRestoreProject,
   isTrashMode = false,
 }: ProjectFreedomViewProps) {
@@ -172,15 +168,6 @@ export default function ProjectFreedomView({
                         <h3 className="text-base font-bold text-[var(--color-text-primary)] group-hover:text-[var(--color-primary)] transition-colors duration-180">
                           {project.name}
                         </h3>
-                        {project.is_shared && (
-                          <span
-                            title={t("workspace:share.sharedBy", { name: project.owner_name || "đồng nghiệp" })}
-                            className="inline-flex shrink-0 items-center gap-1 rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400"
-                          >
-                            <Users size={10} />
-                            <span className="max-w-[60px] truncate">{project.owner_name || t("workspace:share.sharedWithMe")}</span>
-                          </span>
-                        )}
                       </div>
                       <div className="mt-0.5 flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
                         <span>
@@ -274,20 +261,7 @@ export default function ProjectFreedomView({
                               </>
                             ) : (
                               <>
-                                {onShareProject && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setActiveDropdownId(null);
-                                      onShareProject(project);
-                                    }}
-                                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
-                                  >
-                                    <Share2 size={13} />
-                                    <span>{t("workspace:share.action", "Chia sẻ")}</span>
-                                  </button>
-                                )}
+
                                 <button
                                   type="button"
                                   onClick={(e) => {

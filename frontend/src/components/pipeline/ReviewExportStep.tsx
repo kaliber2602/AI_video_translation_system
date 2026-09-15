@@ -18,7 +18,6 @@ import {
   Pause,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 import { usePipeline } from "../../hooks/usePipeline";
 import { videoService } from "../../services/video.service";
 import StandardVideoPlayer from "../common/StandardVideoPlayer";
@@ -27,7 +26,6 @@ import PipelineStepLayout from "./PipelineStepLayout";
 export default function ReviewExportStep() {
   const { t } = useTranslation(["pipeline", "common"]);
   const { state, dispatch } = usePipeline();
-  const navigate = useNavigate();
   
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
@@ -38,6 +36,15 @@ export default function ReviewExportStep() {
   const [selectedQuality, setSelectedQuality] = useState("1080p");
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportSuccess, setExportSuccess] = useState(false);
+  const [customExportFilename, setCustomExportFilename] = useState("");
+
+  useEffect(() => {
+    if (!customExportFilename && (state.video?.title || state.video?.filename)) {
+      const base = (state.video?.title || state.video?.filename || "video").replace(/\.[^/.]+$/, "");
+      const sanitized = base.replace(/[\\/:*?"<>|]/g, "_").trim();
+      setCustomExportFilename(`${sanitized}_${state.targetLanguage || "vi"}`);
+    }
+  }, [state.video?.title, state.video?.filename, state.targetLanguage]);
 
   // Pro Workbench: AB Split-screen comparison
   const [isSplitScreen, setIsSplitScreen] = useState(false);
@@ -318,12 +325,14 @@ export default function ReviewExportStep() {
     setExportSuccess(false);
 
     try {
+      const filenameBase = customExportFilename.trim() || (state.video?.title ? state.video.title.replace(/\.[^/.]+$/, "") : `export_${selectedType}`);
       const blob = await videoService.exportVideo(
         state.video.videoId,
         selectedType,
         selectedFormat,
         selectedQuality,
-        state.targetLanguage || "vi"
+        state.targetLanguage || "vi",
+        filenameBase
       );
 
       if (!blob || blob.size === 0) {
@@ -334,7 +343,10 @@ export default function ReviewExportStep() {
       const a = document.createElement("a");
       a.href = url;
       const extension = selectedFormat;
-      a.download = `export_${selectedType}.${extension}`;
+      const downloadName = filenameBase.toLowerCase().endsWith(`.${extension.toLowerCase()}`)
+        ? filenameBase
+        : `${filenameBase}.${extension}`;
+      a.download = downloadName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -462,19 +474,13 @@ export default function ReviewExportStep() {
             <button
               type="button"
               onClick={() => {
-                if (state.video?.videoId) {
-                  if (state.projectId) {
-                    navigate(`/workspace/project/${state.projectId}/video/${state.video.videoId}/editor`);
-                  } else {
-                    dispatch({ type: "SET_STEP", payload: 4 });
-                  }
-                }
+                dispatch({ type: "SET_STEP", payload: 5 });
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-xs font-semibold text-indigo-400 hover:bg-indigo-500/20 transition shadow-xs"
-              title={t("pipeline:steps.reviewExport.nleStudio")}
+              title="Mở Studio Lồng Tiếng & mVoice (Bước 5)"
             >
               <ExternalLink size={13} />
-              <span>{t("pipeline:steps.reviewExport.nleStudio")}</span>
+              <span>Studio Lồng Tiếng & mVoice</span>
             </button>
           </>
         }
@@ -542,6 +548,25 @@ export default function ReviewExportStep() {
                   </select>
                 </div>
               )}
+
+              {/* CUSTOM EXPORT FILENAME */}
+              <div>
+                <label className="text-xs font-bold text-[var(--color-text-primary)] block mb-1">
+                  Tên tệp xuất bản (Filename):
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={customExportFilename}
+                    onChange={(e) => setCustomExportFilename(e.target.value)}
+                    placeholder="Nhập tên tệp xuất..."
+                    className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-medium text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] font-mono"
+                  />
+                  <span className="text-xs font-mono text-[var(--color-text-muted)] shrink-0">
+                    .{selectedFormat}
+                  </span>
+                </div>
+              </div>
 
               {/* HARDWARE ACCELERATION & MUXING (PRO WORKBENCH) */}
               <div className="border-t border-[var(--color-border)] pt-3.5 space-y-3">

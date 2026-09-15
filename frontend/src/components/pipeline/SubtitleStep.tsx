@@ -28,28 +28,44 @@ import {
   Pause,
   Volume2,
   VolumeX,
+  Crop,
+  Image as ImageIcon,
+  X,
+  Upload,
 } from "lucide-react";
+
 import { useTranslation } from "react-i18next";
 import { usePipeline } from "../../hooks/usePipeline";
 import { videoService } from "../../services/video.service";
-import { formatSubtitleLines } from "../../utils/subtitleUtils";
+import { formatSubtitleLines, splitSegmentIntoTwo } from "../../utils/subtitleUtils";
 import PipelineStepLayout from "./PipelineStepLayout";
+import { EditorTimeline } from "../editor/EditorTimeline";
+import type { SubtitleSegment, SubtitleMaskConfig, OverlayConfig } from "../../types/video";
 
-export interface SubtitleSegment {
-  start: number;
-  end: number;
-  text?: string;
-  translated_text?: string;
-  speaker?: string;
-}
+export type { SubtitleSegment };
 
 export default function SubtitleStep() {
   const { t } = useTranslation(["pipeline", "common"]);
   const { state, dispatch } = usePipeline();
 
   // Architecture & Sidebar State
-  const [activeRightTab, setActiveRightTab] = useState<"style" | "segments">("style");
+  const [activeRightTab, setActiveRightTab] = useState<"style" | "segments" | "mask" | "overlays">("style");
   const [isPanelOpen, setIsPanelOpen] = useState(true);
+
+  // Subtitle Eraser & Masking State (Gaussian Blur & Solid Banner)
+  const [subtitleMask, setSubtitleMask] = useState<SubtitleMaskConfig | undefined>(undefined);
+  const [isMaskingMode, setIsMaskingMode] = useState<boolean>(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [dragCurrent, setDragCurrent] = useState<{ x: number; y: number } | null>(null);
+  const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number }>({ width: 1920, height: 1080 });
+
+  // Overlays (Logo Watermark PNG & Ticker Marquee)
+  const [overlayConfig, setOverlayConfig] = useState<OverlayConfig | undefined>(undefined);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Active Timeline Selection
+  const [activeTimelineSegmentIndex, setActiveTimelineSegmentIndex] = useState<number | null>(null);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [applySuccess, setApplySuccess] = useState(false);
@@ -122,9 +138,14 @@ export default function SubtitleStep() {
   const [segmentSearch, setSegmentSearch] = useState("");
   const [previewSegmentIndex, setPreviewSegmentIndex] = useState<number>(0);
   const [animKey, setAnimKey] = useState<number>(0);
+  const [resynthesizingIndex, setResynthesizingIndex] = useState<number | null>(null);
+  const [playingChunkIndex, setPlayingChunkIndex] = useState<number | null>(null);
+  const [rewritingIndex, setRewritingIndex] = useState<number | null>(null);
+  const chunkAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const [subtitleError, setSubtitleError] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+
 
   // Real Typography Font Options (No AI/irrelevant icons)
   const fontCards = [
@@ -410,6 +431,129 @@ export default function SubtitleStep() {
   const handleLoadedMetadata = () => {
     if (!videoRef.current) return;
     setDuration(videoRef.current.duration || 0);
+    if (videoRef.current.videoWidth && videoRef.current.videoHeight) {
+      setVideoDimensions({
+        width: videoRef.current.videoWidth,
+        height: videoRef.current.videoHeight,
+      });
+    }
+  };
+
+  // Mouse handlers for drawing Subtitle Eraser Bounding Box
+  const handleMouseDownOnVideo = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isMaskingMode) return;
+    e.preventDefault();
+    setDragStart({ x: e.clientX, y: e.clientY });
+    setDragCurrent({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseMoveOnVideo = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isMaskingMode || !dragStart) return;
+    setDragCurrent({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseUpOnVideo = () => {
+    if (!isMaskingMode || !dragStart || !dragCurrent || !videoRef.current) {
+      setDragStart(null);
+      setDragCurrent(null);
+      return;
+    }
+
+    const vRect = videoRef.current.getBoundingClientRect();
+    const nativeW = videoRef.current.videoWidth || 1920;
+    const nativeH = videoRef.current.videoHeight || 1080;
+    const scaleX = vRect.width / nativeW;
+    const scaleY = vRect.height / nativeH;
+
+    const minX = Math.min(dragStart.x, dragCurrent.x) - vRect.left;
+    const minY = Math.min(dragStart.y, dragCurrent.y) - vRect.top;
+    const dragW = Math.abs(dragCurrent.x - dragStart.x);
+    const dragH = Math.abs(dragCurrent.y - dragStart.y);
+
+    if (dragW > 15 && dragH > 15) {
+      const nativeX = Math.max(0, Math.round(minX / scaleX));
+      const nativeY = Math.max(0, Math.round(minY / scaleY));
+      const nativeBoxW = Math.min(nativeW - nativeX, Math.round(dragW / scaleX));
+      const nativeBoxH = Math.min(nativeH - nativeY, Math.round(dragH / scaleY));
+
+      setSubtitleMask({
+        enabled: true,
+        x: nativeX,
+        y: nativeY,
+        width: nativeBoxW,
+        height: nativeBoxH,
+        mask_type: subtitleMask?.mask_type || "blur",
+        opacity: subtitleMask?.opacity ?? 0.85,
+        color: subtitleMask?.color || "black",
+      });
+      setIsMaskingMode(false);
+    }
+
+    setDragStart(null);
+    setDragCurrent(null);
+  };
+
+  const handleUploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !state.video?.videoId) return;
+    setIsUploadingLogo(true);
+    try {
+      const res = await videoService.uploadOverlayLogo(state.video.videoId, file);
+      setOverlayConfig((prev) => ({
+        ...(prev || {
+          logo_x: 24,
+          logo_y: 24,
+          logo_scale: 1,
+          logo_opacity: 1,
+          ticker_speed: 1,
+          ticker_font_size: 20,
+          ticker_color: "#FFFFFF",
+          ticker_bg_color: "rgba(0,0,0,0.6)",
+        }),
+        logo_url: res.logo_url || (state.video?.videoId ? `/api/videos/${state.video.videoId}/overlay/logo?t=${Date.now()}` : null),
+        logo_path: res.logo_path,
+      }));
+    } catch (err: any) {
+      console.error("Logo upload failed:", err);
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleSelectTimelineSegment = (index: number) => {
+    setActiveTimelineSegmentIndex(index);
+    if (segments[index]) {
+      handleSeek(segments[index].start);
+      setPreviewSegmentIndex(index);
+    }
+  };
+
+  const handleUpdateTimelineSegment = (index: number, updated: Partial<SubtitleSegment>) => {
+    setSegments((prev) => {
+      const next = [...prev];
+      if (next[index]) {
+        next[index] = { ...next[index], ...updated } as SubtitleSegment;
+      }
+      return next;
+    });
+  };
+
+  const handleSplitTimelineSegment = (index: number, splitTime: number) => {
+    const seg = segments[index];
+    if (!seg) return;
+    const [seg1, seg2] = splitSegmentIntoTwo(seg, splitTime);
+    setSegments((prev) => {
+      const next = [...prev];
+      next.splice(index, 1, seg1 as SubtitleSegment, seg2 as SubtitleSegment);
+      return next;
+    });
+  };
+
+  const handleDeleteTimelineSegment = (index: number) => {
+    setSegments((prev) => prev.filter((_, i) => i !== index));
+    if (activeTimelineSegmentIndex === index) {
+      setActiveTimelineSegmentIndex(null);
+    }
   };
 
   const handleSeek = (time: number) => {
@@ -636,19 +780,33 @@ export default function SubtitleStep() {
       
       const cfg = data?.config || state.subtitles?.config || (state.video as any)?.snapshot_data?.subtitle_config;
       if (cfg) {
-        if (cfg.font_name) setFontName(cfg.font_name);
-        if (cfg.font_size) setFontSize(String(cfg.font_size));
-        if (cfg.primary_color) setPrimaryColor(cfg.primary_color);
-        if (cfg.outline_color) setOutlineColor(cfg.outline_color);
-        if (typeof cfg.max_lines === "number") setMaxLines(cfg.max_lines);
+        const fName = cfg.font_name || cfg.fontName;
+        if (fName) setFontName(fName);
+        const fSize = cfg.font_size || cfg.fontSize;
+        if (fSize) setFontSize(String(fSize));
+        const pColor = cfg.primary_color || cfg.primaryColor;
+        if (pColor) setPrimaryColor(pColor);
+        const oColor = cfg.outline_color || cfg.outlineColor;
+        if (oColor) setOutlineColor(oColor);
+        const mLines = cfg.max_lines ?? cfg.maxLines;
+        if (typeof mLines === "number") setMaxLines(mLines);
         if (cfg.effect) setEffect(cfg.effect);
-        if (cfg.aspect_ratio) setAspectRatio(cfg.aspect_ratio);
+        const aRatio = cfg.aspect_ratio || cfg.aspectRatio;
+        if (aRatio) setAspectRatio(aRatio);
         if (cfg.alignment) setAlignment(cfg.alignment);
-        if (typeof cfg.position_y === "number") setPositionY(cfg.position_y);
-        if (typeof cfg.line_spacing === "number") setLineSpacing(cfg.line_spacing);
+        const posY = cfg.position_y ?? cfg.positionY;
+        if (typeof posY === "number") setPositionY(posY);
+        const lSpacing = cfg.line_spacing ?? cfg.lineSpacing;
+        if (typeof lSpacing === "number") setLineSpacing(lSpacing);
         if (cfg.format) setSelectedFormat(cfg.format);
         if (cfg.position) setPosition(cfg.position);
       }
+
+      const loadedMask = data?.subtitle_mask || data?.snapshot_data?.subtitle_mask || (state.video as any)?.snapshot_data?.subtitle_mask;
+      if (loadedMask) setSubtitleMask(loadedMask);
+
+      const loadedOverlay = data?.overlay_config || data?.snapshot_data?.overlay_config || (state.video as any)?.snapshot_data?.overlay_config;
+      if (loadedOverlay) setOverlayConfig(loadedOverlay);
 
       if (data?.segments && Array.isArray(data.segments) && data.segments.length > 0) {
         setSegments(data.segments);
@@ -690,6 +848,44 @@ export default function SubtitleStep() {
           segments: segments.length > 0 ? segments : undefined,
         }
       );
+
+      // Persist segments, mask & overlays to backend snapshot
+      try {
+        await videoService.updateSubtitleSegments(
+          state.video.videoId,
+          targetLang,
+          segments.length > 0 ? segments : (data as any)?.segments || [],
+          {
+            font_name: fontName,
+            fontName,
+            font_size: parseInt(fontSize, 10) || 22,
+            fontSize: parseInt(fontSize, 10) || 22,
+            primary_color: primaryColor,
+            primaryColor,
+            outline_color: outlineColor,
+            outlineColor,
+            max_lines: maxLines,
+            maxLines,
+            effect,
+            aspect_ratio: aspectRatio,
+            aspectRatio,
+            alignment,
+            position_y: positionY,
+            positionY,
+            line_spacing: lineSpacing,
+            lineSpacing,
+            format: selectedFormat,
+            position,
+          },
+          {
+            subtitle_mask: subtitleMask,
+            overlay_config: overlayConfig,
+          }
+        );
+      } catch (saveErr) {
+        console.warn("Could not save mask/overlay snapshot:", saveErr);
+      }
+
       setSubtitles(data);
       await loadSubtitles();
       setApplySuccess(true);
@@ -818,7 +1014,66 @@ export default function SubtitleStep() {
     setSegments(updated);
   };
 
+  const handleMicroTTS = async (index: number) => {
+    if (!state.video?.videoId || !segments[index]) return;
+    try {
+      setResynthesizingIndex(index);
+      const seg = segments[index];
+      const targetLang = state.targetLanguage || "vi";
+      await videoService.resynthesizeSegment(state.video.videoId, index, {
+        text: seg.translated_text || seg.text || "",
+        speaker: seg.speaker,
+        target_language: targetLang,
+      });
+      handlePlayChunk(index);
+    } catch (err: any) {
+      console.error("Micro-TTS failed:", err);
+      setSubtitleError(err.message || "Tái tổng hợp giọng đọc cho câu này thất bại");
+    } finally {
+      setResynthesizingIndex(null);
+    }
+  };
+
+  const handlePlayChunk = (index: number) => {
+    if (!state.video?.videoId) return;
+    const url = `${videoService.getSegmentAudioUrl(state.video.videoId, index)}?t=${Date.now()}`;
+    if (chunkAudioRef.current) {
+      chunkAudioRef.current.src = url;
+      chunkAudioRef.current.currentTime = 0;
+      chunkAudioRef.current
+        .play()
+        .then(() => {
+          setPlayingChunkIndex(index);
+        })
+        .catch((e) => console.warn("Audio play failed:", e));
+    }
+  };
+
+  const handleRewriteSegment = async (index: number, mode: "shorter" | "casual" | "catchy") => {
+    if (!state.video?.videoId || !segments[index]) return;
+    try {
+      setRewritingIndex(index);
+      const seg = segments[index];
+      const currentText = seg.translated_text || seg.text || "";
+      const res = await videoService.rewriteTranslationSegment(
+        state.video.videoId,
+        index,
+        mode,
+        currentText
+      );
+      if (res?.rewritten_text) {
+        handleUpdateSegmentText(index, res.rewritten_text);
+      }
+    } catch (err: any) {
+      console.error("Rewrite failed:", err);
+      setSubtitleError(err.message || "Viết lại câu thất bại");
+    } finally {
+      setRewritingIndex(null);
+    }
+  };
+
   const formatSeconds = (sec: number) => {
+
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     const ms = Math.floor((sec % 1) * 10);
@@ -947,6 +1202,58 @@ export default function SubtitleStep() {
               <span>Câu thoại ({segments.length})</span>
             </button>
 
+            {/* Toggle Mask Tab */}
+            <button
+              type="button"
+              onClick={() => {
+                if (isPanelOpen && activeRightTab === "mask") {
+                  setIsPanelOpen(false);
+                } else {
+                  setActiveRightTab("mask");
+                  setIsPanelOpen(true);
+                }
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-2xs active:scale-95 ${
+                isPanelOpen && activeRightTab === "mask"
+                  ? "border-rose-500 bg-rose-600 text-white shadow-xs"
+                  : subtitleMask?.enabled
+                  ? "border-rose-500/50 bg-rose-500/15 text-rose-300"
+                  : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] hover:border-rose-500/50 hover:bg-[var(--color-surface-muted)]"
+              }`}
+              title="Che / Xóa phụ đề cũ video gốc"
+            >
+              <Crop size={13} />
+              <span>Che Sub Cũ</span>
+              {subtitleMask?.enabled && <span className="h-1.5 w-1.5 rounded-full bg-rose-400 ml-0.5" />}
+            </button>
+
+            {/* Toggle Overlays Tab */}
+            <button
+              type="button"
+              onClick={() => {
+                if (isPanelOpen && activeRightTab === "overlays") {
+                  setIsPanelOpen(false);
+                } else {
+                  setActiveRightTab("overlays");
+                  setIsPanelOpen(true);
+                }
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-2xs active:scale-95 ${
+                isPanelOpen && activeRightTab === "overlays"
+                  ? "border-cyan-500 bg-cyan-600 text-white shadow-xs"
+                  : overlayConfig?.logo_url || overlayConfig?.ticker_text
+                  ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-300"
+                  : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] hover:border-cyan-500/50 hover:bg-[var(--color-surface-muted)]"
+              }`}
+              title="Chèn Watermark Logo PNG & Ticker Marquee"
+            >
+              <ImageIcon size={13} />
+              <span>Logo & Ticker</span>
+              {(overlayConfig?.logo_url || overlayConfig?.ticker_text) && (
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 ml-0.5" />
+              )}
+            </button>
+
             {/* Download button */}
             {subtitles && (
               <button
@@ -964,7 +1271,11 @@ export default function SubtitleStep() {
         toolPanelTitle={
           activeRightTab === "style"
             ? "Kiểu dáng phụ đề"
-            : `Danh sách câu thoại (${segments.length})`
+            : activeRightTab === "segments"
+            ? `Danh sách câu thoại (${segments.length})`
+            : activeRightTab === "mask"
+            ? "Che / Xóa Phụ Đề Gốc (Gaussian Blur & Banner)"
+            : "Chèn Watermark Logo & Băng Chữ Tin Tức"
         }
         toolPanel={
           <div className="space-y-4">
@@ -1646,9 +1957,438 @@ export default function SubtitleStep() {
                           placeholder="Nội dung phụ đề..."
                           className="mt-1.5 w-full resize-none rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] p-1.5 text-xs leading-relaxed text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
                         />
+
+                        {/* Micro-TTS & AI Rewrite Action Toolbar */}
+                        <div
+                          className="mt-2 pt-1.5 border-t border-[var(--color-border)]/40 flex items-center justify-between gap-1 text-[10px]"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {/* AI Rewrite Quick Action */}
+                          <div className="flex items-center gap-1">
+                            <span className="text-[var(--color-text-muted)] text-[9px]">AI:</span>
+                            <button
+                              type="button"
+                              disabled={rewritingIndex === originalIndex}
+                              onClick={() => handleRewriteSegment(originalIndex, "shorter")}
+                              className="px-1.5 py-0.5 rounded bg-[var(--color-surface-muted)] hover:bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-white transition disabled:opacity-50"
+                              title="Viết lại ngắn gọn hơn"
+                            >
+                              {rewritingIndex === originalIndex ? "..." : "Ngắn hơn"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={rewritingIndex === originalIndex}
+                              onClick={() => handleRewriteSegment(originalIndex, "casual")}
+                              className="px-1.5 py-0.5 rounded bg-[var(--color-surface-muted)] hover:bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-white transition disabled:opacity-50"
+                              title="Viết lại tự nhiên hơn"
+                            >
+                              Tự nhiên
+                            </button>
+                          </div>
+
+                          {/* Micro-TTS Resynthesize & Play Chunk */}
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handlePlayChunk(originalIndex)}
+                              className={`p-1 rounded border transition ${
+                                playingChunkIndex === originalIndex
+                                  ? "border-emerald-500 bg-emerald-500/20 text-emerald-400"
+                                  : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)]"
+                              }`}
+                              title="Nghe thử file âm thanh TTS câu này"
+                            >
+                              <Volume2 size={11} />
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={resynthesizingIndex === originalIndex}
+                              onClick={() => handleMicroTTS(originalIndex)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--color-primary)]/20 hover:bg-[var(--color-primary)] text-[var(--color-primary)] hover:text-white border border-[var(--color-primary)]/40 text-[9px] font-bold transition disabled:opacity-50"
+                              title="Đọc lại ngay duy nhất câu này trong 0.37s mà không cần chạy lại toàn bộ"
+                            >
+                              {resynthesizingIndex === originalIndex ? (
+                                <Loader2 size={10} className="animate-spin" />
+                              ) : (
+                                <Sparkles size={10} className="text-amber-400" />
+                              )}
+                              <span>Đọc lại câu này</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
+
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: SUBTITLE ERASER & MASKING STUDIO */}
+            {activeRightTab === "mask" && (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-3.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Crop className="w-4 h-4 text-rose-400" />
+                      <span className="text-xs font-bold text-white">Che phụ đề cũ / Watermark gốc</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={subtitleMask?.enabled ?? false}
+                        onChange={(e) =>
+                          setSubtitleMask((prev) => ({
+                            enabled: e.target.checked,
+                            x: prev?.x ?? 0,
+                            y: prev?.y ?? Math.round((videoDimensions.height || 1080) * 0.8),
+                            width: prev?.width ?? (videoDimensions.width || 1920),
+                            height: prev?.height ?? Math.round((videoDimensions.height || 1080) * 0.18),
+                            mask_type: prev?.mask_type ?? "blur",
+                            opacity: prev?.opacity ?? 0.85,
+                            color: prev?.color ?? "black",
+                          }))
+                        }
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600" />
+                    </label>
+                  </div>
+
+                  <p className="text-[11px] text-zinc-400 leading-relaxed">
+                    Vẽ một vùng hình chữ nhật trên khung hình video để áp dụng bộ lọc Gaussian Blur hoặc Dải màu đơn sắc che đi phụ đề cứng có sẵn của video gốc.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsMaskingMode((prev) => !prev)}
+                    className={`w-full py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition ${
+                      isMaskingMode
+                        ? "bg-rose-600 border-rose-500 text-white animate-pulse"
+                        : "bg-zinc-900 border-zinc-700 text-zinc-200 hover:border-rose-500/60"
+                    }`}
+                  >
+                    <Crop className="w-3.5 h-3.5" />
+                    <span>{isMaskingMode ? "Đang vẽ vùng che (Nhấp & kéo chuột trên video)" : "✏ Nhấn để vẽ vùng che trên Video"}</span>
+                  </button>
+
+                  {subtitleMask?.enabled && (
+                    <div className="pt-3 border-t border-rose-500/20 space-y-3">
+                      <div>
+                        <label className="text-[11px] font-medium text-zinc-300 block mb-1.5">
+                          Kiểu che (Mask Effect):
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSubtitleMask((prev) => prev ? { ...prev, mask_type: "blur" } : undefined)}
+                            className={`p-2.5 rounded-lg border text-left text-xs transition ${
+                              subtitleMask.mask_type === "blur"
+                                ? "border-rose-500 bg-rose-500/20 text-rose-300 font-semibold"
+                                : "border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:text-white"
+                            }`}
+                          >
+                            <span className="font-bold block">Gaussian Blur</span>
+                            <span className="text-[10px] opacity-75">Làm mờ phụ đề cũ</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setSubtitleMask((prev) => prev ? { ...prev, mask_type: "banner" } : undefined)}
+                            className={`p-2.5 rounded-lg border text-left text-xs transition ${
+                              subtitleMask.mask_type === "banner"
+                                ? "border-rose-500 bg-rose-500/20 text-rose-300 font-semibold"
+                                : "border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:text-white"
+                            }`}
+                          >
+                            <span className="font-bold block">Solid Banner</span>
+                            <span className="text-[10px] opacity-75">Dải màu đơn sắc đè lên</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {subtitleMask.mask_type === "banner" && (
+                        <div>
+                          <label className="text-[11px] font-medium text-zinc-300 block mb-1.5">
+                            Màu dải banner:
+                          </label>
+                          <div className="flex items-center gap-2">
+                            {["black", "#18181b", "#0f172a", "#3b0764"].map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => setSubtitleMask((prev) => prev ? { ...prev, color: c } : undefined)}
+                                style={{ backgroundColor: c }}
+                                className={`w-7 h-7 rounded-lg border transition ${
+                                  subtitleMask.color === c ? "border-rose-400 ring-2 ring-rose-400/40" : "border-zinc-700"
+                                }`}
+                              />
+                            ))}
+                            <input
+                              type="color"
+                              value={subtitleMask.color || "#000000"}
+                              onChange={(e) => setSubtitleMask((prev) => prev ? { ...prev, color: e.target.value } : undefined)}
+                              className="w-7 h-7 rounded-lg border border-zinc-700 cursor-pointer bg-transparent"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <div className="flex justify-between text-[11px] font-medium text-zinc-300 mb-1">
+                          <span>Độ mờ đục (Opacity):</span>
+                          <span className="font-mono text-rose-400 font-bold">{Math.round((subtitleMask.opacity ?? 0.85) * 100)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.1}
+                          max={1}
+                          step={0.05}
+                          value={subtitleMask.opacity ?? 0.85}
+                          onChange={(e) =>
+                            setSubtitleMask((prev) => prev ? { ...prev, opacity: parseFloat(e.target.value) } : undefined)
+                          }
+                          className="w-full accent-rose-500 h-1.5 bg-zinc-800 rounded-lg cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400 pt-1">
+                        <span>Tọa độ: {subtitleMask.x}, {subtitleMask.y}</span>
+                        <span>Kích thước: {subtitleMask.width} × {subtitleMask.height} px</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setSubtitleMask((prev) => prev ? { ...prev, enabled: false } : undefined)}
+                        className="w-full py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-300 text-xs font-medium hover:bg-red-500/20 transition flex items-center justify-center gap-1.5"
+                      >
+                        <Trash2 size={12} />
+                        <span>Xóa vùng che phụ đề cũ</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: OVERLAYS (WATERMARK LOGO & TICKER MARQUEE) */}
+            {activeRightTab === "overlays" && (
+              <div className="space-y-4">
+                {/* 1. LOGO WATERMARK SECTION */}
+                <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-3.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4 text-cyan-400" />
+                      <span className="text-xs font-bold text-white">Watermark Logo PNG</span>
+                    </div>
+                    {overlayConfig?.logo_url && (
+                      <button
+                        type="button"
+                        onClick={() => setOverlayConfig((prev) => prev ? { ...prev, logo_url: null, logo_path: null } : undefined)}
+                        className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1"
+                      >
+                        <Trash2 size={11} />
+                        <span>Gỡ Logo</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-zinc-400 leading-relaxed">
+                    Chèn logo thương hiệu hoặc hình ảnh PNG trong suốt hiển thị cố định trên video.
+                  </p>
+
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={handleUploadLogo}
+                    className="hidden"
+                  />
+
+                  {overlayConfig?.logo_url ? (
+                    <div className="space-y-3 pt-1">
+                      <div className="flex items-center gap-3 p-2.5 rounded-lg bg-zinc-900 border border-zinc-800">
+                        <img
+                          src={overlayConfig.logo_url}
+                          alt="Logo Preview"
+                          className="h-10 w-10 object-contain rounded border border-zinc-700 bg-zinc-950 p-1"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-white truncate">Logo đã tải lên</p>
+                          <p className="text-[10px] text-zinc-400">Đang hiển thị ở góc khung hình</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => logoInputRef.current?.click()}
+                          disabled={isUploadingLogo}
+                          className="px-2 py-1 rounded bg-zinc-800 text-[10px] text-zinc-300 hover:text-white border border-zinc-700"
+                        >
+                          Đổi ảnh
+                        </button>
+                      </div>
+
+                      {/* Controls: Scale & Opacity */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <div className="flex justify-between text-[10px] text-zinc-300 mb-1">
+                            <span>Tỉ lệ:</span>
+                            <span className="font-mono text-cyan-400 font-bold">{overlayConfig.logo_scale ?? 1}x</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0.3}
+                            max={2.5}
+                            step={0.1}
+                            value={overlayConfig.logo_scale ?? 1}
+                            onChange={(e) =>
+                              setOverlayConfig((prev) => ({
+                                ...(prev || {
+                                  logo_x: 24,
+                                  logo_y: 24,
+                                  logo_opacity: 1,
+                                  ticker_speed: 1,
+                                  ticker_font_size: 20,
+                                  ticker_color: "#FFFFFF",
+                                  ticker_bg_color: "rgba(0,0,0,0.6)",
+                                }),
+                                logo_scale: parseFloat(e.target.value),
+                              }))
+                            }
+                            className="w-full accent-cyan-500 h-1 bg-zinc-800 rounded cursor-pointer"
+                          />
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between text-[10px] text-zinc-300 mb-1">
+                            <span>Độ mờ:</span>
+                            <span className="font-mono text-cyan-400 font-bold">{Math.round((overlayConfig.logo_opacity ?? 1) * 100)}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0.1}
+                            max={1}
+                            step={0.05}
+                            value={overlayConfig.logo_opacity ?? 1}
+                            onChange={(e) =>
+                              setOverlayConfig((prev) => ({
+                                ...(prev || {
+                                  logo_x: 24,
+                                  logo_y: 24,
+                                  logo_scale: 1,
+                                  ticker_speed: 1,
+                                  ticker_font_size: 20,
+                                  ticker_color: "#FFFFFF",
+                                  ticker_bg_color: "rgba(0,0,0,0.6)",
+                                }),
+                                logo_opacity: parseFloat(e.target.value),
+                              }))
+                            }
+                            className="w-full accent-cyan-500 h-1 bg-zinc-800 rounded cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => logoInputRef.current?.click()}
+                      disabled={isUploadingLogo}
+                      className="w-full py-2.5 px-3 rounded-lg border border-dashed border-cyan-500/40 bg-cyan-500/5 hover:bg-cyan-500/10 text-cyan-300 text-xs font-semibold flex items-center justify-center gap-2 transition"
+                    >
+                      {isUploadingLogo ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                      <span>{isUploadingLogo ? "Đang tải ảnh lên..." : "Tải lên Logo Watermark (PNG)"}</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* 2. LOWER-THIRD TICKER MARQUEE SECTION */}
+                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Type className="w-4 h-4 text-[var(--color-primary)]" />
+                      <span className="text-xs font-bold text-white">Băng chữ tin tức chạy chân trang (Ticker)</span>
+                    </div>
+                    {overlayConfig?.ticker_text && (
+                      <button
+                        type="button"
+                        onClick={() => setOverlayConfig((prev) => prev ? { ...prev, ticker_text: "" } : undefined)}
+                        className="text-[10px] text-zinc-400 hover:text-white"
+                      >
+                        Xóa chữ
+                      </button>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-zinc-400 leading-relaxed">
+                    Dòng chữ thông báo, tin nóng hoặc link mạng xã hội tự động cuộn ở đáy video.
+                  </p>
+
+                  <div>
+                    <label className="text-[11px] font-medium text-zinc-300 block mb-1">
+                      Nội dung tin tức:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="VD: BẢN TIN ĐẶC BIỆT: THEO DÕI KÊNH ĐỂ CẬP NHẬT KIẾN THỨC MỚI..."
+                      value={overlayConfig?.ticker_text || ""}
+                      onChange={(e) =>
+                        setOverlayConfig((prev) => ({
+                          ...(prev || {
+                            logo_x: 24,
+                            logo_y: 24,
+                            logo_scale: 1,
+                            logo_opacity: 1,
+                            ticker_speed: 1,
+                            ticker_font_size: 18,
+                            ticker_color: "#FFFFFF",
+                            ticker_bg_color: "rgba(0,0,0,0.6)",
+                          }),
+                          ticker_text: e.target.value,
+                        }))
+                      }
+                      className="w-full h-8 rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 text-xs text-white placeholder-zinc-500 outline-none focus:border-cyan-500"
+                    />
+                  </div>
+
+                  {overlayConfig?.ticker_text && (
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <div>
+                        <label className="text-[10px] text-zinc-400 block mb-1">Màu nền dải tin:</label>
+                        <div className="flex items-center gap-1.5">
+                          {["rgba(0,0,0,0.75)", "#dc2626", "#2563eb", "#d97706"].map((bg) => (
+                            <button
+                              key={bg}
+                              type="button"
+                              onClick={() =>
+                                setOverlayConfig((prev) => prev ? { ...prev, ticker_bg_color: bg } : undefined)
+                              }
+                              style={{ backgroundColor: bg }}
+                              className={`w-5 h-5 rounded border ${
+                                overlayConfig.ticker_bg_color === bg ? "border-cyan-400 ring-1 ring-cyan-400" : "border-zinc-700"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-zinc-400 block mb-1">Cỡ chữ (Font size):</label>
+                        <select
+                          value={overlayConfig.ticker_font_size || 18}
+                          onChange={(e) =>
+                            setOverlayConfig((prev) => prev ? { ...prev, ticker_font_size: parseInt(e.target.value) } : undefined)
+                          }
+                          className="w-full h-7 rounded border border-zinc-700 bg-zinc-900 px-1.5 text-xs text-white outline-none"
+                        >
+                          <option value={14}>Nhỏ (14px)</option>
+                          <option value={18}>Chuẩn (18px)</option>
+                          <option value={22}>Lớn (22px)</option>
+                          <option value={26}>Rất lớn (26px)</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1674,9 +2414,21 @@ export default function SubtitleStep() {
                 )}
                 <span>
                   {isGenerating
-                    ? "Đang áp dụng cấu hình..."
+                    ? "Đang lưu và áp dụng..."
                     : applySuccess
-                    ? "✓ Đã áp dụng kiểu dáng thành công!"
+                    ? activeRightTab === "segments"
+                      ? "✓ Đã lưu câu thoại thành công!"
+                      : activeRightTab === "mask"
+                      ? "✓ Đã áp dụng vùng che!"
+                      : activeRightTab === "overlays"
+                      ? "✓ Đã áp dụng Watermark / Ticker!"
+                      : "✓ Đã áp dụng kiểu dáng thành công!"
+                    : activeRightTab === "segments"
+                    ? "Lưu & Cập nhật câu thoại"
+                    : activeRightTab === "mask"
+                    ? "Áp dụng vùng che"
+                    : activeRightTab === "overlays"
+                    ? "Áp dụng Watermark / Ticker"
                     : "Áp dụng kiểu dáng mới"}
                 </span>
               </button>
@@ -1795,17 +2547,22 @@ export default function SubtitleStep() {
               </div>
             </div>
 
-            {/* Canvas Outer Studio Stage (Dotted Grid Canvas) */}
-            <div className="mt-4 flex justify-center items-center bg-[#090d12] bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px] rounded-2xl overflow-hidden min-h-[420px] max-h-[600px] p-4 sm:p-6 border border-zinc-800 shadow-inner relative select-none">
+            {/* Clean Cinema Player Stage - Sleek modern frame */}
+            <div className="mt-3 flex justify-center items-center bg-black rounded-xl overflow-hidden min-h-[400px] max-h-[580px] p-2 sm:p-3 border border-zinc-800 shadow-inner relative select-none">
               
               {/* Actual Video Frame Boundary (The Editable Canvas) */}
               <div
                 ref={videoContainerRef}
+                onMouseDown={handleMouseDownOnVideo}
+                onMouseMove={handleMouseMoveOnVideo}
+                onMouseUp={handleMouseUpOnVideo}
                 style={{
                   transform: zoomLevel === "75" ? "scale(0.75)" : zoomLevel === "100" ? "scale(1)" : "none",
                   transformOrigin: "center center",
                 }}
-                className={`relative flex w-full justify-center overflow-hidden transition-all duration-300 border-2 border-zinc-700/80 shadow-2xl rounded-2xl bg-black ${
+                className={`relative flex w-full justify-center overflow-hidden transition-all duration-300 rounded-lg bg-black ${
+                  isMaskingMode ? "cursor-crosshair" : "cursor-default"
+                } ${
                   aspectRatio === "9:16"
                     ? "aspect-[9/16] max-h-[520px] max-w-[292px]"
                     : aspectRatio === "1:1"
@@ -1815,11 +2572,6 @@ export default function SubtitleStep() {
                     : "aspect-video max-h-[460px] max-w-[800px]"
                 }`}
               >
-                {/* 4 Professional Corner Framing Guides */}
-                <div className="absolute top-1 left-1 w-3.5 h-3.5 border-t-2 border-l-2 border-emerald-400 pointer-events-none z-30" />
-                <div className="absolute top-1 right-1 w-3.5 h-3.5 border-t-2 border-r-2 border-emerald-400 pointer-events-none z-30" />
-                <div className="absolute bottom-1 left-1 w-3.5 h-3.5 border-b-2 border-l-2 border-emerald-400 pointer-events-none z-30" />
-                <div className="absolute bottom-1 right-1 w-3.5 h-3.5 border-b-2 border-r-2 border-emerald-400 pointer-events-none z-30" />
 
                 {/* Aspect Ratio & Resolution Badge */}
                 <div className="absolute top-2 left-2 z-30 pointer-events-none flex items-center gap-1.5">
@@ -1846,7 +2598,7 @@ export default function SubtitleStep() {
                     ref={videoRef}
                     src={videoPreviewUrl}
                     className="absolute inset-0 h-full w-full object-contain opacity-90 cursor-pointer"
-                    onClick={togglePlayPause}
+                    onClick={isMaskingMode ? undefined : togglePlayPause}
                     onTimeUpdate={handleTimeUpdate}
                     onLoadedMetadata={handleLoadedMetadata}
                     onEnded={() => setIsPlaying(false)}
@@ -1857,6 +2609,103 @@ export default function SubtitleStep() {
                 )}
 
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/50 pointer-events-none" />
+
+                {/* 1. SUBTITLE BLUR / BANNER MASK OVERLAY */}
+                {subtitleMask?.enabled && subtitleMask.width > 0 && subtitleMask.height > 0 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: `${(subtitleMask.x / (videoDimensions.width || 1920)) * 100}%`,
+                      top: `${(subtitleMask.y / (videoDimensions.height || 1080)) * 100}%`,
+                      width: `${(subtitleMask.width / (videoDimensions.width || 1920)) * 100}%`,
+                      height: `${(subtitleMask.height / (videoDimensions.height || 1080)) * 100}%`,
+                      ...(subtitleMask.mask_type === "banner"
+                        ? {
+                            backgroundColor: subtitleMask.color || "black",
+                            opacity: subtitleMask.opacity ?? 0.85,
+                          }
+                        : {
+                            backdropFilter: "blur(14px)",
+                            WebkitBackdropFilter: "blur(14px)",
+                            backgroundColor: "rgba(0,0,0,0.35)",
+                            boxShadow: "inset 0 0 10px rgba(0,0,0,0.6)",
+                          }),
+                    }}
+                    className="pointer-events-none rounded transition-all duration-150 z-20"
+                  >
+                    {isMaskingMode && (
+                      <div className="absolute -top-5 left-0 flex items-center gap-1 bg-rose-600 text-white text-[9px] font-mono px-1.5 py-0.5 rounded shadow pointer-events-auto">
+                        <span>Vùng che: {subtitleMask.width}x{subtitleMask.height}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSubtitleMask((prev) => prev ? { ...prev, enabled: false } : undefined);
+                          }}
+                          className="hover:bg-rose-700 rounded px-0.5"
+                          title="Xóa vùng che"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Active drag bounding box preview */}
+                {dragStart && dragCurrent && videoRef.current && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: `${Math.min(dragStart.x, dragCurrent.x) - (videoRef.current?.getBoundingClientRect().left || 0)}px`,
+                      top: `${Math.min(dragStart.y, dragCurrent.y) - (videoRef.current?.getBoundingClientRect().top || 0)}px`,
+                      width: `${Math.abs(dragCurrent.x - dragStart.x)}px`,
+                      height: `${Math.abs(dragCurrent.y - dragStart.y)}px`,
+                    }}
+                    className="border-2 border-dashed border-rose-500 bg-rose-500/20 pointer-events-none z-30 rounded"
+                  />
+                )}
+
+                {/* 2. LOGO WATERMARK OVERLAY */}
+                {overlayConfig?.logo_url && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: `${(overlayConfig.logo_x / (videoDimensions.width || 1920)) * 100}%`,
+                      top: `${(overlayConfig.logo_y / (videoDimensions.height || 1080)) * 100}%`,
+                      opacity: overlayConfig.logo_opacity ?? 1,
+                      transform: `scale(${overlayConfig.logo_scale ?? 1})`,
+                      transformOrigin: "top left",
+                    }}
+                    className="pointer-events-none z-25"
+                  >
+                    <img
+                      src={overlayConfig.logo_url}
+                      alt="Watermark Logo"
+                      className="max-h-14 object-contain drop-shadow"
+                    />
+                  </div>
+                )}
+
+                {/* 3. LOWER-THIRD TICKER MARQUEE OVERLAY */}
+                {overlayConfig?.ticker_text && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      bottom: aspectRatio === "9:16" ? "4.5rem" : "1.2rem",
+                      backgroundColor: overlayConfig.ticker_bg_color || "rgba(0,0,0,0.6)",
+                      color: overlayConfig.ticker_color || "white",
+                      fontSize: `${Math.max(11, overlayConfig.ticker_font_size || 18)}px`,
+                    }}
+                    className="z-25 overflow-hidden whitespace-nowrap py-1 font-medium pointer-events-none border-y border-white/10"
+                  >
+                    <div className="inline-block animate-pulse whitespace-nowrap px-4">
+                      {overlayConfig.ticker_text}
+                    </div>
+                  </div>
+                )}
 
                 {/* Magnetic Snap Guidelines */}
                 {snapActive === "center" && (
@@ -2101,8 +2950,44 @@ export default function SubtitleStep() {
                   </button>
                 </div>
               </div>
+
+              <audio
+                ref={chunkAudioRef}
+                onEnded={() => setPlayingChunkIndex(null)}
+                onPause={() => setPlayingChunkIndex(null)}
+                className="hidden"
+              />
             </div>
 
+            {/* Multi-Track Subtitle Timeline Studio */}
+            <div className="mt-3 rounded-xl border border-zinc-800 bg-[#06090d] p-3 shadow-md space-y-2">
+              <div className="flex items-center justify-between pb-1.5 border-b border-zinc-800/80">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-white">
+                    Timeline Phụ Đề & Âm Thanh (Studio Waveform)
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-[var(--color-primary)] border border-zinc-700">
+                    {segments.length} câu
+                  </span>
+                </div>
+                <span className="text-[10px] text-zinc-400">
+                  Kéo mép để căn chỉnh mốc thời gian · Nút ✂ để chia tách câu tại đầu đọc
+                </span>
+              </div>
+              <EditorTimeline
+                duration={duration}
+                currentTime={currentTime}
+                segments={segments}
+                activeSegmentIndex={activeTimelineSegmentIndex !== null ? activeTimelineSegmentIndex : activeSegmentIndex}
+                onSelectSegment={handleSelectTimelineSegment}
+                onSeek={handleSeek}
+                onUpdateSegment={handleUpdateTimelineSegment}
+                onSplitSegment={handleSplitTimelineSegment}
+                onDeleteSegment={handleDeleteTimelineSegment}
+                onAddSegment={handleAddSegment}
+                audioUrl={state.video?.videoId ? videoService.getAudioStreamUrl(state.video.videoId, "vocals") : null}
+              />
+            </div>
           </div>
         </div>
       </PipelineStepLayout>

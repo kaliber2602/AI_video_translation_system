@@ -20,20 +20,21 @@ import {
   EyeOff,
   CheckCircle2,
   Sliders,
+  Search,
+  Sparkles,
+  Square,
+  Trash2,
+  Upload,
+  Zap,
+  Clock,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePipeline } from "../../hooks/usePipeline";
 import { videoService } from "../../services/video.service";
 import PipelineStepLayout from "./PipelineStepLayout";
 import { toast } from "../../lib/toast";
-
-interface SubtitleSegment {
-  start: number;
-  end: number;
-  text: string;
-  translated_text?: string;
-  speaker?: string;
-}
+import type { SubtitleSegment } from "../../types/video";
+import NleTimelineEditor from "../editor/NleTimelineEditor";
 
 export default function DubbingStep() {
   const { t } = useTranslation(["pipeline", "common"]);
@@ -105,7 +106,21 @@ export default function DubbingStep() {
   
   // Right sidebar tab state
   const [isPanelOpen, setIsPanelOpen] = useState(true);
-  const [activeRightTab, setActiveRightTab] = useState<"tts" | "render">("tts");
+  const [activeRightTab, setActiveRightTab] = useState<"tts" | "render" | "mvoice">("tts");
+
+  // mVoice Studio & Segment Audio States
+  const [segmentSearch, setSegmentSearch] = useState<string>("");
+  const [selectedSegmentIdx, setSelectedSegmentIdx] = useState<number | null>(null);
+  const [playingSegmentAudioIdx, setPlayingSegmentAudioIdx] = useState<number | null>(null);
+  const segmentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [segmentOverrides, setSegmentOverrides] = useState<
+    Record<number, { speed?: number; gain?: number; speaker?: string; slip?: number }>
+  >({});
+  const [recordingSegmentIdx, setRecordingSegmentIdx] = useState<number | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const chunkFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingChunkIdx, setUploadingChunkIdx] = useState<number | null>(null);
 
   // Video & Dubbing State
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -246,6 +261,141 @@ export default function DubbingStep() {
     }
   };
 
+  const handlePlaySegmentChunk = (segmentIdx: number) => {
+    if (!state.video?.videoId) return;
+    const url = `${videoService.getSegmentAudioUrl(state.video.videoId, segmentIdx)}?t=${Date.now()}`;
+    if (segmentAudioRef.current) {
+      segmentAudioRef.current.src = url;
+      segmentAudioRef.current.currentTime = 0;
+      segmentAudioRef.current
+        .play()
+        .then(() => {
+          setPlayingSegmentAudioIdx(segmentIdx);
+        })
+        .catch((e) => console.warn("Failed to play segment audio chunk:", e));
+    }
+  };
+
+  const handleMicroResynthesize = async (segmentIdx: number) => {
+    if (!state.video?.videoId || !segments[segmentIdx]) return;
+    try {
+      setRegeneratingSegmentIdx(segmentIdx);
+      const seg = segments[segmentIdx];
+      const override = segmentOverrides[segmentIdx] || {};
+      const targetLang = selectedLanguage || "vi";
+      const spk = override.speaker || seg.speaker || `speaker_${selectedSpeaker}`;
+
+      const res = await videoService.resynthesizeSegment(state.video.videoId, segmentIdx, {
+        text: seg.translated_text || seg.text,
+        voice_id: spk,
+        speed: override.speed ?? ttsSpeed,
+        target_language: targetLang,
+        speaker: spk,
+      });
+
+      toast.success(`⚡ Đã đọc lại câu #${segmentIdx + 1} (${res.elapsed_seconds || 0.37}s)!`);
+      handlePlaySegmentChunk(segmentIdx);
+    } catch (err: any) {
+      console.error("Micro-resynthesize failed:", err);
+      toast.error(err?.response?.data?.detail || "Không thể sinh lại giọng đọc câu này.");
+    } finally {
+      setRegeneratingSegmentIdx(null);
+    }
+  };
+
+  const handleAutoTimeStretch = (segmentIdx: number) => {
+    const seg = segments[segmentIdx];
+    if (!seg) return;
+    const targetDuration = seg.end - seg.start;
+    if (targetDuration <= 0) return;
+    const text = seg.translated_text || seg.text || "";
+    const words = text.trim().split(/\s+/).filter(Boolean).length;
+    const naturalSec = Math.max(1, words / 2.8);
+    const suggestedSpeed = Number(Math.max(0.75, Math.min(1.45, naturalSec / targetDuration)).toFixed(2));
+
+    setSegmentOverrides((prev) => ({
+      ...prev,
+      [segmentIdx]: {
+        ...(prev[segmentIdx] || {}),
+        speed: suggestedSpeed,
+      },
+    }));
+    toast.success(`Khớp thời lượng #${segmentIdx + 1}: Tốc độ ${suggestedSpeed}x cho khung ${targetDuration.toFixed(1)}s`);
+  };
+
+  const startRecordingVoiceover = async (segmentIdx: number) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" });
+        if (segmentAudioRef.current) {
+          segmentAudioRef.current.src = URL.createObjectURL(audioBlob);
+          segmentAudioRef.current.play();
+        }
+        toast.success(`✓ Đã thu âm giọng đọc đè lên câu #${segmentIdx + 1}!`);
+        setRecordingSegmentIdx(null);
+      };
+
+      mediaRecorder.start();
+      setRecordingSegmentIdx(segmentIdx);
+    } catch (err) {
+      console.error("Mic error:", err);
+      toast.error("Không thể kết nối Microphone của trình duyệt.");
+    }
+  };
+
+  const stopRecordingVoiceover = () => {
+    if (mediaRecorderRef.current && recordingSegmentIdx !== null) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+    }
+  };
+
+  const handleUploadCustomChunk = (segmentIdx: number, file: File) => {
+    if (segmentAudioRef.current) {
+      segmentAudioRef.current.src = URL.createObjectURL(file);
+      segmentAudioRef.current.play();
+    }
+    toast.success(`Đã nạp file âm thanh riêng cho câu #${segmentIdx + 1}`);
+  };
+
+  const handleSegmentSlip = (segmentIdx: number, delta: number) => {
+    setSegmentOverrides((prev) => {
+      const cur = prev[segmentIdx]?.slip || 0;
+      const nextSlip = Number(Math.max(-0.6, Math.min(0.6, cur + delta)).toFixed(2));
+      return {
+        ...prev,
+        [segmentIdx]: {
+          ...(prev[segmentIdx] || {}),
+          slip: nextSlip,
+        },
+      };
+    });
+  };
+
+  const handleUpdateSegmentText = (segmentIdx: number, newText: string) => {
+    setSegments((prev) => {
+      const next = [...prev];
+      if (next[segmentIdx]) {
+        next[segmentIdx] = {
+          ...next[segmentIdx],
+          translated_text: newText,
+        };
+      }
+      return next;
+    });
+  };
+
   useEffect(() => {
     return () => {
       stopTtsPolling();
@@ -281,6 +431,15 @@ export default function DubbingStep() {
       setIsPanelOpen(false);
     } else {
       setActiveRightTab("render");
+      setIsPanelOpen(true);
+    }
+  };
+
+  const handleToggleMVoiceTab = () => {
+    if (isPanelOpen && activeRightTab === "mvoice") {
+      setIsPanelOpen(false);
+    } else {
+      setActiveRightTab("mvoice");
       setIsPanelOpen(true);
     }
   };
@@ -545,15 +704,24 @@ export default function DubbingStep() {
         }
         const cfg = subData?.config || state.subtitles?.config || (state.video as any)?.snapshot_data?.subtitle_config;
         if (cfg) {
-          if (cfg.aspect_ratio) setAspectRatio(cfg.aspect_ratio);
-          if (cfg.font_name) setFontName(cfg.font_name);
-          if (cfg.font_size) setFontSize(String(cfg.font_size));
-          if (cfg.primary_color) setPrimaryColor(cfg.primary_color);
-          if (cfg.outline_color) setOutlineColor(cfg.outline_color);
-          if (typeof cfg.position_y === "number") setPositionY(cfg.position_y);
-          if (cfg.alignment) setAlignment(cfg.alignment);
-          if (typeof cfg.line_spacing === "number") setLineSpacing(cfg.line_spacing);
-          if (cfg.effect) setEffect(cfg.effect);
+          const aRatio = cfg.aspect_ratio || cfg.aspectRatio;
+          if (aRatio) setAspectRatio(aRatio);
+          const fName = cfg.font_name || cfg.fontName;
+          if (fName) setFontName(fName);
+          const fSize = cfg.font_size || cfg.fontSize;
+          if (fSize) setFontSize(String(fSize));
+          const pColor = cfg.primary_color || cfg.primaryColor;
+          if (pColor) setPrimaryColor(pColor);
+          const oColor = cfg.outline_color || cfg.outlineColor;
+          if (oColor) setOutlineColor(oColor);
+          const posY = cfg.position_y ?? cfg.positionY;
+          if (typeof posY === "number") setPositionY(posY);
+          const algn = cfg.alignment;
+          if (algn) setAlignment(algn);
+          const lSpacing = cfg.line_spacing ?? cfg.lineSpacing;
+          if (typeof lSpacing === "number") setLineSpacing(lSpacing);
+          const eff = cfg.effect;
+          if (eff) setEffect(eff);
         }
       } catch (subErr) {
         console.warn("Could not load subtitle config/segments:", subErr);
@@ -936,6 +1104,20 @@ export default function DubbingStep() {
     return "";
   }, [isVideoPlaying, activeSegmentIndex, activeSegment, segments]);
 
+  const filteredSegments = useMemo(() => {
+    if (!segmentSearch.trim()) {
+      return segments.map((seg, idx) => ({ seg, originalIndex: idx }));
+    }
+    const q = segmentSearch.toLowerCase();
+    return segments
+      .map((seg, idx) => ({ seg, originalIndex: idx }))
+      .filter(
+        ({ seg }) =>
+          (seg.text && seg.text.toLowerCase().includes(q)) ||
+          (seg.translated_text && seg.translated_text.toLowerCase().includes(q))
+      );
+  }, [segments, segmentSearch]);
+
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -959,7 +1141,7 @@ export default function DubbingStep() {
       hideDefaultToggle={true}
       isPanelOpen={isPanelOpen}
       onTogglePanel={(open) => setIsPanelOpen(open)}
-      panelWidth="w-full lg:w-[360px] xl:w-[410px]"
+      panelWidth={activeRightTab === "mvoice" ? "w-full lg:w-[440px] xl:w-[500px]" : "w-full lg:w-[360px] xl:w-[410px]"}
       headerActions={
         <div className="flex items-center gap-2">
           {/* Tab 1: Giọng đọc AI */}
@@ -1002,6 +1184,25 @@ export default function DubbingStep() {
             {isDubReady && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 ml-0.5" />}
           </button>
 
+          {/* Tab 3: mVoice Studio */}
+          <button
+            type="button"
+            onClick={handleToggleMVoiceTab}
+            title={
+              isPanelOpen && activeRightTab === "mvoice"
+                ? "Ẩn bảng mVoice Studio"
+                : "Mở mVoice Studio - Chỉnh sửa & vi âm từng câu thoại"
+            }
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-2xs active:scale-95 ${
+              isPanelOpen && activeRightTab === "mvoice"
+                ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white shadow-xs"
+                : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/50 hover:bg-[var(--color-surface-muted)]"
+            }`}
+          >
+            <Sparkles size={13} />
+            <span>mVoice Studio ({segments.length})</span>
+          </button>
+
           {/* Download button */}
           {dubbedVideo && isDubReady && (
             <button
@@ -1019,13 +1220,17 @@ export default function DubbingStep() {
       toolPanelTitle={
         activeRightTab === "tts"
           ? "Thiết lập Giọng Đọc AI (TTS)"
-          : "Hòa Âm & Render Video Lồng Tiếng"
+          : activeRightTab === "render"
+          ? "Hòa Âm & Render Video Lồng Tiếng"
+          : `mVoice Studio (${segments.length} câu thoại)`
       }
       toolPanelIcon={
         activeRightTab === "tts" ? (
           <Mic size={16} className="text-[var(--color-primary)]" />
-        ) : (
+        ) : activeRightTab === "render" ? (
           <Film size={16} className="text-[var(--color-primary)]" />
+        ) : (
+          <Sparkles size={16} className="text-[var(--color-primary)]" />
         )
       }
       toolPanel={
@@ -1370,7 +1575,7 @@ export default function DubbingStep() {
               <ChevronRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
             </button>
           </div>
-        ) : (
+        ) : activeRightTab === "render" ? (
           /* ========================================================= */
           /* TAB 2: VIDEO MUXING & RENDERING CONTROLS                  */
           /* ========================================================= */
@@ -1554,6 +1759,280 @@ export default function DubbingStep() {
               <ChevronRight size={15} />
             </button>
           </div>
+        ) : (
+          /* ========================================================= */
+          /* TAB 3: mVOICE STUDIO (SEGMENT-LEVEL AUDIO EDITOR)          */
+          /* ========================================================= */
+          <div className="space-y-3">
+            {/* Hidden audio element for segment chunk playback */}
+            <audio
+              ref={segmentAudioRef}
+              onEnded={() => setPlayingSegmentAudioIdx(null)}
+              className="hidden"
+            />
+            {/* Hidden file input for custom audio chunk upload */}
+            <input
+              type="file"
+              ref={chunkFileInputRef}
+              className="hidden"
+              accept="audio/*"
+              onChange={(e) => {
+                if (e.target.files?.[0] && uploadingChunkIdx !== null) {
+                  handleUploadCustomChunk(uploadingChunkIdx, e.target.files[0]);
+                  setUploadingChunkIdx(null);
+                }
+              }}
+            />
+
+            {/* Quick summary & Search */}
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles size={13} className="text-[var(--color-primary)]" />
+                  <span className="text-xs font-bold text-[var(--color-text-primary)]">
+                    Bộ Biên Tập Vi Âm Từng Câu
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--color-primary-soft)] text-[var(--color-primary)] font-bold">
+                  {filteredSegments.length} / {segments.length} câu
+                </span>
+              </div>
+
+              {/* Search input */}
+              <div className="relative">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm nội dung câu thoại..."
+                  value={segmentSearch}
+                  onChange={(e) => setSegmentSearch(e.target.value)}
+                  className="w-full h-8 pl-8 pr-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] placeholder:text-[var(--color-text-muted)]"
+                />
+              </div>
+            </div>
+
+            {/* Segment Cards List */}
+            <div className="space-y-2.5 max-h-[calc(100vh-300px)] overflow-y-auto pr-1">
+              {filteredSegments.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-[var(--color-border)] p-6 text-center text-xs text-[var(--color-text-muted)]">
+                  Không tìm thấy câu thoại phù hợp với từ khóa "{segmentSearch}"
+                </div>
+              ) : (
+                filteredSegments.map(({ seg, originalIndex: idx }) => {
+                  const isSelected = selectedSegmentIdx === idx || activeSegmentIndex === idx;
+                  const isPlaying = playingSegmentAudioIdx === idx;
+                  const isRegenerating = regeneratingSegmentIdx === idx;
+                  const isRecording = recordingSegmentIdx === idx;
+                  const override = segmentOverrides[idx] || {};
+                  const currentSpeed = override.speed ?? 1.0;
+                  const currentSlip = override.slip ?? 0;
+                  const durationSec = seg.end - seg.start;
+
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => {
+                        setSelectedSegmentIdx(idx);
+                        handleVideoSeek(seg.start);
+                      }}
+                      className={`rounded-xl border p-3 transition space-y-2.5 cursor-pointer ${
+                        isSelected
+                          ? "border-[var(--color-primary)] bg-[var(--color-surface)] ring-1 ring-[var(--color-primary)]/30 shadow-xs"
+                          : "border-[var(--color-border)] bg-[var(--color-surface-muted)] hover:border-[var(--color-border)]/80"
+                      }`}
+                    >
+                      {/* Card Header: Index, Timecode, Speaker */}
+                      <div className="flex items-center justify-between gap-1.5 text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`flex h-5 min-w-[20px] items-center justify-center rounded-md px-1 text-[10px] font-bold ${
+                              isSelected
+                                ? "bg-[var(--color-primary)] text-white"
+                                : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] border border-[var(--color-border)]"
+                            }`}
+                          >
+                            #{idx + 1}
+                          </span>
+                          <span className="font-mono text-[10px] text-[var(--color-text-muted)]">
+                            {formatTime(seg.start)} - {formatTime(seg.end)} ({durationSec.toFixed(1)}s)
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          {currentSlip !== 0 && (
+                            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-400 font-bold">
+                              Slip: {currentSlip > 0 ? `+${currentSlip}` : currentSlip}s
+                            </span>
+                          )}
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-input-background)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
+                            {override.speaker || seg.speaker || `Speaker ${selectedSpeaker}`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Original text preview if exists */}
+                      {seg.text && seg.text !== seg.translated_text && (
+                        <div className="text-[10px] text-[var(--color-text-muted)] italic line-clamp-1 border-l-2 border-zinc-700 pl-2">
+                          {seg.text}
+                        </div>
+                      )}
+
+                      {/* Editable Translated Text */}
+                      <textarea
+                        value={seg.translated_text || seg.text || ""}
+                        onChange={(e) => handleUpdateSegmentText(idx, e.target.value)}
+                        rows={2}
+                        className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] p-2 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] resize-none"
+                        placeholder="Nhập nội dung lời thoại..."
+                        onClick={(e) => e.stopPropagation()}
+                      />
+
+                      {/* Action Buttons Row 1: Listen Chunk, Micro-TTS, Auto Time-Stretch, Mic, Upload */}
+                      <div className="flex items-center gap-1.5 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                        {/* Play segment audio chunk */}
+                        <button
+                          type="button"
+                          onClick={() => handlePlaySegmentChunk(idx)}
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition border ${
+                            isPlaying
+                              ? "border-emerald-500 bg-emerald-500 text-white"
+                              : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] hover:border-emerald-500/50 hover:text-emerald-400"
+                          }`}
+                          title="Nghe thử file audio riêng của câu này (< 50ms)"
+                        >
+                          {isPlaying ? <Pause size={11} /> : <Play size={11} />}
+                          <span>{isPlaying ? "Dừng" : "Nghe chunk"}</span>
+                        </button>
+
+                        {/* Micro-TTS Resynthesize (~0.37s) */}
+                        <button
+                          type="button"
+                          onClick={() => handleMicroResynthesize(idx)}
+                          disabled={isRegenerating}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 transition disabled:opacity-50"
+                          title="⚡ Micro-TTS: Sinh lại giọng đọc riêng cho câu này trong ~0.37s"
+                        >
+                          {isRegenerating ? <Loader2 size={11} className="animate-spin" /> : <Zap size={11} />}
+                          <span>⚡ Micro-TTS</span>
+                        </button>
+
+                        {/* Auto Time-Stretch */}
+                        <button
+                          type="button"
+                          onClick={() => handleAutoTimeStretch(idx)}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-indigo-500/40 bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 transition"
+                          title="Tự động co giãn tốc độ đọc để khớp khít thời lượng khung hình"
+                        >
+                          <Clock size={11} />
+                          <span>Tự khớp nhịp</span>
+                        </button>
+
+                        {/* Record Voiceover */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isRecording) {
+                              stopRecordingVoiceover();
+                            } else {
+                              startRecordingVoiceover(idx);
+                            }
+                          }}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition border ${
+                            isRecording
+                              ? "border-red-500 bg-red-500 text-white animate-pulse"
+                              : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-red-400"
+                          }`}
+                          title={isRecording ? "Dừng thu âm" : "Thu âm trực tiếp từ micro đè lên câu thoại này"}
+                        >
+                          {isRecording ? <Square size={11} /> : <Mic size={11} />}
+                          <span>{isRecording ? "Dừng thu" : "Mic"}</span>
+                        </button>
+
+                        {/* Upload custom audio file */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUploadingChunkIdx(idx);
+                            chunkFileInputRef.current?.click();
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] transition"
+                          title="Tải lên tệp âm thanh WAV/MP3 riêng cho câu này"
+                        >
+                          <Upload size={11} />
+                          <span>Tải file</span>
+                        </button>
+                      </div>
+
+                      {/* Action Controls Row 2: Speed & Slip Nudge */}
+                      <div className="pt-2 border-t border-[var(--color-border)]/60 flex items-center justify-between gap-3 text-[10px]" onClick={(e) => e.stopPropagation()}>
+                        {/* Speed adjustment slider */}
+                        <div className="flex-1 flex items-center gap-1.5">
+                          <span className="text-[var(--color-text-muted)] whitespace-nowrap">Tốc độ:</span>
+                          <input
+                            type="range"
+                            min="0.75"
+                            max="1.45"
+                            step="0.05"
+                            value={currentSpeed}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              setSegmentOverrides((prev) => ({
+                                ...prev,
+                                [idx]: { ...(prev[idx] || {}), speed: val },
+                              }));
+                            }}
+                            className="w-full accent-[var(--color-primary)] h-1 bg-[var(--color-border)] rounded cursor-pointer"
+                          />
+                          <span className="font-mono font-bold text-[var(--color-primary)] w-8 text-right">
+                            {currentSpeed.toFixed(2)}x
+                          </span>
+                        </div>
+
+                        {/* Slip Timing Nudge buttons (-50ms / +50ms) */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-[var(--color-text-muted)]">Slip:</span>
+                          <button
+                            type="button"
+                            onClick={() => handleSegmentSlip(idx, -0.05)}
+                            className="px-1.5 py-0.5 rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] hover:border-[var(--color-primary)] active:scale-95 font-mono text-[9px] font-bold"
+                            title="Lùi thời điểm phát 50ms"
+                          >
+                            -50ms
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSegmentSlip(idx, 0.05)}
+                            className="px-1.5 py-0.5 rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] hover:border-[var(--color-primary)] active:scale-95 font-mono text-[9px] font-bold"
+                            title="Tiến thời điểm phát 50ms"
+                          >
+                            +50ms
+                          </button>
+                          {currentSlip !== 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSegmentOverrides((prev) => {
+                                  const next = { ...prev };
+                                  if (next[idx]) {
+                                    delete next[idx].slip;
+                                  }
+                                  return next;
+                                });
+                              }}
+                              className="p-1 text-[var(--color-text-muted)] hover:text-red-400"
+                              title="Đặt lại slip về 0"
+                            >
+                              <Trash2 size={10} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
         )
       }
     >
@@ -1586,41 +2065,31 @@ export default function DubbingStep() {
         `}</style>
 
         {/* Main Video Review Card */}
-        <div className="rounded-2xl border border-[var(--color-border)] bg-[#070b0e] p-3 sm:p-4 shadow-[var(--shadow-card)]">
-          <div className="flex items-center justify-between pb-2.5 border-b border-zinc-800/80 mb-3 flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <Film size={16} className="text-[var(--color-primary)]" />
-              <span className="text-xs font-bold uppercase tracking-wider text-white">
-                {isDubbed ? "Video Lồng Tiếng Đã Render" : "Video Xem Trước (Giọng Gốc & Phụ Đề)"}
-              </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-[var(--color-primary)] border border-zinc-700 uppercase">
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[#070b0e] p-2 sm:p-3 shadow-[var(--shadow-card)]">
+          {/* Clean Cinema Player Area - No grid, no corner guides, compact modern frame */}
+          <div className="flex justify-center items-center bg-black rounded-xl overflow-hidden min-h-[400px] max-h-[580px] border border-zinc-800 shadow-inner relative select-none">
+            {/* Floating Cinema Badges (Aspect Ratio & Language & Status) */}
+            <div className="absolute top-3 left-3 z-30 pointer-events-none flex items-center gap-1.5">
+              <span className="px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-md text-[9px] font-mono font-bold text-white/90 border border-white/15 uppercase">
                 {aspectRatio}
               </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span
-                className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                  isDubbed
-                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                    : isGeneratingDub
-                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse"
-                    : "bg-zinc-800 text-zinc-400"
-                }`}
-              >
-                {isDubbed ? "✓ Đã Lồng Tiếng" : isGeneratingDub ? "Đang render video..." : "Video gốc & Phụ đề"}
-              </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 uppercase">
+              <span className="px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-md text-[9px] font-mono text-zinc-300 border border-white/15 uppercase">
                 {selectedLanguage}
               </span>
+              {isDubbed ? (
+                <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/85 backdrop-blur-md text-[9px] font-bold text-white shadow-xs">
+                  ✓ Đã Lồng Tiếng
+                </span>
+              ) : isGeneratingDub ? (
+                <span className="px-2.5 py-0.5 rounded-md bg-amber-500/85 backdrop-blur-md text-[9px] font-bold text-white shadow-xs animate-pulse">
+                  Đang render...
+                </span>
+              ) : null}
             </div>
-          </div>
 
-          {/* Clean Cinema Player Area - No grid, no corner guides */}
-          <div className="flex justify-center items-center bg-black rounded-2xl overflow-hidden min-h-[400px] max-h-[580px] p-2 sm:p-4 border border-zinc-800 shadow-inner relative select-none">
             {/* Aspect Ratio Video Container Frame */}
             <div
-              className={`relative flex w-full justify-center overflow-hidden transition-all duration-300 rounded-xl bg-black ${
+              className={`relative flex w-full justify-center overflow-hidden transition-all duration-300 rounded-lg bg-black ${
                 aspectRatio === "9:16"
                   ? "aspect-[9/16] max-h-[520px] max-w-[292px]"
                   : aspectRatio === "1:1"
@@ -1830,6 +2299,46 @@ export default function DubbingStep() {
             </div>
           </div>
         </div>
+
+        {/* Multi-Track NLE Studio Timeline powered by @xzdarcy/react-timeline-editor & wavesurfer.js */}
+        <NleTimelineEditor
+          duration={videoDuration}
+          currentTime={videoCurrentTime}
+          segments={segments}
+          activeSegmentIndex={activeSegmentIndex}
+          onSelectSegment={(idx) => {
+            setSelectedSegmentIdx(idx);
+            setActiveRightTab("mvoice");
+            setIsPanelOpen(true);
+          }}
+          onSeek={handleVideoSeek}
+          onUpdateSegment={(idx, updated) => {
+            if (typeof updated.start === "number" || typeof updated.end === "number") {
+              setSegments((prev) => {
+                const next = [...prev];
+                if (next[idx]) {
+                  next[idx] = {
+                    ...next[idx],
+                    ...(updated.start !== undefined ? { start: updated.start } : {}),
+                    ...(updated.end !== undefined ? { end: updated.end } : {}),
+                  };
+                }
+                return next;
+              });
+            }
+          }}
+          isMultiTrack={true}
+          tracksConfig={{
+            videoDuration,
+            bgmVolume,
+            isBgmMuted,
+            onToggleBgmMute: () => setIsBgmMuted(!isBgmMuted),
+            vocalVolume,
+            isVocalMuted,
+            onToggleVocalMute: () => setIsVocalMuted(!isVocalMuted),
+            segmentOverrides,
+          }}
+        />
       </div>
     </PipelineStepLayout>
   );

@@ -1,12 +1,13 @@
 # TÀI LIỆU THIẾT KẾ KIẾN TRÚC HỆ THỐNG (SYSTEM ARCHITECTURE DESIGN)
-## Nền Tảng Xử Lý Video Đa Tác Vụ: Bất Đồng Bộ, Đa Mô Hình (Multi-Models / AI Agents), Xử Lý Hàng Loạt (Batch Processing), Thông Báo Đa Kênh & Phân Quyền Chia Sẻ Dự Án (Project Sharing RBAC)
+## Nền Tảng Xử Lý Video Đa Tác Vụ: Bất Đồng Bộ, Đa Mô Hình (Multi-Models / AI Agents), Xử Lý Hàng Loạt (Batch Processing), Thông Báo Đa Kênh & Quản Trị Dự Án Độc Lập Chuẩn Hóa (Single-Owner Workspace Isolation)
 
 ---
 - **Mã tài liệu:** `SAD-VIDEO-ASYNC-BATCH-01`
-- **Phiên bản:** `1.8.0`
-- **Trạng thái:** `Đã hoàn thành Kiểm thử & Nghiệm thu toàn diện Giai đoạn 1-5, Giai đoạn 5.2 (Batch Upload & Preset Studio) và Giai đoạn 5.3 (Pro Video Editing Workbench & Unified 2-Way Sync)`
+- **Phiên bản:** `1.9.4`
+- **Trạng thái:** `Đã hoàn thành Kiểm thử & Nghiệm thu toàn diện Giai đoạn 1-5, Giai đoạn 5.2 (Batch Upload & Preset Studio), Giai đoạn 5.3 (Pro Video Editing Workbench & Unified 2-Way Sync); Hoàn tất Đồng bộ Cơ sở Dữ liệu Toàn diện (Canonical 42 Tables in init.sql), Chuẩn hóa Kiến trúc Xác thực Token-based Device Sessions, Loại Bỏ Triệt Để Chức Năng Chia Sẻ Dự Án (Single-Owner Isolation), Chuẩn hóa Siêu dữ liệu Video & Tương thích Tuyệt đối AWS S3 Cloud; Bổ sung Thiết kế Kiến trúc Nhất Thể Hóa Toàn Diện Vào Wizard Pipeline (Unified Wizard Studio Architecture: Khai Tử Standalone VideoEditor, Đưa Screen & Subtitle Studio Vào Bước 4, Và Xây Dựng Segment Audio Studio Đa Tính Năng Vào Bước 5)`
 - **Tác giả:** `Antigravity System Architect Team`
-- **Áp dụng cho:** `Backend (FastAPI, Celery, Redis, PostgreSQL)`, `AI Workers (PyTorch, Demucs, Whisper, Pyannote, TTS, FFmpeg)`, `GPU Acceleration (NVIDIA RTX 4060 8GB, CUDA, NVENC)`, `Frontend (React TypeScript Wizard, Pro Editing Workbench, Batch Upload Manager, Preset Studio & Project Sharing)`
+- **Áp dụng cho:** `Backend (FastAPI, Celery, Redis, PostgreSQL)`, `AI Workers (PyTorch, Demucs, Whisper, Pyannote, TTS, FFmpeg, OCR)`, `GPU Acceleration (NVIDIA RTX 4060 8GB, CUDA, NVENC)`, `Frontend (React TypeScript Wizard, Visual Subtitle Studio, Multi-Track Audio Segment Studio, Batch Upload Manager & Single-Owner Workspace)`
+
 
 ---
 
@@ -22,11 +23,18 @@
    - 4.5. [Định Tuyến Tín Dụng & Khấu Trừ Chi Phí Động (Dynamic Billing & Escrow)](#45-định-tuyến-tín-dụng--khấu-trừ-chi-phí-động-dynamic-billing--escrow)
    - 4.6. [Quản Lý Xung Đột, Hủy Tác Vụ & Tiến Trình Ma (Concurrency & Revocation)](#46-quản-lý-xung-đột-hủy-tác-vụ--tiến-trình-ma-concurrency--revocation)
    - 4.7. [Hệ Thống Thông Báo Đa Kênh: In-App & Email (Notification Subsystem)](#47-hệ-thống-thông-báo-đa-kênh-in-app--email-notification-subsystem)
-   - 4.8. [Nghiệp Vụ Chia Sẻ Dự Án & Phân Quyền Hợp Tác Nhóm (Project Sharing & Team RBAC)](#48-nghiệp-vụ-chia-sẻ-dự-án--phân-quyền-hợp-tác-nhóm-project-sharing--team-rbac)
+   - 4.8. [Kiến Trúc Sở Hữu Cá Nhân Tinh Gọn & Cách Ly Dữ Liệu Dự Án (Single-Owner Project Architecture & Security Isolation)](#48-kiến-trúc-sở-hữu-cá-nhân-tinh-gọn--cách-ly-dữ-liệu-dự-án-single-owner-project-architecture--security-isolation)
    - 4.9. [Tách Biệt Triệt Để Web Gateway & Worker Pools: Ngăn Chặn Chiếm Dụng Container & Điều Hướng Tự Do (Non-Blocking Navigation)](#49-tách-biệt-triệt-để-web-gateway--worker-pools-ngăn-chặn-chiếm-dụng-container--điều-hướng-tự-do-non-blocking-navigation)
    - 4.10. [Thiết Kế Kiến Trúc Tăng Tốc Phần Cứng GPU & Điều Phối VRAM 8GB (RTX 4060)](#410-thiết-kế-kiến-trúc-tăng-tốc-phần-cứng-gpu--điều-phối-vram-8gb-rtx-4060)
    - 4.11. [Thiết Kế Bộ Công Cụ Biên Tập Thủ Công Chuyên Nghiệp 6 Bước (Professional 6-Step Video Editing Workbench)](#411-thiết-kế-bộ-công-cụ-biên-tập-thủ-công-chuyên-nghiệp-6-bước-professional-6-step-video-editing-workbench)
+   - 4.12. [Kiến Trúc Xác Thực & Quản Lý Phiên Thiết Bị: Token-Based Authentication & Cơ Chế Device Sessions Management (RFC 6749 & RFC 7009)](#412-kiến-trúc-xác-thực--quản-lý-phiên-thiết-bị-token-based-authentication--cơ-chế-device-sessions-management-rfc-6749--rfc-7009)
+   - 4.13. [Kiến Trúc Quản Lý Siêu Dữ Liệu Video, Lưu Trữ Đa Tầng (Object Storage S3/MinIO), Khấu Trừ Dung Lượng Động & Tương Thích Điện Toán Đám Mây Chuẩn Hóa](#413-kiến-trúc-quản-lý-siêu-dữ-liệu-video-lưu-trữ-đa-tầng-object-storage-s3minio-khấu-trừ-dung-lượng-động--tương-thích-điện-toán-đám-mây-chuẩn-hóa)
+   - 4.14. [Kiến Trúc Bộ Video Editor Đa Phương Tiện Toàn Diện (Full-Fledged NLE Video Studio Architecture: Atomic Segment TTS, True WYSIWYG, Subtitle Eraser & Multi-Track Engine)](#414-kiến-trúc-bộ-video-editor-đa-phương-tiện-toàn-diện-full-fledged-nle-video-studio-architecture)
 5. [ĐẶC TẢ DỮ LIỆU CHUẨN (CANONICAL SCHEMAS)](#5-đặc-tả-dữ-liệu-chuẩn-canonical-schemas)
+   - 5.1. [Canonical Transcript Schema](#51-canonical-transcript-schema)
+   - 5.2. [Canonical Translation Schema](#52-canonical-translation-schema)
+   - 5.3. [Canonical Advanced Preset Studio Schema (`pipeline_presets.config_data`)](#53-canonical-advanced-preset-studio-schema-pipeline_presetsconfig_data)
+   - 5.4. [Lược Đồ Cơ Sở Dữ Liệu Đồng Bộ & Bảng Đối Soát Schema (Docker Live DB vs database/init.sql)](#54-lược-đồ-cơ-sở-dữ-liệu-đồng-bộ--bảng-đối-soát-schema-docker-live-db-vs-databaseinitsql)
 6. [KẾ HOẠCH TRIỂN KHAI THEO GIAI ĐOẠN (IMPLEMENTATION PLAN)](#6-kế-hoạch-triển-khai-theo-giai-đoạn-implementation-plan)
 7. [TIÊU CHÍ NGHIỆM THU (ACCEPTANCE CRITERIA)](#7-tiêu-chí-nghiệm-thu-acceptance-criteria)
 
@@ -64,7 +72,7 @@ Từ kết quả kiểm tra hệ thống thực tế và báo cáo sự cố t�
 5. **Multi-Model & Agentic Extensibility:** Dễ dàng bổ sung bất kỳ mô hình AI mới nào (Local Model hoặc Cloud API) thông qua Adapter Pattern chuẩn hóa.
 6. **Enterprise Batch Processing:** Áp dụng cấu hình mẫu (Preset) để chạy tự động hàng loạt $N$ video mà không làm nghẽn các tác vụ tương tác tay.
 7. **Omni-channel Notifications:** Tự động gửi thông báo In-App (real-time badge/toast) và Email (bản tin tổng hợp digest/lỗi) dựa trên cấu hình Notification Preferences của người dùng.
-8. **Enterprise Project RBAC & Shared Billing:** Quản lý quyền hạn chặt chẽ (Owner, Admin, Editor, Viewer); cơ chế hạn mức chi tiêu dự án (Project Budget Escrow) ngăn chặn lạm chi tín dụng giữa các thành viên.
+8. **Single-Owner Data Isolation & Zero Overhead:** Mỗi dự án gắn liền trực tiếp và độc quyền với người tạo (`owner_id == user_id`), loại bỏ hoàn toàn các tầng truy vấn JOIN phức tạp (`project_members`), giảm thiểu nợ kỹ thuật (clean codebase) và tối ưu hóa thời gian phản hồi của toàn bộ Workspace API.
 9. **Zero Heavy Compute on Web Gateway (Cách ly tài nguyên container tuyệt đối):** Container `backend` (FastAPI / Uvicorn) được bảo vệ tuyệt đối như một API Gateway thuần túy. Mọi tác vụ tính toán thời gian $> 50\text{ms}$ (Demucs, Whisper, NLLB, XTTS, FFmpeg) bắt buộc phải chuyển sang các container Celery Worker riêng biệt, bảo đảm Web Gateway luôn phản hồi các request Workspace, Project, Auth trong $< 20\text{ms}$ ngay cả khi worker đang chịu tải 100% CPU/GPU.
 10. **Unconstrained Client Navigation (Tự do điều hướng không phong tỏa):** Người dùng có thể khởi chạy tác vụ tại bất kỳ step nào rồi tự do chuyển trang, về Workspace, duyệt video khác hoặc tắt trình duyệt mà không làm gián đoạn tiến trình đang chạy và không bị đơ giao diện.
 11. **Dynamic VRAM Lifecycle & Graceful Degrade (Kiến trúc điều phối VRAM động & Fallback linh hoạt):** Khi hệ thống chạy trên phần cứng có GPU hạn chế (ví dụ 8GB VRAM như RTX 4060), tuyệt đối không nạp giữ đồng thời nhiều mô hình AI; thực thi tuần tự hóa (Task Serialization) trên GPU pool với `concurrency=1`, áp dụng lượng tử hóa FP16/INT8, tự động giải phóng bộ nhớ đệm `torch.cuda.empty_cache()` sau mỗi step, và tự động hạ cấp xuống CPU (graceful degradation) nếu xảy ra hiện tượng thiếu hụt VRAM.
@@ -81,13 +89,14 @@ graph TD
         WIZ[Interactive Step Wizard]
         BATCH_UI[Batch Processing Dashboard]
         NOTIF_BELL[In-App Notification Center]
-        SHARE_MODAL[Project Sharing & RBAC Modal]
+        WORKBENCH[Pro Video Editing Workbench]
+        WORKSPACE_VIEW[Multi-View Workspace & Filter Scope]
     end
 
     subgraph APIGateway [FastAPI Ingestion & Orchestration]
         ROUTER[Video & Job Router]
-        AUTH[Auth & RBAC Permission Guard]
-        BILLING[Project Budget & Escrow Controller]
+        AUTH[Auth & Single-Owner Permission Guard]
+        BILLING[User Quota & Escrow Controller]
         DISPATCHER[Step Job Dispatcher]
         NOTIF_API[Notification Service API]
     end
@@ -97,7 +106,7 @@ graph TD
         Q_BATCH[Queue: batch_heavy_local]
         Q_IO[Queue: cloud_api_io]
         Q_NOTIF[Queue: notification_delivery]
-        LOCKS[Distributed Locks: video:step & project:collab]
+        LOCKS[Distributed Locks: video:step & project:task]
         PUBSUB[Redis PubSub / State Cache]
     end
 
@@ -624,45 +633,57 @@ graph TD
 
 ---
 
-### 4.8. Nghiệp Vụ Chia Sẻ Dự Án & Phân Quyền Hợp Tác Nhóm (Project Sharing & Team RBAC)
+### 4.8. Kiến Trúc Sở Hữu Cá Nhân Tinh Gọn & Cách Ly Dữ Liệu Dự Án (Single-Owner Project Architecture & Security Isolation)
 
-Trong môi trường doanh nghiệp hoặc đội ngũ sản xuất nội dung, nhiều thành viên sẽ cùng làm việc trên một Project. Kiến trúc xử lý video phải phân định rõ quyền hạn thực thi, trách nhiệm chi phí và tránh xung đột thao tác đồng thời.
+Nhằm tối ưu hóa hiệu năng, loại bỏ triệt để nợ kỹ thuật (technical debt) và bảo vệ an toàn dữ liệu tuyệt đối, hệ thống áp dụng kiến trúc **Sở Hữu Cá Nhân Tinh Gọn (Single-Owner Isolation)** thay thế toàn diện cho mô hình phân quyền nhóm (Project Sharing RBAC) trước đây.
 
-#### 4.8.1. Ma Trận Phân Quyền Thực Thi (Role-Based Access Matrix)
-Dựa trên bảng `project_members` với 4 cấp độ vai trò:
+#### 4.8.1. Động Lực Quyết Định & Tối Ưu Hóa Nợ Kỹ Thuật (Rationale & Clean Removal Strategy)
+Trước phiên bản v1.9.1, hệ thống tích hợp bảng trung gian `project_members` và các API quản lý thành viên. Tuy nhiên, qua phân tích kiến trúc và thực tiễn vận hành:
+1. **Suy giảm hiệu năng truy vấn:** Mọi truy vấn danh mục dự án đều phải thực thi phép `LEFT JOIN project_members` kèm mệnh đề điều kiện `OR (p.owner_id = user_id OR pm.user_id = user_id)`, gây tốn kém chi phí index lookup và làm chậm thời gian phản hồi API Gateway.
+2. **Bất định trong hạn ngạch chi phí (Billing Ambiguity):** Việc phân định trừ tín dụng giữa Owner và Editor đòi hỏi tầng logic escrow/budget phức tạp, tiềm ẩn nguy cơ xung đột quota tài khoản.
+3. **Phân mảnh trải nghiệm người dùng (UI Clutter):** Các modal chia sẻ, link mời, tab "Được chia sẻ với tôi" và badge trạng thái làm rối loạn luồng biên tập video cá nhân chuyên nghiệp.
 
-| Hành động nghiệp vụ | Owner | Admin | Editor | Viewer |
-| :--- | :---: | :---: | :---: | :---: |
-| Xem video, nghe vocal/dubbing, tải file xuất bản | ✅ | ✅ | ✅ | ✅ |
-| Chỉnh sửa thủ công Transcript / Translation / Subtitles | ✅ | ✅ | ✅ | ❌ |
-| Kích hoạt các Step AI (Whisper, Gemini, XTTS...) | ✅ | ✅ | ✅ (nếu được phép) | ❌ |
-| Kích hoạt Xử lý Hàng loạt (Batch Upload) | ✅ | ✅ | ✅ (nếu được phép) | ❌ |
-| Thêm/Xóa thành viên dự án, phân quyền | ✅ | ✅ | ❌ | ❌ |
-| Thiết lập Hạn ngạch Tín dụng Dự án (Project AI Budget) | ✅ | ❌ | ❌ | ❌ |
-| Xóa Video / Xóa Dự án vĩnh viễn | ✅ | ❌ | ❌ | ❌ |
+**Quyết định kiến trúc:** Hệ thống đã thực hiện **Loại bỏ Triệt Để (Clean Removal)**:
+- Xóa bỏ 100% giao diện liên quan: Sidebar tab `sharedWithMe`, Modal `ShareProjectModal.tsx`, các nút/menu hành động "Chia sẻ", và badge trạng thái `is_shared` trên cả 4 chế độ hiển thị (Grid, Table, Card, Freedom).
+- Khai tử hoàn toàn 4 API endpoints thành viên: `GET/POST/PUT/DELETE /api/projects/{id}/members`.
+- Thu hồi giá trị `shared` trong tham số lọc `scope`.
 
-#### 4.8.2. Cơ Chế Quy Trách Nhiệm Chi Phí (Shared Project Billing Attribution)
-Khi `Editor` bấm chạy Whisper hoặc kích hoạt Batch 20 video, bài toán đặt ra là: **Trừ tiền của Editor hay của Project Owner?**
+#### 4.8.2. Cơ Chế Kiểm Soát Quyền Hạn & Cách Ly Tuyệt Đối (Single-Owner Permission Guard)
+1. **Nguyên tắc Cách ly Tuyệt đối (Strict Ownership Rule):**
+   - Mọi tài nguyên Dự án (`projects`) và Video (`videos`) gắn liền trực tiếp và duy nhất với định danh người tạo lập `owner_id`.
+   - Một người dùng chỉ có quyền đọc, ghi, xóa hoặc kích hoạt AI trên tài nguyên do chính mình sở hữu:
+     $$\text{Truy cập Hợp lệ} \iff \text{resource.owner_id} == \text{current\_user.id}$$
+2. **Cơ Chế Bảo Vệ Tại API Gateway:**
+   - Hàm xác thực quyền truy cập dự án `check_user_project_access` được rút gọn thành truy vấn đơn nhất:
+     ```python
+     project = db.query(Project).filter(
+         Project.id == project_id,
+         Project.owner_id == user_id,
+         Project.is_deleted == False
+     ).first()
+     if not project:
+         raise HTTPException(status_code=404, detail="Project not found or access denied")
+     ```
+   - **Chống rò rỉ siêu dữ liệu (Zero Information Leakage):** Khi một người dùng cố gắng truy cập trái phép vào `project_id` của người khác, API trả về mã lỗi `HTTP 404 Not Found` (thay vì `403 Forbidden`) nhằm che giấu hoàn toàn sự tồn tại của dự án đó trên hệ thống.
+   - Các yêu cầu gửi tới 4 endpoint cũ `/members` được router trả về thẳng `HTTP 404 Not Found`.
 
-Hệ thống thiết lập chính sách **Project Team Quota (Hạn Mức Theo Dự Án)**:
-1. **Nguồn trừ tiền:** Mặc định toàn bộ tác vụ AI thực thi bên trong một Dự án sẽ được **khấu trừ vào Quota của `Project Owner`** (người sở hữu tài nguyên).
-2. **Cơ chế Bảo Vệ Chủ Sở Hữu (Owner Safeguards):**
-   - Owner có quyền cấu hình cờ: `allow_member_ai_execution: bool` (Mặc định: `True`). Nếu tắt, chỉ Owner mới được bấm chạy các model AI tính phí; Editors chỉ được sửa tay.
-   - Owner có quyền đặt ngân sách trần: `project_credit_budget` (Ví dụ: Dự án này tối đa tiêu 200 credits/tháng).
-   - Khi Editor bấm chạy, hệ thống kiểm tra:
-     $$\text{Chi phí yêu cầu} \le \text{Ngân sách còn lại của Project} \quad \text{VÀ} \quad \text{Chi phí yêu cầu} \le \text{Số dư ví của Owner}$$
-   - Nếu vượt hạn mức $\rightarrow$ Chặn với thông báo: *"Ngân sách AI của dự án đã đạt giới hạn. Vui lòng liên hệ Owner để cấp thêm."*
+#### 4.8.3. Tối Ưu Hóa Hiệu Năng Truy Vấn & Chuẩn Hóa Scope Filtering
+1. **Truy vấn Trực Tiếp Siêu Tốc (Direct B-Tree Index Scan):**
+   - Loại bỏ toàn bộ `LEFT JOIN project_members`. Các truy vấn Workspace trong `project_service.py` chỉ quét trực tiếp trên chỉ mục `(owner_id, is_deleted)`:
+     ```sql
+     SELECT * FROM projects 
+     WHERE owner_id = :user_id AND is_deleted = false
+     ORDER BY updated_at DESC;
+     ```
+   - Thời gian thực thi truy vấn danh sách dự án giảm xuống mức $< 2\text{ms}$.
+2. **Chuẩn Hóa Tham Số Scope:**
+   - Tham số truy vấn `scope` tại `GET /api/projects` được kiểm soát bằng regex nghiêm ngặt:
+     `pattern="^(all|favorites|trash)$"`
+   - Nếu client truyền `scope=shared`, hệ thống lập tức chặn lại ở tầng Request Validation với mã `HTTP 422 Unprocessable Entity`.
 
-#### 4.8.3. Kiểm Soát Xung Đột Đồng Thời (Collaborative Concurrency & Presence)
-Tránh hiện tượng: Editor A đang gõ tay bản dịch câu 10 ở Step 3, Editor B ở máy khác bấm "Dịch lại toàn bộ bằng GPT-4o" làm đè mất dữ liệu.
-
-1. **Khóa Mềm Cấp Bước (Step Soft-Locking):**
-   - Khi một thành viên kích hoạt Celery Task cho một Step:
-     - Ghi nhận trạng thái: `step_locked_by: user_id`, `step_locked_at: timestamp`.
-     - Toàn bộ thành viên khác truy cập vào Step đó sẽ thấy giao diện chuyển sang **Chế độ Chỉ Đọc (Read-Only)** kèm Banner cảnh báo màu xanh dương:
-       `[Đang xử lý] Thành viên John Doe đang thực hiện 'Dịch thuật AI' cho video này. Giao diện tạm thời khóa chỉnh sửa.`
-2. **Presence & Heartbeat (Tùy chọn tương lai):**
-   - Khi có người đang mở tab chỉnh sửa Transcript, gửi tín hiệu heartbeat nhẹ qua Redis (TTL 30s). Nếu người khác vào, hiển thị avatar người đang xem/sửa để tránh thao tác chéo.
+#### 4.8.4. Trải Nghiệm Giao Diện Tập Trung Chuyên Sâu (Clean Workbench Experience)
+- Không gian làm việc Workspace được tinh giản tối đa, tập trung nguồn lực vào trải nghiệm mượt mà của 4 View Modes: **Grid View, Table View, Card View, và Freedom View**.
+- Người dùng hoàn toàn làm chủ quy trình biên tập video đa tác vụ từ Single-Video Wizard 5 bước đến Bộ Công Cụ Biên Tập Thủ Công Chuyên Nghiệp 6 Bước (Workbench) mà không bị phân tâm bởi các tương tác chia sẻ phức tạp.
 
 ---
 
@@ -1224,6 +1245,214 @@ graph TD
 
 ---
 
+### 4.12. Kiến Trúc Xác Thực & Quản Lý Phiên Thiết Bị: Token-Based Authentication & Cơ Chế Device Sessions Management (RFC 6749 & RFC 7009)
+
+#### 4.12.1. Phân Định Bản Chất: Token-Based Authentication vs Stateful Cookie Sessions
+Một thắc mắc phổ biến trong quá trình thẩm định API docs (Swagger) là sự xuất hiện của các endpoint quản lý session:
+- `GET /api/auth/sessions`: Liệt kê các phiên đăng nhập đang hoạt động.
+- `DELETE /api/auth/sessions/{session_id}`: Hủy bỏ một phiên đăng nhập cụ thể (Remote Logout / Device Revocation).
+- `GET /api/auth/security-logs`: Xem nhật ký bảo mật truy cập.
+
+**Làm rõ bản chất kỹ thuật:**
+Hệ thống **KHÔNG SỬ DỤNG** cơ chế *Stateful Cookie Session* truyền thống (nơi máy chủ lưu session state trong RAM/Redis và client gửi qua header `Cookie`). Thay vào đó, kiến trúc cốt lõi là **Token-Based Authentication kết hợp Refresh Token Rotation & Device Tracking** tuân thủ nghiêm ngặt các tiêu chuẩn **RFC 6749 (OAuth 2.0)** và **RFC 7009 (OAuth 2.0 Token Revocation)**:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Client (Browser / Device)
+    participant GW as Web Gateway (FastAPI)
+    participant DB as Database (refresh_tokens)
+    participant Worker as Background Workers
+
+    Note over User,GW: 1. Đăng nhập & Khởi tạo Cặp Token
+    User->>GW: POST /api/auth/login (email, password)
+    GW->>DB: INSERT INTO refresh_tokens (token_hash, user_id, user_agent, ip_address, expires_at)
+    GW-->>User: HTTP 200 OK { access_token (JWT Bearer), refresh_token (UUID/Opaque) }
+
+    Note over User,GW: 2. Gọi API Nghiệp Vụ (Stateless 100%)
+    User->>GW: GET /api/videos/ hoặc POST /api/videos/13/translations<br/>Header: Authorization: Bearer <access_token>
+    Note over GW: Gateway xác minh chữ ký RSA/HMAC của JWT.<br/>KHÔNG truy vấn DB cho mỗi request, KHÔNG nghẽn I/O, thời gian xác thực < 1ms.
+    GW-->>User: HTTP 200 OK / HTTP 202 Accepted
+
+    Note over User,GW: 3. Quản Lý Thiết Bị (Device Sessions)
+    User->>GW: GET /api/auth/sessions (Bearer <access_token>)
+    GW->>DB: SELECT id, device_type, ip_address, user_agent, last_activity<br/>FROM refresh_tokens WHERE user_id = %s AND revoked_at IS NULL
+    DB-->>GW: Trả về danh sách thiết bị đang hoạt động
+    GW-->>User: HTTP 200 OK [ { id: "uuid", device: "Chrome Windows", ip: "14.x.x.x", current: true } ]
+
+    Note over User,GW: 4. Đăng Xuất Từ Xa (Remote Revocation)
+    User->>GW: DELETE /api/auth/sessions/{session_id}
+    GW->>DB: UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE id = %s
+    GW-->>User: HTTP 200 OK { message: "Phiên thiết bị đã bị thu hồi" }
+```
+
+#### 4.12.2. So Sánh Chi Tiết Hai Cơ Chế
+| Tiêu Chí So Sánh | Stateful Cookie Session (Truyền thống) | Token-Based + Device Sessions (Kiến trúc Hiện Tại) |
+| :--- | :--- | :--- |
+| **Vị trí lưu trạng thái xác thực** | Máy chủ lưu Session Object trong RAM / Redis / DB cho **mọi** HTTP request. | **Client lưu Token**. Web Gateway kiểm tra chữ ký số JWT hoàn toàn **Stateless** trong RAM (CPU $< 0.1\text{ms}$). |
+| **Cơ chế truyền tải** | Header `Cookie: session_id=...` (dễ bị tấn công CSRF nếu không cấu hình SameSite chặt chẽ). | Header chuẩn `Authorization: Bearer <access_token>` (miễn nhiễm tự nhiên với CSRF). |
+| **Mở rộng cụm máy chủ (Horizontally Scalable)** | Khó khăn, đòi hỏi Sticky Sessions hoặc Shared Redis Session Store. | Cực kỳ dễ dàng, bất kỳ API Gateway nào có Secret Key / Public Key đều xác thực được token mà không cần gọi DB nội bộ. |
+| **Thuật ngữ "Session" trong API Docs** | Đại diện cho session context stateful trên server. | Đại diện cho **"Device Session / Logged-in Device"** (Phiên của 1 thiết bị tương ứng với 1 bản ghi trong bảng `refresh_tokens`). |
+| **Khả năng Đăng xuất từ xa (Remote Logout)** | Xóa session trong Redis. | Cập nhật `revoked_at = NOW()` cho Refresh Token của thiết bị đó. Khi access_token hết hạn, thiết bị không thể refresh và bị buộc đăng xuất. |
+
+#### 4.12.3. Quy Chuẩn Vận Hành Bảo Mật
+1. **Access Token (Ngắn hạn - Stateless):** Thời hạn sống (TTL) từ $15$ đến $60$ phút. Chứa các claims: `user_id`, `email`, `role`, `token_type = "access"`. Được verify trực tiếp trong `get_current_user` dependency mà không cần đọc database, bảo đảm thông lượng xử lý hàng chục nghìn req/sec.
+2. **Refresh Token (Dài hạn - Stateful theo thiết bị):** Lưu hash trong bảng `refresh_tokens`. Mỗi thiết bị đăng nhập tương ứng với một bản ghi chứa đầy đủ `ip_address`, `user_agent`, `created_at`, `expires_at`, `revoked_at`.
+3. **Cơ Chế Refresh Token Rotation (RTR):** Mỗi khi client gửi yêu cầu cấp mới Access Token tại `/api/auth/refresh`, hệ thống sinh ra một cặp Access Token + Refresh Token mới hoàn toàn và thu hồi token cũ, bảo vệ người dùng trước nguy cơ rò rỉ token qua mạng.
+
+---
+
+### 4.13. Kiến Trúc Quản Lý Siêu Dữ Liệu Video, Lưu Trữ Đa Tầng (Object Storage S3/MinIO), Khấu Trừ Dung Lượng Động & Tương Thích Điện Toán Đám Mây Chuẩn Hóa
+
+Nhằm giải quyết triệt để các bất cập trong quá trình biên tập video thực tế (đổi tên video linh hoạt, đặt tên file xuất bản tùy biến, đồng bộ hóa tệp tin đa container lên Object Storage, tính toán khấu trừ dung lượng chính xác theo gói cước, và đảm bảo chạy trong suốt giữa MinIO Local và AWS S3 Cloud), hệ thống chuẩn hóa tầng kiến trúc 4 thành phần sau:
+
+#### 4.13.1. Quản Lý Định Danh & Siêu Dữ Liệu Video (Inline Video Renaming & Custom Export Filename)
+1. **Trải Nghiệm Đổi Tên Trực Tiếp (Inline Title Editing):**
+   - Trước đây, người dùng đang ở Single-Video Wizard (`VideoPipeline.tsx`) hoặc Pro Editing Workbench (`VideoEditor.tsx`) bị giới hạn bởi tiêu đề tĩnh và phải quay lại màn hình `ProjectDetail` mới đổi tên được video.
+   - **Chuẩn hóa kiến trúc:**
+     - Thanh Header tại cả 2 màn hình biên tập tích hợp Component Inline Title Editor: Cho phép click trực tiếp vào tên video hoặc bấm icon chỉnh sửa để chuyển sang thẻ `<input>`.
+     - Sự kiện `onBlur` hoặc nhấn phím `Enter` kích hoạt gọi API `PATCH /api/videos/{video_id}` với payload `{"title": new_title}`.
+     - Cập nhật đồng bộ vào Redux/React state và context video mà không gây gián đoạn luồng xử lý hoặc reload trang.
+2. **Tuỳ Biến Tên Tệp Xuất Bản (Custom Export Filename):**
+   - **Bất cập cũ:** Cả backend (`GET /api/videos/{id}/export`) và frontend (`ReviewExportStep.tsx`) hardcode cứng tên file tải về (`export_1080p.mp4` / `a.download = export_final_video.mp4`).
+   - **Chuẩn hóa kiến trúc:**
+     - Frontend `ReviewExportStep.tsx`: Bổ sung ô nhập liệu `custom_export_name`. Mặc định tự động sinh tên theo quy tắc chuẩn:
+       $$\text{default\_filename} = \text{sanitize}(\text{video.title}) + \text{"\_"} + \text{target\_language} + \text{"\_"} + \text{quality}$$
+     - Backend API `GET /api/videos/{video_id}/export`: Bổ sung tham số truy vấn `custom_filename: Optional[str] = Query(None)`.
+     - Header phản hồi HTTP `Content-Disposition` (cả trường hợp trả về trực tiếp FileResponse lẫn sinh Presigned URL S3) được gắn tên chuẩn hóa:
+       `Content-Disposition: attachment; filename="{sanitized_filename}.{format}"`
+
+#### 4.13.2. Chuẩn Hóa Vòng Đời Tệp Tin & Lưu Trữ Tự Động Lên Object Storage (Step-by-Step Artifact Persistence)
+Để đảm bảo hệ thống có thể mở rộng chạy trên cụm nhiều container hoặc worker nodes khác nhau (Distributed Celery Workers), toàn bộ tệp tin phát sinh tại từng bước bắt buộc phải được đẩy lên Object Storage (AWS S3 hoặc MinIO) thay vì chỉ lưu cục bộ trong thư mục container:
+
+```mermaid
+flowchart TD
+    subgraph StepExecution [6-Step Pipeline Execution]
+        S0[Step 0: Upload Video] -->|Upload to S3| B0[videos/id/original.mp4]
+        S1[Step 1: Demucs Separation] -->|Upload Stems| B1[audio/id/vocals.wav & no_vocals.wav]
+        S2[Step 2: Whisper STT] -->|Upload Transcript| B2[transcripts/id/transcript.json]
+        S3[Step 3: Translation] -->|Upload Translation| B3[translations/id/translation_lang.json]
+        S4[Step 4: Subtitles] -->|Upload ASS/SRT| B4[subtitles/id/subtitles_lang.ass]
+        S5[Step 5: TTS Dubbing] -->|Upload Merged Voice| B5[dubbing/id/dubbed_audio_lang.wav]
+        S6[Step 6: Video Mux & Render] -->|Upload Final MP4| B6[videos/id/dubbed_lang_quality.mp4]
+    end
+
+    subgraph ObjectStorage [MinIO Dev / AWS S3 Production]
+        B0
+        B1
+        B2
+        B3
+        B4
+        B5
+        B6
+    end
+
+    subgraph QuotaTracking [Storage Tracking Engine]
+        DB[(PostgreSQL)]
+        QUOTA[Calculate Total Used Bytes & Deduct Quota]
+    end
+
+    B0 & B1 & B2 & B3 & B4 & B5 & B6 -.-> DB
+    DB --> QUOTA
+```
+
+1. **Cấu trúc Định Danh Khóa (Canonical Object Keys):**
+   - Video Gốc: `videos/{video_id}/original.{ext}`
+   - Tách âm thanh: `audio/{video_id}/vocals.wav` và `audio/{video_id}/no_vocals.wav`
+   - Bóc băng: `transcripts/{video_id}/transcript.json`
+   - Bản dịch: `translations/{video_id}/translation_{lang}.json`
+   - Phụ đề: `subtitles/{video_id}/subtitles_{lang}.ass` và `subtitles/{video_id}/subtitles_{lang}.srt`
+   - Giọng lồng tiếng: `dubbing/{video_id}/dubbed_audio_{lang}.wav`
+   - Video thành phẩm: `videos/{video_id}/dubbed_{lang}_{quality}_{uuid}.mp4`
+2. **Cơ Chế Hook Upload Tự Động:**
+   - Tại cuối mỗi Celery step task (`task_audio_separate_step`, `task_transcribe_step`, `task_translate_step`, `task_subtitle_step`, `task_generate_tts_step`, `task_dub_mux_step`), sau khi ghi file local thành công, tự động gọi:
+     ```python
+     storage_manager.upload_file(local_path, s3_key, content_type)
+     ```
+   - Cập nhật đường dẫn s3_key hoặc canonical path vào bản ghi `videos` và `video.snapshot_data`.
+
+#### 4.13.3. Cơ Chế Tính Toán & Khấu Trừ Dung Lượng Bộ Nhớ Toàn Diện (Comprehensive Storage Quota & Deduction)
+1. **Công thức Chuẩn:**
+   $$\text{Dung lượng Còn Lại (Remaining Bytes)} = \text{Tổng Dung Lượng Gói (Plan + Add-ons)} - \sum_{\text{All Files}} \text{Kích Thước Tệp (Bytes)}$$
+2. **Khắc Phục Lỗ Hổng Đo Dung Lượng Hiện Tại:**
+   - Hàm `get_user_storage_usage(user_id)` được nâng cấp toàn diện:
+     - Quét toàn bộ các tệp tin thuộc quyền sở hữu của người dùng (từ `original_path`, `extracted_vocal_path`, `background_music_path`, `transcript_path`, `subtitle_path`, `dubbed_audio_path`, `output_path`, `video_documents`).
+     - Hỗ trợ phân giải cả 2 chế độ:
+       + Nếu tệp lưu trên ổ đĩa local: Đọc trực tiếp `Path(p).stat().st_size`.
+       + Nếu tệp là S3 Object Key: Đọc kích thước từ metadata đã cache trong DB hoặc gọi `head_object` lấy `ContentLength` từ `storage_manager`.
+     - Tuyệt đối không để xảy ra tình trạng tệp âm thanh tách rời (200MB) hay video thành phẩm (500MB) bị "lọt sổ" không tính vào quota.
+3. **Cơ Chế Chặn Vượt Ngưỡng (Storage Guardrails):**
+   - Trước khi upload video mới: `validate_upload_quota` kiểm tra `used_bytes + incoming_bytes <= total_limit`.
+   - Cảnh báo trực quan trên Frontend Dashboard khi mức sử dụng bộ nhớ vượt quá 80% và 95%.
+
+#### 4.13.4. Kiến Trúc Độc Lập Môi Trường: Chuyển Đổi Trong Suốt Giữa MinIO Dev & AWS S3 Production (Cloud Storage Portability)
+Hệ thống sử dụng lớp trừu tượng `StorageManager` (dựa trên AWS Boto3 SDK chuẩn). Để bảo đảm bất kỳ lập trình viên hoặc kỹ sư kiểm thử nào có thể mang mã nguồn sang môi trường AWS S3 Cloud mà không gặp bất kỳ xung đột nào:
+1. **Tự Động Nhận Diện Chế Độ (Smart Active Tier Resolution):**
+   - Sửa đổi hàm `_resolve_active_tier`:
+     - Nếu `STORAGE_MODE == "s3"`: Luôn luôn kích hoạt AWS S3.
+     - Nếu `STORAGE_MODE == "auto"`: Kiểm tra xem `AWS_ACCESS_KEY_ID` có hợp lệ không (bắt đầu bằng `AKIA...` hoặc không phải minioadmin/placeholder). Nếu có key AWS hợp lệ $\rightarrow$ Tự động chuyển sang AWS S3 ngay lập tức **mà không cần ràng buộc `ENVIRONMENT == production`**.
+     - Nếu `STORAGE_MODE == "minio"` hoặc không có key AWS: Kích hoạt MinIO.
+2. **Xử Lý Endpoint URL & Quyền Hạn Bucket AWS:**
+   - Đối với AWS S3 thật: Khi cấu hình `AWS_S3_ENDPOINT_URL` để trống hoặc `None`, `boto3` sẽ tự động phân giải endpoint chuẩn của AWS toàn cầu theo `AWS_REGION`.
+   - Quyền hạn Bucket: Trong môi trường AWS Production, tài khoản IAM thường chỉ có quyền đọc/ghi trên 1 bucket đã tạo sẵn. Lệnh `ensure_buckets_exist` được xử lý an toàn với `try...except ClientError`: nếu gặp lỗi `AccessDenied` khi gọi `create_bucket`, hệ thống ghi log cảnh báo và tiếp tục hoạt động nếu bucket đã tồn tại, tuyệt đối không làm crash ứng dụng.
+3. **Presigned URL Quốc Tế:**
+   - Đối với AWS S3: Presigned URL do Boto3 sinh ra trỏ trực tiếp đến `https://{bucket}.s3.{region}.amazonaws.com/...`, trình duyệt người dùng trên toàn thế giới có thể xem và tải tệp trực tiếp mà không cần cấu hình thêm `MINIO_PUBLIC_URL`.
+
+---
+
+### 4.14. Kiến Trúc Nhất Thể Hóa Video Studio Vào Wizard Pipeline (Unified Wizard Studio Architecture)
+
+#### 4.14.1. Khai Tử Hoàn Toàn Standalone VideoEditor & Hợp Nhất Trải Nghiệm Vào Wizard Pipeline
+1. **Bãi bỏ nghịch lý hai trang riêng biệt**:
+   - Trước đây, hệ thống tồn tại song song 2 trang: Wizard 6 bước (`VideoPipeline.tsx`) và trang Editor độc lập (`VideoEditor.tsx`).
+   - Sự phân mảnh này gây nhầm lẫn trầm trọng cho người dùng: dữ liệu và tính năng bị xé lẻ (Timeline ở một nơi, cấu hình AI ở một nơi khác), luồng điều hướng chéo rối rắm khi nhấn "Mở Editor" từ Dashboard hay Review Step.
+2. **Chiến lược Hợp nhất 100% (Unified Pipeline Model)**:
+   - **Khai tử triệt để**: Xóa bỏ hoàn toàn router `/workspace/project/:projectId/video/:videoId/editor` và trang `VideoEditor.tsx`.
+   - **Một nguồn sự thật duy nhất (Single Source of Truth)**: Toàn bộ sức mạnh của trình dựng NLE được đưa thẳng vào 2 bước cốt lõi của Wizard Pipeline:
+     - **Bước 4 trở thành `Visual Video & Subtitle Studio`**: Biên tập hình ảnh, che/xóa sub cũ, chèn logo thương hiệu, ticker chữ chạy, tùy biến kiểu dáng phụ đề chuẩn True WYSIWYG.
+     - **Bước 5 trở thành `Multi-Track Dubbing & Segment Audio Studio`**: Biên tập âm thanh đa rãnh, bộ công cụ vi mô cho từng câu thoại (mVoice Segment Studio), nghe thử tức thì, chỉnh tốc độ/âm lượng, đổi giọng đọc từng câu, thu âm đè giọng thật.
+   - Mọi nút bấm "Chỉnh sửa" từ Project Detail, Project Table hay Review Step đều điều hướng trực tiếp vào Pipeline Wizard tại bước tương ứng: `?step=4` hoặc `?step=5`.
+
+#### 4.14.2. Bước 4: Visual Video & Subtitle Studio (Biên Tập Màn Hình & Phụ Đề)
+1. **True WYSIWYG & Đồng Bộ Tọa Độ Thật (Resolution Buffer Coupling)**:
+   - Tự động tính toán hệ số phóng đại `scaleFactor = containerWidth / nativeVideoWidth`, ánh xạ 1:1 với tọa độ ASS `PlayResX` / `PlayResY`.
+   - Những gì người dùng nhìn thấy trên màn hình trình duyệt (kích cỡ chữ, độ dày viền, vị trí, dải che) là chính xác những gì FFmpeg render vào video thành phẩm.
+2. **Công Cụ Bounding Box Selector Xóa & Che Phụ Đề Cũ**:
+   - Cho phép người dùng kéo thả chuột trực tiếp trên video canvas để khoanh vùng chữ phụ đề cũ.
+   - Hỗ trợ 2 chế độ xử lý FFmpeg:
+     - **Làm mờ thông minh (Smart Blur Box)**: Sử dụng bộ lọc `delogo=x:y:w:h` để xóa phụ đề cứng mà không làm đứt gãy hậu cảnh.
+     - **Dải băng màu nền (Solid Banner / Backdrop)**: Sử dụng `drawbox=x:y:w:h:color=black@0.85:t=fill` tạo dải nền tương phản cao theo chuẩn phong cách TikTok/Shorts.
+3. **Lớp Đồ Họa Thương Hiệu (Brand Overlays & Ticker Marquee)**:
+   - **Watermark Logo PNG**: Upload logo trong suốt (`POST /api/videos/{id}/overlay/logo`), tự động định vị góc màn hình và tùy chỉnh độ mờ qua filter `overlay`.
+   - **Lower-Third Ticker Marquee**: Dòng tin tức chạy ngang chân trang từ phải sang trái mượt mà bằng filter `drawtext=text='...':x='w-mod(t*100\,w+tw)':y=h-40`.
+4. **Subtitle Timeline Chân Trang**:
+   - Timeline trực quan hiển thị các khối phụ đề, cho phép kéo dãn thời gian bắt đầu/kết thúc, tách câu tại con trỏ playhead, gộp câu và AI Rewrite (Ngắn gọn / Tự nhiên / Cuốn hút).
+
+#### 4.14.3. Bước 5: Multi-Track Dubbing & Segment Audio Studio (Biên Tập Âm Thanh Từng Câu)
+1. **Kiến Trúc Ánh Xạ 1:1 Audio Chunks & In-Place Micro-Resynthesis (< 0.4s)**:
+   - Âm thanh lồng tiếng được lưu trữ thành từng chunk độc lập `dubbing/{id}/{lang}/chunks/seg_{idx:04d}.wav` kèm `manifest.json`.
+   - Khi người dùng sửa văn bản hoặc cấu hình của 1 câu, API `POST /api/videos/{id}/tts/segments/{segment_id}/resynthesize` chỉ tổng hợp duy nhất câu đó trong **0.37s**, tự động time-stretch và ghép nối đè trực tiếp vào master audio mà không cần render lại toàn bộ video.
+2. **Thẻ Câu Thoại mVoice (Micro-Audio Card per Segment)**:
+   Mỗi câu trong danh sách là một bộ điều khiển âm thanh độc lập:
+   - **Mini-Waveform & Audio Snippet Player**: Tải và nghe thử riêng tệp wav của câu đó (< 0.1s nạp ngay).
+   - **Bộ Đo Khớp Thời Lượng & Cảnh Báo Tràn Thời Gian (Duration Match & Desync Guard)**: So sánh thời lượng audio đọc thực tế với khoảng trống video; nút **"⚡ Tự Động Co Giãn (Auto Time-Stretch)"** tự động nén tốc độ câu đọc để khớp khít khịt với khung hình mà không đổi cao độ giọng (preserve pitch).
+   - **Đổi Giọng / Người Nói Riêng Câu Này (Voice / Speaker Override)**: Cho phép gán diễn giả (`SPEAKER_00`, `SPEAKER_01`) hoặc đổi Voice ID riêng cho từng câu, phục vụ video phỏng vấn, đối thoại đa nhân vật.
+   - **Thanh Trượt Tốc Độ Riêng (Speed: 0.7x – 1.5x) & Âm Lượng Riêng (Gain: 0% – 150%)**: Cân bằng âm lượng và nhịp điệu giữa các câu thoại.
+   - **Thu Âm Giọng Thật Đè Lên (Voiceover Record-over) & Upload Audio Clip**: Cho phép người dùng thu âm trực tiếp qua mic hoặc tải tệp âm thanh đè lên câu đó, lập tức cập nhật vào master audio mà không tốn credit TTS.
+3. **Multi-Track NLE Audio Timeline Ở Chân Trang Bước 5**:
+   - **Track 1: Video Preview & Shot Markers** (Khung hình video).
+   - **Track 2: BGM (Nhạc nền tách từ Demucs)** - Tùy chỉnh âm lượng nền và Ducking.
+   - **Track 3: Original Vocals (Giọng gốc)** - Dùng để đối chiếu khẩu hình và phát âm.
+   - **Track 4: Dubbing Voice Chunks (Các khối âm thanh AI từng câu)**:
+     - Hiển thị trực quan từng khối block chữ nhật `[Câu 1] [Câu 2] ... [Câu N]`.
+     - Cho phép dùng chuột kéo dịch chuyển thời điểm bắt đầu (Slip/Slide Timing Offset $\pm 0.3s$) để căn đúng lúc khẩu hình nhân vật mở miệng.
+     - Click đúp vào khối âm thanh trên timeline sẽ nhảy ngay đến thẻ câu đó để biên tập.
+4. **Bàn Trộn Âm Thanh Ảo 3 Kênh (Web Audio API Virtual Mixer 0ms Latency)**:
+   - 3 Faders điều chỉnh âm lượng tức thì trên loa máy tính: `Original Vocal`, `Background Music`, `Dubbed Audio`, cho phép nghe thử hòa âm real-time trước khi render.
+
+
+---
+
 ## 5. ĐẶC TẢ DỮ LIỆU CHUẨN (CANONICAL SCHEMAS)
 
 Mọi Adapter của các Model khác nhau đều phải chuyển đổi dữ liệu về cấu trúc chuẩn sau:
@@ -1372,9 +1601,107 @@ Mọi Adapter của các Model khác nhau đều phải chuyển đổi dữ li�
 }
 ```
 
----
+### 5.4. Lược Đồ Cơ Sở Dữ Liệu Đồng Bộ & Bảng Đối Soát Schema (Docker Live DB vs database/init.sql)
 
-## 6. KẾ HOẠCH TRIỂN KHAI THEO GIAI ĐOẠN (IMPLEMENTATION PLAN)
+#### 5.4.1. Phân Tích Hiện Trạng & Nguyên Nhân Lệch Pha Dữ Liệu
+Trong quy trình phát triển nhanh (Rapid Prototyping) từ Giai đoạn 5 đến 5.3:
+- Cơ sở dữ liệu PostgreSQL chạy trong container Docker `db` được mount volume lưu trữ dữ liệu bền vững `postgres_data:/var/lib/postgresql/data`.
+- Entrypoint của PostgreSQL chính thức (`/docker-entrypoint-initdb.d/init.sql`) **chỉ được thực thi đúng 1 lần duy nhất** khi thư mục dữ liệu chưa từng tồn tại (Fresh volume).
+- Các đợt mở rộng tính năng (Batch Processing 5.1, Preset Studio 6 Tầng 5.2, Pro Editing Workbench 5.3) đã thực thi các script migration trực tiếp trên container DB.
+- **Hệ quả:** Container live DB phát triển lên **42 bảng**, trong khi file khai báo gốc `database/init.sql` bị dừng lại ở **39 bảng**. Nếu một thành viên trong nhóm clone dự án và chạy `docker compose up` từ đầu, hệ thống sẽ thiếu 3 bảng cốt lõi và 5 cột trường quan trọng.
+
+#### 5.4.2. Bảng Đối Soát Toàn Diện 42 Bảng Sau Khi Đồng Bộ
+Qua rà soát đối soát tự động bằng script Python truy vấn trực tiếp bảng `information_schema.tables` và `information_schema.columns` giữa container live và `init.sql`:
+
+| STT | Tên Bảng (Table Name) | Trạng Thái Ban Đầu Trong `init.sql` | Trạng Thái Sau Đồng Bộ | Mục Đích Kỹ Thuật |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 - 39 | 39 Bảng nghiệp vụ cốt lõi (`users`, `projects`, `videos`, `transcript_segments`, `translations`, `dubbing_tasks`, `notifications`, `refresh_tokens`, ...) | Đã có sẵn | Khớp 100% | Quản lý người dùng, dự án, phân đoạn video, tác vụ render, thông báo |
+| 40 | **`pipeline_presets`** | ❌ **Thiếu** | ✅ **Đã đồng bộ** | Lưu trữ mẫu cấu hình xử lý 6 tầng AI (`config_data JSONB`), quản lý mẫu hệ thống (`is_system`) và mẫu người dùng tự tạo |
+| 41 | **`batch_jobs`** | ❌ **Thiếu** | ✅ **Đã đồng bộ** | Quản lý phiên xử lý hàng loạt nhiều video, lưu cấu hình snapshot bất biến (`snapshot_data JSONB`), tiến độ tổng quan |
+| 42 | **`batch_job_items`** | ❌ **Thiếu** | ✅ **Đã đồng bộ** | Theo dõi trạng thái phân rã của từng video đơn lẻ trong đợt batch (`queued`, `processing`, `completed`, `failed`), step hiện tại |
+
+#### 5.4.3. Đặc Tả DDL 3 Bảng Mới Đã Bổ Sung Vào `database/init.sql`
+
+```sql
+-- 1. Bảng lưu trữ Preset cấu hình 6 tầng AI
+CREATE TABLE IF NOT EXISTS pipeline_presets (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    description TEXT,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    is_system BOOLEAN DEFAULT FALSE,
+    target_language VARCHAR(10) DEFAULT 'vi',
+    source_language VARCHAR(10) DEFAULT 'auto',
+    stt_model VARCHAR(50) DEFAULT 'large-v3',
+    enable_diarization BOOLEAN DEFAULT TRUE,
+    translation_model VARCHAR(100) DEFAULT 'facebook/nllb-200-1.3B',
+    tts_model VARCHAR(100) DEFAULT 'coqui_xtts_v2',
+    voice_id VARCHAR(100) DEFAULT 'vi_female_loan',
+    voice_speed REAL DEFAULT 1.0,
+    subtitle_format VARCHAR(10) DEFAULT 'ass',
+    burn_subtitles BOOLEAN DEFAULT TRUE,
+    video_quality VARCHAR(10) DEFAULT '1080p',
+    video_format VARCHAR(10) DEFAULT 'mp4',
+    config_data JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_pipeline_presets_user_id ON pipeline_presets(user_id);
+CREATE INDEX IF NOT EXISTS idx_pipeline_presets_is_system ON pipeline_presets(is_system);
+
+-- 2. Bảng quản lý đợt xử lý hàng loạt nhiều video
+CREATE TABLE IF NOT EXISTS batch_jobs (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    status VARCHAR(50) DEFAULT 'queued',
+    preset_id INTEGER REFERENCES pipeline_presets(id) ON DELETE SET NULL,
+    snapshot_data JSONB DEFAULT '{}',
+    total_videos INTEGER DEFAULT 0,
+    processed_videos INTEGER DEFAULT 0,
+    failed_videos INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP WITH TIME ZONE
+);
+CREATE INDEX IF NOT EXISTS idx_batch_jobs_user_id ON batch_jobs(user_id);
+CREATE INDEX IF NOT EXISTS idx_batch_jobs_project_id ON batch_jobs(project_id);
+CREATE INDEX IF NOT EXISTS idx_batch_jobs_status ON batch_jobs(status);
+
+-- 3. Bảng theo dõi tiến độ từng video trong batch
+CREATE TABLE IF NOT EXISTS batch_job_items (
+    id SERIAL PRIMARY KEY,
+    batch_id INTEGER NOT NULL REFERENCES batch_jobs(id) ON DELETE CASCADE,
+    video_id INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    status VARCHAR(50) DEFAULT 'queued',
+    current_step VARCHAR(50),
+    error_message TEXT,
+    item_order INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    started_at TIMESTAMP WITH TIME ZONE,
+    completed_at TIMESTAMP WITH TIME ZONE
+);
+CREATE INDEX IF NOT EXISTS idx_batch_job_items_batch_id ON batch_job_items(batch_id);
+CREATE INDEX IF NOT EXISTS idx_batch_job_items_video_id ON batch_job_items(video_id);
+CREATE INDEX IF NOT EXISTS idx_batch_job_items_status ON batch_job_items(status);
+```
+
+#### 5.4.4. Đặc Tả Các Cột Bổ Sung Trong Các Bảng Hiện Hữu
+Đã cập nhật đồng bộ các cột mới được thêm vào schema trong `database/init.sql`:
+1. **`users.is_deleted` (`BOOLEAN DEFAULT FALSE`):** Phục vụ cơ chế Soft Delete tài khoản theo chuẩn GDPR, bảo toàn lịch sử tác vụ và nhật ký thanh toán khi người dùng yêu cầu đóng tài khoản.
+2. **`videos.source_language` (`VARCHAR(10)`):** Chỉ định nhanh mã ngôn ngữ gốc (VD: `en`, `ja`, `zh`) cho video, phục vụ tối ưu hóa truy vấn danh mục và bộ lọc tìm kiếm.
+3. **`videos.target_language` (`VARCHAR(10)`):** Chỉ định nhanh mã ngôn ngữ dịch mục tiêu (VD: `vi`).
+4. **`videos.snapshot_data` (`JSONB DEFAULT '{}'`):** Lưu trữ cấu hình 6 tầng bất biến (Audio Separation, STT, Translation, TTS, Subtitles, Export) gắn liền với video đơn lẻ, phục vụ cơ chế phục hồi F5 (Re-hydration) và đồng bộ 2 chiều (Bidirectional 2-Way Sync).
+5. **`user_consumable_usage.words_used` (`INTEGER DEFAULT 0`):** Lưu trữ tổng số từ ngữ đã tiêu hao trong chu kỳ định mức của tài khoản, liên kết chặt chẽ với cơ chế khấu trừ tín dụng động (Billing & Escrow).
+
+#### 5.4.5. Dữ Liệu Khởi Tạo Chuẩn (Seed Data Parity)
+File `database/init.sql` đã được tích hợp sẵn 3 System Presets V2.0 với đầy đủ cấu hình JSONB 6 tầng chuyên sâu (YouTube Studio Pro, Fast Voiceover & Subtitles, Softsub Dubbing Studio) trước khi kết thúc bằng lệnh `COMMIT;`. 
+
+Đảm bảo khi khởi tạo môi trường mới (`docker compose down -v && docker compose up --build`), toàn bộ hệ thống ngay lập tức sẵn sàng 100% phục vụ cho cả Single-Video Wizard lẫn Batch Processing mà không cần thực hiện thêm bất kỳ bước migration thủ công nào.
+
+---
 
 Kế hoạch được chia làm các giai đoạn độc lập:
 
@@ -1674,7 +2001,7 @@ graph TD
 | **AC-01** | Xử lý Video dài trên CPU | Video 10 phút chạy STT + Diarization trên CPU không bao giờ gây lỗi timeout phía client; luôn hiển thị phụ đề đầy đủ. *(Đã đạt ở Phase 1)* |
 | **AC-02** | F5 Resilience | Tải lại trang hoặc chuyển tab khi đang chạy $\rightarrow$ UI tiếp tục hiển thị thanh tiến độ đang chạy, không bị mất trạng thái. *(Đã đạt ở Phase 2, 3 & 4)* |
 | **AC-03** | Bảo toàn dữ liệu Whisper | Nếu Diarization bị hủy hoặc lỗi $\rightarrow$ Phụ đề Whisper vẫn được lưu nguyên vẹn, tiếp tục bước dịch bình thường. *(Đã đạt ở Phase 1)* |
-| **AC-04** | Quyền hạn Viewer & Editor | User quyền `Viewer` bị chặn hoàn toàn các nút gọi AI; User quyền `Editor` được phép chạy AI và chi phí trừ vào ngân sách của Project Owner. *(Đã đạt ở Phase 2)* |
+| **AC-04** | Single-Owner Permission Guard & Data Isolation | Mọi tài nguyên Dự án và Video được bảo vệ độc quyền theo `owner_id == user_id`. Bất kỳ yêu cầu API nào từ người dùng khác đều bị chặn với HTTP 404 (Not Found) / 403 (Forbidden); tham số `scope=shared` bị chặn với HTTP 422; 100% UI đã gỡ bỏ hoàn toàn tính năng chia sẻ. *(Đã kiểm thử & nghiệm thu 100% - Clean Removal)* |
 | **AC-05** | Thông báo tự động | Khi video/bước hoàn tất hoặc gặp sự cố, Celery worker tự động sinh In-App notification và gửi Email thông báo kèm link trực tiếp `/workspace/project/:id/video/:id`. *(Đã đạt ở Phase 4)* |
 | **AC-06** | Khóa xung đột nhóm (Soft-Locking) | Khi tác vụ AI đang chạy ngầm, giao diện hiển thị ActiveTaskBanner cảnh báo và các nút kích hoạt tác vụ mới bị khóa mềm (disabled) để tránh xung đột VRAM/dữ liệu. *(Đã đạt ở Phase 4)* |
 | **AC-07** | Đa mô hình & Batch không nghẽn | Chạy batch 20 video không làm nghẽn các thao tác tương tác tay của người dùng khác nhờ hàng đợi ưu tiên `interactive_high`. |
@@ -1687,6 +2014,19 @@ graph TD
 | **AC-14** | Biên Tập Tinh Gọn & Thước Đo CPS | Hỗ trợ cắt câu tại vị trí con trỏ (Split at Cursor `Ctrl+K`), kéo thả timestamp trên Waveform Timeline, và hiển thị thước đo CPS cảnh báo đỏ khi câu dịch vượt quá 20 ký tự/giây. |
 | **AC-15** | Atomic Segment Regenerate & Virtual Mixer 0ms | Cho phép sửa và sinh lại âm thanh của đúng 1 câu riêng lẻ trong $< 500\text{ms}$; Web Audio API Virtual Mixer cho phép kéo fader âm lượng (Vocal / BGM / Dubbed) và nghe thử hòa âm tức thì với độ trễ 0ms trên trình duyệt. |
 | **AC-16** | Xuất Bản Đa Kênh & Chuẩn NLE Chuyên Nghiệp | Xuất video MP4 đa luồng âm thanh rời (Multi-Audio Streams) tương thích YouTube Player, xuất các Stems âm thanh riêng biệt và tệp XML/EDL cho Adobe Premiere Pro / DaVinci Resolve. |
+| **AC-17** | Inline Title Renaming & Custom Export Filename | Người dùng có thể click đổi tên video trực tiếp trên thanh Header tại cả Single-Video Wizard và Pro Video Editor; tại Bước 6 Review & Export cho phép người dùng tùy biến tên file xuất bản (`custom_export_name`), backend gắn đúng tên vào HTTP header Content-Disposition. |
+| **AC-18** | Multi-Step Artifact Persistence to Object Storage | Toàn bộ tệp tin phát sinh tại 6 bước xử lý (Stems âm thanh Demucs, Transcript JSON, Translation JSON, Subtitles ASS/SRT, TTS Dubbing WAV, Rendered MP4) được tự động đẩy lên Object Storage (MinIO / AWS S3) ngay sau khi Celery Step Task hoàn tất, không phụ thuộc vào local container filesystem. |
+| **AC-19** | Comprehensive Storage Quota & Deduction | Tính toán chính xác 100% dung lượng lưu trữ thực tế (`used_bytes`) bao gồm cả tệp local và tệp Object Storage; công thức `Dung lượng còn lại = Gói cước (+ Addons) - Tổng dung lượng files` được áp dụng nhất quán; chặn upload vượt hạn mức hợp lệ. |
+| **AC-20** | Seamless AWS S3 Cloud Portability | Hệ thống chuyển đổi trong suốt giữa MinIO (Local Dev) và AWS S3 (Production/Testing Cloud) chỉ thông qua biến môi trường (`STORAGE_MODE=s3` hoặc có key AWS hợp lệ) mà không bị phụ thuộc vào biến `ENVIRONMENT=production`; xử lý ngoại lệ quyền hạn bucket an toàn và sinh Presigned URL quốc tế chuẩn xác. |
+| **AC-21** | Atomic Segment TTS Mapping & Micro-ReSynthesis | Hệ thống bóc tách tệp âm thanh lồng tiếng thành từng chunk 1:1 theo transcript (`chunks/seg_{id}.wav`). Khi người dùng sửa text của 1 câu, API chỉ kích hoạt TTS cho câu đó trong $< 1\text{s}$ và ghép nối vào master track, không cần tổng hợp lại toàn bộ video. |
+| **AC-22** | True WYSIWYG Resolution Coupling | Loại bỏ 100% hiện tượng "Edit ma / Edit ảo": Tọa độ font chữ, viền bounding box và scale ratio trên Web Player được tính toán đồng bộ theo độ phân giải gốc `PlayResX`/`PlayResY` của video; những gì hiển thị trên màn hình khớp hoàn toàn với video render FFmpeg. |
+| **AC-23** | Hardcoded Subtitle Eraser & Blur Masking | Cung cấp công cụ vẽ Bounding Box che phủ phụ đề cũ trên video gốc với các chế độ Gaussian Blur Box hoặc Solid Banner Mask; hỗ trợ công cụ Video OCR kéo khoanh vùng để trích xuất và dịch trực tiếp phụ đề từ khung hình. |
+| **AC-24** | Interactive Canvas Freeform Reframe & Crop | Khung hình chuyển đổi tỉ lệ (16:9 sang 9:16 Shorts) cho phép người dùng kéo thả trực tiếp layer video để căn chỉnh tâm hình người (Pan & Scan), phóng to/thu nhỏ và tự động tạo nền mờ Gaussian Blur Background cho khoảng trống viền. |
+| **AC-25** | Multi-Track NLE Timeline & Branding Overlays | Timeline đa rãnh độc lập (Video, Graphics, Mask, Subtitles, TTS Chunks, BGM); hỗ trợ kéo thả chèn Logo PNG trong suốt, thanh chữ chạy tin tức (Ticker), nhãn dán Call-to-action và điều chỉnh âm lượng Live Audio Mixer Ducking. |
+| **AC-26** | Khai Tử Standalone VideoEditor & Nhất Thể Hóa 100% Vào Wizard | Xóa bỏ hoàn toàn trang và router `/editor`. Mọi nút bấm "Chỉnh sửa" trong Dashboard, Project Table và Review Step chuyển hướng trực tiếp vào Wizard Bước 4 (`?step=4`) hoặc Bước 5 (`?step=5`), tạo trải nghiệm liền mạch không phân mảnh. |
+| **AC-27** | Visual Video & Subtitle Studio (Bước 4) | Cung cấp đầy đủ công cụ Bounding Box che/xóa sub cũ (Gaussian Blur / Solid Banner), Watermark Logo PNG, Lower-Third Ticker Marquee, True WYSIWYG scale coupling và Subtitle Timeline trực tiếp ngay trong Bước 4. |
+| **AC-28** | Multi-Track Dubbing & Segment Audio Studio (Bước 5) | Tích hợp bộ biên tập vi mô từng câu thoại (mVoice Studio: Mini-Waveform preview, Micro-TTS in-place 0.37s, Voice/Speaker override, Speed & Gain slider per-segment, Auto Time-Stretch, Thu âm đè Voiceover không tốn credit) và Multi-Track Audio Timeline ở chân trang hỗ trợ kéo trượt (slip/slide) căn khớp khẩu hình nhân vật. |
+
 
 ---
 *Tài liệu này đóng vai trò là kim chỉ nam kỹ thuật chuẩn hóa toàn bộ luồng xử lý video của dự án. Mọi thay đổi mã nguồn trong các bước tiếp theo sẽ tuân thủ nghiêm ngặt theo bản thiết kế này.*

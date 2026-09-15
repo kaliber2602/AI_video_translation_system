@@ -81,26 +81,4 @@ class ProjectFavoriteResponse(BaseModel):
     is_favorite: bool
 
 
-# =========================================================
-# Project Members & Sharing
-# =========================================================
-
-class ProjectMemberResponse(BaseModel):
-    id: int
-    project_id: int
-    user_id: int | None = None
-    email: str
-    role: str
-    status: str
-    created_at: datetime
-    full_name: str | None = None
-
-
-class ProjectMemberAddRequest(BaseModel):
-    email: str = Field(min_length=3, max_length=255)
-    role: str = Field(default="viewer", pattern="^(viewer|commenter|editor|admin)$")
-
-
-class ProjectMemberUpdateRequest(BaseModel):
-    role: str = Field(pattern="^(viewer|commenter|editor|admin)$")
 

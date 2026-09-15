@@ -4,9 +4,6 @@ import type {
   Project,
   ProjectCreateRequest,
   ProjectFavoriteResponse,
-  ProjectMember,
-  ProjectMemberAddRequest,
-  ProjectMemberUpdateRequest,
   ProjectUpdateRequest,
   ProjectFolder,
   FolderCreateRequest,
@@ -25,7 +22,7 @@ import type { TagResponse } from "../types/tag";
 export const getProjects = async (params?: {
   tag_id?: number;
   search?: string;
-  scope?: "all" | "favorites" | "shared" | "trash";
+  scope?: "all" | "favorites" | "trash";
 }): Promise<Project[]> => {
   const response = await api.get<Project[]>("/api/projects", {
     params,
@@ -204,56 +201,6 @@ export const toggleProjectFavorite = async (
 };
 
 
-// =========================================================
-// Project Members Management
-// =========================================================
-
-export const getProjectMembers = async (
-  projectId: number | string
-): Promise<ProjectMember[]> => {
-  const response = await api.get<ProjectMember[]>(
-    `/api/projects/${projectId}/members`
-  );
-
-  return response.data;
-};
-
-
-export const addProjectMember = async (
-  projectId: number | string,
-  data: ProjectMemberAddRequest
-): Promise<ProjectMember> => {
-  const response = await api.post<ProjectMember>(
-    `/api/projects/${projectId}/members`,
-    data
-  );
-
-  return response.data;
-};
-
-
-export const updateProjectMemberRole = async (
-  projectId: number | string,
-  memberId: number,
-  data: ProjectMemberUpdateRequest
-): Promise<ProjectMember> => {
-  const response = await api.put<ProjectMember>(
-    `/api/projects/${projectId}/members/${memberId}`,
-    data
-  );
-
-  return response.data;
-};
-
-
-export const removeProjectMember = async (
-  projectId: number | string,
-  memberId: number
-): Promise<void> => {
-  await api.delete(
-    `/api/projects/${projectId}/members/${memberId}`
-  );
-};
 
 
 // =========================================================

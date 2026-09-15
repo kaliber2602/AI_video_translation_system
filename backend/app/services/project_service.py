@@ -297,49 +297,6 @@ def get_projects(
 
                 query += " ORDER BY p.deleted_at DESC NULLS LAST, p.updated_at DESC "
 
-            elif scope == "shared":
-                query = """
-                    SELECT DISTINCT
-                        p.id,
-                        p.owner_id,
-                        p.name,
-                        p.description,
-                        p.cover_path,
-                        p.status,
-                        p.created_at,
-                        p.updated_at,
-                        p.deleted_at,
-                        (pf.user_id IS NOT NULL) AS is_favorite,
-                        TRUE AS is_shared,
-                        pm.role AS my_role,
-                        u.full_name AS owner_name,
-                        u.email AS owner_email
-                    FROM projects p
-                    JOIN project_members pm ON pm.project_id = p.id
-                    JOIN users u ON u.id = p.owner_id
-                    LEFT JOIN project_favorites pf ON pf.project_id = p.id AND pf.user_id = %s
-                """
-                params.append(owner_id)
-
-                if tag_id is not None:
-                    query += " JOIN project_tags pt ON pt.project_id = p.id AND pt.tag_id = %s "
-                    params.append(tag_id)
-
-                query += """
-                    WHERE (pm.user_id = %s OR pm.email = (SELECT email FROM users WHERE id = %s))
-                      AND p.owner_id != %s
-                      AND p.status != 'trash'
-                      AND p.deleted_at IS NULL
-                """
-                params.extend([owner_id, owner_id, owner_id])
-
-                if search and search.strip():
-                    search_term = f"%{search.strip()}%"
-                    query += " AND (p.name ILIKE %s OR p.description ILIKE %s) "
-                    params.extend([search_term, search_term])
-
-                query += " ORDER BY p.updated_at DESC "
-
             elif scope == "favorites":
                 query = """
                     SELECT DISTINCT
@@ -353,26 +310,20 @@ def get_projects(
                         p.updated_at,
                         p.deleted_at,
                         TRUE AS is_favorite,
-                        (p.owner_id != %s) AS is_shared,
-                        COALESCE(pm.role, 'owner') AS my_role,
-                        u.full_name AS owner_name,
-                        u.email AS owner_email
+                        FALSE AS is_shared,
+                        'owner' AS my_role,
+                        NULL AS owner_name,
+                        NULL AS owner_email
                     FROM projects p
                     JOIN project_favorites pf ON pf.project_id = p.id AND pf.user_id = %s
-                    JOIN users u ON u.id = p.owner_id
-                    LEFT JOIN project_members pm ON pm.project_id = p.id AND (pm.user_id = %s OR pm.email = (SELECT email FROM users WHERE id = %s))
                 """
-                params.extend([owner_id, owner_id, owner_id, owner_id])
+                params.append(owner_id)
 
                 if tag_id is not None:
                     query += " JOIN project_tags pt ON pt.project_id = p.id AND pt.tag_id = %s "
                     params.append(tag_id)
 
-                query += """
-                    WHERE (p.owner_id = %s OR pm.id IS NOT NULL)
-                      AND p.status != 'trash'
-                      AND p.deleted_at IS NULL
-                """
+                query += " WHERE p.owner_id = %s AND p.status != 'trash' AND p.deleted_at IS NULL "
                 params.append(owner_id)
 
                 if search and search.strip():
@@ -458,17 +409,15 @@ def get_project(
                     p.updated_at,
                     p.deleted_at,
                     (pf.user_id IS NOT NULL) AS is_favorite,
-                    (p.owner_id != %s) AS is_shared,
-                    COALESCE(pm.role, 'owner') AS my_role,
-                    u.full_name AS owner_name,
-                    u.email AS owner_email
+                    FALSE AS is_shared,
+                    'owner' AS my_role,
+                    NULL AS owner_name,
+                    NULL AS owner_email
                 FROM projects p
-                JOIN users u ON u.id = p.owner_id
                 LEFT JOIN project_favorites pf ON pf.project_id = p.id AND pf.user_id = %s
-                LEFT JOIN project_members pm ON pm.project_id = p.id AND (pm.user_id = %s OR pm.email = (SELECT email FROM users WHERE id = %s))
-                WHERE p.id = %s AND (p.owner_id = %s OR pm.id IS NOT NULL)
+                WHERE p.id = %s AND p.owner_id = %s
                 """,
-                (actual_user_id, actual_user_id, actual_user_id, actual_user_id, project_id, actual_user_id),
+                (actual_user_id, project_id, actual_user_id),
             )
 
             row = cursor.fetchone()
@@ -504,15 +453,14 @@ def update_project(
 
     try:
         with connection.cursor() as cursor:
-            # Check ownership or editor/admin permission
+            # Check ownership
             cursor.execute(
                 """
                 SELECT p.id
                 FROM projects p
-                LEFT JOIN project_members pm ON pm.project_id = p.id AND (pm.user_id = %s OR pm.email = (SELECT email FROM users WHERE id = %s))
-                WHERE p.id = %s AND (p.owner_id = %s OR pm.role IN ('editor', 'admin'))
+                WHERE p.id = %s AND p.owner_id = %s
                 """,
-                (actual_user_id, actual_user_id, project_id, actual_user_id),
+                (project_id, actual_user_id),
             )
             if cursor.fetchone() is None:
                 return None
@@ -863,15 +811,14 @@ def toggle_favorite(
 
     try:
         with connection.cursor() as cursor:
-            # 1. Verify access (owner or member)
+            # 1. Verify access (owner)
             cursor.execute(
                 """
                 SELECT p.id
                 FROM projects p
-                LEFT JOIN project_members pm ON pm.project_id = p.id AND (pm.user_id = %s OR pm.email = (SELECT email FROM users WHERE id = %s))
-                WHERE p.id = %s AND (p.owner_id = %s OR pm.id IS NOT NULL)
+                WHERE p.id = %s AND p.owner_id = %s
                 """,
-                (user_id, user_id, project_id, user_id),
+                (project_id, user_id),
             )
             if cursor.fetchone() is None:
                 raise ValueError("Project not found or access denied.")
@@ -903,260 +850,3 @@ def toggle_favorite(
 
     finally:
         connection.close()
-
-
-# =========================================================
-# Project Members Management
-# =========================================================
-
-def get_project_members(
-    user_id: int,
-    project_id: int,
-) -> list[dict[str, Any]] | None:
-    connection = get_connection()
-
-    try:
-        with connection.cursor() as cursor:
-            # Verify user has access to view members
-            cursor.execute(
-                """
-                SELECT p.id
-                FROM projects p
-                LEFT JOIN project_members pm ON pm.project_id = p.id AND (pm.user_id = %s OR pm.email = (SELECT email FROM users WHERE id = %s))
-                WHERE p.id = %s AND (p.owner_id = %s OR pm.id IS NOT NULL)
-                """,
-                (user_id, user_id, project_id, user_id),
-            )
-            if cursor.fetchone() is None:
-                return None
-
-            cursor.execute(
-                """
-                SELECT
-                    pm.id,
-                    pm.project_id,
-                    pm.user_id,
-                    pm.email,
-                    pm.role,
-                    pm.status,
-                    pm.created_at,
-                    u.full_name
-                FROM project_members pm
-                LEFT JOIN users u ON u.id = pm.user_id
-                WHERE pm.project_id = %s
-                ORDER BY pm.created_at ASC
-                """,
-                (project_id,),
-            )
-            return [
-                {
-                    "id": r[0],
-                    "project_id": r[1],
-                    "user_id": r[2],
-                    "email": r[3],
-                    "role": r[4],
-                    "status": r[5],
-                    "created_at": r[6],
-                    "full_name": r[7],
-                }
-                for r in cursor.fetchall()
-            ]
-
-    finally:
-        connection.close()
-
-
-def add_project_member(
-    owner_id: int,
-    project_id: int,
-    email: str,
-    role: str = "viewer",
-) -> dict[str, Any]:
-    connection = get_connection()
-
-    try:
-        with connection.cursor() as cursor:
-            # 1. Verify project ownership
-            cursor.execute(
-                "SELECT id, name FROM projects WHERE id = %s AND owner_id = %s",
-                (project_id, owner_id),
-            )
-            proj = cursor.fetchone()
-            if proj is None:
-                raise ValueError("Project not found or you are not the owner.")
-            project_name = proj[1]
-
-            # 2. Check if trying to invite self
-            cursor.execute("SELECT id, email, full_name FROM users WHERE id = %s", (owner_id,))
-            owner_user = cursor.fetchone()
-            cleaned_email = email.strip().lower()
-            if owner_user and owner_user[1].lower() == cleaned_email:
-                raise ValueError("You cannot share a project with yourself.")
-
-            # 3. Check if user already exists
-            cursor.execute(
-                "SELECT id, full_name FROM users WHERE email = %s",
-                (cleaned_email,),
-            )
-            target_user = cursor.fetchone()
-            target_user_id = target_user[0] if target_user else None
-            full_name = target_user[1] if target_user else None
-            member_status = "accepted" if target_user else "pending"
-
-            # 4. Insert or update member
-            cursor.execute(
-                """
-                INSERT INTO project_members (
-                    project_id,
-                    user_id,
-                    email,
-                    role,
-                    status,
-                    invited_by
-                )
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (project_id, email)
-                DO UPDATE SET
-                    role = EXCLUDED.role,
-                    user_id = COALESCE(EXCLUDED.user_id, project_members.user_id),
-                    status = EXCLUDED.status,
-                    updated_at = CURRENT_TIMESTAMP
-                RETURNING id, project_id, user_id, email, role, status, created_at
-                """,
-                (
-                    project_id,
-                    target_user_id,
-                    cleaned_email,
-                    role,
-                    member_status,
-                    owner_id,
-                ),
-            )
-            row = cursor.fetchone()
-
-        connection.commit()
-
-        if target_user_id:
-            try:
-                from app.services.notification_service import create_notification
-                inviter_name = (owner_user[2] if owner_user and len(owner_user) > 2 and owner_user[2] else None) or (owner_user[1] if owner_user else "A team member")
-                create_notification(
-                    user_id=target_user_id,
-                    type="collaboration",
-                    title="Project Invitation",
-                    message=f"{inviter_name} invited you to project '{project_name}' as {role}.",
-                    action_url=f"/workspace/project/{project_id}",
-                    target_type="project",
-                    target_id=project_id,
-                    metadata={
-                        "event": "project.member.invited",
-                        "project_id": project_id,
-                        "project_name": project_name,
-                        "role": role,
-                        "invited_by": owner_id,
-                    },
-                )
-            except Exception as notif_err:
-                logger.error(f"Failed to create project invitation notification: {notif_err}")
-
-        return {
-            "id": row[0],
-            "project_id": row[1],
-            "user_id": row[2],
-            "email": row[3],
-            "role": row[4],
-            "status": row[5],
-            "created_at": row[6],
-            "full_name": full_name,
-        }
-
-    except Exception:
-        connection.rollback()
-        raise
-
-    finally:
-        connection.close()
-
-
-def update_project_member_role(
-    owner_id: int,
-    project_id: int,
-    member_id: int,
-    role: str,
-) -> dict[str, Any] | None:
-    connection = get_connection()
-
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                UPDATE project_members pm
-                SET role = %s, updated_at = CURRENT_TIMESTAMP
-                FROM projects p
-                WHERE pm.id = %s
-                  AND pm.project_id = p.id
-                  AND p.id = %s
-                  AND p.owner_id = %s
-                RETURNING pm.id, pm.project_id, pm.user_id, pm.email, pm.role, pm.status, pm.created_at
-                """,
-                (role, member_id, project_id, owner_id),
-            )
-            row = cursor.fetchone()
-            if row is None:
-                return None
-
-            cursor.execute("SELECT full_name FROM users WHERE id = %s", (row[2],))
-            u_row = cursor.fetchone()
-            full_name = u_row[0] if u_row else None
-
-        connection.commit()
-
-        return {
-            "id": row[0],
-            "project_id": row[1],
-            "user_id": row[2],
-            "email": row[3],
-            "role": row[4],
-            "status": row[5],
-            "created_at": row[6],
-            "full_name": full_name,
-        }
-
-    except Exception:
-        connection.rollback()
-        raise
-
-    finally:
-        connection.close()
-
-
-def remove_project_member(
-    user_id: int,
-    project_id: int,
-    member_id: int,
-) -> bool:
-    connection = get_connection()
-
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                DELETE FROM project_members pm
-                WHERE pm.id = %s
-                  AND pm.project_id = %s
-                  AND (
-                      EXISTS (SELECT 1 FROM projects p WHERE p.id = %s AND p.owner_id = %s)
-                      OR pm.user_id = %s
-                      OR pm.email = (SELECT email FROM users WHERE id = %s)
-                  )
-                """,
-                (member_id, project_id, project_id, user_id, user_id, user_id),
-            )
-            deleted = cursor.rowcount > 0
-
-        connection.commit()
-        return deleted
-
-    finally:
-        connection.close()
-

@@ -376,6 +376,14 @@ def task_transcribe_step(self, video_id: int, user_id: int, enable_diarization: 
         video.progress = max(int(video.progress or 0), 40)
         db.commit()
 
+        # Upload transcript artifact to Object Storage for persistence
+        try:
+            from app.services.s3_service import storage_manager
+            storage_manager.upload_file(str(transcript_path), f"transcripts/{video_id}/transcript.json", "application/json")
+            logger.info(f"Uploaded transcript.json to Object Storage for video {video_id}")
+        except Exception as s3_err:
+            logger.warning(f"Could not upload transcript.json to Object Storage: {s3_err}")
+
         job_service.log_task(job.id, "whisper_stt", "success", f"Transcribed {len(segments)} segments in {detected_lang}")
 
         # --- Milestone 2: Diarization Enrichment ---
@@ -676,19 +684,21 @@ def task_translate_step(
             meta={"step": "translation", "progress": 85, "message": "Generating subtitle files (ASS/SRT)..."}
         )
         try:
+            from app.services.pipeline_steps import _load_subtitle_config
+            sub_cfg = _load_subtitle_config(video_id, target_lang_clean, video=video, db=db)
             subtitle_service = SubtitleService()
             sub_paths = subtitle_service.save_all_subtitles(
                 segments=translated_segments,
                 base_dir=str(canonical_dir),
                 language=target_lang_clean,
                 text_key="translated_text",
-                font_size=22,
-                position="bottom",
-                font_name="Montserrat",
-                primary_color="#FFFFFF",
-                outline_color="#000000",
-                max_lines=2,
-                effect="pop",
+                font_size=int(sub_cfg["font_size"]),
+                position=sub_cfg["position"],
+                font_name=sub_cfg["font_name"],
+                primary_color=sub_cfg["primary_color"],
+                outline_color=sub_cfg["outline_color"],
+                max_lines=int(sub_cfg["max_lines"]),
+                effect=sub_cfg["effect"],
                 auto_split=True,
             )
             if sub_paths.get("ass"):
@@ -704,6 +714,20 @@ def task_translate_step(
         video.current_step = "translation"
         video.progress = max(int(video.progress or 0), 60)
         db.commit()
+
+        # Upload translation and subtitles artifacts to Object Storage
+        try:
+            from app.services.s3_service import storage_manager
+            trans_file = canonical_dir / f"translation_{target_lang_clean}.json"
+            if trans_file.exists():
+                storage_manager.upload_file(str(trans_file), f"translations/{video_id}/translation_{target_lang_clean}.json", "application/json")
+            if sub_paths.get("ass") and os.path.exists(sub_paths["ass"]):
+                storage_manager.upload_file(sub_paths["ass"], f"subtitles/{video_id}/subtitles_{target_lang_clean}.ass", "text/plain")
+            if sub_paths.get("srt") and os.path.exists(sub_paths["srt"]):
+                storage_manager.upload_file(sub_paths["srt"], f"subtitles/{video_id}/subtitles_{target_lang_clean}.srt", "text/plain")
+            logger.info(f"Uploaded translation and subtitle artifacts to Object Storage for video {video_id}")
+        except Exception as s3_err:
+            logger.warning(f"Could not upload translation/subtitles to Object Storage: {s3_err}")
 
         job_service.log_task(job.id, "translation", "success", f"Translated {len(translated_segments)} segments into {target_lang_clean}")
 
@@ -893,7 +917,8 @@ def task_generate_tts_step(
             output_path=str(tts_path),
             temp_dir=str(tts_dir),
             vocal_path=vocal_path,
-            tgt_lang=xtts_lang
+            tgt_lang=xtts_lang,
+            video_id=video_id
         )
 
         if not os.path.exists(tts_path):
@@ -923,6 +948,15 @@ def task_generate_tts_step(
         video.current_step = "dubbing"
         video.progress = max(int(video.progress or 0), 85)
         db.commit()
+
+        # Upload dubbed audio to Object Storage for persistence
+        try:
+            from app.services.s3_service import storage_manager
+            tts_s3_key = f"dubbing/{video_id}/dubbed_audio_{lang_clean}.wav"
+            storage_manager.upload_file(str(tts_path), tts_s3_key, content_type="audio/wav")
+            logger.info(f"Uploaded dubbed audio to Object Storage: {tts_s3_key}")
+        except Exception as s3_err:
+            logger.warning(f"Could not upload dubbed audio to Object Storage: {s3_err}")
 
         job_service.log_task(job.id, "tts", "success", f"Generated TTS audio ({os.path.getsize(tts_path)} bytes)")
 
@@ -1130,11 +1164,63 @@ def task_dub_mux_step(
                         resolved_sub_path = str(sub_candidate)
                         break
 
+            # Re-generate .ass with saved subtitle config to ensure user styles are applied
+            if resolved_sub_path and cand_dir.exists():
+                try:
+                    from app.services.pipeline_steps import _load_subtitle_config
+                    sub_cfg = _load_subtitle_config(video_id, lang_clean, video=video, db=db)
+                    # Load translation segments to re-generate
+                    trans_file = cand_dir / f"translation_{lang_clean}.json"
+                    if trans_file.exists():
+                        with open(trans_file, "r", encoding="utf-8") as tf:
+                            trans_data = json.load(tf)
+                            segments = trans_data.get("segments", [])
+                        if segments:
+                            sub_paths = SubtitleService.save_all_subtitles(
+                                segments=segments,
+                                base_dir=str(cand_dir),
+                                language=lang_clean,
+                                text_key="translated_text",
+                                font_size=int(sub_cfg["font_size"]),
+                                position=sub_cfg["position"],
+                                font_name=sub_cfg["font_name"],
+                                primary_color=sub_cfg["primary_color"],
+                                outline_color=sub_cfg["outline_color"],
+                                max_lines=int(sub_cfg["max_lines"]),
+                                effect=sub_cfg["effect"],
+                                auto_split=True,
+                            )
+                            if sub_paths.get("ass"):
+                                resolved_sub_path = sub_paths["ass"]
+                            logger.info(f"🔄 Re-generated subtitles with saved config: font_size={sub_cfg['font_size']}, font={sub_cfg['font_name']}, color={sub_cfg['primary_color']}")
+                except Exception as regen_err:
+                    logger.warning(f"Could not re-generate subtitles with saved config: {regen_err}")
+
         final_aspect_ratio = aspect_ratio
+        snap = getattr(video, "snapshot_data", None) or {}
+        if isinstance(snap, str):
+            try:
+                snap = json.loads(snap)
+            except Exception:
+                snap = {}
+
         if not final_aspect_ratio:
-            snap = getattr(video, "snapshot_data", None) or {}
             sub_cfg = snap.get("subtitle_config", {})
             final_aspect_ratio = sub_cfg.get("aspect_ratio")
+
+        # Resolve subtitle mask and overlay config
+        v_cfg = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
+        cfg_dict = v_cfg.config_data if v_cfg and v_cfg.config_data else {}
+        if isinstance(cfg_dict, str):
+            try:
+                cfg_dict = json.loads(cfg_dict)
+            except Exception:
+                cfg_dict = {}
+        export_mux_cfg = cfg_dict.get("export_muxing") or {}
+        snap_export_mux = snap.get("export_muxing") or {}
+        
+        subtitle_mask = export_mux_cfg.get("subtitle_mask") or snap_export_mux.get("subtitle_mask") or snap.get("subtitle_mask")
+        overlay_config = export_mux_cfg.get("overlay_config") or snap_export_mux.get("overlay_config") or snap.get("overlay_config")
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_filename = f"dubbed_{lang_clean}_{quality}_{timestamp}_{uuid.uuid4().hex[:8]}.{video_format}"
@@ -1161,6 +1247,8 @@ def task_dub_mux_step(
                 subtitle_path=resolved_sub_path,
                 burn_subtitles=burn_subtitles,
                 aspect_ratio=final_aspect_ratio,
+                subtitle_mask=subtitle_mask,
+                overlay_config=overlay_config,
             )
 
         video.output_path = output_path
@@ -1199,6 +1287,16 @@ def task_dub_mux_step(
                 db.add(vro)
         except Exception as vro_err:
             logger.warning(f"Could not record VideoRenderOutput: {vro_err}")
+
+        # Upload final rendered video to Object Storage for multi-container durability
+        try:
+            from app.services.s3_service import storage_manager
+            render_s3_key = f"videos/{video_id}/dubbed_{lang_clean}_{quality}_{video_format}.{video_format}"
+            content_type = "video/mp4" if video_format.lower() == "mp4" else "video/quicktime"
+            storage_manager.upload_file(output_path, render_s3_key, content_type=content_type)
+            logger.info(f"Uploaded rendered video to Object Storage: {render_s3_key}")
+        except Exception as s3_err:
+            logger.warning(f"Could not upload rendered video to Object Storage: {s3_err}")
 
         db.commit()
 

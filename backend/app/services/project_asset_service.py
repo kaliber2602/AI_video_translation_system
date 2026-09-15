@@ -14,13 +14,30 @@ from app.schemas.asset import ProjectAssetItem, ProjectAssetsResponse
 logger = logging.getLogger(__name__)
 
 
+def _resolve_local_file(path_str: Optional[str]) -> Optional[Path]:
+    if not path_str:
+        return None
+    try:
+        from app.services.subscription_service import _resolve_storage_file_path
+        return _resolve_storage_file_path(path_str)
+    except Exception:
+        p = Path(path_str)
+        return p if p.exists() and p.is_file() else None
+
+
 def _get_file_size(path_str: Optional[str]) -> int:
     if not path_str:
         return 0
+    resolved = _resolve_local_file(path_str)
+    if resolved:
+        try:
+            return resolved.stat().st_size
+        except Exception:
+            pass
     try:
-        p = Path(path_str)
-        if p.exists() and p.is_file():
-            return p.stat().st_size
+        from app.services.s3_service import storage_manager
+        if storage_manager and _is_s3_key(path_str):
+            return storage_manager.get_object_size(path_str) or 0
     except Exception:
         pass
     return 0
@@ -399,9 +416,10 @@ def create_project_zip_bundle(
             zip_arc_path = f"{safe_folder}/{safe_video}/{a.category}/{safe_filename}"
 
             # Check if file exists on disk
-            if a.path_or_key and os.path.exists(a.path_or_key) and os.path.isfile(a.path_or_key):
+            res_p = _resolve_local_file(a.path_or_key)
+            if res_p and res_p.exists() and res_p.is_file():
                 try:
-                    zip_file.write(a.path_or_key, arcname=zip_arc_path)
+                    zip_file.write(str(res_p), arcname=zip_arc_path)
                     continue
                 except Exception as e:
                     logger.warning(f"Could not add {a.path_or_key} to zip: {e}")
@@ -434,11 +452,13 @@ def delete_project_asset(db: DatabaseSession, project_id: int, asset_id: Any) ->
             prof_id = int(aid_str.replace("speaker_", ""))
             prof = db.query(SpeakerProfile).filter(SpeakerProfile.id == prof_id).first()
             if prof:
-                if prof.voice_sample_path and os.path.exists(prof.voice_sample_path):
-                    try:
-                        os.remove(prof.voice_sample_path)
-                    except Exception:
-                        pass
+                if prof.voice_sample_path:
+                    p_res = _resolve_local_file(prof.voice_sample_path)
+                    if p_res and p_res.exists():
+                        try:
+                            p_res.unlink()
+                        except Exception:
+                            pass
                 db.delete(prof)
                 db.commit()
                 return True
@@ -449,52 +469,74 @@ def delete_project_asset(db: DatabaseSession, project_id: int, asset_id: Any) ->
                 asset_type = "_".join(parts[2:])
                 video = db.query(Video).filter(Video.id == vid, Video.project_id == project_id).first()
                 if video:
-                    if asset_type == "dubbed" and video.output_path:
-                        if os.path.exists(video.output_path):
+                    if (asset_type in ["dubbed", "output"]) and video.output_path:
+                        p_res = _resolve_local_file(video.output_path)
+                        if p_res and p_res.exists():
                             try:
-                                os.remove(video.output_path)
+                                p_res.unlink()
                             except Exception:
                                 pass
                         video.output_path = None
                         db.commit()
                         return True
-                    elif asset_type == "dubbed_audio" and video.dubbed_audio_path:
-                        if os.path.exists(video.dubbed_audio_path):
+                    elif (asset_type in ["dubbed_audio", "dub_audio"]) and video.dubbed_audio_path:
+                        p_res = _resolve_local_file(video.dubbed_audio_path)
+                        if p_res and p_res.exists():
                             try:
-                                os.remove(video.dubbed_audio_path)
+                                p_res.unlink()
                             except Exception:
                                 pass
                         video.dubbed_audio_path = None
                         db.commit()
                         return True
-                    elif asset_type == "vocal" and video.extracted_vocal_path:
-                        if os.path.exists(video.extracted_vocal_path):
+                    elif (asset_type in ["vocal", "vocals"]) and video.extracted_vocal_path:
+                        p_res = _resolve_local_file(video.extracted_vocal_path)
+                        if p_res and p_res.exists():
                             try:
-                                os.remove(video.extracted_vocal_path)
+                                p_res.unlink()
                             except Exception:
                                 pass
                         video.extracted_vocal_path = None
                         db.commit()
                         return True
-                    elif asset_type == "subtitle" and video.subtitle_path:
-                        if os.path.exists(video.subtitle_path):
+                    elif (asset_type in ["bgm", "background"]) and video.background_music_path:
+                        p_res = _resolve_local_file(video.background_music_path)
+                        if p_res and p_res.exists():
                             try:
-                                os.remove(video.subtitle_path)
+                                p_res.unlink()
+                            except Exception:
+                                pass
+                        video.background_music_path = None
+                        db.commit()
+                        return True
+                    elif asset_type == "subtitle" and video.subtitle_path:
+                        p_res = _resolve_local_file(video.subtitle_path)
+                        if p_res and p_res.exists():
+                            try:
+                                p_res.unlink()
                             except Exception:
                                 pass
                         video.subtitle_path = None
                         db.commit()
                         return True
                     elif asset_type == "transcript" and video.transcript_path:
-                        if os.path.exists(video.transcript_path):
+                        p_res = _resolve_local_file(video.transcript_path)
+                        if p_res and p_res.exists():
                             try:
-                                os.remove(video.transcript_path)
+                                p_res.unlink()
                             except Exception:
                                 pass
                         video.transcript_path = None
                         db.commit()
                         return True
                     elif asset_type == "original":
+                        if video.original_path:
+                            p_res = _resolve_local_file(video.original_path)
+                            if p_res and p_res.exists():
+                                try:
+                                    p_res.unlink()
+                                except Exception:
+                                    pass
                         video.deleted_at = datetime.utcnow()
                         db.commit()
                         return True

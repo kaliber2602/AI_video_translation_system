@@ -955,7 +955,7 @@ export default function ProjectDetail() {
                       : undefined
                   }
                   onOpen={() => handleOpenVideo(video.id)}
-                  onOpenEditor={() => navigate(`/workspace/project/${projectId}/video/${video.id}/editor`)}
+                  onOpenEditor={() => navigate(`/workspace/project/${projectId}/video/${video.id}?step=subtitle`)}
                   onRename={(v) => {
                     setEditingVideo(v);
                     setEditVideoTitle(v.title);

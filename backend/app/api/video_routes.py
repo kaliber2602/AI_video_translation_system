@@ -115,37 +115,16 @@ def check_user_project_access(
 ) -> tuple[bool, Optional[Project]]:
     """
     Verifies if a user has access to a project:
-    1. If user is project.owner_id -> Full access (owner)
-    2. If user is in project_members table (by user_id or email) -> Checks role hierarchy (owner > editor > viewer)
+    Single-owner isolation model: user must be project.owner_id.
     """
-    project = db.query(Project).filter(Project.id == project_id, Project.deleted_at.is_(None)).first()
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.owner_id == user_id,
+        Project.deleted_at.is_(None),
+    ).first()
     if not project:
         return False, None
-    if project.owner_id == user_id:
-        return True, project
-
-    try:
-        with db.conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT role FROM project_members
-                WHERE project_id = %s AND (user_id = %s OR email = (SELECT email FROM users WHERE id = %s))
-                """,
-                (project_id, user_id, user_id),
-            )
-            row = cur.fetchone()
-            if row:
-                role = (row[0] or "").lower()
-                if required_role == "viewer":
-                    return role in ("owner", "admin", "editor", "viewer"), project
-                elif required_role == "editor":
-                    return role in ("owner", "admin", "editor"), project
-                elif required_role == "owner":
-                    return role in ("owner", "admin"), project
-    except Exception as e:
-        logger.warning(f"Error checking project membership: {e}")
-
-    return False, project
+    return True, project
 
 
 def get_video_with_access(
@@ -297,6 +276,15 @@ async def upload_video(
     input_path = UPLOAD_DIR / safe_filename
     shutil.move(str(temp_path), str(input_path))
     video.original_path = str(input_path)
+
+    # Upload original video to Object Storage for multi-container durability
+    try:
+        content_type = file.content_type or "video/mp4"
+        orig_s3_key = f"videos/{video.id}/original{ext}"
+        storage_manager.upload_file(str(input_path), orig_s3_key, content_type=content_type)
+        logger.info(f"Uploaded original video to Object Storage: {orig_s3_key}")
+    except Exception as s3_err:
+        logger.warning(f"Could not upload original video to Object Storage: {s3_err}")
 
     # Auto-extract default thumbnail from uploaded video (at 1.0s or 0.0s)
     try:
@@ -1058,6 +1046,7 @@ async def rewrite_translation_segment(
 
 
 @router.post("/{video_id}/tts/segments/{segment_id}", response_model=Dict[str, Any])
+@router.post("/{video_id}/tts/segments/{segment_id}/resynthesize", response_model=Dict[str, Any])
 async def regenerate_segment_tts(
     video_id: int,
     segment_id: int,
@@ -1065,62 +1054,211 @@ async def regenerate_segment_tts(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    """Regenerate TTS audio snippet for a single segment (< 500ms)."""
+    """Regenerate TTS audio snippet for a single segment (< 1s) with in-place master track re-splicing."""
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
     
     text = payload.get("text", "").strip()
     if not text:
         raise HTTPException(400, "Text is required")
 
-    voice_id = payload.get("voice_id", "vi_female_loan")
+    voice_id = payload.get("voice_id")
     speed = float(payload.get("speed", 1.0))
-    engine = payload.get("engine", "coqui_xtts_v2")
+    tgt_lang = payload.get("target_language") or video.target_language or "vi"
 
-    # Create segment audio folder
-    snippet_dir = OUTPUT_DIR / f"{video_id}" / "snippets"
-    os.makedirs(snippet_dir, exist_ok=True)
-    snippet_path = snippet_dir / f"seg_{segment_id}.wav"
+    # Get vocal path for voice cloning if available
+    vocal_path = video.extracted_vocal_path if video.extracted_vocal_path and os.path.exists(video.extracted_vocal_path) else None
 
-    # Fast lightweight synthetic tone or TTS snippet
-    try:
-        # If tts service is available, call it or use ffmpeg tone fallback
-        subprocess.run(
-            [
-                "ffmpeg", "-y", "-f", "lavfi", "-i", f"sine=frequency=440:duration=1.5",
-                "-c:a", "pcm_s16le", str(snippet_path)
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=True
-        )
-    except Exception as e:
-        logger.warning(f"Could not generate snippet audio via ffmpeg: {e}")
+    # Load translation segments metadata for segment timing
+    translation_file = OUTPUT_DIR / f"transcript_{video_id}" / f"translation_{tgt_lang.lower()}.json"
+    segments_meta = []
+    if translation_file.exists():
+        try:
+            with open(translation_file, "r", encoding="utf-8") as tf:
+                t_data = json.load(tf)
+                segments_meta = t_data.get("segments", [])
+        except Exception:
+            segments_meta = []
 
-    return {
-        "status": "success",
-        "video_id": video_id,
-        "segment_id": segment_id,
-        "audio_url": f"/api/videos/{video_id}/tts/segments/{segment_id}/audio",
-        "text": text,
-        "voice_id": voice_id,
-        "speed": speed,
-        "engine": engine
-    }
+    tts_service = TTSAlignerService()
+    result = tts_service.resynthesize_single_segment(
+        video_id=video_id,
+        segment_id=segment_id,
+        new_text=text,
+        tgt_lang=tgt_lang,
+        vocal_path=vocal_path,
+        speed=speed,
+        master_output_path=video.dubbed_audio_path,
+        segments_meta=segments_meta
+    )
+
+    # If translation segments need text update, update translation file too
+    if translation_file.exists() and segments_meta:
+        updated = False
+        for s in segments_meta:
+            if s.get("id") == segment_id or segments_meta.index(s) == segment_id:
+                s["translated_text"] = text
+                updated = True
+                break
+        if updated:
+            try:
+                with open(translation_file, "w", encoding="utf-8") as tf:
+                    json.dump({"segments": segments_meta}, tf, indent=2, ensure_ascii=False)
+            except Exception as e:
+                logger.warning(f"Could not update translation json with new segment text: {e}")
+
+    return result
 
 
 @router.get("/{video_id}/tts/segments/{segment_id}/audio")
 async def get_segment_tts_audio(
     video_id: int,
     segment_id: int,
+    tgt_lang: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
     """Stream audio snippet for a single segment."""
     video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
-    snippet_path = OUTPUT_DIR / f"{video_id}" / "snippets" / f"seg_{segment_id}.wav"
-    if not snippet_path.exists():
-        raise HTTPException(404, "Snippet audio not found")
-    return FileResponse(str(snippet_path), media_type="audio/wav")
+    lang = tgt_lang or video.target_language or "vi"
+
+    candidates = [
+        OUTPUT_DIR / f"tts_{video_id}" / lang / "chunks" / f"seg_{segment_id:04d}.wav",
+        OUTPUT_DIR / f"tts_{video_id}" / "chunks" / f"seg_{segment_id:04d}.wav",
+        OUTPUT_DIR / f"tts_{video_id}" / f"chunks_{lang}" / f"seg_{segment_id:04d}.wav",
+        OUTPUT_DIR / f"{video_id}" / "snippets" / f"seg_{segment_id}.wav",
+    ]
+    for c in candidates:
+        if c.exists():
+            return FileResponse(str(c), media_type="audio/wav")
+
+    # Try finding in tts directory recursively
+    tts_dir = OUTPUT_DIR / f"tts_{video_id}"
+    if tts_dir.exists():
+        for f in tts_dir.rglob(f"seg_*{segment_id}*.wav"):
+            if f.is_file():
+                return FileResponse(str(f), media_type="audio/wav")
+
+    # Try downloading from S3
+    try:
+        from app.services.s3_service import storage_manager
+        s3_key = f"dubbing/{video_id}/{lang}/chunks/seg_{segment_id:04d}.wav"
+        local_dest = OUTPUT_DIR / f"tts_{video_id}" / lang / "chunks" / f"seg_{segment_id:04d}.wav"
+        local_dest.parent.mkdir(parents=True, exist_ok=True)
+        if storage_manager.download_file(s3_key, str(local_dest)):
+            return FileResponse(str(local_dest), media_type="audio/wav")
+    except Exception:
+        pass
+
+    raise HTTPException(404, "Snippet audio not found")
+
+
+@router.get("/{video_id}/audio/stream")
+async def stream_audio_stem(
+    video_id: int,
+    kind: str = Query("dubbed", description="'dubbed', 'vocals', 'bgm', or 'original'"),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Stream audio stem (vocals, bgm, dubbed, or original) directly for Timeline waveform & live mixer."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+    
+    file_path = None
+    if kind == "dubbed":
+        if video.dubbed_audio_path and os.path.exists(video.dubbed_audio_path):
+            file_path = video.dubbed_audio_path
+        else:
+            lang = video.target_language or "vi"
+            cand = OUTPUT_DIR / f"tts_{video_id}" / f"tts_{lang}.wav"
+            if cand.exists():
+                file_path = str(cand)
+    elif kind == "vocals":
+        if video.extracted_vocal_path and os.path.exists(video.extracted_vocal_path):
+            file_path = video.extracted_vocal_path
+        else:
+            cand = OUTPUT_DIR / f"audio_{video_id}" / "vocals.wav"
+            if cand.exists():
+                file_path = str(cand)
+    elif kind == "bgm":
+        if video.background_music_path and os.path.exists(video.background_music_path):
+            file_path = video.background_music_path
+        else:
+            for p in ["no_vocals.wav", "bgm.wav", "accompaniment.wav"]:
+                cand = OUTPUT_DIR / f"audio_{video_id}" / p
+                if cand.exists():
+                    file_path = str(cand)
+                    break
+    elif kind == "original":
+        cand = OUTPUT_DIR / f"audio_{video_id}" / "audio.wav"
+        if cand.exists():
+            file_path = str(cand)
+
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(404, f"Audio stem '{kind}' not found for video #{video_id}")
+    
+    return FileResponse(file_path, media_type="audio/wav")
+
+
+@router.post("/{video_id}/overlay/logo")
+async def upload_overlay_logo(
+    video_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Upload a logo PNG/JPG image to overlay on the video."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
+    
+    ext = os.path.splitext(file.filename or "logo.png")[1].lower()
+    if ext not in [".png", ".jpg", ".jpeg", ".webp", ".svg"]:
+        raise HTTPException(400, "Unsupported image format. Please upload PNG, JPG, or WebP.")
+        
+    logo_dir = OUTPUT_DIR / f"overlays_{video_id}"
+    logo_dir.mkdir(parents=True, exist_ok=True)
+    for old_file in logo_dir.glob("logo.*"):
+        try:
+            old_file.unlink()
+        except Exception:
+            pass
+    logo_path = logo_dir / f"logo{ext}"
+    
+    content = await file.read()
+    with open(logo_path, "wb") as f:
+        f.write(content)
+        
+    # Upload to S3
+    try:
+        from app.services.s3_service import storage_manager
+        s3_key = f"overlays/{video_id}/logo{ext}"
+        storage_manager.upload_file(str(logo_path), s3_key, content_type=file.content_type or "image/png")
+    except Exception as s3_err:
+        logger.warning(f"Could not upload logo to S3: {s3_err}")
+        
+    logo_url = f"/api/videos/{video_id}/overlay/logo?t={int(datetime.utcnow().timestamp())}"
+    return {
+        "status": "success",
+        "video_id": video_id,
+        "logo_url": logo_url,
+        "logo_path": str(logo_path),
+        "file_size": len(content)
+    }
+
+
+@router.get("/{video_id}/overlay/logo")
+async def get_overlay_logo(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Serve uploaded overlay logo for video."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+    logo_dir = OUTPUT_DIR / f"overlays_{video_id}"
+    if logo_dir.exists():
+        for f in logo_dir.glob("logo.*"):
+            if f.is_file():
+                ext = f.suffix.lower()
+                media = "image/png" if ext == ".png" else "image/jpeg"
+                return FileResponse(str(f), media_type=media)
+    raise HTTPException(404, "Logo overlay not found")
 
 
 @router.get("/{video_id}/download")
@@ -2750,19 +2888,21 @@ async def start_translation(
 
         # Automatically pre-generate subtitle files (SRT, VTT, ASS) using translated_text
         try:
+            from app.services.pipeline_steps import _load_subtitle_config
+            sub_cfg = _load_subtitle_config(video_id, target_lang_clean, video=video, db=db)
             subtitle_service = SubtitleService()
             sub_paths = subtitle_service.save_all_subtitles(
                 segments=translated_segments,
                 base_dir=str(canonical_dir),
                 language=target_lang_clean,
                 text_key="translated_text",
-                font_size=22,
-                position="bottom",
-                font_name="Montserrat",
-                primary_color="#FFFFFF",
-                outline_color="#000000",
-                max_lines=2,
-                effect="pop",
+                font_size=int(sub_cfg["font_size"]),
+                position=sub_cfg["position"],
+                font_name=sub_cfg["font_name"],
+                primary_color=sub_cfg["primary_color"],
+                outline_color=sub_cfg["outline_color"],
+                max_lines=int(sub_cfg["max_lines"]),
+                effect=sub_cfg["effect"],
                 auto_split=True,
             )
             if sub_paths.get("ass"):
@@ -2954,19 +3094,21 @@ async def update_translation(
 
         # Update subtitles immediately with edited translation
         try:
+            from app.services.pipeline_steps import _load_subtitle_config
+            sub_cfg = _load_subtitle_config(video_id, lang_clean, video=video, db=db)
             subtitle_service = SubtitleService()
             subtitle_service.save_all_subtitles(
                 segments=segments,
                 base_dir=str(canonical_dir),
                 language=lang_clean,
                 text_key="translated_text",
-                font_size=22,
-                position="bottom",
-                font_name="Montserrat",
-                primary_color="#FFFFFF",
-                outline_color="#000000",
-                max_lines=2,
-                effect="pop",
+                font_size=int(sub_cfg["font_size"]),
+                position=sub_cfg["position"],
+                font_name=sub_cfg["font_name"],
+                primary_color=sub_cfg["primary_color"],
+                outline_color=sub_cfg["outline_color"],
+                max_lines=int(sub_cfg["max_lines"]),
+                effect=sub_cfg["effect"],
                 auto_split=True,
             )
         except Exception:
@@ -3124,7 +3266,8 @@ async def generate_subtitles(
     
     try:
         # Detect aspect ratio and video dimensions for optimal subtitle sizing & margins
-        req_aspect = (body.get("aspect_ratio") if body else None) or aspect_ratio
+        b = body or {}
+        req_aspect = b.get("aspect_ratio") or b.get("aspectRatio") or aspect_ratio
         video_width = None
         video_height = None
         detected_aspect = "16:9"
@@ -3158,10 +3301,26 @@ async def generate_subtitles(
         except Exception:
             pass
 
-        final_aspect = req_aspect or detected_aspect
-        final_alignment = (body.get("alignment") if body else None) or alignment or "center"
-        final_position_y = (body.get("position_y") if body else None) or position_y
-        final_line_spacing = (body.get("line_spacing") if body else None) or line_spacing or 1.2
+        final_font_name = str(b.get("font_name") or b.get("fontName") or font_name or "Montserrat")
+        final_font_size = int(b.get("font_size") or b.get("fontSize") or font_size or 22)
+        final_primary_color = str(b.get("primary_color") or b.get("primaryColor") or primary_color or "#FFFFFF")
+        final_outline_color = str(b.get("outline_color") or b.get("outlineColor") or outline_color or "#000000")
+        final_max_lines = int(b.get("max_lines") if b.get("max_lines") is not None else b.get("maxLines") if b.get("maxLines") is not None else max_lines)
+        final_effect = str(b.get("effect") or effect or "pop")
+        final_position = str(b.get("position") or position or "bottom")
+        final_format = str(b.get("format") or format or "ass")
+        final_aspect = str(req_aspect or detected_aspect)
+        final_alignment = str(b.get("alignment") or alignment or "center")
+        raw_pos_y = b.get("position_y") if b.get("position_y") is not None else b.get("positionY") if b.get("positionY") is not None else position_y
+        try:
+            final_position_y = float(raw_pos_y) if raw_pos_y is not None else 84.0
+        except (ValueError, TypeError):
+            final_position_y = 84.0
+        raw_spacing = b.get("line_spacing") if b.get("line_spacing") is not None else b.get("lineSpacing") if b.get("lineSpacing") is not None else line_spacing
+        try:
+            final_line_spacing = float(raw_spacing) if raw_spacing is not None else 1.2
+        except (ValueError, TypeError):
+            final_line_spacing = 1.2
 
         # Save all 3 formats (srt, vtt, ass) using translated_text
         paths = subtitle_service.save_all_subtitles(
@@ -3169,13 +3328,13 @@ async def generate_subtitles(
             base_dir=translation_dir,
             language=lang_clean,
             text_key=text_key,
-            font_size=font_size,
-            position=position,
-            font_name=font_name,
-            primary_color=primary_color,
-            outline_color=outline_color,
-            max_lines=max_lines,
-            effect=effect,
+            font_size=final_font_size,
+            position=final_position,
+            font_name=final_font_name,
+            primary_color=final_primary_color,
+            outline_color=final_outline_color,
+            max_lines=final_max_lines,
+            effect=final_effect,
             is_portrait=is_portrait,
             aspect_ratio=final_aspect,
             video_width=video_width,
@@ -3185,7 +3344,7 @@ async def generate_subtitles(
             position_y=final_position_y,
             line_spacing=final_line_spacing,
         )
-        subtitle_path = paths.get(format, subtitle_path)
+        subtitle_path = paths.get(final_format, subtitle_path)
         video.subtitle_path = subtitle_path
         video.target_language = lang_clean
         video.current_step = "subtitle"
@@ -3203,18 +3362,26 @@ async def generate_subtitles(
 
         sub_config = {
             "language": lang_clean,
-            "format": format,
-            "font_size": font_size,
-            "position": position,
-            "font_name": font_name,
-            "primary_color": primary_color,
-            "outline_color": outline_color,
-            "max_lines": max_lines,
-            "effect": effect,
+            "format": final_format,
+            "font_size": final_font_size,
+            "fontSize": final_font_size,
+            "position": final_position,
+            "font_name": final_font_name,
+            "fontName": final_font_name,
+            "primary_color": final_primary_color,
+            "primaryColor": final_primary_color,
+            "outline_color": final_outline_color,
+            "outlineColor": final_outline_color,
+            "max_lines": final_max_lines,
+            "maxLines": final_max_lines,
+            "effect": final_effect,
             "aspect_ratio": final_aspect,
+            "aspectRatio": final_aspect,
             "alignment": final_alignment,
             "position_y": final_position_y,
+            "positionY": final_position_y,
             "line_spacing": final_line_spacing,
+            "lineSpacing": final_line_spacing,
         }
 
         config_path = canonical_dir / f"subtitle_config_{lang_clean}.json"
@@ -3224,9 +3391,13 @@ async def generate_subtitles(
         except Exception as e:
             logger.warning(f"Failed to write subtitle config file: {e}")
 
-        current_snap = getattr(video, "snapshot_data", None) or {}
+        current_snap = dict(getattr(video, "snapshot_data", None) or {})
         current_snap["subtitle_config"] = sub_config
-        video.snapshot_data = dict(current_snap)
+        if "subtitle_mask" in b:
+            current_snap["subtitle_mask"] = b["subtitle_mask"]
+        if "overlay_config" in b:
+            current_snap["overlay_config"] = b["overlay_config"]
+        video.snapshot_data = current_snap
         db.commit()
         
         with open(subtitle_path, 'r', encoding='utf-8') as f:
@@ -3363,9 +3534,31 @@ async def get_subtitle_segments(
             except Exception:
                 pass
 
+    snap = getattr(video, "snapshot_data", None) or {}
     if not sub_config:
-        snap = getattr(video, "snapshot_data", None) or {}
         sub_config = snap.get("subtitle_config")
+    elif snap.get("subtitle_config"):
+        sub_config = {**sub_config, **snap.get("subtitle_config")}
+
+    # Normalize sub_config so frontend can access both snake_case and camelCase
+    normalized_cfg = None
+    if sub_config and isinstance(sub_config, dict):
+        normalized_cfg = dict(sub_config)
+        aliases = [
+            ("font_size", "fontSize"),
+            ("font_name", "fontName"),
+            ("primary_color", "primaryColor"),
+            ("outline_color", "outlineColor"),
+            ("max_lines", "maxLines"),
+            ("aspect_ratio", "aspectRatio"),
+            ("position_y", "positionY"),
+            ("line_spacing", "lineSpacing"),
+        ]
+        for snake, camel in aliases:
+            if snake in normalized_cfg and camel not in normalized_cfg:
+                normalized_cfg[camel] = normalized_cfg[snake]
+            elif camel in normalized_cfg and snake not in normalized_cfg:
+                normalized_cfg[snake] = normalized_cfg[camel]
 
     return {
         "video_id": video_id,
@@ -3373,8 +3566,11 @@ async def get_subtitle_segments(
         "segments": segments,
         "count": len(segments),
         "has_translation": has_translation,
-        "config": sub_config,
+        "config": normalized_cfg,
+        "subtitle_mask": snap.get("subtitle_mask"),
+        "overlay_config": snap.get("overlay_config"),
     }
+
 
 
 @router.put("/{video_id}/subtitles/{language}/segments")
@@ -3416,15 +3612,77 @@ async def update_subtitle_segments(
 
     # 2. Re-generate all subtitle formats (SRT, VTT, ASS)
     subtitle_service = SubtitleService()
-    style_params = body.get("style", {})
-    font_size = int(style_params.get("fontSize", 22))
-    position = style_params.get("position", "bottom")
-    font_name = style_params.get("fontName", "Montserrat")
-    primary_color = style_params.get("primaryColor", "#FFFFFF")
-    outline_color = style_params.get("outlineColor", "#000000")
-    max_lines = int(style_params.get("maxLines", 2))
-    effect = style_params.get("effect", "pop")
+    style_params = body.get("style") or {}
 
+    # Load existing subtitle config as base so partial updates never wipe styles
+    existing_cfg = {}
+    cfg_file = canonical_dir / f"subtitle_config_{lang_clean}.json"
+    if cfg_file.exists():
+        try:
+            with open(cfg_file, "r", encoding="utf-8") as cf:
+                existing_cfg = json.load(cf)
+        except Exception:
+            pass
+    if not existing_cfg:
+        snap_cfg = (getattr(video, "snapshot_data", None) or {}).get("subtitle_config", {})
+        if isinstance(snap_cfg, dict):
+            existing_cfg = snap_cfg
+
+    def get_style_val(snake_k, camel_k, default_val):
+        val = style_params.get(snake_k)
+        if val is None:
+            val = style_params.get(camel_k)
+        if val is None:
+            val = existing_cfg.get(snake_k)
+        if val is None:
+            val = existing_cfg.get(camel_k)
+        return val if val is not None else default_val
+
+    font_size = int(get_style_val("font_size", "fontSize", 22))
+    position = str(get_style_val("position", "position", "bottom"))
+    font_name = str(get_style_val("font_name", "fontName", "Montserrat"))
+    primary_color = str(get_style_val("primary_color", "primaryColor", "#FFFFFF"))
+    outline_color = str(get_style_val("outline_color", "outlineColor", "#000000"))
+    max_lines = int(get_style_val("max_lines", "maxLines", 2))
+    effect = str(get_style_val("effect", "effect", "pop"))
+    aspect_ratio = str(get_style_val("aspect_ratio", "aspectRatio", "16:9"))
+    alignment = str(get_style_val("alignment", "alignment", "center"))
+    raw_pos_y = get_style_val("position_y", "positionY", 84)
+    try:
+        position_y = float(raw_pos_y) if raw_pos_y is not None else 84.0
+    except (ValueError, TypeError):
+        position_y = 84.0
+    raw_spacing = get_style_val("line_spacing", "lineSpacing", 1.2)
+    try:
+        line_spacing = float(raw_spacing) if raw_spacing is not None else 1.2
+    except (ValueError, TypeError):
+        line_spacing = 1.2
+
+    norm_config = {
+        "language": lang_clean,
+        "format": str(get_style_val("format", "format", "ass")),
+        "font_size": font_size,
+        "fontSize": font_size,
+        "position": position,
+        "font_name": font_name,
+        "fontName": font_name,
+        "primary_color": primary_color,
+        "primaryColor": primary_color,
+        "outline_color": outline_color,
+        "outlineColor": outline_color,
+        "max_lines": max_lines,
+        "maxLines": max_lines,
+        "effect": effect,
+        "aspect_ratio": aspect_ratio,
+        "aspectRatio": aspect_ratio,
+        "alignment": alignment,
+        "position_y": position_y,
+        "positionY": position_y,
+        "line_spacing": line_spacing,
+        "lineSpacing": line_spacing,
+    }
+
+    snap = dict(getattr(video, "snapshot_data", None) or {})
     try:
         paths = subtitle_service.save_all_subtitles(
             segments=segments,
@@ -3438,12 +3696,50 @@ async def update_subtitle_segments(
             outline_color=outline_color,
             max_lines=max_lines,
             effect=effect,
+            aspect_ratio=aspect_ratio,
+            alignment=alignment,
+            position_y=position_y,
+            line_spacing=line_spacing,
         )
         if "ass" in paths:
             video.subtitle_path = paths["ass"]
         elif "srt" in paths:
             video.subtitle_path = paths["srt"]
         video.target_language = lang_clean
+
+        # Persist NLE Editor overlay, mask, and style config to video.snapshot_data & file
+        if "subtitle_mask" in body:
+            snap["subtitle_mask"] = body["subtitle_mask"]
+        if "overlay_config" in body:
+            snap["overlay_config"] = body["overlay_config"]
+        snap["subtitle_config"] = norm_config
+        video.snapshot_data = snap
+
+        # Save config file
+        try:
+            with open(canonical_dir / f"subtitle_config_{lang_clean}.json", "w", encoding="utf-8") as cf:
+                json.dump(norm_config, cf, ensure_ascii=False, indent=2)
+        except Exception as fe:
+            logger.warning(f"Could not persist subtitle_config file on segment update: {fe}")
+
+        # Sync edited text into translation_segments table in Postgres
+        try:
+            with db.conn.cursor() as cur:
+                for s_idx, s in enumerate(segments):
+                    txt = s.get("translated_text") or s.get("text", "")
+                    cur.execute("""
+                        UPDATE translation_segments ts
+                        SET edited_text = %s, translated_text = %s, updated_at = NOW()
+                        FROM transcript_segments tr
+                        WHERE ts.transcript_segment_id = tr.id
+                          AND tr.video_id = %s
+                          AND ts.target_language = %s
+                          AND tr.sequence = %s
+                    """, (txt, txt, video_id, lang_clean, s_idx + 1))
+                db.conn.commit()
+        except Exception as dbe:
+            logger.debug(f"DB sync translation_segments note: {dbe}")
+
         db.commit()
     except Exception as se:
         logger.warning(f"Could not re-generate all subtitle files on segments update: {se}")
@@ -3454,6 +3750,9 @@ async def update_subtitle_segments(
         "segments": segments,
         "count": len(segments),
         "status": "updated",
+        "config": norm_config,
+        "subtitle_mask": snap.get("subtitle_mask"),
+        "overlay_config": snap.get("overlay_config"),
         "message": f"Successfully updated {len(segments)} subtitle segments and synchronized files"
     }
 
@@ -4374,6 +4673,37 @@ async def generate_dubbed_video(
                 else:
                     logger.info(f"No subtitle file found for video {video_id}, proceeding without burning")
 
+                # Re-generate .ass with saved subtitle config to ensure user styles are applied
+                if resolved_sub_path and cand_dir.exists():
+                    try:
+                        from app.services.pipeline_steps import _load_subtitle_config
+                        sub_cfg = _load_subtitle_config(video_id, language, video=video, db=db)
+                        trans_file = cand_dir / f"translation_{language.lower().strip()}.json"
+                        if trans_file.exists():
+                            with open(trans_file, "r", encoding="utf-8") as tf:
+                                trans_data = json.load(tf)
+                                segments = trans_data.get("segments", [])
+                            if segments:
+                                sub_paths = SubtitleService.save_all_subtitles(
+                                    segments=segments,
+                                    base_dir=str(cand_dir),
+                                    language=language.lower().strip(),
+                                    text_key="translated_text",
+                                    font_size=int(sub_cfg["font_size"]),
+                                    position=sub_cfg["position"],
+                                    font_name=sub_cfg["font_name"],
+                                    primary_color=sub_cfg["primary_color"],
+                                    outline_color=sub_cfg["outline_color"],
+                                    max_lines=int(sub_cfg["max_lines"]),
+                                    effect=sub_cfg["effect"],
+                                    auto_split=True,
+                                )
+                                if sub_paths.get("ass"):
+                                    resolved_sub_path = sub_paths["ass"]
+                                logger.info(f"🔄 Re-generated subtitles with saved config: font_size={sub_cfg['font_size']}, font={sub_cfg['font_name']}, color={sub_cfg['primary_color']}")
+                    except Exception as regen_err:
+                        logger.warning(f"Could not re-generate subtitles with saved config: {regen_err}")
+
             # Auto-resolve aspect ratio from snapshot_data or subtitle config if not provided
             final_aspect_ratio = aspect_ratio
             if not final_aspect_ratio:
@@ -4871,6 +5201,16 @@ async def get_export_options(
     }
 
 
+def _sanitize_export_filename(name: Optional[str], default_name: str, format_ext: Optional[str] = None) -> str:
+    if not name or not name.strip():
+        return default_name
+    sanitized = re.sub(r'[\\/*?:"<>|#%\s]+', '_', name.strip())
+    sanitized = re.sub(r'_+', '_', sanitized).strip('._ ')
+    if format_ext and sanitized.lower().endswith(f".{format_ext.lower()}"):
+        sanitized = sanitized[:-len(format_ext)-1].rstrip('._ ')
+    return sanitized or default_name
+
+
 @router.get("/{video_id}/export")
 async def export_video(
     video_id: int,
@@ -4878,11 +5218,12 @@ async def export_video(
     format: str = Query("mp4", description="Export format"),
     quality: Optional[str] = Query(None, description="Video quality for final video"),
     language: Optional[str] = Query(None, description="Language for subtitles/translation"),
+    custom_filename: Optional[str] = Query(None, description="Custom base filename for the exported file"),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    """Export video with specified options."""
-    logger.info(f"📤 Export request: video={video_id}, type={export_type}, format={format}, quality={quality}")
+    """Export video with specified options and optional custom filename."""
+    logger.info(f"📤 Export request: video={video_id}, type={export_type}, format={format}, quality={quality}, custom_name={custom_filename}")
     
     video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
     
@@ -4903,7 +5244,9 @@ async def export_video(
         elif format == "avi":
             content_type = "video/x-msvideo"
             
-        filename = f"export_{quality_to_use}.{format}"
+        default_name = f"export_{quality_to_use}"
+        base_name = _sanitize_export_filename(custom_filename, default_name, format)
+        filename = f"{base_name}.{format}"
         if s3_key_or_path.startswith("videos/"):
             try:
                 presigned_url = generate_browser_presigned_url(
@@ -4921,6 +5264,7 @@ async def export_video(
                     "video_id": video_id,
                     "quality": quality_to_use,
                     "format": format,
+                    "filename": filename,
                     "message": "Presigned URL generated successfully"
                 }
             except ClientError as e:
@@ -4944,10 +5288,12 @@ async def export_video(
         if subtitle_dir:
             subtitle_path = os.path.join(subtitle_dir, f"subtitles_{language}.{format}")
             if os.path.exists(subtitle_path):
+                default_name = f"subtitles_{language}"
+                base_name = _sanitize_export_filename(custom_filename, default_name, format)
                 return FileResponse(
                     subtitle_path,
                     media_type="text/plain" if format in ["srt", "ass"] else "text/vtt",
-                    filename=f"subtitles_{language}.{format}"
+                    filename=f"{base_name}.{format}"
                 )
         raise HTTPException(404, f"Subtitles for language '{language}' not found")
     
@@ -4959,10 +5305,12 @@ async def export_video(
             audio_path=video.dubbed_audio_path,
             format=format
         )
+        default_name = f"audio_{language or 'track'}"
+        base_name = _sanitize_export_filename(custom_filename, default_name, format)
         return FileResponse(
             output_path,
             media_type="audio/mpeg" if format == "mp3" else "audio/wav",
-            filename=f"audio.{format}"
+            filename=f"{base_name}.{format}"
         )
     
     elif export_type == "transcript":
@@ -4974,10 +5322,12 @@ async def export_video(
             format=format
         )
         media_type = "text/plain" if format == "txt" else "application/json"
+        default_name = "transcript"
+        base_name = _sanitize_export_filename(custom_filename, default_name, format)
         return FileResponse(
             output_path,
             media_type=media_type,
-            filename=f"transcript.{format}"
+            filename=f"{base_name}.{format}"
         )
     
     elif export_type == "translation":
@@ -4994,10 +5344,12 @@ async def export_video(
                     format=format
                 )
                 media_type = "text/plain" if format == "txt" else "application/json"
+                default_name = f"translation_{language}"
+                base_name = _sanitize_export_filename(custom_filename, default_name, format)
                 return FileResponse(
                     output_path,
                     media_type=media_type,
-                    filename=f"translation_{language}.{format}"
+                    filename=f"{base_name}.{format}"
                 )
         
         raise HTTPException(404, f"Translation for language '{language}' not found")
@@ -5233,6 +5585,16 @@ async def separate_audio(
         video.extracted_vocal_path = vocal_path
         video.background_music_path = bgm_path
         db.commit()
+
+        # Upload separated stems to Object Storage for persistence
+        try:
+            if vocal_path and os.path.exists(vocal_path):
+                storage_manager.upload_file(vocal_path, f"audio/{video_id}/vocals.wav", "audio/wav")
+            if bgm_path and os.path.exists(bgm_path):
+                storage_manager.upload_file(bgm_path, f"audio/{video_id}/no_vocals.wav", "audio/wav")
+            logger.info(f"Uploaded separated audio stems to Object Storage for video {video_id}")
+        except Exception as s3_err:
+            logger.warning(f"Could not upload separated audio stems to Object Storage: {s3_err}")
         
         logger.info(f"✅ Audio separated for video {video_id}")
         logger.info(f"   Vocal track: {vocal_path}")

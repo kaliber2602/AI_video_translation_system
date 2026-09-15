@@ -131,57 +131,31 @@ def test_favorite_toggle_and_scope():
     client.delete(f"/api/projects/{proj_id}/permanent", headers=headers_user_1)
 
 
-def test_project_sharing_and_scope():
+def test_single_owner_isolation_and_scope():
     # 1. User 1 creates project
     create_res = client.post(
         "/api/projects",
-        json={"name": "Test Shared Project", "description": "Collaborative project"},
+        json={"name": "Test Private Project", "description": "Single owner project"},
         headers=headers_user_1,
     )
     assert create_res.status_code == 201
     proj_id = create_res.json()["id"]
 
-    # 2. User 1 shares project with User 2 as "editor"
+    # 2. Verify /api/projects/{proj_id}/members endpoint is removed (404)
     share_res = client.post(
         f"/api/projects/{proj_id}/members",
         json={"email": USER_2_EMAIL, "role": "editor"},
         headers=headers_user_1,
     )
-    assert share_res.status_code == 201
-    member_data = share_res.json()
-    assert member_data["email"] == USER_2_EMAIL
-    assert member_data["role"] == "editor"
-    assert member_data["status"] == "accepted"
-    member_id = member_data["id"]
+    assert share_res.status_code == 404
 
-    # 3. User 2 checks scope="shared"
+    # 3. User 2 cannot access User 1's project (404)
+    res_access = client.get(f"/api/projects/{proj_id}", headers=headers_user_2)
+    assert res_access.status_code == 404
+
+    # 4. Scope "shared" is no longer valid (422 validation error)
     res_shared = client.get("/api/projects?scope=shared", headers=headers_user_2)
-    assert res_shared.status_code == 200
-    shared_projects = res_shared.json()
-    assert proj_id in [p["id"] for p in shared_projects]
-    shared_proj = next(p for p in shared_projects if p["id"] == proj_id)
-    assert shared_proj["is_shared"] is True
-    assert shared_proj["my_role"] == "editor"
-
-    # 4. User 1 updates User 2 role to "viewer"
-    update_member_res = client.put(
-        f"/api/projects/{proj_id}/members/{member_id}",
-        json={"role": "viewer"},
-        headers=headers_user_1,
-    )
-    assert update_member_res.status_code == 200
-    assert update_member_res.json()["role"] == "viewer"
-
-    # 5. User 1 removes User 2 from project
-    remove_res = client.delete(
-        f"/api/projects/{proj_id}/members/{member_id}",
-        headers=headers_user_1,
-    )
-    assert remove_res.status_code == 204
-
-    # 6. User 2 checks scope="shared" again -> should no longer appear
-    res_shared_after = client.get("/api/projects?scope=shared", headers=headers_user_2)
-    assert proj_id not in [p["id"] for p in res_shared_after.json()]
+    assert res_shared.status_code == 422
 
     # Clean up
     client.delete(f"/api/projects/{proj_id}/permanent", headers=headers_user_1)

@@ -2,7 +2,7 @@
 import os
 import subprocess
 import logging
-from typing import Optional
+from typing import Optional, Dict, Any, List
 from pydub import AudioSegment
 import torch
 import uuid
@@ -100,7 +100,9 @@ class AudioService:
         generate_hls: bool = True,
         subtitle_path: Optional[str] = None,
         burn_subtitles: bool = True,
-        aspect_ratio: Optional[str] = None
+        aspect_ratio: Optional[str] = None,
+        subtitle_mask: Optional[Dict[str, Any]] = None,
+        overlay_config: Optional[Dict[str, Any]] = None
     ):
         """
         Mix TTS audio with optional BGM and mux with video.
@@ -217,6 +219,55 @@ class AudioService:
                 crop_scale_filter = f"scale=-2:{target_h}"
 
             vf_filters = [crop_scale_filter]
+
+            # 1. Subtitle Blur Mask / Solid Banner (erases hardcoded subtitles before burning new ones)
+            if subtitle_mask and subtitle_mask.get("enabled", False):
+                try:
+                    m_x = int(subtitle_mask.get("x", 0))
+                    m_y = int(subtitle_mask.get("y", 0))
+                    m_w = int(subtitle_mask.get("width", 0))
+                    m_h = int(subtitle_mask.get("height", 0))
+                    m_type = str(subtitle_mask.get("mask_type", "blur")).lower()
+                    m_opacity = float(subtitle_mask.get("opacity", 0.85))
+                    m_color = str(subtitle_mask.get("color", "black")).replace(":", "")
+
+                    if m_w > 10 and m_h > 10:
+                        if m_type in ("banner", "solid"):
+                            vf_filters.append(f"drawbox=x={m_x}:y={m_y}:w={m_w}:h={m_h}:color={m_color}@{m_opacity}:t=fill")
+                            logger.info(f"🛡️ [Subtitle Mask] Solid banner applied at ({m_x},{m_y}) {m_w}x{m_h} color={m_color}@{m_opacity}")
+                        else:
+                            # Use delogo to remove / blur hardcoded subtitles smoothly
+                            vf_filters.append(f"delogo=x={m_x}:y={m_y}:w={m_w}:h={m_h}:show=0")
+                            logger.info(f"🛡️ [Subtitle Mask] Blur/Delogo mask applied at ({m_x},{m_y}) {m_w}x{m_h}")
+                except Exception as mask_err:
+                    logger.warning(f"Failed to build subtitle mask filter: {mask_err}")
+
+            # 2. Overlays: Lower-third Ticker Marquee & Logo Watermark
+            logo_file_path = None
+            logo_x = 20
+            logo_y = 20
+            if overlay_config:
+                ticker_text = overlay_config.get("ticker_text")
+                if ticker_text and ticker_text.strip():
+                    escaped_text = ticker_text.replace("'", "\\'").replace(":", "\\:").replace("%", "\\%")
+                    font_size = int(overlay_config.get("ticker_font_size", 24))
+                    font_color = overlay_config.get("ticker_color", "white")
+                    bg_color = overlay_config.get("ticker_bg_color", "black@0.6")
+                    speed_px = int(overlay_config.get("ticker_speed", 100))
+                    vf_filters.append(
+                        f"drawtext=text='{escaped_text}':fontcolor={font_color}:fontsize={font_size}:box=1:boxcolor={bg_color}:boxborderw=8:x=w-mod(t*{speed_px}\\,w+tw):y=h-th-20"
+                    )
+                    logger.info(f"🏷️ [Overlay] Ticker marquee added: {ticker_text[:30]}...")
+
+                # Logo watermark file
+                l_path = overlay_config.get("logo_path")
+                if l_path and os.path.exists(l_path):
+                    logo_file_path = l_path
+                    logo_x = int(overlay_config.get("logo_x", 20))
+                    logo_y = int(overlay_config.get("logo_y", 20))
+                    logger.info(f"🏷️ [Overlay] Logo watermark found: {logo_file_path} at ({logo_x}, {logo_y})")
+
+            # 3. Burn Subtitles (new translated subtitles rendered on top of mask)
             if burn_subtitles and subtitle_path:
                 chosen_sub = subtitle_path
                 # If .srt was given, prefer .ass if available for styled fonts and layout
@@ -253,20 +304,37 @@ class AudioService:
                 except Exception as ne:
                     logger.warning(f"Could not check NVENC encoder: {ne}")
 
-            # ✅ REMOVED -shortest flag since audio is now padded to full video length
-            command = [
-                "ffmpeg", "-y",
-                "-i", video_path,
-                "-i", mixed_audio_path,
-                "-vf", vf_string,
-                *hw_flags,
-                "-c:a", "aac",
-                "-b:a", "192k",
-                "-map", "0:v:0",
-                "-map", "1:a:0",
-                "-movflags", "+faststart",
-                final_output_path
-            ]
+            # Assemble FFmpeg command (with logo overlay if provided, otherwise standard vf)
+            if logo_file_path:
+                filter_complex = f"[0:v]{vf_string}[v_base];[v_base][2:v]overlay={logo_x}:{logo_y}[v_out]"
+                command = [
+                    "ffmpeg", "-y",
+                    "-i", video_path,
+                    "-i", mixed_audio_path,
+                    "-i", logo_file_path,
+                    "-filter_complex", filter_complex,
+                    *hw_flags,
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    "-map", "[v_out]",
+                    "-map", "1:a:0",
+                    "-movflags", "+faststart",
+                    final_output_path
+                ]
+            else:
+                command = [
+                    "ffmpeg", "-y",
+                    "-i", video_path,
+                    "-i", mixed_audio_path,
+                    "-vf", vf_string,
+                    *hw_flags,
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    "-map", "0:v:0",
+                    "-map", "1:a:0",
+                    "-movflags", "+faststart",
+                    final_output_path
+                ]
             
             logger.info(f"Running FFmpeg command: {' '.join(command)}")
             result = subprocess.run(
@@ -279,21 +347,39 @@ class AudioService:
             # If NVENC failed (e.g. driver mismatch), fallback gracefully to libx264
             if result.returncode != 0 and is_nvenc:
                 logger.warning(f"⚠️ [FFmpeg NVENC] Thất bại ({result.stderr[:200]}). Đang tự động fallback về libx264...")
-                command_fb = [
-                    "ffmpeg", "-y",
-                    "-i", video_path,
-                    "-i", mixed_audio_path,
-                    "-vf", vf_string,
-                    "-c:v", "libx264",
-                    "-preset", "veryfast",
-                    "-crf", "23",
-                    "-c:a", "aac",
-                    "-b:a", "192k",
-                    "-map", "0:v:0",
-                    "-map", "1:a:0",
-                    "-movflags", "+faststart",
-                    final_output_path
-                ]
+                if logo_file_path:
+                    command_fb = [
+                        "ffmpeg", "-y",
+                        "-i", video_path,
+                        "-i", mixed_audio_path,
+                        "-i", logo_file_path,
+                        "-filter_complex", filter_complex,
+                        "-c:v", "libx264",
+                        "-preset", "veryfast",
+                        "-crf", "23",
+                        "-c:a", "aac",
+                        "-b:a", "192k",
+                        "-map", "[v_out]",
+                        "-map", "1:a:0",
+                        "-movflags", "+faststart",
+                        final_output_path
+                    ]
+                else:
+                    command_fb = [
+                        "ffmpeg", "-y",
+                        "-i", video_path,
+                        "-i", mixed_audio_path,
+                        "-vf", vf_string,
+                        "-c:v", "libx264",
+                        "-preset", "veryfast",
+                        "-crf", "23",
+                        "-c:a", "aac",
+                        "-b:a", "192k",
+                        "-map", "0:v:0",
+                        "-map", "1:a:0",
+                        "-movflags", "+faststart",
+                        final_output_path
+                    ]
                 result = subprocess.run(command_fb, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
             if result.returncode != 0:
@@ -344,11 +430,11 @@ class AudioService:
                     # Upload original MP4 to S3
                     s3_key = AudioService._upload_to_s3(final_output_path, video_id, language, quality)
                     result["s3_key"] = s3_key
-                    logger.info(f"✅ MP4 uploaded to S3: {s3_key}")
+                    logger.info(f" MP4 uploaded to S3: {s3_key}")
                     
                     # Generate HLS from the MP4
                     if generate_hls:
-                        logger.info(f"🎬 Generating HLS for video {video_id}...")
+                        logger.info(f" Generating HLS for video {video_id}...")
                         hls_result = process_video_to_hls(
                             input_path=final_output_path,
                             video_id=video_id,
@@ -356,11 +442,11 @@ class AudioService:
                             qualities=["240p", "360p", "720p", "1080p"]
                         )
                         result["hls"] = hls_result
-                        logger.info(f"✅ HLS generated for video {video_id}: {len(hls_result.get('qualities', []))} qualities")
+                        logger.info(f" HLS generated for video {video_id}: {len(hls_result.get('qualities', []))} qualities")
                         logger.info(f"   Master playlist: {hls_result.get('master_playlist_s3')}")
                         
                 except Exception as e:
-                    logger.error(f"❌ S3 upload/HLS failed: {e}")
+                    logger.error(f" S3 upload/HLS failed: {e}")
                     result["error"] = f"S3 upload/HLS failed: {str(e)}"
             
             return result
@@ -396,18 +482,18 @@ class AudioService:
         content_type = content_type_map.get(ext, "video/mp4")
         
         # Log before upload
-        logger.info(f"📤 Uploading video {video_id} to S3: {s3_key}")
+        logger.info(f" Uploading video {video_id} to S3: {s3_key}")
         logger.info(f"   Local file: {local_path} ({os.path.getsize(local_path)} bytes)")
         logger.info(f"   Content type: {content_type}")
         
         # Upload to S3
         try:
             upload_file(local_path, s3_key, content_type)
-            logger.info(f"✅ Successfully uploaded video {video_id} to S3: {s3_key}")
+            logger.info(f" Successfully uploaded video {video_id} to S3: {s3_key}")
             logger.info(f"   S3 URI: s3://{AWS_S3_BUCKET}/{s3_key}")
             return s3_key
         except Exception as e:
-            logger.error(f"❌ Failed to upload video {video_id} to S3: {str(e)}")
+            logger.error(f" Failed to upload video {video_id} to S3: {str(e)}")
             raise
 
     @staticmethod
@@ -429,7 +515,7 @@ class AudioService:
             gain = target_dbfs - current_dbfs
             normalized = audio.apply_gain(gain)
             normalized.export(output_path, format="wav")
-            logger.info(f"✅ Audio normalized: {audio_path} -> {output_path} (gain: {gain:.2f}dB)")
+            logger.info(f" Audio normalized: {audio_path} -> {output_path} (gain: {gain:.2f}dB)")
             return output_path
         except Exception as e:
             logger.error(f"Failed to normalize audio: {e}")
@@ -454,7 +540,7 @@ class AudioService:
             
             trimmed = audio[start_trim:end_trim]
             trimmed.export(output_path, format="wav")
-            logger.info(f"✅ Silence trimmed: {audio_path} -> {output_path}")
+            logger.info(f" Silence trimmed: {audio_path} -> {output_path}")
             return output_path
         except Exception as e:
             logger.error(f"Failed to trim silence: {e}")
@@ -468,12 +554,12 @@ class AudioService:
             if audio.channels > 1:
                 mono = audio.set_channels(1)
                 mono.export(output_path, format="wav")
-                logger.info(f"✅ Converted to mono: {audio_path} -> {output_path}")
+                logger.info(f" Converted to mono: {audio_path} -> {output_path}")
                 return output_path
             else:
                 import shutil
                 shutil.copy2(audio_path, output_path)
-                logger.info(f"✅ Already mono: {audio_path} -> {output_path}")
+                logger.info(f" Already mono: {audio_path} -> {output_path}")
                 return output_path
         except Exception as e:
             logger.error(f"Failed to convert to mono: {e}")

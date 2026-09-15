@@ -666,10 +666,83 @@ def get_user_active_storage_addons(user_id: int) -> List[Dict[str, Any]]:
         connection.close()
 
 
+def _resolve_storage_file_path(path_str: Optional[str]) -> Optional[Path]:
+    """
+    Robustly resolves a storage path to an existing local Path.
+    Handles:
+    1. Direct relative/absolute path (e.g. 'outputs/...', '/app/outputs/...')
+    2. Path string starting with 'outputs/' or 'outputs\\' when OUTPUT_DIR is Path('outputs')
+    3. Path string starting with 'uploads/' or 'uploads\\' when UPLOAD_DIR is Path('uploads')
+    4. Relative filename joined with OUTPUT_DIR or UPLOAD_DIR
+    """
+    if not path_str:
+        return None
+    try:
+        p = Path(path_str)
+        if p.exists() and p.is_file():
+            return p
+
+        clean_str = str(path_str).replace("\\", "/")
+        if clean_str.startswith("outputs/"):
+            rel = clean_str[len("outputs/"):]
+            cand = OUTPUT_DIR / rel
+            if cand.exists() and cand.is_file():
+                return cand
+
+        if clean_str.startswith("uploads/"):
+            rel = clean_str[len("uploads/"):]
+            cand = UPLOAD_DIR / rel
+            if cand.exists() and cand.is_file():
+                return cand
+
+        cand_out = OUTPUT_DIR / path_str
+        if cand_out.exists() and cand_out.is_file():
+            return cand_out
+
+        cand_up = UPLOAD_DIR / path_str
+        if cand_up.exists() and cand_up.is_file():
+            return cand_up
+    except Exception:
+        pass
+
+    return None
+
+
+def _get_storage_file_size(path_str: Optional[str]) -> int:
+    """
+    Returns file size in bytes for local disk or MinIO/S3 object.
+    """
+    if not path_str:
+        return 0
+    resolved = _resolve_storage_file_path(path_str)
+    if resolved:
+        try:
+            return resolved.stat().st_size
+        except Exception:
+            pass
+    try:
+        from app.services.s3_service import storage_manager
+        if storage_manager and (
+            path_str.startswith("videos/")
+            or path_str.startswith("audio/")
+            or path_str.startswith("transcripts/")
+            or path_str.startswith("subtitles/")
+            or path_str.startswith("dubbing/")
+            or path_str.startswith("thumbnails/")
+            or path_str.startswith("s3://")
+        ):
+            s3_sz = storage_manager.get_object_size(path_str)
+            if s3_sz and s3_sz > 0:
+                return s3_sz
+    except Exception:
+        pass
+    return 0
+
+
 def get_user_storage_usage(user_id: int) -> int:
     """
     Calculates the total storage in bytes currently consumed by the user's projects & video assets.
-    Accurately accounts for recorded file_size as well as physical files on disk/storage.
+    Accurately accounts for recorded file_size, physical files on local disk, intermediate stems, and S3/MinIO objects.
     """
     try:
         connection = get_connection()
@@ -679,6 +752,7 @@ def get_user_storage_usage(user_id: int) -> int:
     total_bytes = 0
     try:
         with connection.cursor() as cursor:
+            # 1. Query videos of this user
             cursor.execute(
                 """
                 SELECT v.id, COALESCE(v.file_size, 0), v.original_path, v.extracted_vocal_path, v.background_music_path,
@@ -691,26 +765,79 @@ def get_user_storage_usage(user_id: int) -> int:
             )
             rows = cursor.fetchall()
             for r in rows:
+                vid_id = r[0]
                 rec_file_size = r[1]
                 path_strs = r[2:]
                 video_files_bytes = 0
+                checked_paths = set()
+
                 for path_str in path_strs:
-                    if path_str:
-                        p = Path(path_str)
-                        if not p.is_absolute():
-                            up = UPLOAD_DIR / path_str
-                            out = OUTPUT_DIR / path_str
-                            if up.exists():
-                                video_files_bytes += up.stat().st_size
-                            elif out.exists():
-                                video_files_bytes += out.stat().st_size
-                        elif p.exists():
-                            video_files_bytes += p.stat().st_size
+                    if not path_str or path_str in checked_paths:
+                        continue
+                    checked_paths.add(path_str)
+                    sz = _get_storage_file_size(path_str)
+                    if sz > 0:
+                        video_files_bytes += sz
+                    elif path_str == r[2] and rec_file_size > 0:
+                        video_files_bytes += rec_file_size
+
+                # Also check generated stems & intermediate folders if not yet in database
+                for folder_pattern in [f"audio_{vid_id}", f"transcript_{vid_id}", f"tts_{vid_id}"]:
+                    dir_cand = OUTPUT_DIR / folder_pattern
+                    if dir_cand.exists() and dir_cand.is_dir():
+                        for item in dir_cand.glob("*"):
+                            if item.is_file():
+                                clean_item = str(item).replace("\\", "/")
+                                if clean_item not in checked_paths and f"outputs/{clean_item}" not in checked_paths:
+                                    checked_paths.add(clean_item)
+                                    video_files_bytes += item.stat().st_size
 
                 if video_files_bytes > 0:
                     total_bytes += video_files_bytes
                 else:
                     total_bytes += rec_file_size
+
+            # 2. Add video_documents generated for user's videos
+            cursor.execute(
+                """
+                SELECT COALESCE(SUM(vd.file_size_bytes), 0)
+                FROM video_documents vd
+                JOIN videos v ON v.id = vd.video_id
+                JOIN projects p ON p.id = v.project_id
+                WHERE p.owner_id = %s AND v.deleted_at IS NULL AND p.deleted_at IS NULL
+                """,
+                (user_id,),
+            )
+            doc_row = cursor.fetchone()
+            if doc_row and doc_row[0]:
+                total_bytes += int(doc_row[0])
+
+            # 3. Add voice samples from speaker profiles
+            cursor.execute(
+                """
+                SELECT sp.voice_sample_path
+                FROM speaker_profiles sp
+                JOIN videos v ON v.id = sp.video_id
+                JOIN projects p ON p.id = v.project_id
+                WHERE p.owner_id = %s AND sp.voice_sample_path IS NOT NULL
+                  AND v.deleted_at IS NULL AND p.deleted_at IS NULL
+                """,
+                (user_id,),
+            )
+            sp_rows = cursor.fetchall()
+            for (sp_path,) in sp_rows:
+                sp_sz = _get_storage_file_size(sp_path)
+                total_bytes += sp_sz
+
+        # 4. Pipeline cache in /tmp
+        tmp_dir = Path("/tmp")
+        if tmp_dir.exists():
+            for f in tmp_dir.glob(f"*{user_id}*"):
+                try:
+                    if f.is_file():
+                        total_bytes += f.stat().st_size
+                except Exception:
+                    pass
 
         return total_bytes
     except Exception as e:
@@ -1633,6 +1760,7 @@ def get_user_storage_breakdown(user_id: int) -> Dict[str, Any]:
                 p_id = v[1]
                 p_name = v[2]
                 v_title = v[3] or v[4] or f"Video #{vid_id}"
+                base_title = v_title[:-4] if v_title.lower().endswith(".mp4") else v_title
                 rec_file_size = v[5]
                 orig_path = v[6]
                 vocal_path = v[7]
@@ -1658,16 +1786,12 @@ def get_user_storage_breakdown(user_id: int) -> Dict[str, Any]:
                     projects_dict[p_id]["video_count"] += 1
 
                 # A. Source Video
-                orig_size = 0
-                if orig_path:
-                    p = Path(orig_path)
-                    if not p.is_absolute():
-                        cand = UPLOAD_DIR / orig_path
-                        if cand.exists():
-                            orig_size = cand.stat().st_size
-                    elif p.exists():
-                        orig_size = p.stat().st_size
-
+                orig_size = _get_storage_file_size(orig_path)
+                if orig_size == 0 and orig_path:
+                    # check candidate in uploads
+                    cand = UPLOAD_DIR / Path(orig_path).name
+                    if cand.exists() and cand.is_file():
+                        orig_size = cand.stat().st_size
                 if orig_size == 0:
                     orig_size = rec_file_size or 0
 
@@ -1677,7 +1801,7 @@ def get_user_storage_breakdown(user_id: int) -> Dict[str, Any]:
                         projects_dict[p_id]["storage_bytes"] += orig_size
                     all_files.append({
                         "id": f"source_{vid_id}",
-                        "filename": v[4] or f"{v_title}.mp4",
+                        "filename": v[4] or f"{base_title}.mp4",
                         "project_id": p_id,
                         "project_name": p_name,
                         "resource_type": "source_video",
@@ -1690,15 +1814,16 @@ def get_user_storage_breakdown(user_id: int) -> Dict[str, Any]:
                     })
 
                 # B. Dubbed Output Video
-                dubbed_size = 0
-                if out_path:
-                    p = Path(out_path)
-                    if not p.is_absolute():
-                        cand = OUTPUT_DIR / out_path
-                        if cand.exists():
-                            dubbed_size = cand.stat().st_size
-                    elif p.exists():
-                        dubbed_size = p.stat().st_size
+                dubbed_size = _get_storage_file_size(out_path)
+                if dubbed_size == 0:
+                    # check candidate output
+                    cand_dir = OUTPUT_DIR
+                    if cand_dir.exists():
+                        for cand_file in cand_dir.glob(f"dubbed_*_{vid_id}*.mp4"):
+                            if cand_file.is_file():
+                                dubbed_size = cand_file.stat().st_size
+                                out_path = str(cand_file)
+                                break
 
                 if dubbed_size > 0:
                     bytes_by_type["dubbed_video"] += dubbed_size
@@ -1706,7 +1831,7 @@ def get_user_storage_breakdown(user_id: int) -> Dict[str, Any]:
                         projects_dict[p_id]["storage_bytes"] += dubbed_size
                     all_files.append({
                         "id": f"dubbed_{vid_id}",
-                        "filename": f"Dubbed_{v_title}.mp4",
+                        "filename": f"Dubbed_{base_title}.mp4",
                         "project_id": p_id,
                         "project_name": p_name,
                         "resource_type": "dubbed_video",
@@ -1720,73 +1845,142 @@ def get_user_storage_breakdown(user_id: int) -> Dict[str, Any]:
 
                 # C. Audio Stems (Vocal, Dubbed Audio, Background)
                 audio_items = [
-                    (vocal_path, "Vocal_Stem", "WAV • 24-bit Vocal"),
-                    (dubbed_audio_path, "Dubbed_Audio", "WAV • 24-bit TTS"),
-                    (bg_music_path, "Background_Music", "WAV • 24-bit BGM"),
+                    (vocal_path, "Vocal_Stem", "WAV • 24-bit Vocal", [f"audio_{vid_id}/vocals.wav", f"audio_{vid_id}/audio.wav"]),
+                    (dubbed_audio_path, "Dubbed_Audio", "WAV • 24-bit TTS", [f"tts_{vid_id}/tts_vi.wav", f"tts_{vid_id}/dubbed_audio.wav"]),
+                    (bg_music_path, "Background_Music", "WAV • 24-bit BGM", [f"audio_{vid_id}/no_vocals.wav", f"audio_{vid_id}/background.wav"]),
                 ]
-                for a_path, a_label, a_spec in audio_items:
-                    if a_path:
-                        a_size = 0
-                        p = Path(a_path)
-                        if not p.is_absolute():
-                            cand = OUTPUT_DIR / a_path
-                            if cand.exists():
+                for a_path, a_label, a_spec, a_cands in audio_items:
+                    a_size = _get_storage_file_size(a_path)
+                    if a_size == 0:
+                        for cand_name in a_cands:
+                            cand = OUTPUT_DIR / cand_name
+                            if cand.exists() and cand.is_file():
                                 a_size = cand.stat().st_size
-                        elif p.exists():
-                            a_size = p.stat().st_size
+                                a_path = str(cand)
+                                break
 
-                        if a_size > 0:
-                            bytes_by_type["audio_track"] += a_size
-                            if p_id in projects_dict:
-                                projects_dict[p_id]["storage_bytes"] += a_size
-                            all_files.append({
-                                "id": f"audio_{vid_id}_{a_label.lower()}",
-                                "filename": f"{v_title}_{a_label}.wav",
-                                "project_id": p_id,
-                                "project_name": p_name,
-                                "resource_type": "audio_track",
-                                "size_bytes": a_size,
-                                "size_formatted": _format_storage_size(a_size),
-                                "specs": a_spec,
-                                "created_at": created_dt,
-                                "download_url": f"/api/videos/{vid_id}/audio/{'vocals' if 'vocal' in a_label.lower() else 'dubbed'}",
-                                "status": "ready",
-                            })
+                    if a_size > 0:
+                        bytes_by_type["audio_track"] += a_size
+                        if p_id in projects_dict:
+                            projects_dict[p_id]["storage_bytes"] += a_size
+                        all_files.append({
+                            "id": f"audio_{vid_id}_{a_label.lower()}",
+                            "filename": f"{base_title}_{a_label}.wav",
+                            "project_id": p_id,
+                            "project_name": p_name,
+                            "resource_type": "audio_track",
+                            "size_bytes": a_size,
+                            "size_formatted": _format_storage_size(a_size),
+                            "specs": a_spec,
+                            "created_at": created_dt,
+                            "download_url": f"/api/videos/{vid_id}/audio/{'vocals' if 'vocal' in a_label.lower() else 'dubbed'}",
+                            "status": "ready",
+                        })
 
                 # D. Subtitles & Documents
                 sub_items = [
-                    (sub_path, "Subtitle", "SRT • UTF-8 Subtitle"),
-                    (trans_path, "Transcript", "JSON • Timed Transcript"),
+                    (sub_path, "Subtitle", "SRT • UTF-8 Subtitle", [f"transcript_{vid_id}/subtitles_vi.ass", f"transcript_{vid_id}/subtitles_vi.srt"]),
+                    (trans_path, "Transcript", "JSON • Timed Transcript", [f"transcript_{vid_id}/transcript.json"]),
                 ]
-                for s_path, s_label, s_spec in sub_items:
-                    if s_path:
-                        s_size = 0
-                        p = Path(s_path)
-                        if not p.is_absolute():
-                            cand = OUTPUT_DIR / s_path
-                            if cand.exists():
+                for s_path, s_label, s_spec, s_cands in sub_items:
+                    s_size = _get_storage_file_size(s_path)
+                    if s_size == 0:
+                        for cand_name in s_cands:
+                            cand = OUTPUT_DIR / cand_name
+                            if cand.exists() and cand.is_file():
                                 s_size = cand.stat().st_size
-                        elif p.exists():
-                            s_size = p.stat().st_size
-                        if s_size > 0:
-                            bytes_by_type["subtitles_docs"] += s_size
-                            if p_id in projects_dict:
-                                projects_dict[p_id]["storage_bytes"] += s_size
-                            all_files.append({
-                                "id": f"sub_{vid_id}_{s_label.lower()}",
-                                "filename": f"{v_title}_{s_label}.srt" if "sub" in s_label.lower() else f"{v_title}_{s_label}.json",
-                                "project_id": p_id,
-                                "project_name": p_name,
-                                "resource_type": "subtitles_docs",
-                                "size_bytes": s_size,
-                                "size_formatted": _format_storage_size(s_size),
-                                "specs": s_spec,
-                                "created_at": created_dt,
-                                "download_url": f"/api/videos/{vid_id}/subtitles/export?format=srt",
-                                "status": "ready",
-                            })
+                                s_path = str(cand)
+                                break
 
-            # 3. Check Pipeline Cache
+                    if s_size > 0:
+                        bytes_by_type["subtitles_docs"] += s_size
+                        if p_id in projects_dict:
+                            projects_dict[p_id]["storage_bytes"] += s_size
+                        all_files.append({
+                            "id": f"sub_{vid_id}_{s_label.lower()}",
+                            "filename": f"{base_title}_{s_label}.srt" if "sub" in s_label.lower() else f"{base_title}_{s_label}.json",
+                            "project_id": p_id,
+                            "project_name": p_name,
+                            "resource_type": "subtitles_docs",
+                            "size_bytes": s_size,
+                            "size_formatted": _format_storage_size(s_size),
+                            "specs": s_spec,
+                            "created_at": created_dt,
+                            "download_url": f"/api/videos/{vid_id}/subtitles/export?format=srt",
+                            "status": "ready",
+                        })
+
+            # 3. Add video_documents generated for user's videos
+            cur.execute(
+                """
+                SELECT vd.id, vd.video_id, vd.title, vd.doc_type, COALESCE(vd.file_size_bytes, 0),
+                       vd.file_path, vd.created_at, v.project_id, p.name
+                FROM video_documents vd
+                JOIN videos v ON v.id = vd.video_id
+                JOIN projects p ON p.id = v.project_id
+                WHERE p.owner_id = %s AND v.deleted_at IS NULL AND p.deleted_at IS NULL
+                ORDER BY vd.id DESC
+                """,
+                (user_id,),
+            )
+            docs = cur.fetchall()
+            for doc in docs:
+                d_id, d_vid_id, d_title, d_type, d_size, d_path, d_created, d_pid, d_pname = doc
+                if d_size == 0 and d_path:
+                    d_size = _get_storage_file_size(d_path)
+                bytes_by_type["subtitles_docs"] += d_size
+                if d_pid in projects_dict:
+                    projects_dict[d_pid]["storage_bytes"] += d_size
+                all_files.append({
+                    "id": f"doc_{d_id}",
+                    "filename": f"{d_title} ({d_type.upper()}).md",
+                    "project_id": d_pid,
+                    "project_name": d_pname,
+                    "resource_type": "subtitles_docs",
+                    "size_bytes": d_size,
+                    "size_formatted": _format_storage_size(d_size),
+                    "specs": f"{d_type.upper()} • Markdown",
+                    "created_at": d_created.isoformat() if d_created else None,
+                    "download_url": f"/api/videos/{d_vid_id}/documents/{d_id}",
+                    "status": "ready",
+                })
+
+            # 4. Add voice samples from speaker profiles
+            cur.execute(
+                """
+                SELECT sp.id, sp.video_id, sp.speaker_label, sp.voice_sample_path, sp.created_at, v.project_id, p.name
+                FROM speaker_profiles sp
+                JOIN videos v ON v.id = sp.video_id
+                JOIN projects p ON p.id = v.project_id
+                WHERE p.owner_id = %s AND sp.voice_sample_path IS NOT NULL
+                  AND v.deleted_at IS NULL AND p.deleted_at IS NULL
+                ORDER BY sp.id DESC
+                """,
+                (user_id,),
+            )
+            speakers = cur.fetchall()
+            for sp in speakers:
+                sp_id, sp_vid, sp_lbl, sp_path, sp_created, sp_pid, sp_pname = sp
+                sp_sz = _get_storage_file_size(sp_path)
+                if sp_sz > 0:
+                    bytes_by_type["audio_track"] += sp_sz
+                    if sp_pid in projects_dict:
+                        projects_dict[sp_pid]["storage_bytes"] += sp_sz
+                    all_files.append({
+                        "id": f"speaker_{sp_id}",
+                        "filename": f"Voice Sample - {sp_lbl}.wav",
+                        "project_id": sp_pid,
+                        "project_name": sp_pname,
+                        "resource_type": "audio_track",
+                        "size_bytes": sp_sz,
+                        "size_formatted": _format_storage_size(sp_sz),
+                        "specs": "WAV • Voice Sample",
+                        "created_at": sp_created.isoformat() if sp_created else None,
+                        "download_url": f"/api/videos/{sp_vid}/speakers/{sp_id}/sample",
+                        "status": "ready",
+                    })
+
+            # 5. Check Pipeline Cache
             cache_bytes = 0
             tmp_dir = Path("/tmp")
             if tmp_dir.exists():
@@ -1933,6 +2127,70 @@ def delete_storage_resource(user_id: int, resource_type: str, file_id: str) -> D
     conn = get_connection()
     reclaimed_bytes = 0
     try:
+        vid_id = None
+        if file_id.startswith("doc_"):
+            doc_id = int(file_id.replace("doc_", ""))
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT vd.file_size_bytes, vd.file_path
+                    FROM video_documents vd
+                    JOIN videos v ON v.id = vd.video_id
+                    JOIN projects p ON p.id = v.project_id
+                    WHERE vd.id = %s AND p.owner_id = %s
+                    """,
+                    (doc_id, user_id),
+                )
+                d_row = cur.fetchone()
+                if not d_row:
+                    raise HTTPException(status_code=404, detail="Document not found or unauthorized.")
+                reclaimed_bytes = d_row[0] or 0
+                if d_row[1]:
+                    p_res = _resolve_storage_file_path(d_row[1])
+                    if p_res and p_res.exists():
+                        try:
+                            p_res.unlink()
+                        except Exception:
+                            pass
+                cur.execute("DELETE FROM video_documents WHERE id = %s", (doc_id,))
+                conn.commit()
+                return {
+                    "success": True,
+                    "reclaimed_bytes": reclaimed_bytes,
+                    "message": f"Document deleted successfully. Reclaimed {_format_storage_size(reclaimed_bytes)}.",
+                }
+        elif file_id.startswith("speaker_"):
+            sp_id = int(file_id.replace("speaker_", ""))
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT sp.voice_sample_path
+                    FROM speaker_profiles sp
+                    JOIN videos v ON v.id = sp.video_id
+                    JOIN projects p ON p.id = v.project_id
+                    WHERE sp.id = %s AND p.owner_id = %s
+                    """,
+                    (sp_id, user_id),
+                )
+                sp_row = cur.fetchone()
+                if not sp_row:
+                    raise HTTPException(status_code=404, detail="Speaker sample not found or unauthorized.")
+                if sp_row[0]:
+                    p_res = _resolve_storage_file_path(sp_row[0])
+                    if p_res and p_res.exists():
+                        reclaimed_bytes = p_res.stat().st_size
+                        try:
+                            p_res.unlink()
+                        except Exception:
+                            pass
+                cur.execute("UPDATE speaker_profiles SET voice_sample_path = NULL WHERE id = %s", (sp_id,))
+                conn.commit()
+                return {
+                    "success": True,
+                    "reclaimed_bytes": reclaimed_bytes,
+                    "message": f"Speaker voice sample deleted. Reclaimed {_format_storage_size(reclaimed_bytes)}.",
+                }
+
         parts = file_id.split("_")
         if len(parts) >= 2 and parts[1].isdigit():
             vid_id = int(parts[1])
@@ -1986,22 +2244,13 @@ def delete_storage_resource(user_id: int, resource_type: str, file_id: str) -> D
                 cur.execute("UPDATE videos SET subtitle_path = NULL, transcript_path = NULL WHERE id = %s", (vid_id,))
 
             if target_path:
-                p = Path(target_path)
-                if not p.is_absolute():
-                    for d in [UPLOAD_DIR, OUTPUT_DIR]:
-                        cand = d / target_path
-                        if cand.exists():
-                            reclaimed_bytes = max(reclaimed_bytes, cand.stat().st_size)
-                            try:
-                                cand.unlink()
-                            except Exception:
-                                pass
-                elif p.exists():
-                    reclaimed_bytes = max(reclaimed_bytes, p.stat().st_size)
+                resolved_p = _resolve_storage_file_path(target_path)
+                if resolved_p and resolved_p.exists():
+                    reclaimed_bytes = max(reclaimed_bytes, resolved_p.stat().st_size)
                     try:
-                        p.unlink()
-                    except Exception:
-                        pass
+                        resolved_p.unlink()
+                    except Exception as e:
+                        logger.warning(f"Could not unlink {resolved_p}: {e}")
 
                 try:
                     from app.services.s3_service import s3_service
@@ -2097,15 +2346,17 @@ def export_user_data_archive(user_id: int) -> io.BytesIO:
                         "has_subtitles": bool(sub_path),
                     }, indent=2)
                 )
-                if tr_path and os.path.exists(tr_path):
+                tr_file = _resolve_storage_file_path(tr_path) if tr_path else None
+                if tr_file and tr_file.exists():
                     try:
-                        with open(tr_path, "r", encoding="utf-8") as f:
+                        with open(tr_file, "r", encoding="utf-8") as f:
                             zf.writestr(f"projects/project_{proj_id}/transcript_video_{vid_id}.json", f.read())
                     except Exception:
                         pass
-                if sub_path and os.path.exists(sub_path):
+                sub_file = _resolve_storage_file_path(sub_path) if sub_path else None
+                if sub_file and sub_file.exists():
                     try:
-                        with open(sub_path, "r", encoding="utf-8") as f:
+                        with open(sub_file, "r", encoding="utf-8") as f:
                             zf.writestr(f"projects/project_{proj_id}/subtitles_video_{vid_id}.srt", f.read())
                     except Exception:
                         pass

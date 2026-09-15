@@ -27,26 +27,6 @@ export interface ProjectFavoriteResponse {
   is_favorite: boolean;
 }
 
-export interface ProjectMember {
-  id: number;
-  project_id: number;
-  user_id?: number | null;
-  email: string;
-  role: "viewer" | "commenter" | "editor" | "admin";
-  status: "pending" | "accepted" | "declined" | "revoked";
-  created_at: string;
-  full_name?: string | null;
-}
-
-export interface ProjectMemberAddRequest {
-  email: string;
-  role: "viewer" | "commenter" | "editor" | "admin";
-}
-
-export interface ProjectMemberUpdateRequest {
-  role: "viewer" | "commenter" | "editor" | "admin";
-}
-
 export interface ProjectCreateRequest {
   name: string;
   description?: string | null;

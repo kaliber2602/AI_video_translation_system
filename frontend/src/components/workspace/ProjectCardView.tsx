@@ -7,11 +7,9 @@ import {
   MoreVertical,
   PlaySquare,
   RotateCcw,
-  Share2,
   Star,
   Tag as TagIcon,
   Trash2,
-  Users,
   Video,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -25,7 +23,6 @@ interface ProjectCardViewProps {
   onEditProject: (project: Project) => void;
   onDeleteProject: (project: Project) => void;
   onToggleFavorite?: (project: Project) => void;
-  onShareProject?: (project: Project) => void;
   onRestoreProject?: (project: Project) => void;
   isTrashMode?: boolean;
 }
@@ -36,7 +33,6 @@ export default function ProjectCardView({
   onEditProject,
   onDeleteProject,
   onToggleFavorite,
-  onShareProject,
   onRestoreProject,
   isTrashMode = false,
 }: ProjectCardViewProps) {
@@ -94,16 +90,6 @@ export default function ProjectCardView({
                 <h3 className="truncate text-base font-bold text-[var(--color-text-primary)] group-hover:text-[var(--color-primary)] transition-colors duration-180">
                   {project.name}
                 </h3>
-
-                {project.is_shared && (
-                  <span
-                    title={t("workspace:share.sharedBy", { name: project.owner_name || "đồng nghiệp" })}
-                    className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400"
-                  >
-                    <Users size={11} />
-                    <span>{project.owner_name ? t("workspace:share.sharedBy", { name: project.owner_name }) : t("workspace:share.sharedWithMe")}</span>
-                  </span>
-                )}
 
                 {project.status && (
                   <span className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--color-primary)] uppercase tracking-wider">
@@ -258,20 +244,7 @@ export default function ProjectCardView({
                         }}
                       />
                       <div className="absolute right-0 top-10 z-40 w-40 overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-1 shadow-[var(--shadow-card)] animate-dropdown-reveal">
-                        {onShareProject && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveDropdownId(null);
-                              onShareProject(project);
-                            }}
-                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
-                          >
-                            <Share2 size={13} />
-                            <span>{t("workspace:share.action", "Chia sẻ")}</span>
-                          </button>
-                        )}
+
                         <button
                           type="button"
                           onClick={(e) => {

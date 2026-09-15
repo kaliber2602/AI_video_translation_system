@@ -12,7 +12,8 @@
     "failed": "Xử lý thất bại"
   },
   "action": {
-    "reviewVideo": "Xem lại video",
+    "open": "Mở",
+    "reviewVideo": "Mở",
     "continueEditing": "Tiếp tục chỉnh sửa",
     "viewProgress": "Xem tiến độ",
     "openPipeline": "Mở quy trình",

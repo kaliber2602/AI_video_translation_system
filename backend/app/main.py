@@ -3,9 +3,11 @@ import sys
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+
 
 from app.api.routes import router
 from app.core.database import ensure_db_schema
@@ -37,7 +39,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     except Exception:
         body_str = "<could not read body>"
     logger.error(f"❌ [422 Validation Error] {request.method} {request.url.path} -> Errors: {exc.errors()} | Raw Body: {body_str}")
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(exc.errors())})
+
 
 
 app.add_middleware(

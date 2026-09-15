@@ -37,7 +37,6 @@ import ProjectErrorState from "../components/workspace/ProjectErrorState";
 import ProjectPagination from "../components/workspace/ProjectPagination";
 import ProjectModal from "../components/workspace/ProjectModal";
 import DeleteProjectModal from "../components/workspace/DeleteProjectModal";
-import ShareProjectModal from "../components/workspace/ShareProjectModal";
 import ConfirmationDialog from "../components/common/ConfirmationDialog";
 
 const VIEW_MODE_STORAGE_KEY = "vidnova_workspace_view_mode";
@@ -50,12 +49,10 @@ function getInitialViewMode(): ViewMode {
   return "grid";
 }
 
-const getBackendScope = (tab: WorkspaceTab): "all" | "favorites" | "shared" | "trash" => {
+const getBackendScope = (tab: WorkspaceTab): "all" | "favorites" | "trash" => {
   switch (tab) {
     case "favorites":
       return "favorites";
-    case "sharedWithMe":
-      return "shared";
     case "trash":
       return "trash";
     case "allProjects":
@@ -96,7 +93,6 @@ export default function WorkspaceLayout() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
   const [deleteModalMode, setDeleteModalMode] = useState<"soft" | "permanent">("soft");
-  const [sharingProject, setSharingProject] = useState<Project | null>(null);
   const [isEmptyTrashConfirmOpen, setIsEmptyTrashConfirmOpen] = useState(false);
 
   // Change and persist View Mode
@@ -522,7 +518,6 @@ export default function WorkspaceLayout() {
                   onEditProject={handleOpenEditModal}
                   onDeleteProject={handleOpenDeleteModal}
                   onToggleFavorite={handleToggleFavorite}
-                  onShareProject={(p) => setSharingProject(p)}
                   onRestoreProject={handleRestoreProject}
                   isTrashMode={currentTab === "trash"}
                 />
@@ -535,7 +530,6 @@ export default function WorkspaceLayout() {
                   onEditProject={handleOpenEditModal}
                   onDeleteProject={handleOpenDeleteModal}
                   onToggleFavorite={handleToggleFavorite}
-                  onShareProject={(p) => setSharingProject(p)}
                   onRestoreProject={handleRestoreProject}
                   isTrashMode={currentTab === "trash"}
                 />
@@ -548,7 +542,6 @@ export default function WorkspaceLayout() {
                   onEditProject={handleOpenEditModal}
                   onDeleteProject={handleOpenDeleteModal}
                   onToggleFavorite={handleToggleFavorite}
-                  onShareProject={(p) => setSharingProject(p)}
                   onRestoreProject={handleRestoreProject}
                   isTrashMode={currentTab === "trash"}
                 />
@@ -561,7 +554,6 @@ export default function WorkspaceLayout() {
                   onEditProject={handleOpenEditModal}
                   onDeleteProject={handleOpenDeleteModal}
                   onToggleFavorite={handleToggleFavorite}
-                  onShareProject={(p) => setSharingProject(p)}
                   onRestoreProject={handleRestoreProject}
                   isTrashMode={currentTab === "trash"}
                 />
@@ -599,16 +591,6 @@ export default function WorkspaceLayout() {
         mode={deleteModalMode}
         onClose={handleCloseDeleteModal}
         onConfirm={handleConfirmDelete}
-      />
-
-      {/* Share Project Modal */}
-      <ShareProjectModal
-        project={sharingProject}
-        isOpen={sharingProject !== null}
-        onClose={() => setSharingProject(null)}
-        onMembersChange={() => {
-          loadProjects();
-        }}
       />
 
       {/* Empty Trash Confirmation Modal */}

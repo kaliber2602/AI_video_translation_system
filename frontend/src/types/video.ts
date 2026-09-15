@@ -108,3 +108,29 @@ export interface SubtitleStyleConfig {
   italic: boolean;
   uppercase: boolean;
 }
+
+export interface SubtitleMaskConfig {
+  enabled: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  mask_type: "blur" | "banner";
+  opacity: number;
+  color: string;
+}
+
+export interface OverlayConfig {
+  logo_url?: string | null;
+  logo_path?: string | null;
+  logo_x: number;
+  logo_y: number;
+  logo_scale: number;
+  logo_opacity: number;
+  ticker_text?: string | null;
+  ticker_speed: number;
+  ticker_font_size: number;
+  ticker_color: string;
+  ticker_bg_color: string;
+}
+

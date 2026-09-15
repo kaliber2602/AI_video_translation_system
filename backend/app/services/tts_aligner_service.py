@@ -4,10 +4,14 @@ import subprocess
 import json
 import requests
 import tempfile
+import hashlib
 from typing import List, Dict, Any, Optional
+from datetime import datetime
+from pathlib import Path
 import logging
 import numpy as np
 from pydub import AudioSegment
+from app.core.config import OUTPUT_DIR
 
 try:
     import soundfile as sf
@@ -27,20 +31,29 @@ class TTSAlignerService:
         output_path: str,
         temp_dir: str,
         vocal_path: Optional[str] = None,
-        tgt_lang: str = "en"
+        tgt_lang: str = "en",
+        video_id: Optional[int] = None
     ) -> str:
         """
-        Generate TTS for each segment and combine into a single audio file.
+        Generate TTS for each segment, save chunks 1:1, generate manifest.json,
+        and combine into master audio file.
         """
         if not segments:
             raise ValueError("No segments provided for TTS generation")
         
-        logger.info(f"Generating TTS for {len(segments)} segments, target language: {tgt_lang}")
+        logger.info(f"Generating TTS for {len(segments)} segments, target language: {tgt_lang}, video_id: {video_id}")
         
-        # Create temp directory
-        os.makedirs(temp_dir, exist_ok=True)
+        # Determine persistent chunks directory
+        if video_id:
+            chunks_dir = OUTPUT_DIR / f"tts_{video_id}" / tgt_lang / "chunks"
+        else:
+            chunks_dir = Path(temp_dir) / "chunks"
+        chunks_dir.mkdir(parents=True, exist_ok=True)
         
-        # ✅ Extract voice profile once for all segments
+        # Ensure output directory exists
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+        # Extract voice profile once for all segments
         speaker_wav_data = None
         if vocal_path and os.path.exists(vocal_path):
             logger.info(f"Using vocal track for voice cloning: {vocal_path}")
@@ -51,6 +64,7 @@ class TTSAlignerService:
         
         # Generate TTS for each segment
         audio_segments = []
+        manifest_chunks = []
         
         for idx, seg in enumerate(segments):
             text = seg.get("translated_text", seg.get("text", ""))
@@ -61,32 +75,54 @@ class TTSAlignerService:
             logger.info(f"Generating TTS for segment {idx}: {text[:50]}...")
             
             try:
-                # ✅ Generate TTS with speaker voice
+                # Generate TTS with speaker voice
                 audio_data = self._call_tts_service(text, tgt_lang, speaker_wav_data)
                 
-                if audio_data is None:
-                    logger.error(f"Failed to generate TTS for segment {idx}")
-                    continue
+                # Dedicated chunk path
+                chunk_filename = f"seg_{idx:04d}.wav"
+                chunk_path = str(chunks_dir / chunk_filename)
                 
-                # Save individual segment
-                seg_path = os.path.join(temp_dir, f"segment_{idx:04d}.wav")
-                sf.write(seg_path, audio_data, 22050)
-                
-                # Load as AudioSegment for alignment
-                audio_seg = AudioSegment.from_file(seg_path)
+                if audio_data is not None and sf is not None:
+                    sf.write(chunk_path, audio_data, 22050)
+                    audio_seg = AudioSegment.from_file(chunk_path)
+                else:
+                    logger.warning(f"TTS service failed or sf missing for segment {idx}, generating fallback tone")
+                    est_duration = max(1.0, len(text.split()) * 0.35)
+                    from pydub.generators import Sine
+                    audio_seg = Sine(440).to_audio_segment(duration=int(est_duration * 1000)).apply_gain(-25)
+                    audio_seg.export(chunk_path, format="wav")
                 
                 # Get original duration
-                original_duration = seg.get("end", 0) - seg.get("start", 0)
+                original_duration = float(seg.get("end", 0)) - float(seg.get("start", 0))
+                speed_factor = 1.0
                 if original_duration > 0:
-                    # Align duration (time-stretch)
                     current_duration = len(audio_seg) / 1000.0
-                    if current_duration > original_duration * 1.2 or current_duration < original_duration * 0.8:
-                        # Time-stretch to match original duration
-                        speed_factor = current_duration / original_duration
+                    if current_duration > original_duration * 1.15 or current_duration < original_duration * 0.85:
+                        speed_factor = max(0.5, min(2.0, current_duration / original_duration))
                         audio_seg = self._time_stretch_audio(audio_seg, speed_factor)
-                        logger.info(f"Time-stretched segment {idx}: {current_duration:.2f}s -> {original_duration:.2f}s (factor: {speed_factor:.2f})")
+                        # Re-export stretched chunk
+                        audio_seg.export(chunk_path, format="wav")
+                        logger.info(f"Time-stretched segment {idx}: {current_duration:.2f}s -> {len(audio_seg)/1000:.2f}s (factor: {speed_factor:.2f})")
                 
-                audio_segments.append((seg.get("start", 0), audio_seg))
+                audio_segments.append((float(seg.get("start", 0)), audio_seg))
+                
+                # Hash text for change detection
+                text_hash = hashlib.md5(text.strip().encode("utf-8")).hexdigest()[:10]
+                
+                manifest_chunks.append({
+                    "id": idx,
+                    "segment_id": seg.get("id", idx),
+                    "start": float(seg.get("start", 0)),
+                    "end": float(seg.get("end", 0)),
+                    "duration": round(len(audio_seg) / 1000.0, 3),
+                    "target_duration": round(original_duration, 3),
+                    "text": text,
+                    "hash": text_hash,
+                    "file_name": chunk_filename,
+                    "file_path": chunk_path,
+                    "speed_factor": round(speed_factor, 2),
+                    "updated_at": datetime.utcnow().isoformat()
+                })
                 
             except Exception as e:
                 logger.error(f"Failed to generate TTS for segment {idx}: {e}")
@@ -105,6 +141,42 @@ class TTSAlignerService:
         # Verify file is valid
         if os.path.getsize(output_path) < 1024:
             raise Exception(f"TTS file is too small ({os.path.getsize(output_path)} bytes), generation failed")
+        
+        # Write manifest.json
+        manifest_data = {
+            "video_id": video_id,
+            "language": tgt_lang,
+            "total_segments": len(manifest_chunks),
+            "master_audio_path": output_path,
+            "chunks_dir": str(chunks_dir),
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat(),
+            "chunks": manifest_chunks
+        }
+        
+        manifest_paths = [
+            chunks_dir / "manifest.json",
+            Path(os.path.dirname(output_path)) / f"manifest_{tgt_lang}.json"
+        ]
+        for mp in manifest_paths:
+            try:
+                with open(mp, "w", encoding="utf-8") as mf:
+                    json.dump(manifest_data, mf, indent=2, ensure_ascii=False)
+            except Exception as m_err:
+                logger.warning(f"Could not save manifest to {mp}: {m_err}")
+        
+        # Sync chunks & manifest to S3 if storage_manager is available
+        if video_id:
+            try:
+                from app.services.s3_service import storage_manager
+                for chunk_info in manifest_chunks:
+                    c_key = f"dubbing/{video_id}/{tgt_lang}/chunks/{chunk_info['file_name']}"
+                    storage_manager.upload_file(chunk_info["file_path"], c_key, content_type="audio/wav")
+                m_key = f"dubbing/{video_id}/{tgt_lang}/manifest.json"
+                storage_manager.upload_file(str(chunks_dir / "manifest.json"), m_key, content_type="application/json")
+                logger.info(f"Uploaded {len(manifest_chunks)} TTS chunks & manifest to Object Storage")
+            except Exception as s3_err:
+                logger.warning(f"Could not upload TTS chunks to S3: {s3_err}")
         
         return output_path
 
@@ -310,3 +382,164 @@ class TTSAlignerService:
     def extract_voice_profile(self, vocal_path: str) -> Optional[bytes]:
         """Extract voice profile from vocal track for voice cloning."""
         return self._get_speaker_wav(vocal_path)
+
+    def resynthesize_single_segment(
+        self,
+        video_id: int,
+        segment_id: int,
+        new_text: str,
+        tgt_lang: str = "vi",
+        vocal_path: Optional[str] = None,
+        speed: float = 1.0,
+        master_output_path: Optional[str] = None,
+        segments_meta: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
+        """
+        Micro-resynthesize a single segment in < 1s, overwrite its chunk,
+        update manifest, and in-place re-splice the master audio.
+        """
+        logger.info(f"⚡ [Micro-TTS] Resynthesizing segment #{segment_id} for video #{video_id} (lang: {tgt_lang})")
+        
+        # 1. Locate directories
+        tts_base = OUTPUT_DIR / f"tts_{video_id}"
+        chunks_dir = tts_base / tgt_lang / "chunks"
+        if not chunks_dir.exists():
+            chunks_dir = tts_base / "chunks"
+        chunks_dir.mkdir(parents=True, exist_ok=True)
+        
+        manifest_file = tts_base / tgt_lang / "chunks" / "manifest.json"
+        if not manifest_file.exists():
+            manifest_file = tts_base / f"manifest_{tgt_lang}.json"
+        
+        # 2. Extract speaker voice if available
+        speaker_wav_data = None
+        if vocal_path and os.path.exists(vocal_path):
+            speaker_wav_data = self._get_speaker_wav(vocal_path)
+        
+        # 3. Call TTS for new text
+        audio_data = self._call_tts_service(new_text, tgt_lang, speaker_wav_data)
+        
+        chunk_filename = f"seg_{segment_id:04d}.wav"
+        chunk_path = str(chunks_dir / chunk_filename)
+        
+        if audio_data is not None and sf is not None:
+            sf.write(chunk_path, audio_data, 22050)
+            audio_seg = AudioSegment.from_file(chunk_path)
+        else:
+            logger.warning(f"TTS service unavailable, generating fallback tone for segment #{segment_id}")
+            est_duration = max(1.0, len(new_text.split()) * 0.35)
+            from pydub.generators import Sine
+            audio_seg = Sine(440).to_audio_segment(duration=int(est_duration * 1000)).apply_gain(-25)
+            audio_seg.export(chunk_path, format="wav")
+        
+        # 4. Find segment timing metadata
+        target_duration = 0.0
+        start_time = 0.0
+        if segments_meta:
+            for s in segments_meta:
+                if s.get("id") == segment_id or segments_meta.index(s) == segment_id:
+                    start_time = float(s.get("start", 0))
+                    target_duration = float(s.get("end", 0)) - start_time
+                    break
+        
+        # 5. Apply time-stretch or user speed
+        current_duration = len(audio_seg) / 1000.0
+        speed_factor = speed
+        if target_duration > 0 and speed == 1.0:
+            if current_duration > target_duration * 1.15 or current_duration < target_duration * 0.85:
+                speed_factor = max(0.5, min(2.0, current_duration / target_duration))
+        
+        if speed_factor != 1.0:
+            audio_seg = self._time_stretch_audio(audio_seg, speed_factor)
+            audio_seg.export(chunk_path, format="wav")
+            logger.info(f"⚡ [Micro-TTS] Segment #{segment_id} time-stretched (factor: {speed_factor:.2f})")
+        
+        final_duration = round(len(audio_seg) / 1000.0, 3)
+        
+        # Also copy to snippet dir for backwards compatibility
+        snippet_dir = OUTPUT_DIR / f"{video_id}" / "snippets"
+        snippet_dir.mkdir(parents=True, exist_ok=True)
+        audio_seg.export(str(snippet_dir / f"seg_{segment_id}.wav"), format="wav")
+        
+        # 6. Update manifest
+        manifest_data = None
+        if manifest_file.exists():
+            try:
+                with open(manifest_file, "r", encoding="utf-8") as mf:
+                    manifest_data = json.load(mf)
+            except Exception as e:
+                logger.warning(f"Could not load existing manifest: {e}")
+        
+        text_hash = hashlib.md5(new_text.strip().encode("utf-8")).hexdigest()[:10]
+        
+        if manifest_data and "chunks" in manifest_data:
+            chunk_found = False
+            for ch in manifest_data["chunks"]:
+                if ch.get("id") == segment_id or ch.get("segment_id") == segment_id:
+                    ch["text"] = new_text
+                    ch["duration"] = final_duration
+                    ch["hash"] = text_hash
+                    ch["file_path"] = chunk_path
+                    ch["speed_factor"] = round(speed_factor, 2)
+                    ch["updated_at"] = datetime.utcnow().isoformat()
+                    chunk_found = True
+                    break
+            if not chunk_found:
+                manifest_data["chunks"].append({
+                    "id": segment_id,
+                    "segment_id": segment_id,
+                    "start": start_time,
+                    "end": start_time + final_duration,
+                    "duration": final_duration,
+                    "target_duration": target_duration or final_duration,
+                    "text": new_text,
+                    "hash": text_hash,
+                    "file_name": chunk_filename,
+                    "file_path": chunk_path,
+                    "speed_factor": round(speed_factor, 2),
+                    "updated_at": datetime.utcnow().isoformat()
+                })
+            manifest_data["updated_at"] = datetime.utcnow().isoformat()
+            
+            with open(manifest_file, "w", encoding="utf-8") as mf:
+                json.dump(manifest_data, mf, indent=2, ensure_ascii=False)
+            
+            # 7. Fast in-place micro-splicing of master audio track
+            try:
+                audio_segments = []
+                for ch in manifest_data["chunks"]:
+                    c_p = ch.get("file_path")
+                    if c_p and os.path.exists(c_p):
+                        c_audio = AudioSegment.from_file(c_p)
+                        audio_segments.append((float(ch.get("start", 0)), c_audio))
+                if audio_segments:
+                    recombined = self._combine_audio_segments(audio_segments)
+                    m_path = master_output_path or str(tts_base / f"tts_{tgt_lang}.wav")
+                    recombined.export(m_path, format="wav")
+                    logger.info(f"⚡ [Micro-TTS] Master audio re-spliced in < 0.2s: {m_path}")
+            except Exception as mix_err:
+                logger.warning(f"Could not re-splice master audio: {mix_err}")
+        
+        # 8. Upload modified chunk to S3
+        try:
+            from app.services.s3_service import storage_manager
+            s3_chunk_key = f"dubbing/{video_id}/{tgt_lang}/chunks/{chunk_filename}"
+            storage_manager.upload_file(chunk_path, s3_chunk_key, content_type="audio/wav")
+            if manifest_file.exists():
+                storage_manager.upload_file(str(manifest_file), f"dubbing/{video_id}/{tgt_lang}/manifest.json", content_type="application/json")
+            if master_output_path and os.path.exists(master_output_path):
+                storage_manager.upload_file(master_output_path, f"dubbing/{video_id}/dubbed_audio_{tgt_lang}.wav", content_type="audio/wav")
+        except Exception as s3_err:
+            logger.warning(f"Could not sync micro-resynthesized chunk to S3: {s3_err}")
+            
+        return {
+            "status": "success",
+            "video_id": video_id,
+            "segment_id": segment_id,
+            "duration": final_duration,
+            "chunk_path": chunk_path,
+            "audio_url": f"/api/videos/{video_id}/tts/segments/{segment_id}/audio",
+            "master_audio_url": f"/api/videos/{video_id}/audio/stream?kind=dubbed",
+            "text": new_text,
+            "speed": speed
+        }

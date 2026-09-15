@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   Folder,
-  Users,
   Star,
   Trash2,
   Plus,
@@ -23,7 +22,7 @@ import type { TagResponse } from "../../types/tag";
 import type { UserSubscriptionSummary, StorageAddon, Plan } from "../../types/subscription";
 import { toast } from "../../lib/toast";
 
-export type WorkspaceTab = "allProjects" | "sharedWithMe" | "favorites" | "trash";
+export type WorkspaceTab = "allProjects" | "favorites" | "trash";
 
 interface WorkspaceSidebarProps {
   currentTab?: WorkspaceTab;
@@ -87,12 +86,6 @@ export default function WorkspaceSidebar({
       label: t("navigation:allProjects"),
       icon: Folder,
       active: currentTab === "allProjects",
-    },
-    {
-      id: "sharedWithMe" as WorkspaceTab,
-      label: t("navigation:sharedWithMe"),
-      icon: Users,
-      active: currentTab === "sharedWithMe",
     },
     {
       id: "favorites" as WorkspaceTab,

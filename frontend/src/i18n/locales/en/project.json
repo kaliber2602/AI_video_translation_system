@@ -12,7 +12,8 @@
     "failed": "Failed"
   },
   "action": {
-    "reviewVideo": "Review Video",
+    "open": "Open",
+    "reviewVideo": "Open",
     "continueEditing": "Continue Editing",
     "viewProgress": "View Progress",
     "openPipeline": "Open Pipeline",

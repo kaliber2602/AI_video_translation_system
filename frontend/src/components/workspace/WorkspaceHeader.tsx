@@ -19,11 +19,6 @@ export default function WorkspaceHeader({
 
   const getHeaderInfo = () => {
     switch (currentTab) {
-      case "sharedWithMe":
-        return {
-          title: t("workspace:sharedWithMeTitle", "Chia sẻ với tôi"),
-          subtitle: t("workspace:sharedWithMeSubtitle", "Các dự án mà cộng tác viên chia sẻ quyền truy cập với bạn"),
-        };
       case "favorites":
         return {
           title: t("workspace:favoritesTitle", "Mục yêu thích"),

@@ -3,6 +3,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useParams,
 } from "react-router-dom";
 
 import Home from "../../pages/Home";
@@ -12,13 +13,20 @@ import Register from "../../pages/Register";
 import Workspace from "../../pages/Workspace";
 import ProjectDetail from "../../pages/ProjectDetail";
 import VideoPipeline from "../../pages/VideoPipeline";
-import VideoEditor from "../../pages/VideoEditor";
 import Setting from "../../pages/Settings";
 import NotificationsPage from "../../pages/NotificationsPage";
 import ResetPasswordPage from "../../pages/ResetPasswordPage";
 import VerifyOtpPage from "../../pages/VerifyOtpPage";
 import ForgotPasswordPage from "../../pages/ForgotPasswordPage";
 import VNPayReturnPage from "../../pages/VNPayReturnPage";
+
+function VideoEditorRedirect() {
+  const { projectId, videoId } = useParams<{ projectId?: string; videoId?: string }>();
+  if (projectId && videoId) {
+    return <Navigate to={`/workspace/project/${projectId}/video/${videoId}?step=subtitle`} replace />;
+  }
+  return <Navigate to="/workspace" replace />;
+}
 
 import ProtectedRoute from "./ProtectedRoute";
 import AdminRoute from "./AdminRoute";
@@ -117,16 +125,16 @@ export default function AppRouter() {
             element={<VideoPipeline />}
           />
 
-          {/* Dedicated Video & Subtitle Editor */}
+          {/* Video & Subtitle Studio (Redirects to Unified Pipeline) */}
 
           <Route
             path="/workspace/project/:projectId/video/:videoId/editor"
-            element={<VideoEditor />}
+            element={<VideoEditorRedirect />}
           />
 
           <Route
             path="/workspace/video/:videoId/editor"
-            element={<VideoEditor />}
+            element={<VideoEditorRedirect />}
           />
 
           {/* Settings */}

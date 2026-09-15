@@ -8,7 +8,6 @@ import {
   FolderInput,
   Download,
   Trash2,
-  Sparkles,
   Image as ImageIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -60,7 +59,6 @@ const statusClasses: Record<VideoStatus, string> = {
 export default function VideoCard({
   video,
   onOpen,
-  onOpenEditor,
   onRename,
   onMove,
   onDownload,
@@ -298,7 +296,7 @@ export default function VideoCard({
   const getActionLabel = (status: VideoStatus) => {
     switch (status) {
       case "completed":
-        return t("project:action.reviewVideo") || "Review Video";
+        return t("project:action.open") || "Open";
       case "editing":
         return t("project:action.continueEditing") || "Continue Editing";
       case "processing":
@@ -309,7 +307,7 @@ export default function VideoCard({
       case "failed":
         return t("project:action.retry") || "Retry Processing";
       default:
-        return t("project:action.openPipeline") || "Open";
+        return t("project:action.open") || "Open";
     }
   };
 
@@ -403,18 +401,6 @@ export default function VideoCard({
               className="absolute right-0 top-10 z-50 w-48 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-1.5 shadow-xl backdrop-blur-md animate-scale-in"
               onClick={(e) => e.stopPropagation()}
             >
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  onOpenEditor ? onOpenEditor(video) : onOpen();
-                }}
-                className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-xs font-medium text-indigo-400 transition hover:bg-[var(--color-surface-muted)]"
-              >
-                <Sparkles size={14} />
-                Mở Video Editor
-              </button>
-
               {onManageThumbnail && (
                 <button
                   type="button"
@@ -528,32 +514,18 @@ export default function VideoCard({
             {getActionLabel(video.status)}
           </button>
 
-          {/* Documents */}
+          {/* View Chapters & Documents */}
           <button
             type="button"
             onClick={(event) => {
               event.stopPropagation();
               onViewDocuments?.(video);
             }}
-            aria-label={t("project:viewDocuments") || "View Documents"}
+            aria-label={t("project:viewDocuments") || "View Chapters & Documents"}
             title="View Chapters & Documents"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] transition-colors duration-180 ease-out hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] transition-colors duration-180 ease-out hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] cursor-pointer"
           >
             <FileText size={15} />
-          </button>
-
-          {/* Open Video Editor Button */}
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onOpenEditor ? onOpenEditor(video) : onOpen();
-            }}
-            aria-label="Mở Video Editor"
-            title="Mở Trình Dựng Video & Phụ Đề"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-indigo-500/40 bg-indigo-950/20 text-indigo-400 transition-colors duration-180 ease-out hover:border-indigo-400 hover:bg-indigo-600 hover:text-white"
-          >
-            <Sparkles size={15} />
           </button>
         </div>
       </div>

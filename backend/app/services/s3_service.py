@@ -84,10 +84,10 @@ class StorageManager:
             return "s3"
 
         # In "auto" mode:
-        # Check if real AWS credentials exist (not minioadmin and not placeholder)
-        is_minio_creds = AWS_ACCESS_KEY_ID in (None, "", "minioadmin", "your_aws_access_key_id", "AKIA_EXAMPLE")
-        env = os.getenv("ENVIRONMENT", "development").lower().strip()
-        if not is_minio_creds and env in ("production", "prod", "staging"):
+        # Check if real AWS credentials exist (not empty, not minioadmin and not placeholder)
+        is_invalid_aws = AWS_ACCESS_KEY_ID in (None, "", "minioadmin", "your_aws_access_key_id", "AKIA_EXAMPLE")
+        if not is_invalid_aws and AWS_SECRET_ACCESS_KEY:
+            # If real AWS credentials are provided, activate S3 seamlessly without requiring ENVIRONMENT=production
             return "s3"
 
         # In dev or without cloud keys, default to MinIO for zero-latency local development
@@ -204,7 +204,12 @@ class StorageManager:
         try:
             client.head_bucket(Bucket=bucket)
             return True
-        except Exception:
+        except ClientError as ce:
+            error_code = str(ce.response.get("Error", {}).get("Code", ""))
+            # If 403 / AccessDenied on head_bucket, bucket exists but IAM user has restricted permissions
+            if error_code in ("403", "AccessDenied"):
+                logger.info(f"[StorageManager] HeadBucket returned {error_code} for '{bucket}'. Assuming bucket exists with restricted IAM.")
+                return True
             try:
                 if region and region not in ("us-east-1", ""):
                     client.create_bucket(
@@ -217,6 +222,9 @@ class StorageManager:
             except Exception as e:
                 logger.warning(f"[StorageManager] Could not ensure bucket '{bucket}': {e}")
                 return False
+        except Exception as e:
+            logger.warning(f"[StorageManager] Unexpected error checking bucket '{bucket}': {e}")
+            return False
 
     def ensure_buckets_exist(self) -> Dict[str, bool]:
         """Ensure both AWS S3 and MinIO buckets exist."""
@@ -503,6 +511,37 @@ class StorageManager:
 
         return uploaded_files
 
+    def get_object_size(self, s3_key: str) -> int:
+        """Get object size in bytes from active storage tier with fallback."""
+        if not s3_key:
+            return 0
+
+        def _check_size(client, bucket):
+            if not client or not bucket:
+                return None
+            try:
+                resp = client.head_object(Bucket=bucket, Key=s3_key)
+                return int(resp.get("ContentLength", 0))
+            except Exception:
+                return None
+
+        if self.active_tier == "minio":
+            size = _check_size(self._fallback_client, self.minio_bucket)
+            if size is not None:
+                return size
+            size = _check_size(self._primary_client, self.aws_bucket)
+            if size is not None:
+                return size
+        else:
+            size = _check_size(self._primary_client, self.aws_bucket)
+            if size is not None:
+                return size
+            size = _check_size(self._fallback_client, self.minio_bucket)
+            if size is not None:
+                return size
+
+        return 0
+
     def get_status(self) -> Dict[str, Any]:
         """Return diagnostic health and circuit breaker status."""
         state = self._check_circuit_state()
@@ -572,6 +611,10 @@ def generate_presigned_url(
 
 def upload_hls_directory(local_dir: str, s3_prefix: str, content_type_map: Optional[dict] = None) -> dict:
     return storage_manager.upload_hls_directory(local_dir, s3_prefix, content_type_map)
+
+
+def get_object_size(s3_key: str) -> int:
+    return storage_manager.get_object_size(s3_key)
 
 
 def set_storage_tier(tier: str):

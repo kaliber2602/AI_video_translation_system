@@ -4,10 +4,8 @@ import {
   MoreVertical,
   PlaySquare,
   RotateCcw,
-  Share2,
   Star,
   Trash2,
-  Users,
   Video,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -21,7 +19,6 @@ interface ProjectGridViewProps {
   onEditProject: (project: Project) => void;
   onDeleteProject: (project: Project) => void;
   onToggleFavorite?: (project: Project) => void;
-  onShareProject?: (project: Project) => void;
   onRestoreProject?: (project: Project) => void;
   isTrashMode?: boolean;
 }
@@ -32,7 +29,6 @@ export default function ProjectGridView({
   onEditProject,
   onDeleteProject,
   onToggleFavorite,
-  onShareProject,
   onRestoreProject,
   isTrashMode = false,
 }: ProjectGridViewProps) {
@@ -86,15 +82,6 @@ export default function ProjectGridView({
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2">
                 <FolderIcon size="lg" />
-                {project.is_shared && (
-                  <span
-                    title={t("workspace:share.sharedBy", { name: project.owner_name || "đồng nghiệp" })}
-                    className="inline-flex items-center gap-1 rounded-lg bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400"
-                  >
-                    <Users size={11} />
-                    <span className="max-w-[70px] truncate">{project.owner_name || t("workspace:share.sharedWithMe")}</span>
-                  </span>
-                )}
               </div>
 
               <div className="flex items-center gap-1.5">
@@ -180,20 +167,7 @@ export default function ProjectGridView({
                           </>
                         ) : (
                           <>
-                            {onShareProject && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveDropdownId(null);
-                                  onShareProject(project);
-                                }}
-                                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)]"
-                              >
-                                <Share2 size={13} />
-                                <span>{t("workspace:share.action", "Chia sẻ")}</span>
-                              </button>
-                            )}
+
                             <button
                               type="button"
                               onClick={(e) => {

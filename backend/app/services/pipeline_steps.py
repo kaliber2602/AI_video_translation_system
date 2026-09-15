@@ -23,6 +23,85 @@ from app.models import Video, VideoPipelineConfig, ProjectGlossary, TranscriptSe
 from app.models.enums import JobStatus, JobStep
 
 
+def _load_subtitle_config(video_id: int, language: str, video=None, db=None) -> dict:
+    """
+    Load saved subtitle config from disk file or video.snapshot_data.
+    Returns a dict with all subtitle style keys, falling back to defaults
+    for any key that isn't found in the saved config.
+
+    Priority:
+      1. File  outputs/transcript_{video_id}/subtitle_config_{lang}.json
+      2. video.snapshot_data["subtitle_config"]  (DB)
+      3. Hardcoded defaults
+    """
+    defaults = {
+        "font_size": 22,
+        "font_name": "Montserrat",
+        "primary_color": "#FFFFFF",
+        "outline_color": "#000000",
+        "position": "bottom",
+        "max_lines": 2,
+        "effect": "pop",
+        "aspect_ratio": "16:9",
+        "alignment": "center",
+        "position_y": 84.0,
+        "line_spacing": 1.2,
+    }
+    # camelCase → snake_case mapping for keys that frontend may send
+    _camel_to_snake = {
+        "fontSize": "font_size",
+        "fontName": "font_name",
+        "primaryColor": "primary_color",
+        "outlineColor": "outline_color",
+        "maxLines": "max_lines",
+        "aspectRatio": "aspect_ratio",
+        "positionY": "position_y",
+        "lineSpacing": "line_spacing",
+    }
+    lang_clean = language.lower().strip()
+
+    def _merge(source: dict):
+        if not isinstance(source, dict):
+            return
+        for k, v in source.items():
+            snake_k = _camel_to_snake.get(k, k)
+            if snake_k in defaults and v is not None:
+                defaults[snake_k] = v
+
+    # Priority 1: config file on disk
+    cfg_file = OUTPUT_DIR / f"transcript_{video_id}" / f"subtitle_config_{lang_clean}.json"
+    if cfg_file.exists():
+        try:
+            with open(cfg_file, "r", encoding="utf-8") as f:
+                _merge(json.load(f))
+        except Exception:
+            pass
+
+    # Priority 2: snapshot_data in DB
+    if video is not None:
+        snap = getattr(video, "snapshot_data", None) or {}
+        if isinstance(snap, str):
+            try:
+                snap = json.loads(snap)
+            except Exception:
+                snap = {}
+        _merge(snap.get("subtitle_config", {}))
+
+    # Priority 3: VideoPipelineConfig.config_data.subtitles.style (job-level)
+    if db is not None:
+        try:
+            vpc = db.query(VideoPipelineConfig).filter(
+                VideoPipelineConfig.video_id == video_id
+            ).first()
+            if vpc and vpc.config_data:
+                cd = vpc.config_data if isinstance(vpc.config_data, dict) else json.loads(vpc.config_data)
+                _merge((cd.get("subtitles") or {}).get("style", {}))
+        except Exception:
+            pass
+
+    return defaults
+
+
 class PipelineSteps:
     def __init__(self, db: DatabaseSession, job_service):
         self.db = db
@@ -204,18 +283,19 @@ class PipelineSteps:
 
             # 5. Pre-generate subtitles into canonical dir immediately
             try:
+                sub_cfg = _load_subtitle_config(video_id, target_lang_clean, video=None, db=self.db)
                 SubtitleService.save_all_subtitles(
                     segments=translated_segments,
                     base_dir=str(canonical_dir),
                     language=target_lang_clean,
                     text_key="translated_text",
-                    font_size=22,
-                    position="bottom",
-                    font_name="Montserrat",
-                    primary_color="#FFFFFF",
-                    outline_color="#000000",
-                    max_lines=2,
-                    effect="none",
+                    font_size=int(sub_cfg["font_size"]),
+                    position=sub_cfg["position"],
+                    font_name=sub_cfg["font_name"],
+                    primary_color=sub_cfg["primary_color"],
+                    outline_color=sub_cfg["outline_color"],
+                    max_lines=int(sub_cfg["max_lines"]),
+                    effect=sub_cfg["effect"],
                 )
             except Exception as e_sub:
                 print(f"[step_translate] Warning pre-generating subtitles: {e_sub}")
@@ -235,7 +315,7 @@ class PipelineSteps:
             tts_path = os.path.join(temp_dir, "tts_track.wav")
             self.tts_aligner.generate_tts_with_alignment(
                 segments=translated_segments, output_path=tts_path, temp_dir=temp_dir,
-                vocal_path=vocal_path, tgt_lang=xtts_lang
+                vocal_path=vocal_path, tgt_lang=xtts_lang, video_id=video_id
             )
             self.job_service.log_task(job_id, "tts_generate", "success", "TTS generated")
             return {"tts_path": tts_path, "success": True}
@@ -258,6 +338,8 @@ class PipelineSteps:
             quality = "1080p"
             aspect_ratio = None
             burn_subtitles = True
+            subtitle_mask = None
+            overlay_config = None
             try:
                 job = self.db.query(PipelineJob).filter(PipelineJob.id == str(job_id)).first()
                 if job and getattr(job, "config_json", None):
@@ -269,10 +351,19 @@ class PipelineSteps:
                     subtitles_cfg = cfg_data.get("subtitles") or {}
                     quality = export_mux.get("resolution", "1080p")
                     aspect_ratio = export_mux.get("aspect_ratio")
+                    subtitle_mask = export_mux.get("subtitle_mask")
+                    overlay_config = export_mux.get("overlay_config")
                     if "burn_mode" in subtitles_cfg:
                         burn_subtitles = subtitles_cfg["burn_mode"] in ("hardcode", "hardsub")
             except Exception:
                 pass
+
+            if not subtitle_mask and video and video.snapshot_data:
+                snap = video.snapshot_data if isinstance(video.snapshot_data, dict) else {}
+                subtitle_mask = snap.get("export_muxing", {}).get("subtitle_mask") or snap.get("subtitle_mask")
+            if not overlay_config and video and video.snapshot_data:
+                snap = video.snapshot_data if isinstance(video.snapshot_data, dict) else {}
+                overlay_config = snap.get("export_muxing", {}).get("overlay_config") or snap.get("overlay_config")
 
             # If subtitle_path wasn't passed directly, check temp_dir / canonical dir
             if not subtitle_path and burn_subtitles:
@@ -298,6 +389,8 @@ class PipelineSteps:
                 subtitle_path=subtitle_path,
                 burn_subtitles=burn_subtitles,
                 aspect_ratio=aspect_ratio,
+                subtitle_mask=subtitle_mask,
+                overlay_config=overlay_config,
             )
             if video:
                 video.output_path = output_path

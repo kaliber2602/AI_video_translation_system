@@ -1,5 +1,6 @@
 import api from "./api/axios";
-import type { VideoUpdateRequest } from "../types/video";
+import type { VideoUpdateRequest, SubtitleMaskConfig, OverlayConfig } from "../types/video";
+
 
 export interface MediaInfo {
   format?: string;
@@ -142,11 +143,39 @@ export const videoService = {
     return response.data;
   },
 
-  // Single-Segment TTS Regeneration
-  async regenerateSegmentTTS(videoId: number, segmentId: number, payload: { text: string; voice_id?: string; speed?: number; engine?: string }) {
+  // Single-Segment TTS Regeneration (Micro-TTS < 1s)
+  async regenerateSegmentTTS(videoId: number, segmentId: number, payload: { text: string; voice_id?: string; speed?: number; engine?: string; target_language?: string }) {
     const response = await api.post(`/api/videos/${videoId}/tts/segments/${segmentId}`, payload);
     return response.data;
   },
+
+  async resynthesizeSegment(videoId: number, segmentId: number, payload: { text: string; voice_id?: string; speed?: number; target_language?: string; speaker?: string }) {
+    const response = await api.post(`/api/videos/${videoId}/tts/segments/${segmentId}/resynthesize`, payload);
+    return response.data;
+  },
+
+
+  getSegmentAudioUrl(videoId: number, segmentId: number): string {
+    return `/api/videos/${videoId}/tts/segments/${segmentId}/audio`;
+  },
+
+  getAudioStreamUrl(videoId: number, kind: "dubbed" | "vocals" | "bgm" | "original" = "dubbed"): string {
+    return `/api/videos/${videoId}/audio/stream?kind=${kind}`;
+  },
+
+  async uploadOverlayLogo(videoId: number, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await api.post(`/api/videos/${videoId}/overlay/logo`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return response.data;
+  },
+
+  getOverlayLogoUrl(videoId: number): string {
+    return `/api/videos/${videoId}/overlay/logo`;
+  },
+
 
   // Audio extraction
   async extractAudio(videoId: number) {
@@ -362,11 +391,39 @@ export const videoService = {
 
     const bodyData: Record<string, any> = {};
     if (options?.segments && options.segments.length > 0) bodyData.segments = options.segments;
-    if (options?.aspectRatio) bodyData.aspect_ratio = options.aspectRatio;
+    if (options?.aspectRatio) {
+      bodyData.aspect_ratio = options.aspectRatio;
+      bodyData.aspectRatio = options.aspectRatio;
+    }
+    if (options?.fontName) {
+      bodyData.font_name = options.fontName;
+      bodyData.fontName = options.fontName;
+    }
+    bodyData.font_size = fontSize;
+    bodyData.fontSize = fontSize;
+    if (options?.primaryColor) {
+      bodyData.primary_color = options.primaryColor;
+      bodyData.primaryColor = options.primaryColor;
+    }
+    if (options?.outlineColor) {
+      bodyData.outline_color = options.outlineColor;
+      bodyData.outlineColor = options.outlineColor;
+    }
+    if (options?.maxLines !== undefined) {
+      bodyData.max_lines = options.maxLines;
+      bodyData.maxLines = options.maxLines;
+    }
+    if (options?.effect) bodyData.effect = options.effect;
     if (options?.autoSplitChunks !== undefined) bodyData.auto_split_chunks = options.autoSplitChunks;
     if (options?.alignment) bodyData.alignment = options.alignment;
-    if (options?.positionY !== undefined) bodyData.position_y = options.positionY;
-    if (options?.lineSpacing !== undefined) bodyData.line_spacing = options.lineSpacing;
+    if (options?.positionY !== undefined) {
+      bodyData.position_y = options.positionY;
+      bodyData.positionY = options.positionY;
+    }
+    if (options?.lineSpacing !== undefined) {
+      bodyData.line_spacing = options.lineSpacing;
+      bodyData.lineSpacing = options.lineSpacing;
+    }
 
     const response = await api.post(`/api/videos/${videoId}/subtitles?${params.toString()}`, bodyData, {
       timeout: 180000,
@@ -383,14 +440,18 @@ export const videoService = {
     videoId: number,
     language: string,
     segments: any[],
-    style?: any
+    style?: any,
+    extra?: { subtitle_mask?: SubtitleMaskConfig; overlay_config?: OverlayConfig }
   ) {
     const response = await api.put(`/api/videos/${videoId}/subtitles/${language}/segments`, {
       segments,
       style,
+      subtitle_mask: extra?.subtitle_mask,
+      overlay_config: extra?.overlay_config,
     });
     return response.data;
   },
+
 
   async downloadSubtitles(videoId: number, language: string, format: string): Promise<Blob> {
     const response = await api.get<Blob>(
@@ -540,10 +601,18 @@ export const videoService = {
     return this.getVideoStreamUrl(videoId, "output");
   },
   
-  async exportVideo(videoId: number, type: string, format: string, quality?: string, language?: string): Promise<Blob> {
+  async exportVideo(
+    videoId: number,
+    type: string,
+    format: string,
+    quality?: string,
+    language?: string,
+    customFilename?: string
+  ): Promise<Blob> {
     let url = `/api/videos/${videoId}/export?export_type=${type}&format=${format}`;
     if (quality) url += `&quality=${quality}`;
     if (language) url += `&language=${language}`;
+    if (customFilename) url += `&custom_filename=${encodeURIComponent(customFilename)}`;
 
     const response = await api.get(url, { timeout: 600000 });
     const data = response.data;

@@ -11,6 +11,7 @@ import {
   Sliders,
   BookmarkPlus,
   X,
+  Pencil,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom";
@@ -38,6 +39,12 @@ const STEP_ID_TO_NUM: Record<string, number> = {
   subtitle: 4,
   dubbing: 5,
   "review-export": 6,
+  "1": 1,
+  "2": 2,
+  "3": 3,
+  "4": 4,
+  "5": 5,
+  "6": 6,
 };
 
 const STEP_NUM_TO_ID: Record<number, string> = {
@@ -655,9 +662,50 @@ function VideoPipelineContent() {
     }
   };
 
+  // Inline Title Renaming State
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleInput, setTitleInput] = useState("");
+  const [isSavingTitle, setIsSavingTitle] = useState(false);
+
   // Get the display name for the header
   const videoDisplayName = state.video?.filename || location.state?.videoName || "New Video";
   const projectDisplayName = projectName || location.state?.projectName || `Project ${projectId || ''}`;
+
+  const handleStartEditTitle = () => {
+    setTitleInput(state.video?.filename || videoDisplayName || "");
+    setIsEditingTitle(true);
+  };
+
+  const handleSaveTitle = async () => {
+    const trimmed = titleInput.trim();
+    if (!trimmed || !state.video?.videoId) {
+      setIsEditingTitle(false);
+      return;
+    }
+    if (trimmed === state.video.filename) {
+      setIsEditingTitle(false);
+      return;
+    }
+    setIsSavingTitle(true);
+    try {
+      await videoService.updateVideo(state.video.videoId, { title: trimmed });
+      dispatch({
+        type: "SET_VIDEO",
+        payload: {
+          ...state.video,
+          filename: trimmed,
+          title: trimmed,
+        },
+      });
+      toast.success(t("common:success", "Đã cập nhật tên video thành công"));
+      setIsEditingTitle(false);
+    } catch (err: any) {
+      console.error("Failed to update video title:", err);
+      toast.error(err?.response?.data?.detail || "Không thể đổi tên video");
+    } finally {
+      setIsSavingTitle(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-text-primary)] transition-colors duration-200 page-enter">
@@ -674,9 +722,58 @@ function VideoPipelineContent() {
 
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-base font-bold text-[var(--color-text-primary)] sm:text-lg">
-                {videoDisplayName}
-              </h1>
+              {isEditingTitle ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={titleInput}
+                    onChange={(e) => setTitleInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSaveTitle();
+                      if (e.key === "Escape") setIsEditingTitle(false);
+                    }}
+                    autoFocus
+                    disabled={isSavingTitle}
+                    className="h-8 rounded-lg border border-[var(--color-primary)] bg-[var(--color-surface)] px-2.5 text-sm font-bold text-[var(--color-text-primary)] outline-none sm:text-base focus:ring-1 focus:ring-[var(--color-primary)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveTitle}
+                    disabled={isSavingTitle}
+                    className="p-1.5 rounded-lg bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] transition"
+                    title="Lưu tên (Enter)"
+                  >
+                    {isSavingTitle ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingTitle(false)}
+                    disabled={isSavingTitle}
+                    className="p-1.5 rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-surface-hover)] text-[var(--color-text-muted)] transition"
+                    title="Hủy (Esc)"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ) : (
+                <div className="group flex items-center gap-1.5">
+                  <h1
+                    onClick={handleStartEditTitle}
+                    className="truncate text-base font-bold text-[var(--color-text-primary)] sm:text-lg cursor-pointer hover:text-[var(--color-primary)] transition"
+                    title="Nhấn để đổi tên video"
+                  >
+                    {videoDisplayName}
+                  </h1>
+                  <button
+                    type="button"
+                    onClick={handleStartEditTitle}
+                    className="opacity-60 group-hover:opacity-100 p-1 text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition"
+                    title="Đổi tên video"
+                  >
+                    <Pencil size={13} />
+                  </button>
+                </div>
+              )}
 
               <span className="rounded-full bg-[#FFF2D8] px-3 py-0.5 text-xs font-bold text-[#C68A1C] dark:bg-amber-950/50 dark:text-amber-300">
                 {t("pipeline:header.inProgress")}
