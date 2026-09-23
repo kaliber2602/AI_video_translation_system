@@ -12,15 +12,12 @@ services:
     command:
       - sh
       - -c
-      - python scripts/prefetch_models.py all && python scripts/seed_users.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      - python scripts/seed_users.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
     ports:
       - "8000:8000"
     environment:
       PYTHONUNBUFFERED: "1"
-      WHISPER_MODEL: "small"
-      WHISPER_DEVICE: "cpu"
-      TRANSLATION_BACKEND: "nllb"
       HF_TOKEN: ${HF_TOKEN}
       TTS_API_URL: "http://tts-service:8001/generate_tts"
       
@@ -74,7 +71,14 @@ services:
       VNPAY_URL: ${VNPAY_URL}
       VNPAY_RETURN_URL: ${VNPAY_RETURN_URL}
       VNPAY_EXCHANGE_RATE_USD_VND: ${VNPAY_EXCHANGE_RATE_USD_VND:-25000}
-      
+      CUDA_VISIBLE_DEVICES: "0"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     depends_on:
       db:
         condition: service_started
@@ -159,16 +163,26 @@ services:
     environment:
       PYTHONUNBUFFERED: "1"
       COQUI_TOS_AGREED: "1"
+      CUDA_VISIBLE_DEVICES: "0"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     ports:
       - "8001:8001"
 
-  # Update the celery services in docker-compose.yml
+  # ============================================================================
+  # DECOUPLED STEP-SPECIFIC CELERY WORKERS (Phân tách theo từng tác vụ)
+  # ============================================================================
 
-  celery-worker:
+  celery-worker-stt:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
+    command: celery -A app.tasks.celery_app worker -Q queue_stt -n worker_stt@%h --concurrency=1 --loglevel=info
     volumes:
       - ./backend:/app
       - ./model-cache:/opt/model-cache
@@ -184,12 +198,153 @@ services:
       AWS_S3_BUCKET: ${AWS_S3_BUCKET:-vidnova-media}
       S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
       WHISPER_MODEL: "small"
-      WHISPER_DEVICE: "cpu"
+      WHISPER_DEVICE: "cuda"
+      CUDA_VISIBLE_DEVICES: "0"
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: "HS256"
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    depends_on:
+      - db
+      - redis
+      - minio
+
+  celery-worker-translate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A app.tasks.celery_app worker -Q queue_translate -n worker_translate@%h --concurrency=2 --loglevel=info
+    volumes:
+      - ./backend:/app
+      - ./model-cache:/opt/model-cache
+    environment:
+      PYTHONUNBUFFERED: "1"
+      DATABASE_URL: "postgresql://ai_video:ai_video@db:5432/ai_video"
+      REDIS_URL: "redis://redis:6379/0"
+      HF_TOKEN: ${HF_TOKEN}
+      STORAGE_MODE: ${STORAGE_MODE:-auto}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
+      AWS_REGION: ${AWS_REGION:-ap-southeast-1}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-vidnova-media}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
       TRANSLATION_BACKEND: "nllb"
+      CUDA_VISIBLE_DEVICES: "0"
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: "HS256"
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    depends_on:
+      - db
+      - redis
+      - minio
+
+  celery-worker-tts:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A app.tasks.celery_app worker -Q queue_tts -n worker_tts@%h --concurrency=2 --loglevel=info
+    volumes:
+      - ./backend:/app
+    environment:
+      PYTHONUNBUFFERED: "1"
+      DATABASE_URL: "postgresql://ai_video:ai_video@db:5432/ai_video"
+      REDIS_URL: "redis://redis:6379/0"
+      STORAGE_MODE: ${STORAGE_MODE:-auto}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
+      AWS_REGION: ${AWS_REGION:-ap-southeast-1}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-vidnova-media}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
       TTS_API_URL: "http://tts-service:8001/generate_tts"
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       JWT_ALGORITHM: "HS256"
       ACCESS_TOKEN_EXPIRE_MINUTES: 30
+    depends_on:
+      - db
+      - redis
+      - minio
+      - tts-service
+
+  celery-worker-media:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A app.tasks.celery_app worker -Q queue_media -n worker_media@%h --concurrency=2 --loglevel=info
+    volumes:
+      - ./backend:/app
+    environment:
+      PYTHONUNBUFFERED: "1"
+      DATABASE_URL: "postgresql://ai_video:ai_video@db:5432/ai_video"
+      REDIS_URL: "redis://redis:6379/0"
+      STORAGE_MODE: ${STORAGE_MODE:-auto}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
+      AWS_REGION: ${AWS_REGION:-ap-southeast-1}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-vidnova-media}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
+      CUDA_VISIBLE_DEVICES: "0"
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: "HS256"
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    depends_on:
+      - db
+      - redis
+      - minio
+
+  celery-worker-pipeline:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A app.tasks.celery_app worker -Q queue_pipeline -n worker_pipeline@%h --concurrency=2 --loglevel=info
+    volumes:
+      - ./backend:/app
+      - ./model-cache:/opt/model-cache
+    environment:
+      PYTHONUNBUFFERED: "1"
+      DATABASE_URL: "postgresql://ai_video:ai_video@db:5432/ai_video"
+      REDIS_URL: "redis://redis:6379/0"
+      HF_TOKEN: ${HF_TOKEN}
+      STORAGE_MODE: ${STORAGE_MODE:-auto}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
+      AWS_REGION: ${AWS_REGION:-ap-southeast-1}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-vidnova-media}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
+      WHISPER_MODEL: "small"
+      WHISPER_DEVICE: "cuda"
+      TRANSLATION_BACKEND: "nllb"
+      TTS_API_URL: "http://tts-service:8001/generate_tts"
+      CUDA_VISIBLE_DEVICES: "0"
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: "HS256"
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     depends_on:
       - db
       - redis

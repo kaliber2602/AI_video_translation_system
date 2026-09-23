@@ -52,7 +52,6 @@ DEFAULT_PLANS_SEED = [
             {"id": 18, "plan_id": 1, "resource_type": "FEATURE", "resource_key": "batch_processing", "limit_value": "true", "unit": "boolean"},
             {"id": 19, "plan_id": 1, "resource_type": "FEATURE", "resource_key": "api_access", "limit_value": "true", "unit": "boolean"},
             {"id": 20, "plan_id": 1, "resource_type": "FEATURE", "resource_key": "priority_processing", "limit_value": "true", "unit": "boolean"},
-            {"id": 21, "plan_id": 1, "resource_type": "FEATURE", "resource_key": "team_workspace", "limit_value": "true", "unit": "boolean"},
         ],
     },
     {
@@ -88,43 +87,6 @@ DEFAULT_PLANS_SEED = [
             {"id": 39, "plan_id": 2, "resource_type": "FEATURE", "resource_key": "batch_processing", "limit_value": "true", "unit": "boolean"},
             {"id": 40, "plan_id": 2, "resource_type": "FEATURE", "resource_key": "api_access", "limit_value": "true", "unit": "boolean"},
             {"id": 41, "plan_id": 2, "resource_type": "FEATURE", "resource_key": "priority_processing", "limit_value": "true", "unit": "boolean"},
-            {"id": 42, "plan_id": 2, "resource_type": "FEATURE", "resource_key": "team_workspace", "limit_value": "true", "unit": "boolean"},
-        ],
-    },
-    {
-        "id": 3,
-        "code": "business",
-        "name": "Business",
-        "description": "For teams, studios and scaling organizations",
-        "price_monthly": 49.0,
-        "price_yearly": 490.0,
-        "billing_cycle": "monthly",
-        "is_active": True,
-        "is_popular": False,
-        "display_order": 3,
-        "resources": [
-            {"id": 43, "plan_id": 3, "resource_type": "STORAGE", "resource_key": "storage_bytes", "limit_value": "1099511627776", "unit": "bytes"},
-            {"id": 44, "plan_id": 3, "resource_type": "CONSUMABLE", "resource_key": "ai_credits_monthly", "limit_value": "100000", "unit": "credits"},
-            {"id": 103, "plan_id": 3, "resource_type": "CONSUMABLE", "resource_key": "words_monthly", "limit_value": "1000000", "unit": "words"},
-            {"id": 45, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_file_size_bytes", "limit_value": "21474836480", "unit": "bytes"},
-            {"id": 46, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_video_duration_seconds", "limit_value": "43200", "unit": "seconds"},
-            {"id": 47, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_upload_resolution", "limit_value": "4K", "unit": "resolution"},
-            {"id": 48, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_processing_resolution", "limit_value": "4K", "unit": "resolution"},
-            {"id": 49, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_streaming_resolution", "limit_value": "4K", "unit": "resolution"},
-            {"id": 50, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_export_resolution", "limit_value": "4K", "unit": "resolution"},
-            {"id": 51, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_concurrent_jobs", "limit_value": "10", "unit": "count"},
-            {"id": 52, "plan_id": 3, "resource_type": "LIMIT", "resource_key": "max_projects", "limit_value": "500", "unit": "count"},
-            {"id": 53, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "ai_translation", "limit_value": "true", "unit": "boolean"},
-            {"id": 54, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "text_to_speech", "limit_value": "true", "unit": "boolean"},
-            {"id": 55, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "speaker_diarization", "limit_value": "true", "unit": "boolean"},
-            {"id": 56, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "hls_streaming", "limit_value": "true", "unit": "boolean"},
-            {"id": 57, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "video_editor", "limit_value": "true", "unit": "boolean"},
-            {"id": 58, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "document_export", "limit_value": "true", "unit": "boolean"},
-            {"id": 59, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "smart_subtitles", "limit_value": "true", "unit": "boolean"},
-            {"id": 60, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "batch_processing", "limit_value": "true", "unit": "boolean"},
-            {"id": 61, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "api_access", "limit_value": "true", "unit": "boolean"},
-            {"id": 62, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "priority_processing", "limit_value": "true", "unit": "boolean"},
-            {"id": 63, "plan_id": 3, "resource_type": "FEATURE", "resource_key": "team_workspace", "limit_value": "true", "unit": "boolean"},
         ],
     },
 ]
@@ -1365,7 +1327,7 @@ def get_user_effective_quota(user_id: int, **kwargs) -> Dict[str, Any]:
     for fkey in [
         "ai_translation", "text_to_speech", "speaker_diarization", "hls_streaming",
         "video_editor", "document_export", "smart_subtitles", "batch_processing",
-        "api_access", "priority_processing", "team_workspace"
+        "api_access", "priority_processing"
     ]:
         if fkey not in features:
             features[fkey] = True
@@ -1654,9 +1616,86 @@ def validate_project_quota(user_id: int):
 
 def has_feature(user_id: int, feature_key: str) -> bool:
     """
-    Checks if a user has access to a feature.
+    Checks if a user has access to a feature (batch, api, custom_presets, etc).
     """
-    return True
+    quota = get_user_effective_quota(user_id)
+    features = quota.get("features", {})
+    return bool(features.get(feature_key, False))
+
+
+def validate_model_access(user_id: int, model_code: str):
+    """
+    Enforces subscription model tiering:
+    All AI models deployed in VidNova are free/open-source or free cloud API models (like Edge-TTS),
+    avoiding costly commercial APIs. However, models are still tiered based on compute intensity:
+    - Free Tier: demucs_v4, whisper_turbo, whisperx_large_v3, pyannote_3.1, nllb_200_1.3b, edge_tts, bark, deepseek_v3, qwen3_embedding.
+    - Pro Tier: mdx_net_karaoke, whisper_large_v3, nllb_200_3.3b, xtts_v2, qwen3_tts, qwen_2.5_72b, bge_m3.
+    If a user on 'free' plan attempts to select a Pro-tier model, raises HTTP 403 Forbidden.
+    """
+    if not model_code:
+        return
+
+    clean_code = model_code.strip().lower()
+
+    # Dynamic DB check for required_plan
+    try:
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT required_plan FROM ai_models WHERE code = %s AND is_active = TRUE;",
+                    (clean_code,),
+                )
+                row = cursor.fetchone()
+                if row and row[0] and row[0].lower() == "pro":
+                    quota = get_user_effective_quota(user_id)
+                    current_plan = (quota.get("plan_code") or "free").lower()
+                    if current_plan != "pro":
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail={
+                                "error_code": "MODEL_UPGRADE_REQUIRED",
+                                "message": f"Mô hình '{model_code}' yêu cầu gói Pro. Vui lòng nâng cấp tài khoản để sử dụng cấu hình cao cấp này.",
+                                "required_plan": "pro",
+                                "current_plan": current_plan,
+                            },
+                        )
+                    return
+        finally:
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Error querying ai_models for model tiering check: {e}")
+
+    # Fallback static check for compute-heavy Pro models
+    PRO_TIER_MODELS = {
+        "mdx_net_karaoke",
+        "whisper_large_v3",
+        "whisper-large-v3",
+        "nllb_200_3.3b",
+        "nllb-200-3.3b",
+        "xtts_v2",
+        "coqui_xtts_v2",
+        "qwen3_tts",
+        "qwen_2.5_72b",
+        "bge_m3",
+    }
+
+    if clean_code in PRO_TIER_MODELS:
+        quota = get_user_effective_quota(user_id)
+        current_plan = (quota.get("plan_code") or "free").lower()
+        if current_plan != "pro":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error_code": "MODEL_UPGRADE_REQUIRED",
+                    "message": f"Mô hình '{model_code}' yêu cầu gói Pro. Vui lòng nâng cấp tài khoản để sử dụng cấu hình cao cấp này.",
+                    "required_plan": "pro",
+                    "current_plan": current_plan,
+                },
+            )
+
 
 
 def get_limit(user_id: int, limit_key: str) -> Any:

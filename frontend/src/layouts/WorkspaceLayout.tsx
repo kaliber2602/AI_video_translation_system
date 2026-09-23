@@ -17,6 +17,7 @@ import {
   updateProject,
 } from "../services/project.service";
 import { getTags } from "../services/tag.service";
+import { videoService } from "../services/video.service";
 import { toast } from "../lib/toast";
 
 import type { Project, ProjectCreateRequest, ProjectUpdateRequest } from "../types/project";
@@ -218,6 +219,59 @@ export default function WorkspaceLayout() {
   }, [t]);
 
 
+  // Debounced Semantic Search State
+  const [semanticMatches, setSemanticMatches] = useState<Record<number, Array<{
+    video_id: number;
+    video_title?: string;
+    timestamp_formatted?: string;
+    text?: string;
+    translated_text?: string;
+  }>>>({});
+  const [isSearchingSemantic, setIsSearchingSemantic] = useState(false);
+
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (!trimmed || trimmed.length < 2) {
+      setSemanticMatches({});
+      setIsSearchingSemantic(false);
+      return;
+    }
+
+    let active = true;
+    setIsSearchingSemantic(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await videoService.searchWorkspaceSemantic(trimmed, 20);
+        if (active && res && Array.isArray(res.results)) {
+          const map: Record<number, any[]> = {};
+          for (const item of res.results) {
+            const pid = item.project_id;
+            if (pid) {
+              if (!map[pid]) map[pid] = [];
+              map[pid].push({
+                video_id: item.video_id,
+                video_title: item.video_title,
+                timestamp_formatted: item.timestamp_formatted,
+                text: item.text,
+                translated_text: item.translated_text,
+              });
+            }
+          }
+          setSemanticMatches(map);
+        }
+      } catch (err) {
+        console.warn("[WorkspaceLayout] Semantic search error:", err);
+      } finally {
+        if (active) setIsSearchingSemantic(false);
+      }
+    }, 300);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [searchQuery]);
+
   // Combined Search + Tag Filter + Sort Pipeline
   const processedProjects = useMemo(() => {
     let result = [...projects];
@@ -229,19 +283,33 @@ export default function WorkspaceLayout() {
       );
     }
 
-    // 2. Search query (matches project name or description)
+    // 2. Search query (matches project metadata OR semantic video dialogue)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
-      result = result.filter(
-        (p) =>
+      result = result.filter((p) => {
+        const matchesMetadata =
           p.name?.toLowerCase().includes(query) ||
           p.description?.toLowerCase().includes(query) ||
-          p.recent_project?.toLowerCase().includes(query)
-      );
+          p.recent_project?.toLowerCase().includes(query);
+        const matchesSemantic = Boolean(semanticMatches[p.id]?.length);
+        return matchesMetadata || matchesSemantic;
+      });
     }
 
-    // 3. Sort
+    // Attach matched semantic snippets to each project
+    result = result.map((p) => ({
+      ...p,
+      matched_snippets: semanticMatches[p.id] || [],
+    }));
+
+    // 3. Sort (Prioritize projects with semantic matches if searching)
     result.sort((a, b) => {
+      if (searchQuery.trim()) {
+        const aMatches = (a.matched_snippets?.length || 0) > 0 ? 1 : 0;
+        const bMatches = (b.matched_snippets?.length || 0) > 0 ? 1 : 0;
+        if (aMatches !== bMatches) return bMatches - aMatches;
+      }
+
       switch (sortOption) {
         case "name-asc":
           return (a.name || "").localeCompare(b.name || "");
@@ -269,7 +337,7 @@ export default function WorkspaceLayout() {
     });
 
     return result;
-  }, [projects, selectedTagId, searchQuery, sortOption]);
+  }, [projects, selectedTagId, searchQuery, sortOption, semanticMatches]);
 
   // Reset page to 1 when search or tag filter changes
   useEffect(() => {
@@ -496,6 +564,7 @@ export default function WorkspaceLayout() {
             isTrashMode={currentTab === "trash"}
             onEmptyTrash={() => setIsEmptyTrashConfirmOpen(true)}
             trashCount={trashCount}
+            isSearchingSemantic={isSearchingSemantic}
           />
 
           {/* View Content States */}

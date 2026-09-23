@@ -25,7 +25,7 @@ COPY . ./
 
 ENV COQUI_TOS_AGREED=1 \
     WHISPER_MODEL=small \
-    WHISPER_DEVICE=cpu \
+    WHISPER_DEVICE=auto \
     TRANSLATION_BACKEND=nllb \
     HF_HOME=/opt/model-cache/hf
 

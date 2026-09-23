@@ -86,12 +86,9 @@ export default function TranslationStep() {
   ];
 
   const supportedTranslationModels = [
-    { code: "nllb_200_1.3b", label: "Meta NLLB-200 1.3B (Nhanh & Ổn định)" },
-    { code: "nllb_200_3.3b", label: "Meta NLLB-200 3.3B (Độ chính xác cao)" },
-    { code: "gpt_4o", label: "OpenAI GPT-4o (Đỉnh cao ngữ cảnh & Sáng tạo)" },
-    { code: "claude_3_5_sonnet", label: "Claude 3.5 Sonnet (Văn phong mượt mà tự nhiên)" },
-    { code: "gemini_1_5_flash", label: "Google Gemini 1.5 Flash (Siêu tốc độ)" },
-    { code: "deepseek_v3", label: "DeepSeek V3 (Chi phí thấp & Logic tốt)" },
+    { code: "nllb_200_1.3b", label: "Meta NLLB-200 1.3B (Local MT - Miễn phí)", requiredPlan: "free" },
+    { code: "deepseek_v3", label: "DeepSeek V3 Open Model (Local/API Free - Miễn phí)", requiredPlan: "free" },
+    { code: "nllb_200_3.3b", label: "Meta NLLB-200 3.3B High Fidelity (Local Pro)", requiredPlan: "pro" },
   ];
 
   const supportedTones = [

@@ -580,7 +580,7 @@ CREATE TABLE ai_models (
     provider VARCHAR(50) NOT NULL, -- local, openai, elevenlabs, anthropic, google
     credit_cost_per_minute INTEGER NOT NULL DEFAULT 1,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    required_plan VARCHAR(50) NOT NULL DEFAULT 'free', -- free, pro, business
+    required_plan VARCHAR(50) NOT NULL DEFAULT 'free', -- free, pro
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -909,8 +909,36 @@ CREATE TABLE video_embeddings (
         ON DELETE CASCADE
 );
 
+CREATE TABLE video_chat_messages (
+    id SERIAL PRIMARY KEY,
+    video_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role VARCHAR(20) NOT NULL, -- user, assistant, system
+    message TEXT NOT NULL,
+    citations JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_video_chat_messages_video
+        FOREIGN KEY (video_id)
+        REFERENCES videos(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_video_chat_messages_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT chk_video_chat_role
+        CHECK (role IN ('user', 'assistant', 'system'))
+);
+
+CREATE INDEX idx_video_chat_video ON video_chat_messages(video_id);
+CREATE INDEX idx_video_chat_user ON video_chat_messages(user_id);
+CREATE INDEX idx_video_chat_created_at ON video_chat_messages(created_at);
+
 -- =========================================================
 -- MODULE 8: ASYNCHRONOUS PIPELINE JOBS & TASK LOGS
+
 -- =========================================================
 
 CREATE TABLE pipeline_jobs (
@@ -1137,39 +1165,35 @@ CREATE INDEX idx_user_storage_addons_active ON user_storage_addons(user_id, is_a
 
 INSERT INTO ai_models (code, name, category, provider, credit_cost_per_minute, is_active, required_plan)
 VALUES
-    -- Separation
-    ('demucs_v4', 'Demucs v4 Hybrid', 'separation', 'local', 1, TRUE, 'free'),
-    ('mdx_net_karaoke', 'MDX-Net Extra Vocal', 'separation', 'local', 2, TRUE, 'pro'),
+    -- Separation (Local Open-Source)
+    ('demucs_v4', 'Demucs v4 Hybrid (Local)', 'separation', 'local', 1, TRUE, 'free'),
+    ('mdx_net_karaoke', 'MDX-Net Extra Vocal (Local HQ)', 'separation', 'local', 2, TRUE, 'pro'),
     
-    -- STT
-    ('whisperx_large_v3', 'WhisperX Large v3', 'stt', 'local', 1, TRUE, 'free'),
-    ('whisper_turbo', 'Whisper Large v3 Turbo', 'stt', 'local', 1, TRUE, 'free'),
-    ('google_chirp_2', 'Google Cloud Speech Chirp 2', 'stt', 'google', 3, TRUE, 'business'),
+    -- STT / Speech-to-Text (Faster-Whisper Local)
+    ('whisper_turbo', 'Whisper Large v3 Turbo (Local Fast)', 'stt', 'local', 1, TRUE, 'free'),
+    ('whisperx_large_v3', 'WhisperX Large v3 (Word-level Alignment)', 'stt', 'local', 1, TRUE, 'free'),
+    ('whisper_large_v3', 'Whisper Large v3 (Local Heavy)', 'stt', 'local', 2, TRUE, 'pro'),
 
-    -- Diarization
-    ('pyannote_3.1', 'Pyannote Audio 3.1', 'diarization', 'local', 1, TRUE, 'free'),
+    -- Diarization (Pyannote Local)
+    ('pyannote_3.1', 'Pyannote Audio 3.1 (Local Diarization)', 'diarization', 'local', 1, TRUE, 'free'),
 
-    -- Translation
-    ('nllb_200_1.3b', 'Meta NLLB-200 (1.3B)', 'translation', 'local', 1, TRUE, 'free'),
-    ('nllb_200_3.3b', 'Meta NLLB-200 (3.3B High Fidelity)', 'translation', 'local', 2, TRUE, 'pro'),
-    ('gpt_4o', 'OpenAI GPT-4o Localization', 'translation', 'openai', 3, TRUE, 'pro'),
-    ('claude_3.5_sonnet', 'Anthropic Claude 3.5 Sonnet', 'translation', 'anthropic', 3, TRUE, 'business'),
-    ('deepl_pro', 'DeepL Pro Neural MT', 'translation', 'local', 2, TRUE, 'pro'),
+    -- Translation (Meta NLLB-200 Local)
+    ('nllb_200_1.3b', 'Meta NLLB-200 1.3B (Local MT Fast)', 'translation', 'local', 1, TRUE, 'free'),
+    ('nllb_200_3.3b', 'Meta NLLB-200 3.3B (Local MT High Fidelity)', 'translation', 'local', 2, TRUE, 'pro'),
 
-    -- TTS & Voice Cloning
-    ('xtts_v2', 'Coqui XTTS v2 Voice Clone', 'tts', 'local', 2, TRUE, 'free'),
-    ('qwen3_tts', 'Qwen3-TTS Neural Multilingual', 'tts', 'local', 2, TRUE, 'pro'),
-    ('elevenlabs_multilingual_v2', 'ElevenLabs Multilingual v2', 'tts', 'elevenlabs', 5, TRUE, 'business'),
-    ('azure_neural', 'Azure Cognitive Speech Neural', 'tts', 'local', 2, TRUE, 'pro'),
+    -- TTS & Voice Cloning (Coqui XTTS Local & Edge-TTS Free Cloud API)
+    ('edge_tts', 'Microsoft Edge-TTS Neural (Free Cloud API)', 'tts', 'edge_tts', 1, TRUE, 'free'),
+    ('bark', 'Suno Bark Expressive (Local)', 'tts', 'local', 1, TRUE, 'free'),
+    ('xtts_v2', 'Coqui XTTS v2 Voice Clone (Local Deep)', 'tts', 'local', 2, TRUE, 'pro'),
+    ('qwen3_tts', 'Qwen3-TTS Neural Multilingual (Local HQ)', 'tts', 'local', 2, TRUE, 'pro'),
 
-    -- LLM & Understanding
-    ('gpt_4o_mini', 'GPT-4o Mini Chapter Generator', 'llm', 'openai', 1, TRUE, 'free'),
-    ('qwen_2.5_72b', 'Qwen 2.5 72B Video Insight', 'llm', 'local', 2, TRUE, 'pro'),
-    ('deepseek_v3', 'DeepSeek-V3 Structured Summary', 'llm', 'local', 1, TRUE, 'free'),
+    -- LLM & Understanding (Local Open-Source Models)
+    ('deepseek_v3', 'DeepSeek-V3 Open Model (Local/Ollama)', 'llm', 'local', 1, TRUE, 'free'),
+    ('qwen_2.5_72b', 'Qwen 2.5 72B Video Insight (Local HQ)', 'llm', 'local', 2, TRUE, 'pro'),
 
-    -- Embedding
-    ('qwen3_embedding', 'Qwen3-Embedding 1024d', 'embedding', 'local', 1, TRUE, 'free'),
-    ('bge_m3', 'BGE-M3 Dense + Sparse Retrieval', 'embedding', 'local', 1, TRUE, 'pro')
+    -- Embedding & Vector Search (Local Vector Models)
+    ('qwen3_embedding', 'Qwen3-Embedding 1024d (Local)', 'embedding', 'local', 1, TRUE, 'free'),
+    ('bge_m3', 'BGE-M3 Dense + Sparse Retrieval (Local Pro)', 'embedding', 'local', 2, TRUE, 'pro')
 ON CONFLICT (code) DO NOTHING;
 
 -- =========================================================
@@ -1179,8 +1203,7 @@ ON CONFLICT (code) DO NOTHING;
 INSERT INTO plans (code, name, description, price_monthly, price_yearly, is_popular, display_order)
 VALUES
     ('free', 'Free', 'For trying the platform and personal use', 0.00, 0.00, FALSE, 1),
-    ('pro', 'Pro', 'For creators, freelancers and professionals', 12.00, 120.00, TRUE, 2),
-    ('business', 'Business', 'For teams, studios and scaling organizations', 49.00, 490.00, FALSE, 3)
+    ('pro', 'Pro', 'For creators, freelancers and professionals', 12.00, 120.00, TRUE, 2)
 ON CONFLICT (code) DO NOTHING;
 
 -- FREE RESOURCES
@@ -1244,9 +1267,6 @@ ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_v
 INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
 SELECT id, 'FEATURE', 'priority_processing', 'true', 'boolean' FROM plans WHERE code = 'free'
 ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'FEATURE', 'team_workspace', 'true', 'boolean' FROM plans WHERE code = 'free'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
 
 -- PRO RESOURCES
 INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
@@ -1308,74 +1328,6 @@ SELECT id, 'FEATURE', 'api_access', 'true', 'boolean' FROM plans WHERE code = 'p
 ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
 INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
 SELECT id, 'FEATURE', 'priority_processing', 'true', 'boolean' FROM plans WHERE code = 'pro'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'FEATURE', 'team_workspace', 'true', 'boolean' FROM plans WHERE code = 'pro'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-
--- BUSINESS RESOURCES
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'STORAGE', 'storage_bytes', '1099511627776', 'bytes' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'CONSUMABLE', 'ai_credits_monthly', '100000', 'credits' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'LIMIT', 'max_file_size_bytes', '21474836480', 'bytes' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'LIMIT', 'max_video_duration_seconds', '43200', 'seconds' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'LIMIT', 'max_upload_resolution', '4K', 'resolution' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'LIMIT', 'max_processing_resolution', '4K', 'resolution' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'LIMIT', 'max_streaming_resolution', '4K', 'resolution' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'LIMIT', 'max_export_resolution', '4K', 'resolution' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'LIMIT', 'max_concurrent_jobs', '10', 'count' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'LIMIT', 'max_projects', '500', 'count' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'FEATURE', 'ai_translation', 'true', 'boolean' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'FEATURE', 'text_to_speech', 'true', 'boolean' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'FEATURE', 'speaker_diarization', 'true', 'boolean' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'FEATURE', 'hls_streaming', 'true', 'boolean' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'FEATURE', 'video_editor', 'true', 'boolean' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'FEATURE', 'document_export', 'true', 'boolean' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'FEATURE', 'smart_subtitles', 'true', 'boolean' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'FEATURE', 'batch_processing', 'true', 'boolean' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'FEATURE', 'api_access', 'true', 'boolean' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'FEATURE', 'priority_processing', 'true', 'boolean' FROM plans WHERE code = 'business'
-ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
-INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
-SELECT id, 'FEATURE', 'team_workspace', 'true', 'boolean' FROM plans WHERE code = 'business'
 ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
 
 -- STORAGE ADD-ONS

@@ -315,17 +315,17 @@ export default function WorkspaceSidebar({
   const renderSidebarContent = (isMobile = false) => {
     const plan = subscriptionSummary?.subscription;
     const planCode = plan?.plan_code || "free";
-    const planName = plan?.plan_name || (planCode === "pro" ? "Pro" : planCode === "business" ? "Business" : "Free");
+    const planName = plan?.plan_name || (planCode === "pro" ? "Pro" : "Free");
 
     const storage = subscriptionSummary?.effective_quota?.storage;
     const usedGb = storage?.used_gb ?? 0;
-    const totalGb = storage?.total_gb ?? (planCode === "pro" ? 100 : planCode === "business" ? 1000 : 5);
+    const totalGb = storage?.total_gb ?? (planCode === "pro" ? 100 : 5);
     const storageUsagePercent = storage?.usage_percent ?? (totalGb > 0 ? Math.round((usedGb / totalGb) * 100) : 0);
 
     const words = subscriptionSummary?.effective_quota?.words;
     const credits = subscriptionSummary?.effective_quota?.credits;
-    const remainingWords = words?.remaining_words ?? (credits ? credits.remaining_credits * 10 : (planCode === "pro" ? 100000 : planCode === "business" ? 1000000 : 5000));
-    const totalWords = words?.total_words ?? (credits ? credits.total_credits * 10 : (planCode === "pro" ? 100000 : planCode === "business" ? 1000000 : 5000));
+    const remainingWords = words?.remaining_words ?? (credits ? credits.remaining_credits * 10 : (planCode === "pro" ? 100000 : 5000));
+    const totalWords = words?.total_words ?? (credits ? credits.total_credits * 10 : (planCode === "pro" ? 100000 : 5000));
 
     return (
       <>
@@ -532,11 +532,9 @@ export default function WorkspaceSidebar({
             <div className={`flex h-7 w-7 items-center justify-center rounded-lg shadow-xs ${
               planCode === "pro"
                 ? "bg-emerald-500/15 text-emerald-600"
-                : planCode === "business"
-                ? "bg-purple-500/15 text-purple-600"
                 : "bg-[var(--color-primary-soft)] text-[var(--color-primary)]"
             }`}>
-              {planCode === "pro" ? <Crown size={15} /> : planCode === "business" ? <Sparkles size={15} /> : <Zap size={15} />}
+              {planCode === "pro" ? <Crown size={15} /> : <Zap size={15} />}
             </div>
             <div>
               <h4 className="text-xs font-bold leading-none text-[var(--color-text-primary)]">

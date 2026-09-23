@@ -6,7 +6,6 @@ import {
   LogOut,
   Menu,
   Settings,
-  Sparkles,
   User,
   Zap,
   ShieldAlert,
@@ -229,7 +228,7 @@ export default function WorkspaceTopbar({
 
   const currentPlan = subscriptionSummary?.subscription;
   const planCode = currentPlan?.plan_code || "free";
-  const planName = currentPlan?.plan_name || (planCode === "pro" ? "Pro" : planCode === "business" ? "Business" : "Free");
+  const planName = currentPlan?.plan_name || (planCode === "pro" ? "Pro" : "Free");
 
   // =========================================================
   // Render
@@ -383,14 +382,6 @@ export default function WorkspaceTopbar({
                   <Crown size={9} />
                 </span>
               )}
-              {planCode === "business" && (
-                <span
-                  className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-purple-500 text-white shadow-xs ring-2 ring-[var(--color-surface)]"
-                  title="Business Tier"
-                >
-                  <Sparkles size={9} />
-                </span>
-              )}
             </div>
 
             {/* User info on desktop */}
@@ -402,8 +393,6 @@ export default function WorkspaceTopbar({
                 className={`text-[10px] font-extrabold uppercase tracking-wider ${
                   planCode === "pro"
                     ? "text-emerald-600 dark:text-emerald-400"
-                    : planCode === "business"
-                    ? "text-purple-600 dark:text-purple-400"
                     : "text-[var(--color-text-muted)]"
                 }`}
               >
@@ -488,11 +477,6 @@ export default function WorkspaceTopbar({
                             <Crown size={11} className="text-emerald-500" />
                             Pro Plan
                           </span>
-                        ) : planCode === "business" ? (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-gradient-to-r from-purple-500/15 to-indigo-500/15 border border-purple-500/30 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-purple-600 dark:text-purple-400 shadow-xs">
-                            <Sparkles size={11} className="text-purple-500" />
-                            Business Plan
-                          </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 rounded-md bg-[var(--color-surface-muted)] border border-[var(--color-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">
                             <Zap size={11} className="text-[var(--color-primary)]" />
@@ -565,8 +549,6 @@ export default function WorkspaceTopbar({
                       className={`text-[10px] font-extrabold uppercase rounded-md px-1.5 py-0.5 ${
                         planCode === "pro"
                           ? "bg-emerald-500/15 text-emerald-600"
-                          : planCode === "business"
-                          ? "bg-purple-500/15 text-purple-600"
                           : "bg-[var(--color-surface-muted)] text-[var(--color-text-muted)]"
                       }`}
                     >

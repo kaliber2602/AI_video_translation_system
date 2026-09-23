@@ -20,6 +20,13 @@ export interface Project {
   recent_project: string | null;
   duration: string | null;
   size: string | null;
+  matched_snippets?: Array<{
+    video_id: number;
+    video_title?: string;
+    timestamp_formatted?: string;
+    text?: string;
+    translated_text?: string;
+  }>;
 }
 
 export interface ProjectFavoriteResponse {

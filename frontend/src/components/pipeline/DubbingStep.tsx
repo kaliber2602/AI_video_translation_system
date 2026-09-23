@@ -29,6 +29,7 @@ import {
   Clock,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import { usePipeline } from "../../hooks/usePipeline";
 import { videoService } from "../../services/video.service";
 import PipelineStepLayout from "./PipelineStepLayout";
@@ -1015,11 +1016,38 @@ export default function DubbingStep() {
     setVideoCurrentTime(videoRef.current.currentTime);
   };
 
+  const [searchParams] = useSearchParams();
+  const dubbingSeekDoneRef = useRef(false);
+
+  const seekToDubbingTimestamp = () => {
+    const tParam = searchParams.get("t");
+    if (tParam !== null && videoRef.current) {
+      const seekSec = parseFloat(tParam);
+      if (!isNaN(seekSec) && seekSec >= 0) {
+        videoRef.current.currentTime = seekSec;
+        setVideoCurrentTime(seekSec);
+        videoRef.current.play().catch(() => {});
+        setIsVideoPlaying(true);
+      }
+    }
+  };
+
   const handleVideoLoaded = () => {
     if (videoRef.current) {
       setVideoDuration(videoRef.current.duration || 0);
+      if (!dubbingSeekDoneRef.current) {
+        seekToDubbingTimestamp();
+        dubbingSeekDoneRef.current = true;
+      }
     }
   };
+
+  useEffect(() => {
+    const tParam = searchParams.get("t");
+    if (tParam !== null && videoRef.current) {
+      seekToDubbingTimestamp();
+    }
+  }, [searchParams.get("t")]);
 
   const handleVideoSeek = (newTime: number) => {
     if (videoRef.current) {
@@ -1272,9 +1300,9 @@ export default function DubbingStep() {
                   onChange={(e) => setTtsEngine(e.target.value)}
                   className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-semibold text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
                 >
-                  <option value="coqui_xtts_v2">Coqui XTTS-v2 (Voice Cloning 95% tương đồng bản gốc)</option>
-                  <option value="edge_tts">Microsoft Edge-TTS (Neural 100+ giọng tự nhiên)</option>
-                  <option value="bark">Suno Bark (Biểu cảm cảm xúc sống động)</option>
+                  <option value="edge_tts">Microsoft Edge-TTS Neural (Free Cloud API - Miễn phí)</option>
+                  <option value="bark">Suno Bark Expressive (Local - Miễn phí)</option>
+                  <option value="coqui_xtts_v2">Coqui XTTS-v2 Voice Cloning (Local Deep - Gói Pro)</option>
                 </select>
               </div>
 

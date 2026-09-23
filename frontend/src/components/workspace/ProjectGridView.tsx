@@ -7,6 +7,7 @@ import {
   Star,
   Trash2,
   Video,
+  Sparkles,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import FolderIcon from "../common/FolderIcon";
@@ -210,6 +211,24 @@ export default function ProjectGridView({
                 {project.description || project.recent_project || "—"}
               </p>
             </div>
+
+            {/* Matched Semantic Dialogue Snippets */}
+            {project.matched_snippets && project.matched_snippets.length > 0 && (
+              <div className="mt-3 rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5 p-2.5">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-[var(--color-primary)] mb-1">
+                  <Sparkles size={12} className="shrink-0" />
+                  <span>Khớp hội thoại video ({project.matched_snippets[0].timestamp_formatted}):</span>
+                </div>
+                <p className="text-[11px] italic text-[var(--color-text-secondary)] line-clamp-2">
+                  "{project.matched_snippets[0].text}"
+                </p>
+                {project.matched_snippets[0].translated_text && (
+                  <p className="text-[10px] text-[var(--color-text-muted)] line-clamp-1 mt-0.5">
+                    → Dịch: {project.matched_snippets[0].translated_text}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Tags Chips */}
             {project.tags && project.tags.length > 0 && (

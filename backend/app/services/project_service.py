@@ -850,3 +850,90 @@ def toggle_favorite(
 
     finally:
         connection.close()
+
+
+# =========================================================
+# Project Collaboration: Add Member / Send Invitation
+# =========================================================
+
+def add_project_member(
+    owner_id: int,
+    project_id: int,
+    email: str,
+    role: str = "editor",
+) -> dict[str, Any]:
+    """
+    Invites or adds a member to a project.
+    Validates ownership, inserts/updates project_members row,
+    and dispatches a collaboration notification to the invited user if registered.
+    """
+    connection = get_connection()
+    try:
+        with connection.cursor() as cursor:
+            # 1. Verify project existence and ownership
+            cursor.execute(
+                "SELECT id, name FROM projects WHERE id = %s AND owner_id = %s",
+                (project_id, owner_id),
+            )
+            project_row = cursor.fetchone()
+            if not project_row:
+                raise ValueError("Project not found or caller is not owner.")
+            project_name = project_row[1]
+
+            # 2. Check if user with this email exists
+            cursor.execute(
+                "SELECT id, full_name, email FROM users WHERE email = %s",
+                (email.strip().lower(),),
+            )
+            target_user = cursor.fetchone()
+            target_user_id = target_user[0] if target_user else None
+
+            # 3. Insert or update project_members
+            cursor.execute(
+                """
+                INSERT INTO project_members (
+                    project_id, user_id, email, role, status, invited_by
+                )
+                VALUES (%s, %s, %s, %s, 'accepted', %s)
+                ON CONFLICT (project_id, email)
+                DO UPDATE SET role = EXCLUDED.role, status = 'accepted', updated_at = CURRENT_TIMESTAMP
+                RETURNING id, project_id, user_id, email, role, status, created_at
+                """,
+                (project_id, target_user_id, email.strip().lower(), role, owner_id),
+            )
+            member_row = cursor.fetchone()
+
+        connection.commit()
+
+        # 4. Dispatch notification if user exists in system
+        if target_user_id:
+            try:
+                from app.services.notification_service import create_notification
+                create_notification(
+                    user_id=target_user_id,
+                    type="collaboration",
+                    title="Project Invitation",
+                    message=f"You have been invited you to project: {project_name}",
+                    action_url=f"/workspace/project/{project_id}",
+                    target_type="project",
+                    target_id=project_id,
+                    metadata={"event": "project_invitation", "role": role, "inviter_id": owner_id},
+                )
+            except Exception as notif_err:
+                logger.warning(f"Failed to dispatch project invitation notification: {notif_err}")
+
+        return {
+            "id": member_row[0],
+            "project_id": member_row[1],
+            "user_id": member_row[2],
+            "email": member_row[3],
+            "role": member_row[4],
+            "status": member_row[5],
+            "created_at": member_row[6],
+        }
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+

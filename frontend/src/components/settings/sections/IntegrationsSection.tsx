@@ -504,12 +504,12 @@ export default function IntegrationsSection() {
           </div>
         </SettingCard>
 
-        {/* CARD 2: AI & VOICE PROVIDERS */}
+        {/* CARD 2: AI & VOICE PROVIDERS (SYSTEM-WIDE MANAGED) */}
         <SettingCard
-          title={t("settings:integrations.aiProvidersTitle", "AI & Voice Providers")}
+          title={t("settings:integrations.aiProvidersTitle", "AI Model Ecosystem & Providers")}
           description={t(
             "settings:integrations.aiProvidersDesc",
-            "Bring your own API keys for custom ElevenLabs voice clones and OpenAI endpoints."
+            "Centralized AI services configured by the system administrator (.env). High performance local GPU models combined with free cloud tier."
           )}
         >
           <div className="space-y-3">
@@ -527,9 +527,13 @@ export default function IntegrationsSection() {
                       <span className="text-xs font-bold text-[var(--color-text-primary)]">
                         {app.name}
                       </span>
-                      {app.connected && (
+                      {app.connected ? (
                         <SettingsBadge variant="purple" size="sm" dot>
-                          Active
+                          {app.badge || "Active"}
+                        </SettingsBadge>
+                      ) : (
+                        <SettingsBadge variant="warning" size="sm">
+                          {app.badge || "Key Not Set"}
                         </SettingsBadge>
                       )}
                     </div>
@@ -540,36 +544,9 @@ export default function IntegrationsSection() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {app.connected ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenConfigModal(app)}
-                        className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-primary)] hover:bg-[var(--color-surface-muted)] transition"
-                        title="Configure settings"
-                      >
-                        <SettingsIcon size={13} />
-                        <span>Configure</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDisconnectApp(app)}
-                        className="flex items-center gap-1.5 rounded-xl border border-rose-500/20 px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-500/10 transition"
-                        title="Disconnect"
-                      >
-                        <Unlink size={13} />
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleOpenConfigModal(app)}
-                      className="flex items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[var(--color-primary-hover)] transition shadow-sm"
-                    >
-                      <Link2 size={13} />
-                      <span>Connect API</span>
-                    </button>
-                  )}
+                  <span className="inline-flex items-center rounded-lg bg-[var(--color-surface-muted)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-secondary)]">
+                    System Managed
+                  </span>
                 </div>
               </div>
             ))}

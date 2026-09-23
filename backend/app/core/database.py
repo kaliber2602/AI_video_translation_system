@@ -157,19 +157,9 @@ def ensure_db_schema():
                 );
             """)
 
-            # 5. user_integrations table
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS user_integrations (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    app_id VARCHAR(100) NOT NULL,
-                    is_connected BOOLEAN NOT NULL DEFAULT FALSE,
-                    account_email VARCHAR(255),
-                    config JSONB DEFAULT '{}'::jsonb,
-                    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    CONSTRAINT uq_user_app UNIQUE (user_id, app_id)
-                );
-            """)
+            # 5. user_integrations table deprecated and removed in favor of system-wide shared API keys
+            cur.execute("DROP TABLE IF EXISTS user_integrations CASCADE;")
+
             # 6. videos language and snapshot columns
             cur.execute("ALTER TABLE videos ADD COLUMN IF NOT EXISTS target_language VARCHAR(20);")
             cur.execute("ALTER TABLE videos ADD COLUMN IF NOT EXISTS source_language VARCHAR(20);")

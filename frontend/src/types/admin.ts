@@ -86,7 +86,7 @@ export interface AdminAIModelResponse {
   provider: "local" | "openai" | "elevenlabs" | "anthropic" | "google" | string;
   credit_cost_per_minute: number;
   is_active: boolean;
-  required_plan: "free" | "pro" | "business" | string;
+  required_plan: "free" | "pro" | string;
   created_at: string;
 }
 

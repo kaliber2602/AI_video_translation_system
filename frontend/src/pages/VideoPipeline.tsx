@@ -344,7 +344,9 @@ function VideoPipelineContent() {
             const resolvedStepId = STEP_NUM_TO_ID[targetStep] || "upload";
             setActiveStep(resolvedStepId);
             if (searchParams.get("step") !== resolvedStepId) {
-              setSearchParams({ step: resolvedStepId }, { replace: true });
+              const nextParams = new URLSearchParams(searchParams);
+              nextParams.set("step", resolvedStepId);
+              setSearchParams(nextParams, { replace: true });
             }
           })
           .catch((err: any) => {
@@ -356,16 +358,19 @@ function VideoPipelineContent() {
           });
       }
     }
+  }, [projectId, videoId, location.state, dispatch]);
 
-    // Set active step based on current step from context or URL
-    if (state.step) {
-      const stepId = STEP_NUM_TO_ID[state.step] || "upload";
-      setActiveStep(stepId);
-      if (searchParams.get("step") !== stepId) {
-        setSearchParams({ step: stepId }, { replace: true });
+  // Sync active step when query param 'step' changes in URL
+  useEffect(() => {
+    const queryStep = searchParams.get("step");
+    if (queryStep && STEP_ID_TO_NUM[queryStep]) {
+      setActiveStep(queryStep);
+      const stepNum = STEP_ID_TO_NUM[queryStep];
+      if (state.step !== stepNum) {
+        dispatch({ type: "SET_STEP", payload: stepNum });
       }
     }
-  }, [projectId, videoId, location.state, dispatch, state.step, searchParams, setSearchParams]);
+  }, [searchParams.get("step")]);
 
   // Polling for active background tasks (Phase 4 Re-hydration & Live Sync)
   useEffect(() => {

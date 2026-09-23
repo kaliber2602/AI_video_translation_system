@@ -194,6 +194,15 @@ def process_video_pipeline(self, video_id: int, user_id: int, job_id: Optional[s
         
         print(f"✅ Pipeline completed for video {video_id}", flush=True)
 
+        # Build FAISS Vector Embeddings for Video and Project (Semantic Search & RAG)
+        try:
+            from app.services.faiss_vector_service import FaissVectorService
+            vec_service = FaissVectorService(db=db)
+            indexed_count = vec_service.index_video_segments(video_id=video_id)
+            print(f"✅ [FAISS] Indexed {indexed_count} chunks for Video #{video_id}", flush=True)
+        except Exception as faiss_err:
+            print(f"⚠️ [FAISS] Automatic indexing failed for video #{video_id}: {faiss_err}", flush=True)
+
         _send_task_notification(
             user_id=user_id,
             video_id=video_id,
@@ -247,6 +256,151 @@ def process_video_pipeline(self, video_id: int, user_id: int, job_id: Optional[s
         
     finally:
         print(f"🏁 Pipeline task for video {video_id} finished", flush=True)
+
+
+@celery_app.task(bind=True, base=PipelineTask, name="task_extract_audio_step",
+                 max_retries=2, soft_time_limit=1800, time_limit=2400)
+def task_extract_audio_step(self, video_id: int, user_id: int, job_id: Optional[str] = None):
+    """Asynchronous Audio & Vocal Extraction (Demucs) step in background worker."""
+    db = self.db
+    job = None
+    try:
+        job_service = JobService(db)
+        if job_id:
+            try:
+                job_uuid = uuid.UUID(job_id) if isinstance(job_id, str) else job_id
+                job = job_service.get_job(job_uuid)
+            except Exception as e:
+                logger.warning(f"Could not load job {job_id}: {e}")
+
+        if not job:
+            job = job_service.create_job(
+                video_id=video_id,
+                triggered_by=user_id,
+                config={
+                    "celery_task_id": self.request.id,
+                    "mode": "single_step",
+                    "step": "audio_extract"
+                },
+                step="audio_extract"
+            )
+        else:
+            job_cfg = job.config_json or {}
+            if isinstance(job_cfg, str):
+                import json
+                try:
+                    job_cfg = json.loads(job_cfg)
+                except Exception:
+                    job_cfg = {}
+            job_cfg["celery_task_id"] = self.request.id
+            job_cfg["mode"] = "single_step"
+            job_cfg["step"] = "audio_extract"
+            job.config_json = job_cfg
+            job.status = JobStatus.PROCESSING.value
+            job.current_step = "audio_extract"
+            db.commit()
+
+        job_service.log_task(job.id, "audio_extract", "running", "Extracting audio and separating vocal track...")
+        self.update_state(
+            state="PROCESSING",
+            meta={"step": "audio_extract", "progress": 20, "message": "Extracting audio from video..."}
+        )
+
+        video = db.query(Video).filter(Video.id == video_id).first()
+        if not video:
+            raise ValueError(f"Video #{video_id} not found")
+
+        from app.core.config import OUTPUT_DIR, UPLOAD_DIR
+        from app.services import AudioService
+        import shutil
+
+        # Locate input video file
+        video_path = None
+        for file in UPLOAD_DIR.glob(f"{video_id}_*"):
+            video_path = str(file)
+            break
+        if not video_path:
+            raise ValueError(f"Original video file not found for video #{video_id}")
+
+        audio_service = AudioService()
+        output_dir = OUTPUT_DIR / f"audio_{video_id}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        raw_audio_path = output_dir / "audio.wav"
+
+        audio_service.extract_audio(video_path, str(raw_audio_path))
+        video.extracted_vocal_path = str(raw_audio_path)
+        video.current_step = "audio_extract"
+        video.progress = max(int(video.progress or 0), 25)
+        db.commit()
+
+        # Optional separate if needed
+        vocal_path = str(raw_audio_path)
+        bgm_path = None
+        try:
+            self.update_state(
+                state="PROCESSING",
+                meta={"step": "audio_extract", "progress": 50, "message": "Separating vocal and background music (Demucs)..."}
+            )
+            vocal_path, bgm_path = audio_service.separate_vocal_bgm(str(raw_audio_path), str(output_dir))
+            video.extracted_vocal_path = vocal_path
+            video.background_music_path = bgm_path
+            db.commit()
+        except Exception as sep_err:
+            logger.warning(f"Demucs separation skipped or failed in task_extract_audio_step, using raw audio: {sep_err}")
+
+        job_service.log_task(job.id, "audio_extract", "success", "Audio and vocals extracted successfully")
+        job_service.update_job_status(job.id, JobStatus.COMPLETED, progress=100)
+
+        # Upload to Object Storage
+        try:
+            from app.services.storage_manager import storage_manager
+            if vocal_path and os.path.exists(vocal_path):
+                storage_manager.upload_file(vocal_path, f"audio/{video_id}/vocals.wav", "audio/wav")
+            if bgm_path and os.path.exists(bgm_path):
+                storage_manager.upload_file(bgm_path, f"audio/{video_id}/no_vocals.wav", "audio/wav")
+        except Exception as s3_err:
+            logger.warning(f"Could not upload separated audio to Object Storage: {s3_err}")
+
+        _send_task_notification(
+            user_id=user_id,
+            video_id=video_id,
+            title=f"Trích xuất âm thanh hoàn tất (Video #{video_id})",
+            message=f"Đã trích xuất và bóc tách âm thanh thành công cho video #{video_id}.",
+            step="audio_extract",
+            status="completed",
+            db=db,
+        )
+
+        return {
+            "status": "completed",
+            "video_id": video_id,
+            "vocal_path": vocal_path,
+            "bgm_path": bgm_path,
+            "audio_path": str(raw_audio_path),
+            "message": "Audio extracted successfully"
+        }
+
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"❌ Audio extraction failed for video {video_id}: {error_msg}")
+        if job:
+            try:
+                job_service.log_task(job.id, "audio_extract", "failed", error_trace=error_msg)
+                job_service.update_job_status(job.id, JobStatus.FAILED, error_message=error_msg)
+            except Exception:
+                pass
+
+        _send_task_notification(
+            user_id=user_id,
+            video_id=video_id,
+            title=f"Trích xuất âm thanh thất bại (Video #{video_id})",
+            message=f"Trích xuất âm thanh cho video #{video_id} thất bại: {error_msg[:120]}",
+            step="audio_extract",
+            status="failed",
+            error=error_msg,
+            db=db,
+        )
+        raise
 
 
 @celery_app.task(bind=True, base=PipelineTask, name="task_transcribe_step", 
@@ -1791,4 +1945,96 @@ def task_process_batch_job(self, batch_id: str, user_id: int):
         "total": total_videos,
         "completed": completed_count,
         "failed": failed_count,
-    }
+    }
+
+
+# ============================================================================
+# PERIODIC MAINTENANCE TASKS (Kích hoạt tự động bởi Celery Beat)
+# ============================================================================
+
+@celery_app.task(bind=True, base=PipelineTask, name="periodic_clean_temp_files")
+def periodic_clean_temp_files(self, max_age_hours: int = 12):
+    """
+    Periodically clean up temporary upload/output files older than max_age_hours.
+    Prevents storage bloat from aborted runs and chunked transfers.
+    """
+    import time
+    from pathlib import Path
+    from app.core.config import UPLOAD_DIR, OUTPUT_DIR
+
+    logger.info(f"🧹 [CeleryBeat] Starting periodic temp files cleanup (older than {max_age_hours}h)...")
+    cutoff_time = time.time() - (max_age_hours * 3600)
+    cleaned_count = 0
+    cleaned_bytes = 0
+
+    # Scan and remove temporary files in UPLOAD_DIR (e.g. temp_*)
+    for temp_pattern in ["temp_*", "*.part", "*.tmp"]:
+        for file_path in UPLOAD_DIR.glob(temp_pattern):
+            try:
+                if file_path.is_file() and file_path.stat().st_mtime < cutoff_time:
+                    size = file_path.stat().st_size
+                    file_path.unlink()
+                    cleaned_count += 1
+                    cleaned_bytes += size
+            except Exception as e:
+                logger.warning(f"Could not remove temp file {file_path}: {e}")
+
+    # Scan and clean dangling temp directories in OUTPUT_DIR
+    for dir_pattern in ["tmp_*", "temp_*"]:
+        for dir_path in OUTPUT_DIR.glob(dir_pattern):
+            try:
+                if dir_path.is_dir() and dir_path.stat().st_mtime < cutoff_time:
+                    import shutil
+                    shutil.rmtree(dir_path, ignore_errors=True)
+                    cleaned_count += 1
+            except Exception as e:
+                logger.warning(f"Could not remove temp dir {dir_path}: {e}")
+
+    logger.info(f"✅ [CeleryBeat] Temp cleanup finished: removed {cleaned_count} items (~{cleaned_bytes / (1024*1024):.2f} MB)")
+    return {"cleaned_items": cleaned_count, "cleaned_bytes": cleaned_bytes}
+
+
+@celery_app.task(bind=True, base=PipelineTask, name="periodic_cleanup_stale_jobs")
+def periodic_cleanup_stale_jobs(self, timeout_minutes: int = 60):
+    """
+    Detect and fail jobs that have been stuck in 'processing' status for too long
+    without updating (likely worker restart, crash, or ungraceful shutdown).
+    """
+    from datetime import datetime, timedelta
+    from app.models import PipelineJob, Video
+    from app.models.enums import JobStatus, VideoStatus
+
+    db = self.db
+    logger.info(f"🔍 [CeleryBeat] Checking for stale processing jobs (> {timeout_minutes}m)...")
+    stale_threshold = datetime.utcnow() - timedelta(minutes=timeout_minutes)
+
+    stale_jobs = db.query(PipelineJob).filter(
+        PipelineJob.status == JobStatus.PROCESSING.value,
+        PipelineJob.updated_at < stale_threshold
+    ).all()
+
+    recovered_count = 0
+    for job in stale_jobs:
+        try:
+            logger.warning(f"⚠️ [CeleryBeat] Marking stale job #{job.id} (Video #{job.video_id}) as FAILED (exceeded {timeout_minutes}m)")
+            job.status = JobStatus.FAILED.value
+            job.error_message = f"Job timed out or worker disconnected after {timeout_minutes} minutes of inactivity"
+            job.updated_at = datetime.utcnow()
+
+            # Mark associated video if stuck in processing
+            if job.video_id:
+                video = db.query(Video).filter(Video.id == job.video_id).first()
+                if video and video.status == VideoStatus.PROCESSING.value:
+                    video.status = VideoStatus.FAILED.value
+                    video.updated_at = datetime.utcnow()
+
+            recovered_count += 1
+        except Exception as e:
+            logger.warning(f"Could not recover stale job {job.id}: {e}")
+
+    if recovered_count > 0:
+        db.commit()
+
+    logger.info(f"✅ [CeleryBeat] Stale jobs check completed: recovered {recovered_count} stuck jobs")
+    return {"stale_jobs_recovered": recovered_count}
+

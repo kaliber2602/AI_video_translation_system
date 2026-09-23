@@ -19,6 +19,7 @@ import {
   HardDrive,
   Sliders,
   UploadCloud,
+  Play,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
@@ -124,9 +125,13 @@ export default function ProjectDetail() {
   const [videoDocs, setVideoDocs] = useState<VideoDocument[]>([]);
   const [videoChapters, setVideoChapters] = useState<VideoChapter[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(false);
-  const [activeDocTab, setActiveDocTab] = useState<"chapters" | "documents">("chapters");
+  const [activeDocTab, setActiveDocTab] = useState<"chapters" | "documents" | "search">("chapters");
   const [selectedDoc, setSelectedDoc] = useState<VideoDocument | null>(null);
   const [isGeneratingDoc, setIsGeneratingDoc] = useState(false);
+  const [isGeneratingChapters, setIsGeneratingChapters] = useState(false);
+  const [semanticSearchQuery, setSemanticSearchQuery] = useState("");
+  const [semanticSearchResults, setSemanticSearchResults] = useState<any[]>([]);
+  const [isSearchingSemantic, setIsSearchingSemantic] = useState(false);
 
   const pollingTimerRef = useRef<any>(null);
 
@@ -498,6 +503,36 @@ export default function ProjectDetail() {
       toast.error(err?.response?.data?.detail || t("project:errors.docGenerateFailed", "Không thể tạo tài liệu"));
     } finally {
       setIsGeneratingDoc(false);
+    }
+  };
+
+  const handleGenerateChapters = async () => {
+    if (!viewingDocsVideo) return;
+    try {
+      setIsGeneratingChapters(true);
+      const newChapters = await videoService.generateVideoChapters(viewingDocsVideo.id);
+      setVideoChapters(newChapters);
+      toast.success(t("common:success", "Thành công"), "Đã tạo Timeline Chapters từ phụ đề thành công");
+    } catch (err: any) {
+      console.error("[ProjectDetail] Generate chapters failed:", err);
+      toast.error(err?.response?.data?.detail || "Không thể sinh chapters cho video");
+    } finally {
+      setIsGeneratingChapters(false);
+    }
+  };
+
+  const handleSemanticSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!viewingDocsVideo || !semanticSearchQuery.trim()) return;
+    try {
+      setIsSearchingSemantic(true);
+      const results = await videoService.searchVideoTranscript(viewingDocsVideo.id, semanticSearchQuery.trim(), 25);
+      setSemanticSearchResults(results || []);
+    } catch (err: any) {
+      console.error("[ProjectDetail] Search transcript failed:", err);
+      toast.error(err?.response?.data?.detail || "Tìm kiếm semantic thất bại");
+    } finally {
+      setIsSearchingSemantic(false);
     }
   };
 
@@ -1225,7 +1260,31 @@ export default function ProjectDetail() {
                 Documents & Summaries ({videoDocs.length})
               </button>
 
+              <button
+                type="button"
+                onClick={() => setActiveDocTab("search")}
+                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                  activeDocTab === "search"
+                    ? "bg-[var(--color-primary)] text-white"
+                    : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+                }`}
+              >
+                <Search size={15} />
+                Semantic Search
+              </button>
+
               <div className="ml-auto flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isGeneratingChapters}
+                  onClick={handleGenerateChapters}
+                  className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
+                  title="Tự động phân đoạn chapters từ transcript"
+                >
+                  <Clock size={13} />
+                  {isGeneratingChapters ? "Generating..." : "Generate Chapters"}
+                </button>
+
                 <button
                   type="button"
                   disabled={isGeneratingDoc}
@@ -1255,28 +1314,119 @@ export default function ProjectDetail() {
                     {videoChapters.map((ch) => (
                       <div
                         key={ch.id}
-                        className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3"
+                        className="flex items-start justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3"
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-[var(--color-primary)]">
-                            {formatDuration(ch.start_time)} - {formatDuration(ch.end_time)}
-                          </span>
-                          <span className="text-[11px] text-[var(--color-text-muted)]">
-                            Chapter #{ch.sequence}
-                          </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-[var(--color-primary)]">
+                              {formatDuration(ch.start_time)} - {formatDuration(ch.end_time)}
+                            </span>
+                            <span className="text-[11px] text-[var(--color-text-muted)]">
+                              Chapter #{ch.sequence}
+                            </span>
+                          </div>
+                          <h4 className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">
+                            {ch.title}
+                          </h4>
+                          {ch.summary && (
+                            <p className="mt-1 text-xs text-[var(--color-text-secondary)] leading-relaxed">
+                              {ch.summary}
+                            </p>
+                          )}
                         </div>
-                        <h4 className="mt-1 text-sm font-semibold text-[var(--color-text-primary)]">
-                          {ch.title}
-                        </h4>
-                        {ch.summary && (
-                          <p className="mt-1 text-xs text-[var(--color-text-secondary)] leading-relaxed">
-                            {ch.summary}
-                          </p>
+
+                        {viewingDocsVideo && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const vidId = viewingDocsVideo.id;
+                              setViewingDocsVideo(null);
+                              navigate(`/workspace/project/${projectId}/video/${vidId}?step=review-export&t=${Math.floor(ch.start_time)}`);
+                            }}
+                            className="flex items-center gap-1 rounded-lg bg-[var(--color-primary)] px-2.5 py-1.5 text-[11px] font-bold text-white transition hover:bg-[var(--color-primary-hover)] shrink-0 cursor-pointer"
+                            title="Xem video tại đoạn này"
+                          >
+                            <Play size={11} className="fill-current" />
+                            <span>Xem</span>
+                          </button>
                         )}
                       </div>
                     ))}
                   </div>
                 )
+              ) : activeDocTab === "search" ? (
+                <div className="space-y-4">
+                  <form onSubmit={handleSemanticSearch} className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+                      <input
+                        type="text"
+                        value={semanticSearchQuery}
+                        onChange={(e) => setSemanticSearchQuery(e.target.value)}
+                        placeholder="Tìm kiếm nội dung giọng nói hoặc ý nghĩa theo timestamp..."
+                        className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 pl-10 pr-4 text-xs font-semibold text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={isSearchingSemantic || !semanticSearchQuery.trim()}
+                      className="flex items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[var(--color-primary-hover)] disabled:opacity-50 cursor-pointer"
+                    >
+                      {isSearchingSemantic ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                      <span>Tìm kiếm</span>
+                    </button>
+                  </form>
+
+                  {isSearchingSemantic ? (
+                    <div className="flex h-36 items-center justify-center">
+                      <Loader2 size={24} className="animate-spin text-[var(--color-primary)]" />
+                      <span className="ml-2 text-xs text-[var(--color-text-muted)]">Đang tìm kiếm timestamp...</span>
+                    </div>
+                  ) : semanticSearchResults.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-[var(--color-text-muted)]">
+                      {semanticSearchQuery ? "Không tìm thấy kết quả phù hợp." : "Nhập câu hỏi hoặc từ khóa để tìm kiếm đoạn video và phụ đề tương ứng."}
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+                      {semanticSearchResults.map((res, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-start justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3 hover:border-[var(--color-primary)]/50 transition"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="rounded bg-[var(--color-primary)]/10 px-2 py-0.5 text-[10px] font-black text-[var(--color-primary)]">
+                                {res.timestamp_formatted || formatDuration(res.start_time)}
+                              </span>
+                              <span className="text-[11px] font-bold text-[var(--color-text-secondary)]">
+                                {res.speaker || "Speaker"}
+                              </span>
+                              <span className="text-[10px] text-[var(--color-text-muted)]">
+                                Độ liên quan: {Math.round((res.relevance_score / 5) * 100)}%
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-[var(--color-text-primary)] leading-relaxed font-medium">
+                              "{res.text}"
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setViewingDocsVideo(null);
+                              navigate(`/workspace/project/${projectId}/video/${res.video_id}?step=review-export&t=${Math.floor(res.start_time)}`);
+                            }}
+                            className="flex items-center gap-1 rounded-lg bg-[var(--color-primary)] px-2.5 py-1.5 text-[11px] font-bold text-white transition hover:bg-[var(--color-primary-hover)] shrink-0 cursor-pointer"
+                            title="Mở video tại thời điểm này"
+                          >
+                            <Play size={11} className="fill-current" />
+                            <span>Xem</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ) : videoDocs.length === 0 ? (
                 <div className="py-12 text-center text-xs text-[var(--color-text-muted)]">
                   No documents found. Click "Generate AI Summary" above to create structured documentation.

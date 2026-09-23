@@ -64,29 +64,6 @@ const FALLBACK_PLANS: Plan[] = [
       { id: 18, plan_id: 2, resource_type: "LIMIT", resource_key: "max_projects", limit_value: "50", unit: "count" },
     ],
   },
-  {
-    id: 3,
-    code: "business",
-    name: "Business",
-    description: "For teams, studios & scaling organizations",
-    price_monthly: 49,
-    price_yearly: 490,
-    billing_cycle: "monthly",
-    is_active: true,
-    is_popular: false,
-    display_order: 3,
-    resources: [
-      { id: 19, plan_id: 3, resource_type: "STORAGE", resource_key: "storage_bytes", limit_value: "1099511627776", unit: "bytes" },
-      { id: 20, plan_id: 3, resource_type: "CONSUMABLE", resource_key: "words_monthly", limit_value: "1000000", unit: "words" },
-      { id: 21, plan_id: 3, resource_type: "LIMIT", resource_key: "max_file_size_bytes", limit_value: "21474836480", unit: "bytes" },
-      { id: 22, plan_id: 3, resource_type: "LIMIT", resource_key: "max_video_duration_seconds", limit_value: "43200", unit: "seconds" },
-      { id: 23, plan_id: 3, resource_type: "LIMIT", resource_key: "max_upload_resolution", limit_value: "4K", unit: "resolution" },
-      { id: 24, plan_id: 3, resource_type: "LIMIT", resource_key: "max_processing_resolution", limit_value: "4K", unit: "resolution" },
-      { id: 25, plan_id: 3, resource_type: "LIMIT", resource_key: "max_streaming_resolution", limit_value: "4K", unit: "resolution" },
-      { id: 26, plan_id: 3, resource_type: "LIMIT", resource_key: "max_concurrent_jobs", limit_value: "10", unit: "count" },
-      { id: 27, plan_id: 3, resource_type: "LIMIT", resource_key: "max_projects", limit_value: "500", unit: "count" },
-    ],
-  },
 ];
 
 const FALLBACK_ADDONS: StorageAddon[] = [
@@ -181,8 +158,8 @@ export default function HomePricing() {
           </div>
         )}
 
-        {/* 3 Plan Cards Grid */}
-        <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* 2 Plan Cards Grid */}
+        <div className="mt-12 mx-auto grid max-w-4xl gap-8 md:grid-cols-2">
           {plans.map((plan) => (
             <PlanCard
               key={plan.code}

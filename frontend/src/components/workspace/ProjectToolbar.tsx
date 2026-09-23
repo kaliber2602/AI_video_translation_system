@@ -7,6 +7,7 @@ import {
   SlidersHorizontal,
   Trash2,
   X,
+  Sparkles,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TagResponse } from "../../types/tag";
@@ -35,6 +36,7 @@ interface ProjectToolbarProps {
   isTrashMode?: boolean;
   onEmptyTrash?: () => void;
   trashCount?: number;
+  isSearchingSemantic?: boolean;
 }
 
 export default function ProjectToolbar({
@@ -51,6 +53,7 @@ export default function ProjectToolbar({
   isTrashMode = false,
   onEmptyTrash,
   trashCount = 0,
+  isSearchingSemantic = false,
 }: ProjectToolbarProps) {
 
   const { t } = useTranslation(["workspace", "common"]);
@@ -75,7 +78,7 @@ export default function ProjectToolbar({
   return (
     <section className="mb-6 flex flex-col gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-[var(--shadow-card)] transition-colors duration-200 lg:flex-row lg:items-center">
       {/* Search Input */}
-      <div className="relative min-w-[220px] flex-1">
+      <div className="relative min-w-[240px] flex-1 flex items-center">
         <Search
           size={17}
           className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
@@ -86,20 +89,33 @@ export default function ProjectToolbar({
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={t("workspace:searchPlaceholder")}
-          className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-10 pr-9 text-xs text-[var(--color-text-primary)] outline-none transition placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/10"
+          className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-10 pr-24 text-xs text-[var(--color-text-primary)] outline-none transition placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/10"
         />
 
-        {search && (
-          <button
-            type="button"
-            onClick={() => onSearchChange("")}
-            aria-label="Clear search"
-            className="absolute right-3 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--color-surface-muted)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {search && (
+            <button
+              type="button"
+              onClick={() => onSearchChange("")}
+              aria-label="Clear search"
+              className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-surface-muted)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+            >
+              <X size={12} />
+            </button>
+          )}
+
+          <span
+            className={`flex items-center gap-1 rounded-md bg-[var(--color-primary)]/10 px-1.5 py-0.5 text-[10px] font-bold text-[var(--color-primary)] select-none transition-all ${
+              isSearchingSemantic ? "animate-pulse ring-1 ring-[var(--color-primary)]" : ""
+            }`}
+            title="Semantic AI Search hỗ trợ tìm kiếm theo ngữ nghĩa và từ khóa"
           >
-            <X size={12} />
-          </button>
-        )}
+            <Sparkles size={11} className={isSearchingSemantic ? "animate-spin" : ""} />
+            <span>AI</span>
+          </span>
+        </div>
       </div>
+
 
       {/* Controls row */}
       <div className="flex flex-wrap items-center gap-2.5">

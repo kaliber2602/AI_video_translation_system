@@ -83,12 +83,11 @@ export default function PlanCard({
     t("pricing:comparison.rows.hls"),
   ];
 
-  if (plan.code === "business") {
+  if (plan.code === "pro") {
     featureList.push(
       t("pricing:comparison.rows.batch"),
       t("pricing:comparison.rows.api"),
-      t("pricing:comparison.rows.priority"),
-      t("pricing:comparison.rows.team")
+      t("pricing:comparison.rows.priority")
     );
   }
 

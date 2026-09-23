@@ -100,13 +100,24 @@ SEGMENT_SECONDS = int(os.getenv("SEGMENT_SECONDS", "5"))
 
 
 # =========================================================
-# AI Models Configuration
+# AI Models Configuration (Shared System-Wide Keys & Endpoints)
 # =========================================================
 
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
-WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
+WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cuda")
 TRANSLATION_BACKEND = os.getenv("TRANSLATION_BACKEND", "nllb")
 TTS_API_URL = os.getenv("TTS_API_URL", "http://tts-service:8001/generate_tts")
+
+# Shared LLM & Cloud AI Providers
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").strip()
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "deepseek-r1:8b").strip()
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip() or None
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip() or None
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip() or None
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "").strip() or None
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "").strip() or None
 
 
 # =========================================================

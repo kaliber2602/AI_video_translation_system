@@ -276,6 +276,89 @@ export const videoService = {
     return response.data;
   },
 
+  async generateVideoChapters(videoId: number) {
+    const response = await api.post(`/api/videos/${videoId}/chapters/generate`);
+    return response.data;
+  },
+
+  async searchVideoTranscript(videoId: number, query: string, limit: number = 20) {
+    const response = await api.get(`/api/videos/${videoId}/search`, {
+      params: { q: query, limit },
+    });
+    return response.data;
+  },
+
+  async searchProjectTranscripts(projectId: number, query: string, limit: number = 25) {
+    const response = await api.get(`/api/videos/projects/${projectId}/semantic-search`, {
+      params: { q: query, limit },
+    });
+    return response.data;
+  },
+
+  async getVideoChatHistory(videoId: number, limit: number = 50) {
+    const response = await api.get(`/api/videos/${videoId}/chat/history`, {
+      params: { limit },
+    });
+    return response.data;
+  },
+
+  async clearVideoChatHistory(videoId: number) {
+    const response = await api.delete(`/api/videos/${videoId}/chat/history`);
+    return response.data;
+  },
+
+  async chatWithVideo(
+    videoId: number,
+    message: string,
+    chatHistory?: Array<{ role: string; content: string }>,
+    modelName?: string,
+    tone?: string
+  ) {
+    const response = await api.post(`/api/videos/${videoId}/chat`, {
+      message,
+      chat_history: chatHistory,
+      model_name: modelName,
+      tone,
+    });
+    return response.data;
+  },
+
+  async chatWithProject(
+    projectId: number,
+    message: string,
+    modelName?: string,
+    tone?: string
+  ) {
+    const response = await api.post(`/api/videos/projects/${projectId}/chat`, {
+      message,
+      model_name: modelName,
+      tone,
+    });
+    return response.data;
+  },
+
+  async chatWithWorkspace(
+    message: string,
+    modelName?: string,
+    tone?: string
+  ) {
+    const response = await api.post(`/api/videos/workspace/chat`, {
+      message,
+      model_name: modelName,
+      tone,
+    });
+    return response.data;
+  },
+
+  async searchWorkspaceSemantic(query: string, limit = 15) {
+    const response = await api.get(`/api/videos/workspace/search`, {
+      params: { q: query, limit },
+    });
+    return response.data;
+  },
+
+
+
 
   // Processing
   async startProcessing(videoId: number) {

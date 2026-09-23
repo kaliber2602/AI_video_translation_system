@@ -1,5 +1,5 @@
-// frontend/src/components/common/StandardVideoPlayer.tsx
 import React, { useRef, useState, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Play,
   Pause,
@@ -208,6 +208,22 @@ export const StandardVideoPlayer: React.FC<StandardVideoPlayerProps> = ({
     }
   }, [effectiveRatio]);
 
+  const [searchParams] = useSearchParams();
+  const playerSeekDoneRef = useRef(false);
+
+  const seekToQueryTimestamp = () => {
+    const tParam = searchParams.get("t");
+    if (tParam !== null && videoRef.current) {
+      const seekSec = parseFloat(tParam);
+      if (!isNaN(seekSec) && seekSec >= 0) {
+        videoRef.current.currentTime = seekSec;
+        setCurrentTime(seekSec);
+        videoRef.current.play().catch(() => {});
+        setIsPlaying(true);
+      }
+    }
+  };
+
   const handleMetadataLoaded = () => {
     const video = videoRef.current;
     if (!video) return;
@@ -226,7 +242,19 @@ export const StandardVideoPlayer: React.FC<StandardVideoPlayerProps> = ({
         setDetectedRatio("16:9");
       }
     }
+
+    if (!playerSeekDoneRef.current) {
+      seekToQueryTimestamp();
+      playerSeekDoneRef.current = true;
+    }
   };
+
+  useEffect(() => {
+    const tParam = searchParams.get("t");
+    if (tParam !== null && videoRef.current) {
+      seekToQueryTimestamp();
+    }
+  }, [searchParams.get("t")]);
 
   return (
     <div

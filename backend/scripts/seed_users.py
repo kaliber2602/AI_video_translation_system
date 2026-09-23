@@ -144,8 +144,7 @@ def seed_users():
                     INSERT INTO plans (code, name, description, price_monthly, price_yearly, is_popular, display_order)
                     VALUES
                         ('free', 'Free', 'For trying the platform and personal use', 0.00, 0.00, FALSE, 1),
-                        ('pro', 'Pro', 'For creators, freelancers and professionals', 12.00, 120.00, TRUE, 2),
-                        ('business', 'Business', 'For teams, studios and scaling organizations', 49.00, 490.00, FALSE, 3);
+                        ('pro', 'Pro', 'For creators, freelancers and professionals', 12.00, 120.00, TRUE, 2);
                     """
                 )
 

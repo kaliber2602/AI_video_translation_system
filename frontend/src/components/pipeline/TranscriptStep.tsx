@@ -803,11 +803,11 @@ export default function TranscriptStep() {
                 disabled={isGenerating}
                 className="w-full h-9 rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs font-semibold text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)]"
               >
-                <option value="whisper-large-v3">Whisper Large-v3 (Chính xác cao nhất & Đa ngữ xuất sắc)</option>
-                <option value="whisper-medium">Whisper Medium (Cân bằng & Chuẩn xác)</option>
-                <option value="whisper-small">Whisper Small (Nhanh & Tiết kiệm bộ nhớ)</option>
-                <option value="whisper-base">Whisper Base (Tốc độ tối đa)</option>
-                <option value="whisperx-large-v3">WhisperX Large-v3 (Khớp mốc thời gian từng từ)</option>
+                <option value="whisper-base">Whisper Base (Local Siêu tốc - Miễn phí)</option>
+                <option value="whisper-small">Whisper Small (Local Tiết kiệm bộ nhớ - Miễn phí)</option>
+                <option value="whisper-medium">Whisper Medium (Local Cân bằng - Miễn phí)</option>
+                <option value="whisperx-large-v3">WhisperX Large-v3 (Word-level Alignment - Miễn phí)</option>
+                <option value="whisper-large-v3">Whisper Large-v3 (Local Heavy Cao cấp - Gói Pro)</option>
               </select>
 
               {/* Speaker Diarization Checkbox */}

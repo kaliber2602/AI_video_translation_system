@@ -31,6 +31,7 @@ VideoRenderOutput = TableModel("video_render_outputs")
 PipelinePreset = TableModel("pipeline_presets")
 BatchJob = TableModel("batch_jobs")
 BatchJobItem = TableModel("batch_job_items")
+VideoChatMessage = TableModel("video_chat_messages")
 
 __all__ = [
     'Base',
@@ -63,4 +64,5 @@ __all__ = [
     'PipelinePreset',
     'BatchJob',
     'BatchJobItem',
-]
+    'VideoChatMessage',
+]

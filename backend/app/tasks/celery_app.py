@@ -26,6 +26,33 @@ try:
         task_acks_late=True,
         task_reject_on_worker_lost=True,
         result_expires=3600,
+        task_default_queue="queue_pipeline",
+        task_routes={
+            "task_transcribe_step": {"queue": "queue_stt"},
+            "task_translate_step": {"queue": "queue_translate"},
+            "task_generate_tts_step": {"queue": "queue_tts"},
+            "task_extract_audio_step": {"queue": "queue_media"},
+            "task_dub_mux_step": {"queue": "queue_media"},
+            "process_video_pipeline": {"queue": "queue_pipeline"},
+            "task_process_batch_job": {"queue": "queue_pipeline"},
+            "check_task_status": {"queue": "queue_pipeline"},
+            "get_celery_worker_info": {"queue": "queue_pipeline"},
+            "clear_task_queue": {"queue": "queue_pipeline"},
+            "periodic_clean_temp_files": {"queue": "queue_pipeline"},
+            "periodic_cleanup_stale_jobs": {"queue": "queue_pipeline"},
+        },
+        beat_schedule={
+            "clean-temp-files-every-4-hours": {
+                "task": "periodic_clean_temp_files",
+                "schedule": 4 * 3600.0,  # Run every 4 hours
+                "args": (12,),  # files older than 12 hours
+            },
+            "cleanup-stale-jobs-every-30-minutes": {
+                "task": "periodic_cleanup_stale_jobs",
+                "schedule": 30 * 60.0,  # Run every 30 minutes
+                "args": (60,),  # jobs stuck > 60 minutes
+            },
+        },
     )
 except ImportError:
     class DummyTask:

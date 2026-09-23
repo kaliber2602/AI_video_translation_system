@@ -39,10 +39,12 @@ import AdminFinancePage from "../../pages/admin/AdminFinancePage";
 import AdminLogsPage from "../../pages/admin/AdminLogsPage";
 import AdminContactsPage from "../../pages/admin/AdminContactsPage";
 import AdminToolsPage from "../../pages/admin/AdminToolsPage";
+import FloatingChatWidget from "../../components/chat/FloatingChatWidget";
 
 export default function AppRouter() {
   return (
     <BrowserRouter>
+      <FloatingChatWidget />
       <Routes>
 
         {/* ================================================== */}

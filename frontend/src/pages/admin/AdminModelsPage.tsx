@@ -288,7 +288,6 @@ export default function AdminModelsPage() {
               >
                 <option value="free">Free</option>
                 <option value="pro">Pro</option>
-                <option value="business">Business</option>
               </select>
             </div>
 

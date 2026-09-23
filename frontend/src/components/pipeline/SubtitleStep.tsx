@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import { usePipeline } from "../../hooks/usePipeline";
 import { videoService } from "../../services/video.service";
 import { formatSubtitleLines, splitSegmentIntoTwo } from "../../utils/subtitleUtils";
@@ -428,6 +429,23 @@ export default function SubtitleStep() {
     setCurrentTime(videoRef.current.currentTime);
   };
 
+  const [searchParams] = useSearchParams();
+  const initialSeekDoneRef = useRef(false);
+
+  // Auto-seek to timestamp from query parameter ?t=...
+  const seekToQueryTimestamp = () => {
+    const tParam = searchParams.get("t");
+    if (tParam !== null && videoRef.current) {
+      const seekSec = parseFloat(tParam);
+      if (!isNaN(seekSec) && seekSec >= 0) {
+        videoRef.current.currentTime = seekSec;
+        setCurrentTime(seekSec);
+        videoRef.current.play().catch(() => {});
+        setIsPlaying(true);
+      }
+    }
+  };
+
   const handleLoadedMetadata = () => {
     if (!videoRef.current) return;
     setDuration(videoRef.current.duration || 0);
@@ -437,7 +455,19 @@ export default function SubtitleStep() {
         height: videoRef.current.videoHeight,
       });
     }
+
+    if (!initialSeekDoneRef.current) {
+      seekToQueryTimestamp();
+      initialSeekDoneRef.current = true;
+    }
   };
+
+  useEffect(() => {
+    const tParam = searchParams.get("t");
+    if (tParam !== null && videoRef.current) {
+      seekToQueryTimestamp();
+    }
+  }, [searchParams.get("t")]);
 
   // Mouse handlers for drawing Subtitle Eraser Bounding Box
   const handleMouseDownOnVideo = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -2730,7 +2760,7 @@ export default function SubtitleStep() {
                   </div>
                 )}
 
-                {/* Safe Area Overlay (Shorts / Reels) */}
+                {/* Safe Area Overlay (Shorts / Reels: 9:16) */}
                 {showSafeArea && aspectRatio === "9:16" && (
                   <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-3">
                     <div className="h-10 w-full border-b border-dashed border-red-400/40 bg-red-500/10 rounded-t flex items-center justify-center">
@@ -2757,6 +2787,22 @@ export default function SubtitleStep() {
                     </div>
                   </div>
                 )}
+
+                {/* Safe Area Overlay (YouTube / Landscape: 16:9 & 4:3) */}
+                {showSafeArea && (aspectRatio === "16:9" || aspectRatio === "4:3") && (
+                  <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-4">
+                    <div className="h-6 w-full border-b border-dashed border-cyan-400/30 flex items-center justify-between px-2">
+                      <span className="text-[8px] font-mono text-cyan-300">Safe Margin Top (10%)</span>
+                      <span className="text-[8px] font-mono text-cyan-300">Title Bar</span>
+                    </div>
+
+                    <div className="h-10 w-full border-t border-dashed border-cyan-400/30 flex items-center justify-between px-2">
+                      <span className="text-[8px] font-mono text-cyan-300">Safe Margin Bottom (Progress Bar)</span>
+                      <span className="text-[8px] text-emerald-400 font-bold">✓ Vùng phụ đề chuẩn 84%</span>
+                    </div>
+                  </div>
+                )}
+
 
                 {/* Interactive Draggable Subtitle Box (Syncs with live spoken speech) */}
                 <div

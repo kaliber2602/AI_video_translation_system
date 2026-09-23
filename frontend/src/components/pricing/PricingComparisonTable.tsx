@@ -10,41 +10,40 @@ export default function PricingComparisonTable() {
     {
       category: t("pricing:comparison.categories.resources"),
       items: [
-        { name: t("pricing:comparison.rows.storage"), free: "5 GB", pro: "100 GB", business: "1 TB" },
-        { name: t("pricing:comparison.rows.credits"), free: "5,000 từ", pro: "100,000 từ", business: "1,000,000 từ" },
-        { name: t("pricing:comparison.rows.minutes"), free: "~35 phút", pro: "~660 phút", business: "~6,600 phút" },
-        { name: t("pricing:comparison.rows.subEditorQuota"), free: "0 quota (Miễn phí)", pro: "0 quota (Miễn phí)", business: "0 quota (Miễn phí)" },
+        { name: t("pricing:comparison.rows.storage"), free: "5 GB", pro: "100 GB" },
+        { name: t("pricing:comparison.rows.credits"), free: "5,000 từ", pro: "100,000 từ" },
+        { name: t("pricing:comparison.rows.minutes"), free: "~35 phút", pro: "~660 phút" },
+        { name: t("pricing:comparison.rows.subEditorQuota"), free: "0 quota (Miễn phí)", pro: "0 quota (Miễn phí)" },
       ],
     },
     // Category 2: Limits
     {
       category: t("pricing:comparison.categories.limits"),
       items: [
-        { name: t("pricing:comparison.rows.maxFile"), free: "500 MB", pro: "5 GB", business: "20 GB" },
-        { name: t("pricing:comparison.rows.maxDuration"), free: "30 min", pro: "4 hours", business: "12 hours" },
-        { name: t("pricing:comparison.rows.uploadRes"), free: "1080p", pro: "4K", business: "4K" },
-        { name: t("pricing:comparison.rows.processingRes"), free: "720p", pro: "1080p", business: "4K" },
-        { name: t("pricing:comparison.rows.streamingRes"), free: "720p", pro: "1080p", business: "4K" },
-        { name: t("pricing:comparison.rows.exportRes"), free: "720p", pro: "1080p", business: "4K" },
-        { name: t("pricing:comparison.rows.concurrency"), free: "1 job", pro: "3 jobs", business: "10 jobs" },
-        { name: t("pricing:comparison.rows.projects"), free: "5", pro: "50", business: "500" },
+        { name: t("pricing:comparison.rows.maxFile"), free: "500 MB", pro: "5 GB" },
+        { name: t("pricing:comparison.rows.maxDuration"), free: "30 min", pro: "4 hours" },
+        { name: t("pricing:comparison.rows.uploadRes"), free: "1080p", pro: "4K" },
+        { name: t("pricing:comparison.rows.processingRes"), free: "720p", pro: "1080p" },
+        { name: t("pricing:comparison.rows.streamingRes"), free: "720p", pro: "1080p" },
+        { name: t("pricing:comparison.rows.exportRes"), free: "720p", pro: "1080p" },
+        { name: t("pricing:comparison.rows.concurrency"), free: "1 job", pro: "3 jobs" },
+        { name: t("pricing:comparison.rows.projects"), free: "5", pro: "50" },
       ],
     },
     // Category 3: Features (All open)
     {
       category: t("pricing:comparison.categories.features"),
       items: [
-        { name: t("pricing:comparison.rows.translation"), free: true, pro: true, business: true },
-        { name: t("pricing:comparison.rows.tts"), free: true, pro: true, business: true },
-        { name: t("pricing:comparison.rows.diarization"), free: true, pro: true, business: true },
-        { name: t("pricing:comparison.rows.subtitles"), free: true, pro: true, business: true },
-        { name: t("pricing:comparison.rows.editor"), free: true, pro: true, business: true },
-        { name: t("pricing:comparison.rows.exportDocs"), free: true, pro: true, business: true },
-        { name: t("pricing:comparison.rows.hls"), free: true, pro: true, business: true },
-        { name: t("pricing:comparison.rows.batch"), free: true, pro: true, business: true },
-        { name: t("pricing:comparison.rows.api"), free: true, pro: true, business: true },
-        { name: t("pricing:comparison.rows.priority"), free: true, pro: true, business: true },
-        { name: t("pricing:comparison.rows.team"), free: true, pro: true, business: true },
+        { name: t("pricing:comparison.rows.translation"), free: true, pro: true },
+        { name: t("pricing:comparison.rows.tts"), free: true, pro: true },
+        { name: t("pricing:comparison.rows.diarization"), free: true, pro: true },
+        { name: t("pricing:comparison.rows.subtitles"), free: true, pro: true },
+        { name: t("pricing:comparison.rows.editor"), free: true, pro: true },
+        { name: t("pricing:comparison.rows.exportDocs"), free: true, pro: true },
+        { name: t("pricing:comparison.rows.hls"), free: true, pro: true },
+        { name: t("pricing:comparison.rows.batch"), free: true, pro: true },
+        { name: t("pricing:comparison.rows.api"), free: true, pro: true },
+        { name: t("pricing:comparison.rows.priority"), free: true, pro: true },
       ],
     },
   ];
@@ -79,17 +78,14 @@ export default function PricingComparisonTable() {
             {/* Table Header */}
             <thead>
               <tr className="border-b border-[var(--color-border)] bg-[var(--color-background)]">
-                <th className="py-5 px-6 font-bold text-[var(--color-text-primary)] w-[36%]">
+                <th className="py-5 px-6 font-bold text-[var(--color-text-primary)] w-[40%]">
                   {t("pricing:comparison.featureCol")}
                 </th>
-                <th className="py-5 px-4 text-center font-bold text-[var(--color-text-primary)] w-[21%]">
+                <th className="py-5 px-4 text-center font-bold text-[var(--color-text-primary)] w-[30%]">
                   Free
                 </th>
-                <th className="py-5 px-4 text-center font-bold text-[var(--color-primary)] w-[21%] bg-[var(--color-primary-soft)]/30">
+                <th className="py-5 px-4 text-center font-bold text-[var(--color-primary)] w-[30%] bg-[var(--color-primary-soft)]/30">
                   Pro ★
-                </th>
-                <th className="py-5 px-4 text-center font-bold text-[var(--color-text-primary)] w-[22%]">
-                  Business
                 </th>
               </tr>
             </thead>
@@ -101,7 +97,7 @@ export default function PricingComparisonTable() {
                   {/* Category Header Row */}
                   <tr className="bg-[var(--color-background)]/50">
                     <td
-                      colSpan={4}
+                      colSpan={3}
                       className="py-3 px-6 text-[11px] font-black uppercase tracking-wider text-[var(--color-primary)]"
                     >
                       {section.category}
@@ -122,9 +118,6 @@ export default function PricingComparisonTable() {
                       </td>
                       <td className="py-3.5 px-4 text-center bg-[var(--color-primary-soft)]/10">
                         {renderCell(item.pro)}
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        {renderCell(item.business)}
                       </td>
                     </tr>
                   ))}

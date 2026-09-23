@@ -42,14 +42,14 @@ def test_get_catalog_public_endpoint():
     data = response.json()
     assert "plans" in data
     assert "storage_addons" in data
-    assert len(data["plans"]) >= 3
+    assert len(data["plans"]) == 2
     assert len(data["storage_addons"]) >= 4
 
     # Verify plans
     plan_codes = [p["code"] for p in data["plans"]]
     assert "free" in plan_codes
     assert "pro" in plan_codes
-    assert "business" in plan_codes
+    assert "business" not in plan_codes
 
     # Verify features are enabled
     for p in data["plans"]:
@@ -63,7 +63,7 @@ def test_get_plans_endpoint():
     response = client.get("/api/subscriptions/plans")
     assert response.status_code == 200
     plans = response.json()
-    assert len(plans) >= 3
+    assert len(plans) == 2
 
 
 def test_get_addons_endpoint():

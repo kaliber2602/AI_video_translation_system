@@ -9,6 +9,7 @@ import math
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from pydantic import BaseModel
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, Depends, status, Body, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.responses import FileResponse, RedirectResponse
@@ -46,6 +47,7 @@ from app.services.subscription_service import (
     deduct_user_words,
     refund_user_words,
     get_model_credit_cost,
+    validate_model_access,
 )
 from app.core.tokenizer import TokenizerService
 from app.schemas.video import (
@@ -65,6 +67,14 @@ from app.schemas.video import (
 )
 from app.services.video_understanding_service import VideoUnderstandingService
 from fastapi.responses import JSONResponse
+
+
+class VideoChatRequest(BaseModel):
+    message: str
+    chat_history: Optional[List[Dict[str, str]]] = None
+    model_name: Optional[str] = None
+    tone: Optional[str] = None
+
 
 # Import Celery task
 from app.tasks.video_tasks import (
@@ -480,6 +490,59 @@ async def list_videos(
     return items
 
 
+@router.post("/workspace/chat")
+def chat_with_workspace_endpoint(
+    payload: VideoChatRequest,
+    db: DatabaseSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """
+    User Workspace-Level RAG Q&A:
+    Answers questions across ALL projects and videos owned by the authenticated user.
+    """
+    service = VideoUnderstandingService(db=db)
+    try:
+        return service.chat_with_workspace(
+            user_id=user_id,
+            message=payload.message,
+            model_name=payload.model_name,
+            tone=payload.tone,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.error(f"Workspace chat failed for user {user_id}: {e}")
+        raise HTTPException(500, f"Workspace chat failed: {str(e)}")
+
+
+@router.get("/workspace/search")
+def search_workspace_semantic_endpoint(
+    q: str = Query(..., min_length=1, description="Search term or semantic question"),
+    limit: int = Query(default=15, ge=1, le=50),
+    db: DatabaseSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """
+    Multilingual Semantic Search across all videos and projects owned by the user.
+    Uses FAISS GPU/CPU vectors to find dialog segments matching concepts or keywords.
+    """
+    service = VideoUnderstandingService(db=db)
+    try:
+        results = service.search_workspace_transcripts(
+            user_id=user_id,
+            query=q,
+            limit=limit,
+        )
+        return {
+            "query": q,
+            "total_matches": len(results),
+            "results": results,
+        }
+    except Exception as e:
+        logger.error(f"Workspace semantic search failed: {e}")
+        raise HTTPException(500, f"Semantic search failed: {str(e)}")
+
+
 @router.get("/{video_id}", response_model=VideoDetailResponse)
 async def get_video_details(
     video_id: int,
@@ -804,6 +867,14 @@ async def update_video_pipeline_config(
     tts_dubbing = cfg_data.get("tts_dubbing") or {}
     subtitles = cfg_data.get("subtitles") or {}
     export_muxing = cfg_data.get("export_muxing") or {}
+
+    # Enforce model tiering (Pro only models)
+    if transcription.get("model_size"):
+        validate_model_access(user_id, transcription["model_size"])
+    if translation.get("model_name"):
+        validate_model_access(user_id, translation["model_name"])
+    if tts_dubbing.get("engine"):
+        validate_model_access(user_id, tts_dubbing["engine"])
 
     target_lang = translation.get("target_language") or video.target_language or "vi"
     source_lang = translation.get("source_language") or video.source_language or "auto"
@@ -1874,10 +1945,12 @@ async def get_video_logs(
 @router.post("/{video_id}/audio/extract")
 async def extract_audio(
     video_id: int,
+    response: Response,
+    sync: bool = Query(False, description="Run synchronously instead of dispatching to Celery worker"),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    """Extract audio from the uploaded video."""
+    """Extract audio from the uploaded video (supports HTTP 202 Async & Sync)."""
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
     
     video_path = None
@@ -1887,9 +1960,46 @@ async def extract_audio(
     
     if not video_path:
         raise HTTPException(404, "Video file not found")
-    
+
+    if not sync:
+        from app.services.job_service import JobService
+        from app.tasks.video_tasks import task_extract_audio_step
+        from app.core.config import REDIS_URL
+        import redis
+
+        job_service = JobService(db)
+        job = job_service.create_job(
+            video_id=video_id,
+            triggered_by=user_id,
+            config={
+                "mode": "single_step",
+                "step": "audio_extract"
+            },
+            step="audio_extract"
+        )
+
+        task = task_extract_audio_step.delay(video_id, user_id, str(job.id))
+        job_cfg = job.config_json or {}
+        if isinstance(job_cfg, str):
+            try:
+                job_cfg = json.loads(job_cfg)
+            except Exception:
+                job_cfg = {}
+        job_cfg["celery_task_id"] = task.id
+        job.config_json = job_cfg
+        db.commit()
+
+        response.status_code = status.HTTP_202_ACCEPTED
+        return {
+            "video_id": video_id,
+            "job_id": str(job.id),
+            "celery_task_id": task.id,
+            "step": "audio_extract",
+            "status": "processing",
+            "message": "Audio extraction task dispatched to background worker"
+        }
+
     audio_service = AudioService()
-    
     output_dir = OUTPUT_DIR / f"audio_{video_id}"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "audio.wav"
@@ -5699,9 +5809,104 @@ def search_video_transcript(
     q: str = Query(..., min_length=1, description="Search query"),
     limit: int = Query(20, ge=1, le=50),
     db: DatabaseSession = Depends(get_db),
-    token: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    user_id: int = Depends(get_current_user_id),
 ):
     """Semantic and lexical search across video transcript with timestamped results."""
-    user_id = get_user_id_from_token(token.credentials)
     service = VideoUnderstandingService(db=db)
     return service.search_transcript(video_id, query=q, limit=limit)
+
+
+@router.get("/projects/{project_id}/semantic-search")
+def search_project_transcripts_endpoint(
+    project_id: int,
+    q: str = Query(..., min_length=1, description="Search query across all project videos"),
+    limit: int = Query(25, ge=1, le=50),
+    db: DatabaseSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Private semantic search across transcripts of videos in a user project."""
+    service = VideoUnderstandingService(db=db)
+    return service.search_project_transcripts(project_id=project_id, query=q, user_id=user_id, limit=limit)
+
+
+@router.get("/{video_id}/chat/history")
+def get_video_chat_history_endpoint(
+    video_id: int,
+    limit: int = Query(50, ge=1, le=100),
+    db: DatabaseSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Get conversation history of AI Q&A with video transcript (private to user)."""
+    service = VideoUnderstandingService(db=db)
+    return service.get_chat_history(video_id=video_id, user_id=user_id, limit=limit)
+
+
+@router.delete("/{video_id}/chat/history")
+def clear_video_chat_history_endpoint(
+    video_id: int,
+    db: DatabaseSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Clear conversation history of AI Q&A for this video (private to user)."""
+    service = VideoUnderstandingService(db=db)
+    cleared = service.clear_chat_history(video_id=video_id, user_id=user_id)
+    return {"success": cleared, "video_id": video_id}
+
+
+@router.post("/{video_id}/chat")
+def chat_with_video_endpoint(
+    video_id: int,
+    payload: VideoChatRequest,
+    db: DatabaseSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """
+    RAG & LLM Q&A Chatbot for video:
+    Retrieves context-augmented transcript citations and responds with interactive timestamps.
+    """
+    service = VideoUnderstandingService(db=db)
+    try:
+        return service.chat_with_video(
+            video_id=video_id,
+            user_id=user_id,
+            message=payload.message,
+            chat_history=payload.chat_history,
+            model_name=payload.model_name,
+            tone=payload.tone,
+        )
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        logger.error(f"Chat failed for video {video_id}: {e}")
+        raise HTTPException(500, f"Chat processing failed: {str(e)}")
+
+
+@router.post("/projects/{project_id}/chat")
+def chat_with_project_endpoint(
+    project_id: int,
+    payload: VideoChatRequest,
+    db: DatabaseSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """
+    Workspace-Wide RAG Q&A:
+    Answers questions across ALL videos in a project/workspace with clickable video timestamp links.
+    """
+    service = VideoUnderstandingService(db=db)
+    try:
+        return service.chat_with_project(
+            project_id=project_id,
+            user_id=user_id,
+            message=payload.message,
+            model_name=payload.model_name,
+            tone=payload.tone,
+        )
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        logger.error(f"Project chat failed for project {project_id}: {e}")
+        raise HTTPException(500, f"Project chat failed: {str(e)}")
+
+
+
+
