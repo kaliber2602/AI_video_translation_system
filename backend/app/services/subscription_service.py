@@ -1358,6 +1358,8 @@ def get_user_effective_quota(user_id: int, **kwargs) -> Dict[str, Any]:
             "remaining_words": remaining_words,
             "usage_percent": words_usage_percent,
         },
+        "plan_code": plan_code,
+        "plan_name": target_plan.get("name", "Free"),
         "limits": limits,
         "features": features,
     }

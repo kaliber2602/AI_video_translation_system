@@ -182,7 +182,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: celery -A app.tasks.celery_app worker -Q queue_stt -n worker_stt@%h --concurrency=1 --loglevel=info
+    command: celery -A app.tasks.celery_app worker -P solo -Q queue_stt -n worker_stt@%h --loglevel=info
     volumes:
       - ./backend:/app
       - ./model-cache:/opt/model-cache
@@ -219,7 +219,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: celery -A app.tasks.celery_app worker -Q queue_translate -n worker_translate@%h --concurrency=2 --loglevel=info
+    command: celery -A app.tasks.celery_app worker -P solo -Q queue_translate -n worker_translate@%h --loglevel=info
     volumes:
       - ./backend:/app
       - ./model-cache:/opt/model-cache
@@ -282,7 +282,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: celery -A app.tasks.celery_app worker -Q queue_media -n worker_media@%h --concurrency=2 --loglevel=info
+    command: celery -A app.tasks.celery_app worker -P solo -Q queue_media -n worker_media@%h --loglevel=info
     volumes:
       - ./backend:/app
     environment:
@@ -296,6 +296,8 @@ services:
       AWS_S3_BUCKET: ${AWS_S3_BUCKET:-vidnova-media}
       S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
       CUDA_VISIBLE_DEVICES: "0"
+      NVIDIA_DRIVER_CAPABILITIES: "compute,utility,video"
+      FFMPEG_HWACCEL: "auto"
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       JWT_ALGORITHM: "HS256"
       ACCESS_TOKEN_EXPIRE_MINUTES: 30
@@ -305,7 +307,7 @@ services:
           devices:
             - driver: nvidia
               count: all
-              capabilities: [gpu]
+              capabilities: [gpu, video]
     depends_on:
       - db
       - redis
@@ -315,7 +317,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: celery -A app.tasks.celery_app worker -Q queue_pipeline -n worker_pipeline@%h --concurrency=2 --loglevel=info
+    command: celery -A app.tasks.celery_app worker -P solo -Q queue_pipeline -n worker_pipeline@%h --loglevel=info
     volumes:
       - ./backend:/app
       - ./model-cache:/opt/model-cache

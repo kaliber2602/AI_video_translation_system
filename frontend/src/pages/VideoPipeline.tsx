@@ -372,6 +372,17 @@ function VideoPipelineContent() {
     }
   }, [searchParams.get("step")]);
 
+  // Sync activeStep and URL when child components dispatch({ type: "SET_STEP", payload: num })
+  useEffect(() => {
+    if (state.step && STEP_NUM_TO_ID[state.step]) {
+      const targetStepId = STEP_NUM_TO_ID[state.step];
+      if (targetStepId !== activeStep) {
+        setActiveStep(targetStepId);
+        setSearchParams({ step: targetStepId }, { replace: true });
+      }
+    }
+  }, [state.step, activeStep]);
+
   // Polling for active background tasks (Phase 4 Re-hydration & Live Sync)
   useEffect(() => {
     const vidId = state.video?.videoId;

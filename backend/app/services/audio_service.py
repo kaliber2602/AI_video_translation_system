@@ -293,7 +293,7 @@ class AudioService:
             # Check if NVENC hardware encoder is available on GPU
             hw_flags = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23"]
             is_nvenc = False
-            hw_accel_env = os.getenv("FFMPEG_HWACCEL", "").lower()
+            hw_accel_env = os.getenv("FFMPEG_HWACCEL", "auto").lower()
             if hw_accel_env in ("nvenc", "cuda", "gpu", "auto", "1", "true"):
                 try:
                     enc_check = subprocess.run(["ffmpeg", "-hide_banner", "-encoders"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)

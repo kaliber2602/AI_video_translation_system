@@ -389,22 +389,28 @@ export default function SubtitleStep() {
       .getDubbedVideoPreview(vidId, state.targetLanguage || "vi")
       .then((url) => {
         if (isMounted && url) {
-          setVideoPreviewUrl(url);
+          setVideoPreviewUrl((prev) => {
+            if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+            return url;
+          });
           return;
         }
-        return videoService.getVideoBlob(vidId).then((blob) => {
-          if (isMounted) setVideoPreviewUrl(URL.createObjectURL(blob));
-        });
+        const streamUrl = videoService.getVideoStreamUrl(vidId, "original");
+        if (isMounted) {
+          setVideoPreviewUrl((prev) => {
+            if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+            return streamUrl;
+          });
+        }
       })
       .catch(() => {
-        videoService
-          .getVideoBlob(vidId)
-          .then((blob) => {
-            if (isMounted) setVideoPreviewUrl(URL.createObjectURL(blob));
-          })
-          .catch(() => {
-            if (isMounted) setVideoPreviewUrl(null);
+        if (isMounted) {
+          const streamUrl = videoService.getVideoStreamUrl(vidId, "original");
+          setVideoPreviewUrl((prev) => {
+            if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+            return streamUrl;
           });
+        }
       });
 
     return () => {
@@ -1066,7 +1072,9 @@ export default function SubtitleStep() {
 
   const handlePlayChunk = (index: number) => {
     if (!state.video?.videoId) return;
-    const url = `${videoService.getSegmentAudioUrl(state.video.videoId, index)}?t=${Date.now()}`;
+    const baseUrl = videoService.getSegmentAudioUrl(state.video.videoId, index);
+    const delimiter = baseUrl.includes("?") ? "&" : "?";
+    const url = `${baseUrl}${delimiter}t=${Date.now()}`;
     if (chunkAudioRef.current) {
       chunkAudioRef.current.src = url;
       chunkAudioRef.current.currentTime = 0;

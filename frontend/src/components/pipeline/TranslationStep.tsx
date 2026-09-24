@@ -174,8 +174,11 @@ export default function TranslationStep() {
   useEffect(() => {
     return () => {
       stopPolling();
+      if (videoUrl && videoUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(videoUrl);
+      }
     };
-  }, []);
+  }, [videoUrl]);
 
   const [translation, setTranslation] = useState<{
     source_language: string;
@@ -238,8 +241,11 @@ export default function TranslationStep() {
   const loadVideoPreview = async () => {
     if (!state.video?.videoId) return;
     try {
-      const blob = await videoService.getVideoBlob(state.video.videoId);
-      setVideoUrl(URL.createObjectURL(blob));
+      const url = videoService.getVideoStreamUrl(state.video.videoId, "original");
+      setVideoUrl((prev) => {
+        if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+        return url;
+      });
     } catch (e) {
       console.warn("Could not load original video for translation reference", e);
     }

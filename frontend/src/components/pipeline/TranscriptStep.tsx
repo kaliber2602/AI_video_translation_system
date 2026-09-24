@@ -82,8 +82,11 @@ export default function TranscriptStep() {
   useEffect(() => {
     return () => {
       stopPolling();
+      if (videoUrl && videoUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(videoUrl);
+      }
     };
-  }, []);
+  }, [videoUrl]);
 
   useEffect(() => {
     stopPolling();
@@ -158,9 +161,11 @@ export default function TranscriptStep() {
   const loadVideoPreview = async () => {
     if (!state.video?.videoId) return;
     try {
-      const blob = await videoService.getVideoBlob(state.video.videoId);
-      const url = URL.createObjectURL(blob);
-      setVideoUrl(url);
+      const url = videoService.getVideoStreamUrl(state.video.videoId, "original");
+      setVideoUrl((prev) => {
+        if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+        return url;
+      });
     } catch (error) {
       console.warn("Original video preview unavailable:", error);
     }

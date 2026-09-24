@@ -5063,11 +5063,24 @@ def resolve_or_transcode_video_quality(
     target_height = quality_heights.get(quality_clean, 1080)
 
     # 1. First priority: Check if video.output_path is the master render matching this resolution & format
-    if video.output_path and video.output_path.startswith("videos/"):
-        matches_quality = (f"/{quality_clean}/" in video.output_path) or (video.resolution and video.resolution.lower() == quality_clean)
+    if video.output_path:
+        is_local_file = os.path.exists(video.output_path) and os.path.getsize(video.output_path) > 1024
+        is_s3_file = video.output_path.startswith("videos/")
+        matches_quality = (f"/{quality_clean}/" in video.output_path) or (f"_{quality_clean}_" in video.output_path) or (video.resolution and video.resolution.lower() == quality_clean) or quality_clean == "1080p"
         matches_format = video.output_path.endswith(f".{format_clean}") or (format_clean == "mp4" and video.output_path.endswith(".mp4"))
-        if matches_quality and matches_format:
-            logger.info(f"✅ video.output_path is the master render matching requested quality {quality_clean}: {video.output_path}")
+        
+        if (is_local_file or is_s3_file) and matches_quality and matches_format:
+            target_out = video.output_path
+            # If it's a local file but S3 is preferred, check if already mirrored to S3
+            if is_local_file and not is_s3_file:
+                mirrored_s3_key = f"videos/{video.id}/dubbed_{language_clean}_{quality_clean}.{format_clean}"
+                try:
+                    storage_manager.upload_file(video.output_path, mirrored_s3_key, content_type="video/mp4")
+                    target_out = mirrored_s3_key
+                except Exception:
+                    pass
+
+            logger.info(f"✅ video.output_path is the master render matching requested quality {quality_clean}: {target_out}")
             try:
                 existing = db.query(VideoRenderOutput).filter(
                     VideoRenderOutput.video_id == video.id,
@@ -5076,9 +5089,9 @@ def resolve_or_transcode_video_quality(
                     VideoRenderOutput.format == format_clean,
                 ).first()
                 if existing:
-                    existing.output_video_path = video.output_path
+                    existing.output_video_path = target_out
                     existing.status = "completed"
-                    existing.file_size_bytes = video.file_size or 0
+                    existing.file_size_bytes = video.file_size or (os.path.getsize(video.output_path) if is_local_file else 0)
                 else:
                     vro = VideoRenderOutput(
                         video_id=video.id,
@@ -5087,8 +5100,8 @@ def resolve_or_transcode_video_quality(
                         format=format_clean,
                         dubbed_audio_path=video.dubbed_audio_path,
                         subtitle_path=video.subtitle_path,
-                        output_video_path=video.output_path,
-                        file_size_bytes=video.file_size or 0,
+                        output_video_path=target_out,
+                        file_size_bytes=video.file_size or (os.path.getsize(video.output_path) if is_local_file else 0),
                         status="completed",
                     )
                     db.add(vro)
@@ -5096,7 +5109,7 @@ def resolve_or_transcode_video_quality(
             except Exception as db_err:
                 db.rollback()
                 logger.warning(f"Could not synchronize master output in video_render_outputs: {db_err}")
-            return video.output_path
+            return target_out
 
     # 2. Check video_render_outputs table for existing completed render
     try:
@@ -5108,10 +5121,8 @@ def resolve_or_transcode_video_quality(
             VideoRenderOutput.status == "completed",
         ).first()
         if cached_render and cached_render.output_video_path:
-            # Verify cached render strictly belongs to this video
-            if str(video.id) in cached_render.output_video_path:
-                logger.info(f"✅ Found cached render in DB for video {video.id} ({quality_clean}, {format_clean}): {cached_render.output_video_path}")
-                return cached_render.output_video_path
+            logger.info(f"✅ Found cached render in DB for video {video.id} ({quality_clean}, {format_clean}): {cached_render.output_video_path}")
+            return cached_render.output_video_path
     except Exception as exc:
         logger.warning(f"Failed to query video_render_outputs: {exc}")
 
@@ -5193,20 +5204,34 @@ def resolve_or_transcode_video_quality(
         logger.error(f"Failed to upload transcoded video to S3: {upload_err}")
         raise HTTPException(500, f"Failed to upload transcoded video to storage: {upload_err}")
 
-    # 6. Record in video_render_outputs table
+    # 6. Record in video_render_outputs table with UPSERT
     try:
-        render_record = VideoRenderOutput(
-            video_id=video.id,
-            target_language=language_clean,
-            resolution=quality_clean,
-            format=format_clean,
-            dubbed_audio_path=video.dubbed_audio_path,
-            subtitle_path=video.subtitle_path,
-            output_video_path=s3_key,
-            file_size_bytes=file_size,
-            status="completed",
-        )
-        db.add(render_record)
+        existing_render = db.query(VideoRenderOutput).filter(
+            VideoRenderOutput.video_id == video.id,
+            VideoRenderOutput.target_language == language_clean,
+            VideoRenderOutput.resolution == quality_clean,
+            VideoRenderOutput.format == format_clean,
+        ).first()
+
+        if existing_render:
+            existing_render.output_video_path = s3_key
+            existing_render.file_size_bytes = file_size
+            existing_render.status = "completed"
+            existing_render.dubbed_audio_path = video.dubbed_audio_path
+            existing_render.subtitle_path = video.subtitle_path
+        else:
+            render_record = VideoRenderOutput(
+                video_id=video.id,
+                target_language=language_clean,
+                resolution=quality_clean,
+                format=format_clean,
+                dubbed_audio_path=video.dubbed_audio_path,
+                subtitle_path=video.subtitle_path,
+                output_video_path=s3_key,
+                file_size_bytes=file_size,
+                status="completed",
+            )
+            db.add(render_record)
         db.commit()
         logger.info("✅ Recorded render in video_render_outputs")
     except Exception as db_err:
@@ -5730,10 +5755,9 @@ async def separate_audio(
 def get_video_chapters(
     video_id: int,
     db: DatabaseSession = Depends(get_db),
-    token: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    user_id: int = Depends(get_current_user_id),
 ):
     """Retrieve all structured chapters for a video."""
-    user_id = get_user_id_from_token(token.credentials)
     service = VideoUnderstandingService(db=db)
     return service.get_chapters(video_id)
 
@@ -5742,10 +5766,9 @@ def get_video_chapters(
 def generate_video_chapters(
     video_id: int,
     db: DatabaseSession = Depends(get_db),
-    token: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    user_id: int = Depends(get_current_user_id),
 ):
     """Generate or regenerate structured timeline chapters from transcript segments."""
-    user_id = get_user_id_from_token(token.credentials)
     service = VideoUnderstandingService(db=db)
     try:
         return service.generate_chapters(video_id)
@@ -5760,10 +5783,9 @@ def generate_video_chapters(
 def get_video_documents(
     video_id: int,
     db: DatabaseSession = Depends(get_db),
-    token: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    user_id: int = Depends(get_current_user_id),
 ):
     """Retrieve all generated documents for a video."""
-    user_id = get_user_id_from_token(token.credentials)
     service = VideoUnderstandingService(db=db)
     return service.get_documents(video_id)
 
@@ -5773,10 +5795,9 @@ def generate_video_document(
     video_id: int,
     doc_type: str = Query("markdown", regex="^(markdown|summary|timeline)$"),
     db: DatabaseSession = Depends(get_db),
-    token: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    user_id: int = Depends(get_current_user_id),
 ):
     """Generate structured markdown summary & timeline document for video."""
-    user_id = get_user_id_from_token(token.credentials)
     service = VideoUnderstandingService(db=db)
     try:
         return service.generate_document(video_id, doc_type=doc_type)
@@ -5792,10 +5813,9 @@ def get_video_document(
     video_id: int,
     doc_id: int,
     db: DatabaseSession = Depends(get_db),
-    token: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    user_id: int = Depends(get_current_user_id),
 ):
     """Retrieve a specific document by ID."""
-    user_id = get_user_id_from_token(token.credentials)
     service = VideoUnderstandingService(db=db)
     doc = service.get_document(video_id, doc_id)
     if not doc:

@@ -156,11 +156,15 @@ export const videoService = {
 
 
   getSegmentAudioUrl(videoId: number, segmentId: number): string {
-    return `/api/videos/${videoId}/tts/segments/${segmentId}/audio`;
+    const token = localStorage.getItem("access_token");
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
+    return `/api/videos/${videoId}/tts/segments/${segmentId}/audio${tokenParam}`;
   },
 
   getAudioStreamUrl(videoId: number, kind: "dubbed" | "vocals" | "bgm" | "original" = "dubbed"): string {
-    return `/api/videos/${videoId}/audio/stream?kind=${kind}`;
+    const token = localStorage.getItem("access_token");
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
+    return `/api/videos/${videoId}/audio/stream?kind=${kind}${tokenParam}`;
   },
 
   async uploadOverlayLogo(videoId: number, file: File) {
@@ -670,7 +674,8 @@ export const videoService = {
   async getDubbedVideoPreview(videoId: number, language: string, quality: string = "1080p"): Promise<string> {
     try {
       const response = await api.get(
-        `/api/videos/${videoId}/dub/${language}/download?format=mp4&preview=true&quality=${encodeURIComponent(quality)}`
+        `/api/videos/${videoId}/dub/${language}/download?format=mp4&preview=true&quality=${encodeURIComponent(quality)}`,
+        { timeout: 3500 }
       );
       const data = response.data;
 

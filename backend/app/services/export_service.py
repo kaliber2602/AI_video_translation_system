@@ -110,14 +110,23 @@ class ExportService:
                 vf_filters.append(f"subtitles={escaped_sub}")
                 logger.info(f"🔥 Burning subtitles in export: {chosen_sub}")
 
-            # Use FFmpeg to re-encode
+            # Use FFmpeg to re-encode (with NVENC hardware acceleration if available)
+            hw_flags = ["-c:v", "libx264", "-preset", "medium", "-crf", "23"]
+            hw_accel_env = os.getenv("FFMPEG_HWACCEL", "auto").lower()
+            if hw_accel_env in ("nvenc", "cuda", "gpu", "auto", "1", "true"):
+                try:
+                    enc_check = subprocess.run(["ffmpeg", "-hide_banner", "-encoders"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+                    if "h264_nvenc" in enc_check.stdout:
+                        hw_flags = ["-c:v", "h264_nvenc", "-preset", "p4", "-tune", "hq", "-b:v", "5M"]
+                        logger.info("🚀 [Export NVENC] Kích hoạt h264_nvenc cho xuất video!")
+                except Exception:
+                    pass
+
             command = [
                 "ffmpeg", "-y",
                 "-i", video_path,
                 "-vf", ",".join(vf_filters),
-                "-c:v", "libx264",
-                "-preset", "medium",
-                "-crf", "23",
+                *hw_flags,
                 "-c:a", "aac",
                 "-b:a", "192k",
                 "-movflags", "+faststart",

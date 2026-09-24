@@ -791,23 +791,11 @@ export default function DubbingStep() {
       // 4. If not dubbed yet, simply play the Step 4 video (original voice + subtitles)
       if (!dubbedLoaded) {
         setIsDubbed(false);
-        try {
-          const origBlob = await videoService.getVideoBlob(vidId);
-          if (origBlob && origBlob.size > 0) {
-            const origUrl = URL.createObjectURL(origBlob);
-            setVideoUrl((prev) => {
-              if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
-              return origUrl;
-            });
-          } else {
-            const streamUrl = videoService.getVideoStreamUrl(vidId, "original");
-            setVideoUrl(streamUrl);
-          }
-        } catch (origErr) {
-          console.warn("Could not load original video blob, fallback to stream URL:", origErr);
-          const streamUrl = videoService.getVideoStreamUrl(vidId, "original");
-          setVideoUrl(streamUrl);
-        }
+        const streamUrl = videoService.getVideoStreamUrl(vidId, "original");
+        setVideoUrl((prev) => {
+          if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+          return streamUrl;
+        });
       }
     } catch (error: any) {
       console.error("Failed to load status:", error);

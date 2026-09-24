@@ -101,6 +101,18 @@ def convert_to_hls_adaptive(
     original_width, original_height = map(int, result.stdout.strip().split(',')) if result.stdout else (1920, 1080)
     logger.info(f"📹 Original video resolution: {original_width}x{original_height}")
     
+    # Hardware acceleration check for HLS encoding
+    v_codec = "libx264"
+    hw_accel_env = os.getenv("FFMPEG_HWACCEL", "auto").lower()
+    if hw_accel_env in ("nvenc", "cuda", "gpu", "auto", "1", "true"):
+        try:
+            enc_check = subprocess.run(["ffmpeg", "-hide_banner", "-encoders"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+            if "h264_nvenc" in enc_check.stdout:
+                v_codec = "h264_nvenc"
+                logger.info("🚀 [HLS NVENC] Kích hoạt h264_nvenc cho HLS multi-bitrate!")
+        except Exception:
+            pass
+
     for name, settings in quality_profiles.items():
         # Skip qualities that are higher than original
         if settings["height"] > original_height:
@@ -110,13 +122,13 @@ def convert_to_hls_adaptive(
         quality_dir = os.path.join(output_dir, name)
         os.makedirs(quality_dir, exist_ok=True)
         
-        logger.info(f"🎬 Generating HLS for {name}...")
+        logger.info(f"🎬 Generating HLS for {name} ({v_codec})...")
         
         # Generate HLS for this quality
         command = [
             "ffmpeg", "-y",
             "-i", input_path,
-            "-c:v", "libx264",
+            "-c:v", v_codec,
             "-c:a", "aac",
             "-b:v", settings["bitrate"],
             "-vf", settings["resolution"],

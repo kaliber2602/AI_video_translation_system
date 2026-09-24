@@ -499,6 +499,12 @@ class DatabaseSession:
     def query(self, table_or_model: Any) -> DBQuery:
         return DBQuery(table_or_model, self)
 
+    def execute(self, sql: str, params: Any = None):
+        """Execute a raw SQL command (e.g. DELETE, UPDATE, raw SELECT) within the active session."""
+        with self.conn.cursor() as cur:
+            cur.execute(sql, params)
+            return cur
+
     def add(self, entity: Any):
         if isinstance(entity, RowRecord):
             entity._session = self
