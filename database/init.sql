@@ -281,6 +281,7 @@ CREATE TABLE user_subscriptions (
     expires_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    current_period_end TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_user_subscriptions_user
         FOREIGN KEY (user_id)
@@ -302,6 +303,7 @@ CREATE TABLE user_storage_addons (
     expires_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN NOT NULL DEFAULT FALSE,
 
     CONSTRAINT fk_user_storage_addons_user
         FOREIGN KEY (user_id)
