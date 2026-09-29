@@ -196,6 +196,27 @@ def run_full_pipeline(
             is_original=True
         )
         
+        # STEP 10: Generate embeddings and build project vector index
+        try:
+            from app.services.faiss_vector_service import FaissVectorService
+            vec_service = FaissVectorService(db=session)
+            indexed_count = vec_service.index_video_segments(video_id=video_id)
+            print(f"[Pipeline] ✅ Indexed {indexed_count} vector chunks into FAISS/DB for video {video_id}", flush=True)
+            job_service.log_task(
+                job_id,
+                "vector_indexing",
+                "success",
+                f"Generated and indexed {indexed_count} vector embeddings"
+            )
+        except Exception as vec_err:
+            print(f"[Pipeline] ⚠️ Vector indexing warning for video {video_id}: {vec_err}", flush=True)
+            job_service.log_task(
+                job_id,
+                "vector_indexing",
+                "failed",
+                error_trace=str(vec_err)
+            )
+
         # Mark job as completed
         job_service.update_job_status(
             job_id,

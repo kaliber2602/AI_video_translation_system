@@ -13,3 +13,7 @@ outputs/
 .git
 .env
 .venv
+
+.tmp_pytest/
+**/.tmp_pytest/
+tests/.tmp_pytest/

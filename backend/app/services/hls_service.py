@@ -5,7 +5,7 @@ import subprocess
 import uuid
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Callable
 
 from app.services.s3_service import upload_file, upload_hls_directory
 from app.core.config import OUTPUT_DIR, AWS_S3_BUCKET
@@ -197,6 +197,7 @@ def upload_hls_to_s3(
     hls_result: dict,
     video_id: int,
     language: str,
+    progress_callback: Optional[Callable[[int, str], None]] = None,
 ) -> dict:
     """
     Upload all HLS files (.m3u8 and .ts) to S3 with proper structure.
@@ -205,6 +206,7 @@ def upload_hls_to_s3(
         hls_result: Result from convert_to_hls_adaptive
         video_id: Video ID for S3 path
         language: Target language for S3 path
+        progress_callback: Optional callback for reporting progress (pct: int, msg: str)
     
     Returns:
         dict with uploaded file information
@@ -225,36 +227,52 @@ def upload_hls_to_s3(
         "segments": [],
         "qualities": [],
     }
+
+    # Pre-count total files to compute upload progress percentage
+    all_files_to_upload = []
+    for root, dirs, files in os.walk(output_dir):
+        for f in files:
+            all_files_to_upload.append((root, f))
+    total_files = len(all_files_to_upload)
+    uploaded_count = 0
     
     # Walk through all files in the HLS directory
-    for root, dirs, files in os.walk(output_dir):
-        for file in files:
-            local_path = os.path.join(root, file)
-            relative_path = os.path.relpath(local_path, output_dir)
+    for root, file in all_files_to_upload:
+        local_path = os.path.join(root, file)
+        relative_path = os.path.relpath(local_path, output_dir)
+        
+        # Determine content type
+        ext = os.path.splitext(file)[1]
+        content_type = content_type_map.get(ext, "application/octet-stream")
+        
+        # Build S3 key
+        s3_key = f"{s3_prefix}/{relative_path}".replace("\\", "/")
+        
+        # Upload file
+        try:
+            upload_file(local_path, s3_key, content_type)
+            uploaded_count += 1
             
-            # Determine content type
-            ext = os.path.splitext(file)[1]
-            content_type = content_type_map.get(ext, "application/octet-stream")
-            
-            # Build S3 key
-            s3_key = f"{s3_prefix}/{relative_path}".replace("\\", "/")
-            
-            # Upload file
-            try:
-                upload_file(local_path, s3_key, content_type)
-                logger.info(f"   Uploaded: {relative_path} -> {s3_key}")
+            # Track uploaded files
+            if ext == ".m3u8":
+                if "master.m3u8" in file:
+                    uploaded["master_playlist"] = s3_key
+                else:
+                    uploaded["playlists"].append(s3_key)
+            elif ext == ".ts":
+                uploaded["segments"].append(s3_key)
+
+            if progress_callback and total_files > 0:
+                # Map upload progress from 65% to 85%
+                upload_pct = 65 + int((uploaded_count / total_files) * 20)
+                if uploaded_count % 10 == 0 or uploaded_count == total_files:
+                    progress_callback(
+                        upload_pct,
+                        f"Đang tải phân đoạn HLS lên Cloud Storage ({uploaded_count}/{total_files})..."
+                    )
                 
-                # Track uploaded files
-                if ext == ".m3u8":
-                    if "master.m3u8" in file:
-                        uploaded["master_playlist"] = s3_key
-                    else:
-                        uploaded["playlists"].append(s3_key)
-                elif ext == ".ts":
-                    uploaded["segments"].append(s3_key)
-                    
-            except Exception as e:
-                logger.error(f"❌ Failed to upload {relative_path}: {e}")
+        except Exception as e:
+            logger.error(f"❌ Failed to upload {relative_path}: {e}")
     
     # Track qualities
     for quality in hls_result.get("qualities", {}).keys():
@@ -272,6 +290,7 @@ def process_video_to_hls(
     video_id: int,
     language: str,
     qualities: Optional[List[str]] = None,
+    progress_callback: Optional[Callable[[int, str], None]] = None,
 ) -> dict:
     """
     Complete HLS processing: convert and upload to S3.
@@ -281,6 +300,7 @@ def process_video_to_hls(
         video_id: Video ID
         language: Target language
         qualities: List of qualities to generate
+        progress_callback: Callback for reporting progress
     
     Returns:
         dict with HLS processing results
@@ -289,6 +309,9 @@ def process_video_to_hls(
     hls_dir = OUTPUT_DIR / f"hls_{video_id}_{uuid.uuid4().hex[:8]}"
     
     try:
+        if progress_callback:
+            progress_callback(50, "Đang mã hóa HLS đa luồng độ phân giải (Multi-bitrate)...")
+
         # Convert to HLS
         hls_result = convert_to_hls_adaptive(
             input_path=input_path,
@@ -296,12 +319,16 @@ def process_video_to_hls(
             segment_seconds=5,
             qualities=qualities
         )
+
+        if progress_callback:
+            progress_callback(65, "Bắt đầu tải các phân đoạn HLS lên Storage...")
         
         # Upload to S3
         upload_result = upload_hls_to_s3(
             hls_result=hls_result,
             video_id=video_id,
-            language=language
+            language=language,
+            progress_callback=progress_callback
         )
         
         # Clean up local HLS files (optional, to save space)

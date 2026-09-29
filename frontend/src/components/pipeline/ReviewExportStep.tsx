@@ -12,7 +12,7 @@ import {
   AlertCircle,
   ChevronLeft,
   Columns,
-  Cpu,
+  Archive,
   Sliders,
   Play,
   Pause,
@@ -54,16 +54,8 @@ export default function ReviewExportStep() {
   const origVideoRef = useRef<HTMLVideoElement>(null);
   const dubbedVideoRef = useRef<HTMLVideoElement>(null);
 
-  // Pro Workbench: Hardware NVENC & Multi-track
-  const [videoEncoder, setVideoEncoder] = useState<string>(
-    state.pipelineConfig?.export_muxing?.encoder || "h264_nvenc"
-  );
-  const [nvencPreset, setNvencPreset] = useState<string>(
-    state.pipelineConfig?.export_muxing?.nvenc_preset || "p4"
-  );
-  const [multiAudioTracks, setMultiAudioTracks] = useState<boolean>(
-    Boolean(state.pipelineConfig?.export_muxing?.multi_audio_tracks)
-  );
+  // State for downloading all assets as ZIP
+  const [isDownloadingZip, setIsDownloadingZip] = useState(false);
 
   // Video state
   const [duration, setDuration] = useState(0);
@@ -136,15 +128,12 @@ export default function ReviewExportStep() {
       payload: {
         export_muxing: {
           ...(state.pipelineConfig?.export_muxing || {}),
-          encoder: videoEncoder as any,
-          nvenc_preset: nvencPreset as any,
-          multi_audio_tracks: multiAudioTracks,
           resolution: selectedQuality as any,
           container: selectedFormat as any,
         },
       },
     });
-  }, [videoEncoder, nvencPreset, multiAudioTracks, selectedQuality, selectedFormat]);
+  }, [selectedQuality, selectedFormat]);
 
   useEffect(() => {
     return () => {
@@ -363,6 +352,38 @@ export default function ReviewExportStep() {
     }
   };
 
+  const handleDownloadAllZip = async () => {
+    if (!state.video?.videoId) return;
+
+    setIsDownloadingZip(true);
+    setExportError(null);
+
+    try {
+      const blob = await videoService.downloadAllAssetsZip(state.video.videoId);
+      if (!blob || blob.size === 0) {
+        throw new Error("Tệp ZIP rỗng hoặc không có dữ liệu tải về.");
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const baseName = customExportFilename.trim() || (state.video?.title ? state.video.title.replace(/\.[^/.]+$/, "") : `video_${state.video.videoId}`);
+      a.download = `${baseName}_all_assets.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setExportSuccess(true);
+      setTimeout(() => setExportSuccess(false), 5000);
+    } catch (error: any) {
+      console.error("Download all assets ZIP failed:", error);
+      setExportError(error.message || "Tải gói tệp ZIP thất bại. Vui lòng thử lại sau.");
+    } finally {
+      setIsDownloadingZip(false);
+    }
+  };
+
   const handleSaveQuickEdit = async () => {
     if (!state.video?.videoId) return;
     setIsSavingQuickEdit(true);
@@ -568,64 +589,8 @@ export default function ReviewExportStep() {
                 </div>
               </div>
 
-              {/* HARDWARE ACCELERATION & MUXING (PRO WORKBENCH) */}
-              <div className="border-t border-[var(--color-border)] pt-3.5 space-y-3">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--color-text-primary)]">
-                  <Cpu size={14} className="text-emerald-400" />
-                  <span>Phần Cứng & Muxing</span>
-                </div>
-
-                {/* Video Encoder */}
-                <div>
-                  <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                    Trình nén Video (Encoder):
-                  </label>
-                  <select
-                    value={videoEncoder}
-                    onChange={(e) => setVideoEncoder(e.target.value)}
-                    className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-medium text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] font-mono"
-                  >
-                    <option value="h264_nvenc">NVIDIA NVENC (GPU - Nhanh)</option>
-                    <option value="libx264">CPU Software (x264 - Tương thích)</option>
-                  </select>
-                </div>
-
-                {/* NVENC Tuning Preset */}
-                {videoEncoder === "h264_nvenc" && (
-                  <div>
-                    <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                      NVENC Tuning Preset:
-                    </label>
-                    <select
-                      value={nvencPreset}
-                      onChange={(e) => setNvencPreset(e.target.value)}
-                      className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-medium text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] font-mono"
-                    >
-                      <option value="p1">p1: Fastest (Xuất siêu tốc)</option>
-                      <option value="p4">p4: Medium (Cân bằng mặc định)</option>
-                      <option value="p6">p6: High Quality (Chất lượng cao)</option>
-                    </select>
-                  </div>
-                )}
-
-                {/* Multi-Audio Tracks */}
-                <div className="flex items-start gap-2 pt-1">
-                  <input
-                    type="checkbox"
-                    id="multi_audio_tracks"
-                    checked={multiAudioTracks}
-                    onChange={(e) => setMultiAudioTracks(e.target.checked)}
-                    className="mt-0.5 h-3.5 w-3.5 rounded border-[var(--color-border)] accent-[var(--color-primary)] cursor-pointer"
-                  />
-                  <label htmlFor="multi_audio_tracks" className="text-xs text-[var(--color-text-secondary)] cursor-pointer select-none leading-snug">
-                    <span className="font-semibold text-[var(--color-text-primary)] block">Đa luồng âm thanh</span>
-                    Gộp cả giọng AI & audio gốc vào file xuất
-                  </label>
-                </div>
-              </div>
-
-              {/* PRIMARY DOWNLOAD BUTTON */}
-              <div className="pt-2">
+              {/* DOWNLOAD BUTTONS */}
+              <div className="pt-2 space-y-2">
                 <button
                   type="button"
                   onClick={handleExport}
@@ -645,12 +610,29 @@ export default function ReviewExportStep() {
                   </span>
                 </button>
                 {selectedType === "final_video" && !hasFinishedVideo && (
-                  <p className="mt-1.5 text-[10px] text-amber-400/90 text-center">
+                  <p className="mt-1 text-[10px] text-amber-400/90 text-center">
                     ⚠️ {t("pipeline:steps.reviewExport.videoNotCreatedWarning")}
                   </p>
                 )}
-              </div>
 
+                {/* DOWNLOAD ALL ASSETS ZIP BUTTON */}
+                <button
+                  type="button"
+                  onClick={handleDownloadAllZip}
+                  disabled={isDownloadingZip}
+                  title="Tải toàn bộ tài nguyên video này (Transcript, Bản dịch, Phụ đề, Âm thanh AI & Video) dưới dạng một tệp nén .ZIP"
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-hover)] px-4 py-2.5 text-xs font-bold text-[var(--color-text-primary)] shadow-sm transition hover:bg-[var(--color-border)] hover:text-white disabled:opacity-40 disabled:cursor-not-allowed active:scale-98"
+                >
+                  {isDownloadingZip ? (
+                    <Loader2 size={15} className="animate-spin text-[var(--color-primary)]" />
+                  ) : (
+                    <Archive size={15} className="text-amber-400" />
+                  )}
+                  <span>
+                    {isDownloadingZip ? "Đang đóng gói tệp ZIP..." : "Tải toàn bộ gói tệp (ZIP)"}
+                  </span>
+                </button>
+              </div>
           </div>
         }
       >

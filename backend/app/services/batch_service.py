@@ -151,7 +151,6 @@ class BatchService:
                 total = row[6] or 0
                 completed = row[7] or 0
                 failed = row[8] or 0
-                progress = round(((completed + failed) / total) * 100) if total > 0 else 0
 
                 # Query item details joined with videos
                 cur.execute(
@@ -168,14 +167,17 @@ class BatchService:
                 )
                 item_rows = cur.fetchall()
                 items = []
+                total_item_progress = 0
                 for ir in item_rows:
+                    i_prog = ir[5] or 0
+                    total_item_progress += i_prog
                     items.append({
                         "id": ir[0],
                         "batch_id": str(ir[1]),
                         "video_id": ir[2],
                         "job_id": str(ir[3]) if ir[3] else None,
                         "status": ir[4],
-                        "progress": ir[5],
+                        "progress": i_prog,
                         "error_message": ir[6],
                         "started_at": ir[7].isoformat() if ir[7] else None,
                         "finished_at": ir[8].isoformat() if ir[8] else None,
@@ -184,6 +186,13 @@ class BatchService:
                         "thumbnail": ir[11],
                         "output_path": ir[12],
                     })
+
+                # Mathematical aggregate progress: 1/N * sum(Progress(V_i))
+                item_count = len(items) if items else total
+                if item_count > 0:
+                    progress = round(total_item_progress / item_count)
+                else:
+                    progress = round(((completed + failed) / total) * 100) if total > 0 else 0
 
                 return {
                     "id": str(row[0]),
@@ -218,12 +227,15 @@ class BatchService:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT id, project_id, user_id, preset_id, name, status,
-                           total_videos, completed_videos, failed_videos,
-                           started_at, finished_at, created_at, updated_at
-                    FROM batch_jobs
-                    WHERE project_id = %s
-                    ORDER BY created_at DESC;
+                    SELECT b.id, b.project_id, b.user_id, b.preset_id, b.name, b.status,
+                           b.total_videos, b.completed_videos, b.failed_videos,
+                           b.started_at, b.finished_at, b.created_at, b.updated_at,
+                           COALESCE(AVG(i.progress), 0) as avg_progress
+                    FROM batch_jobs b
+                    LEFT JOIN batch_job_items i ON b.id = i.batch_id
+                    WHERE b.project_id = %s
+                    GROUP BY b.id
+                    ORDER BY b.created_at DESC;
                     """,
                     (project_id,),
                 )
@@ -233,7 +245,8 @@ class BatchService:
                     total = r[6] or 0
                     completed = r[7] or 0
                     failed = r[8] or 0
-                    progress = round(((completed + failed) / total) * 100) if total > 0 else 0
+                    avg_prog = r[13] or 0
+                    progress = round(float(avg_prog)) if total > 0 else 0
                     result.append({
                         "id": str(r[0]),
                         "project_id": r[1],

@@ -248,6 +248,9 @@ def restore_project_route(
     project_id: int,
     user_id: int = Depends(get_current_user_id),
 ):
+    # Enforce plan project limit quota before restoring from trash
+    validate_project_quota(user_id)
+
     project = restore_project(
         owner_id=user_id,
         project_id=project_id,

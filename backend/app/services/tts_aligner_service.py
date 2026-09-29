@@ -32,7 +32,10 @@ class TTSAlignerService:
         temp_dir: str,
         vocal_path: Optional[str] = None,
         tgt_lang: str = "en",
-        video_id: Optional[int] = None
+        video_id: Optional[int] = None,
+        voice_id: Optional[str] = None,
+        model: Optional[str] = None,
+        progress_callback: Optional[Any] = None
     ) -> str:
         """
         Generate TTS for each segment, save chunks 1:1, generate manifest.json,
@@ -41,7 +44,7 @@ class TTSAlignerService:
         if not segments:
             raise ValueError("No segments provided for TTS generation")
         
-        logger.info(f"Generating TTS for {len(segments)} segments, target language: {tgt_lang}, video_id: {video_id}")
+        logger.info(f"Generating TTS for {len(segments)} segments, target language: {tgt_lang}, video_id: {video_id}, voice_id: {voice_id}, model: {model}")
         
         # Determine persistent chunks directory
         if video_id:
@@ -76,7 +79,7 @@ class TTSAlignerService:
             
             try:
                 # Generate TTS with speaker voice
-                audio_data = self._call_tts_service(text, tgt_lang, speaker_wav_data)
+                audio_data = self._call_tts_service(text, tgt_lang, speaker_wav_data, voice_id=voice_id, model=model)
                 
                 # Dedicated chunk path
                 chunk_filename = f"seg_{idx:04d}.wav"
@@ -124,8 +127,21 @@ class TTSAlignerService:
                     "updated_at": datetime.utcnow().isoformat()
                 })
                 
+                if progress_callback and len(segments) > 0:
+                    pct = min(100, int(((idx + 1) / len(segments)) * 100))
+                    try:
+                        progress_callback(pct, idx + 1, len(segments))
+                    except Exception as cb_err:
+                        logger.warning(f"TTS progress callback failed: {cb_err}")
+                
             except Exception as e:
                 logger.error(f"Failed to generate TTS for segment {idx}: {e}")
+                if progress_callback and len(segments) > 0:
+                    pct = min(100, int(((idx + 1) / len(segments)) * 100))
+                    try:
+                        progress_callback(pct, idx + 1, len(segments))
+                    except Exception:
+                        pass
                 continue
         
         if not audio_segments:
@@ -180,7 +196,14 @@ class TTSAlignerService:
         
         return output_path
 
-    def _call_tts_service(self, text: str, tgt_lang: str, speaker_wav_data: Optional[bytes] = None) -> Optional[np.ndarray]:
+    def _call_tts_service(
+        self,
+        text: str,
+        tgt_lang: str,
+        speaker_wav_data: Optional[bytes] = None,
+        voice_id: Optional[str] = None,
+        model: Optional[str] = None
+    ) -> Optional[np.ndarray]:
         """Call the TTS service to generate audio with voice cloning."""
         try:
             # ✅ Check if we have speaker data
@@ -201,7 +224,9 @@ class TTSAlignerService:
                 "language": tgt_lang,
                 "speaker_id": "0",
                 "style": "neutral",
-                "speed": 1.0
+                "speed": 1.0,
+                "voice": voice_id or "",
+                "model": model or ""
             }
             
             # ✅ Add speaker_wav as file if available

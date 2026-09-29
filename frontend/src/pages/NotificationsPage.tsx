@@ -127,7 +127,6 @@ export default function NotificationsPage() {
   const typesList: { id: string; label: string }[] = [
     { id: "all", label: t("notifications:allTypes", "All Types") },
     { id: "pipeline", label: t("notifications:types.pipeline", "Pipeline") },
-    { id: "collaboration", label: t("notifications:types.collaboration", "Collaboration") },
     { id: "billing", label: t("notifications:types.billing", "Billing") },
     { id: "quota", label: t("notifications:types.quota", "Quota") },
     { id: "security", label: t("notifications:types.security", "Security") },

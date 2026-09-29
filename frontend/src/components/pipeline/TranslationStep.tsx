@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePipeline } from "../../hooks/usePipeline";
+import { useHybridProgress } from "../../hooks/useHybridProgress";
 import { videoService } from "../../services/video.service";
 import PipelineStepLayout from "./PipelineStepLayout";
 import ConfirmationDialog from "../common/ConfirmationDialog";
@@ -68,7 +69,42 @@ export default function TranslationStep() {
   const [rewritingSegmentIdx, setRewritingSegmentIdx] = useState<number | null>(null);
   const [isRewriting, setIsRewriting] = useState(false);
   const [taskProgress, setTaskProgress] = useState<number>(0);
+  const [taskMessage, setTaskMessage] = useState<string>("");
   const pollingTimerRef = useRef<any>(null);
+
+  // Hybrid Real-time Progress (Mechanism 1: WebSocket with Mechanism 3: REST fallback)
+  const hybrid = useHybridProgress(state.video?.videoId, "translation", async () => {
+    if (state.video?.videoId) {
+      try {
+        const transData = await videoService.getTranslation(state.video.videoId, selectedTargetLang);
+        if (transData && transData.segments && Array.isArray(transData.segments)) {
+          setTranslation(transData);
+          dispatch({ type: "SET_TRANSLATION", payload: transData });
+          setIsTranslating(false);
+          setTaskProgress(100);
+          setActiveRightTab("translation");
+          setIsPanelOpen(true);
+        }
+      } catch (err) {
+        console.warn("Auto-reload translation on WS completion:", err);
+      }
+    }
+  });
+
+  useEffect(() => {
+    if (isTranslating || (hybrid.progress > 0 && hybrid.progress < 100)) {
+      if (hybrid.progress > 0) {
+        setTaskProgress(hybrid.progress);
+      }
+      if (hybrid.message) {
+        setTaskMessage(hybrid.message);
+      }
+      if (hybrid.status === "failed") {
+        setIsTranslating(false);
+        setTranslationError(hybrid.message || "Dịch thuật thất bại");
+      }
+    }
+  }, [hybrid.progress, hybrid.message, hybrid.status, isTranslating]);
 
   const supportedTargetLanguages = [
     { code: "vi", label: "Tiếng Việt (Vietnamese)" },
@@ -264,6 +300,9 @@ export default function TranslationStep() {
           if (typeof activeTask.progress === "number" && activeTask.progress > 0) {
             setTaskProgress(activeTask.progress);
           }
+          if (activeTask.message) {
+            setTaskMessage(activeTask.message);
+          }
           if (activeTask.status === "failed") {
             stopPolling();
             setIsTranslating(false);
@@ -332,7 +371,8 @@ export default function TranslationStep() {
     const targetLang = lang || selectedTargetLang || state.targetLanguage || "vi";
 
     try {
-      // Check active Celery task for F5 / navigation resilience
+      // Check steps summary and active Celery task before fetching
+      let canFetchTranslation = Boolean(state.video?.hasTranslation);
       try {
         const summary = await videoService.getStepsSummary(state.video.videoId);
         const transStep = summary?.steps?.translation;
@@ -348,9 +388,24 @@ export default function TranslationStep() {
             setTaskProgress(activeTask.progress);
           }
           pollTranslationStatus(state.video.videoId, targetLang);
+          return;
+        }
+
+        if (
+          transStep?.status === "completed" ||
+          (transStep?.segment_count && transStep.segment_count > 0) ||
+          state.video?.hasTranslation
+        ) {
+          canFetchTranslation = true;
         }
       } catch (sumErr) {
         console.warn("Could not check steps summary on mount:", sumErr);
+      }
+
+      if (!canFetchTranslation) {
+        setTranslation(null);
+        setIsLoading(false);
+        return;
       }
 
       const data = await videoService.getTranslation(state.video.videoId, targetLang);
@@ -399,7 +454,8 @@ export default function TranslationStep() {
     if (!state.video?.videoId) return;
     setIsTranslating(true);
     setTranslationError(null);
-    setTaskProgress(15);
+    setTaskProgress(0);
+    setTaskMessage("Đang khởi tạo tiến trình dịch thuật...");
 
     try {
       const targetLang = selectedTargetLang || state.targetLanguage || "vi";
@@ -1025,11 +1081,25 @@ export default function TranslationStep() {
                 </button>
 
                 {isTranslating && (
-                  <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className="bg-[var(--color-primary)] h-1.5 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.min(100, Math.max(5, taskProgress))}%` }}
-                    />
+                  <div className="rounded-xl border border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)]/20 p-3 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-semibold text-[var(--color-text-primary)]">
+                      <span className="flex items-center gap-1.5 truncate max-w-[80%]">
+                        <Loader2 size={13} className="animate-spin text-[var(--color-primary)] shrink-0" />
+                        <span className="truncate">
+                          {taskMessage || `Đang dịch văn bản (${taskProgress}%)...`}
+                        </span>
+                      </span>
+                      <span className="font-mono font-bold text-[var(--color-primary)] shrink-0">{taskProgress}%</span>
+                    </div>
+                    <div className="w-full bg-[var(--color-border)] h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className="bg-[var(--color-primary)] h-full rounded-full transition-all duration-300 ease-out"
+                        style={{ width: `${Math.max(5, Math.min(100, taskProgress))}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-[var(--color-text-muted)]">
+                      Tiến độ dịch thuật được cập nhật trực tiếp theo thời gian thực từ GPU/Celery worker.
+                    </p>
                   </div>
                 )}
 

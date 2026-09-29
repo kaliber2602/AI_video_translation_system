@@ -12,15 +12,18 @@ import {
   Scissors,
   Activity,
   Layers,
+  Trash2,
+  FileUp,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { usePipeline } from "../../hooks/usePipeline";
 import { videoService, type MediaInfo } from "../../services/video.service";
 
 export default function UploadStep() {
   const { t } = useTranslation(["pipeline", "common"]);
   const navigate = useNavigate();
+  const { projectId, videoId: routeVideoId } = useParams();
   const { state, dispatch } = usePipeline();
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -28,35 +31,30 @@ export default function UploadStep() {
   const [uploadStatusText, setUploadStatusText] = useState<string>("Uploading...");
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadComplete, setUploadComplete] = useState(false);
+  const [stagedFile, setStagedFile] = useState<File | null>(null);
   const [mediaInfo, setMediaInfo] = useState<MediaInfo | null>(null);
-  const [isLoadingMediaInfo, setIsLoadingMediaInfo] = useState(false);
+  const [isLoadingMediaInfo, setIsLoadingLoadingMediaInfo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Load media info if video is present
   useEffect(() => {
     if (state.video?.videoId) {
-      setIsLoadingMediaInfo(true);
+      setIsLoadingLoadingMediaInfo(true);
       videoService
         .getVideoMediaInfo(state.video.videoId)
         .then((info) => setMediaInfo(info))
         .catch((err) => console.warn("Could not load media info:", err))
-        .finally(() => setIsLoadingMediaInfo(false));
+        .finally(() => setIsLoadingLoadingMediaInfo(false));
     }
   }, [state.video?.videoId]);
 
-  // Auto-transition to transcript step when upload is complete
+  // When upload completes and video ID is created, sync route with project & video IDs
   useEffect(() => {
-    if (uploadComplete && state.video?.videoId) {
-      const timer = setTimeout(() => {
-        if (state.projectId && state.video?.videoId) {
-          navigate(`/workspace/project/${state.projectId}/video/${state.video.videoId}`, { replace: true });
-        }
-        dispatch({ type: "SET_STEP", payload: 2 });
-      }, 1200); // 1.2 second delay to show the success state
-      return () => clearTimeout(timer);
+    if (uploadComplete && state.video?.videoId && state.projectId) {
+      navigate(`/workspace/project/${state.projectId}/video/${state.video.videoId}`, { replace: true });
     }
-  }, [uploadComplete, state.video?.videoId, state.projectId, dispatch, navigate]);
+  }, [uploadComplete, state.video?.videoId, state.projectId, navigate]);
 
   const cancelUpload = () => {
     if (abortControllerRef.current) {
@@ -68,12 +66,32 @@ export default function UploadStep() {
     setUploadStatusText("");
   };
 
-  const handleFileUpload = async (file: File) => {
-    // Client-side file validation (Checkpoint 6)
+  const validateFile = (file: File): boolean => {
     const validExtensions = [".mp4", ".mov", ".avi", ".mkv", ".webm"];
     const fileExt = "." + file.name.split(".").pop()?.toLowerCase();
     if (!validExtensions.includes(fileExt)) {
       setUploadError("Định dạng video không được hỗ trợ. Vui lòng chọn tệp .MP4, .MOV, .AVI, .MKV hoặc .WEBM.");
+      return false;
+    }
+    if (file.size > 2 * 1024 * 1024 * 1024) {
+      setUploadError("Dung lượng video vượt quá giới hạn 2GB của hệ thống. Vui lòng chọn video khác hoặc nén tệp.");
+      return false;
+    }
+    setUploadError(null);
+    return true;
+  };
+
+  const handleStageFile = (file: File) => {
+    if (validateFile(file)) {
+      setStagedFile(file);
+    }
+  };
+
+  const handleFileUpload = async (fileToUpload?: File) => {
+    const file = fileToUpload || stagedFile;
+    if (!file) return;
+
+    if (!validateFile(file)) {
       return;
     }
 
@@ -98,8 +116,8 @@ export default function UploadStep() {
         state.projectId,
         undefined,
         (percent) => {
-          setUploadProgress(Math.min(percent, 90));
-          setUploadStatusText(`Uploading video file (${percent}%)...`);
+          setUploadProgress(percent);
+          setUploadStatusText(`Đang tải tệp video lên (${percent}%)...`);
         },
         controller.signal
       );
@@ -113,19 +131,8 @@ export default function UploadStep() {
       }
 
       console.log("✅ Video uploaded with ID:", videoId);
-      setUploadProgress(95);
-      setUploadStatusText("Extracting audio for transcription...");
-
-      // Automatically extract audio now so Step 2 (Transcript) is immediately ready
-      try {
-        await videoService.extractAudio(videoId);
-        console.log("✅ Audio extracted for video:", videoId);
-      } catch (extractErr: any) {
-        console.warn("⚠️ Initial audio extraction notice:", extractErr?.message || extractErr);
-      }
-
       setUploadProgress(100);
-      setUploadStatusText("Upload complete!");
+      setUploadStatusText("Tải lên hoàn tất!");
 
       // Update state with video details
       dispatch({
@@ -139,7 +146,8 @@ export default function UploadStep() {
         },
       });
 
-      // Mark upload as complete - this will trigger the useEffect to transition
+      // Clear staged file after successful upload
+      setStagedFile(null);
       setUploadComplete(true);
       
     } catch (error: any) {
@@ -168,7 +176,7 @@ export default function UploadStep() {
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
     if (file && !isUploading) {
-      handleFileUpload(file);
+      handleStageFile(file);
     }
   };
 
@@ -182,7 +190,7 @@ export default function UploadStep() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && !isUploading) {
-      handleFileUpload(file);
+      handleStageFile(file);
     }
     // Reset the input so the same file can be re-uploaded
     e.target.value = "";
@@ -233,9 +241,9 @@ export default function UploadStep() {
         </div>
       )}
 
-      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)]">
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)] space-y-6">
         {state.video?.filename && !isUploading && !uploadComplete ? (
-          /* File Summary Card (Replaces Dropzone when video is loaded) */
+          /* File Summary Card (Shown when video has already been uploaded) */
           <div className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)]/20">
               <div className="flex items-center gap-4 min-w-0">
@@ -344,307 +352,23 @@ export default function UploadStep() {
                 </div>
               </div>
             </div>
-
-            {/* Audio Separation & Pre-processing Studio (Step 1 Pro Workbench) */}
-            <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-5 shadow-sm space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-[var(--color-border-muted)]">
-                <div className="flex items-center gap-2">
-                  <Layers size={16} className="text-[var(--color-primary)]" />
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-primary)]">
-                    Tách âm & Tiền xử lý (Audio Separation Studio)
-                  </h4>
-                </div>
-                <span className="rounded-full bg-[var(--color-primary)]/10 px-2.5 py-0.5 text-[11px] font-bold text-[var(--color-primary)]">
-                  Đồng bộ 2 chiều (Auto-saved)
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Demucs Separation Model */}
-                <div>
-                  <label className="text-xs font-bold text-[var(--color-text-primary)] block mb-1.5">
-                    Mô hình bóc tách âm thanh:
-                  </label>
-                  <select
-                    value={state.pipelineConfig?.audio_separation?.demucs_model || "htdemucs"}
-                    onChange={(e) =>
-                      dispatch({
-                        type: "UPDATE_PIPELINE_CONFIG",
-                        payload: {
-                          audio_separation: {
-                            ...(state.pipelineConfig?.audio_separation || {}),
-                            demucs_model: e.target.value as any,
-                          },
-                        },
-                      })
-                    }
-                    className="w-full h-9 rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs font-semibold text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
-                  >
-                    <option value="htdemucs">Demucs v4 HT (4-Stem Tách Chuẩn Vocals/BGM)</option>
-                    <option value="htdemucs_ft">Demucs v4 Fine-tuned (Chất lượng cao nhất)</option>
-                    <option value="mdx_extra">MDX-Net Vocal (Chuyên tách giọng ồn mạnh)</option>
-                    <option value="bypass">Bypass (Không tách vocal / giữ nguyên audio gốc)</option>
-                  </select>
-                  <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
-                    HT Demucs sử dụng Transformer trích xuất riêng biệt Vocals và Background Music.
-                  </p>
-                </div>
-
-                {/* Dubbing Mode: Full Dubbing vs Voiceover */}
-                <div>
-                  <label className="text-xs font-bold text-[var(--color-text-primary)] block mb-1.5">
-                    Chế độ lồng tiếng (Dubbing Mode):
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        dispatch({
-                          type: "UPDATE_PIPELINE_CONFIG",
-                          payload: {
-                            export_muxing: {
-                              ...(state.pipelineConfig?.export_muxing || {}),
-                              dubbing_mode: "full_dubbing",
-                            },
-                          },
-                        })
-                      }
-                      className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition ${
-                        (state.pipelineConfig?.export_muxing?.dubbing_mode || "full_dubbing") === "full_dubbing"
-                          ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
-                          : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]/50"
-                      }`}
-                    >
-                      <span className="text-xs font-bold">Full Dubbing</span>
-                      <span className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
-                        Thay hoàn toàn giọng gốc bằng AI
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        dispatch({
-                          type: "UPDATE_PIPELINE_CONFIG",
-                          payload: {
-                            export_muxing: {
-                              ...(state.pipelineConfig?.export_muxing || {}),
-                              dubbing_mode: "voiceover",
-                            },
-                          },
-                        })
-                      }
-                      className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition ${
-                        state.pipelineConfig?.export_muxing?.dubbing_mode === "voiceover"
-                          ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
-                          : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]/50"
-                      }`}
-                    >
-                      <span className="text-xs font-bold">Voiceover (Thuyết minh)</span>
-                      <span className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
-                        Giữ giọng gốc nhỏ (~15%) làm nền
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Volume Sliders & Ducking */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1">
-                      <Mic size={12} className="text-[var(--color-primary)]" />
-                      Âm lượng Vocal gốc
-                    </span>
-                    <span className="font-mono text-xs font-bold text-[var(--color-primary)]">
-                      {state.pipelineConfig?.audio_separation?.vocal_volume ?? 100}%
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="150"
-                    value={state.pipelineConfig?.audio_separation?.vocal_volume ?? 100}
-                    onChange={(e) =>
-                      dispatch({
-                        type: "UPDATE_PIPELINE_CONFIG",
-                        payload: {
-                          audio_separation: {
-                            ...(state.pipelineConfig?.audio_separation || {}),
-                            vocal_volume: parseInt(e.target.value),
-                          },
-                        },
-                      })
-                    }
-                    className="w-full accent-[var(--color-primary)] h-1.5 rounded-lg bg-[var(--color-border)] cursor-pointer"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1">
-                      <Music size={12} className="text-indigo-400" />
-                      Âm lượng Nhạc nền (BGM)
-                    </span>
-                    <span className="font-mono text-xs font-bold text-indigo-400">
-                      {Math.round((state.pipelineConfig?.audio_separation?.bgm_volume ?? 0.7) * 100)}%
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="150"
-                    value={Math.round((state.pipelineConfig?.audio_separation?.bgm_volume ?? 0.7) * 100)}
-                    onChange={(e) =>
-                      dispatch({
-                        type: "UPDATE_PIPELINE_CONFIG",
-                        payload: {
-                          audio_separation: {
-                            ...(state.pipelineConfig?.audio_separation || {}),
-                            bgm_volume: parseInt(e.target.value) / 100,
-                          },
-                        },
-                      })
-                    }
-                    className="w-full accent-indigo-500 h-1.5 rounded-lg bg-[var(--color-border)] cursor-pointer"
-                  />
-                </div>
-
-                <div className="flex flex-col justify-center">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={state.pipelineConfig?.audio_separation?.enable_ducking ?? true}
-                      onChange={(e) =>
-                        dispatch({
-                          type: "UPDATE_PIPELINE_CONFIG",
-                          payload: {
-                            audio_separation: {
-                              ...(state.pipelineConfig?.audio_separation || {}),
-                              enable_ducking: e.target.checked,
-                            },
-                          },
-                        })
-                      }
-                      className="h-4 w-4 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer"
-                    />
-                    <span className="text-xs font-semibold text-[var(--color-text-primary)]">
-                      Smart Ducking (Tự né BGM)
-                    </span>
-                  </label>
-                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 pl-6">
-                    Giảm nhạc nền {state.pipelineConfig?.audio_separation?.ducking_level || -14}dB khi có giọng nói
-                  </p>
-                </div>
-
-                <div className="flex flex-col justify-center">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={Boolean((state.pipelineConfig?.audio_separation as any)?.audio_denoise)}
-                      onChange={(e) =>
-                        dispatch({
-                          type: "UPDATE_PIPELINE_CONFIG",
-                          payload: {
-                            audio_separation: {
-                              ...(state.pipelineConfig?.audio_separation || {}),
-                              audio_denoise: e.target.checked,
-                            } as any,
-                          },
-                        })
-                      }
-                      className="h-4 w-4 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer"
-                    />
-                    <span className="text-xs font-semibold text-[var(--color-text-primary)]">
-                      Audio Denoise (Khử ồn mic)
-                    </span>
-                  </label>
-                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 pl-6">
-                    Lọc tạp âm và tiếng quạt gió microphone
-                  </p>
-                </div>
-              </div>
-
-              {/* Pre-trim Range */}
-              <div className="pt-2 border-t border-[var(--color-border-muted)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                <span className="flex items-center gap-1.5 font-semibold text-[var(--color-text-secondary)]">
-                  <Scissors size={13} className="text-amber-400" />
-                  Cắt xén phạm vi xử lý (In/Out Range Trimming):
-                </span>
-                <div className="flex items-center gap-2 font-mono">
-                  <span>Từ</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    value={(state.pipelineConfig?.audio_separation as any)?.trim_start || 0}
-                    onChange={(e) =>
-                      dispatch({
-                        type: "UPDATE_PIPELINE_CONFIG",
-                        payload: {
-                          audio_separation: {
-                            ...(state.pipelineConfig?.audio_separation || {}),
-                            trim_start: parseFloat(e.target.value) || 0,
-                          } as any,
-                        },
-                      })
-                    }
-                    className="w-16 h-7 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-center text-xs text-[var(--color-text-primary)] focus:border-[var(--color-primary)] outline-none"
-                  />
-                  <span>giây đến</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    placeholder="Hết"
-                    value={(state.pipelineConfig?.audio_separation as any)?.trim_end || ""}
-                    onChange={(e) =>
-                      dispatch({
-                        type: "UPDATE_PIPELINE_CONFIG",
-                        payload: {
-                          audio_separation: {
-                            ...(state.pipelineConfig?.audio_separation || {}),
-                            trim_end: parseFloat(e.target.value) || 0,
-                          } as any,
-                        },
-                      })
-                    }
-                    className="w-16 h-7 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-center text-xs text-[var(--color-text-primary)] focus:border-[var(--color-primary)] outline-none"
-                  />
-                  <span>giây (0 = Toàn bộ)</span>
-                </div>
-              </div>
-            </div>
           </div>
         ) : (
-          /* Dropzone / Upload Progress / Upload Complete */
-          <div
-            className={`flex min-h-[260px] flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition ${
-              isDragging
-                ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)]"
-                : "border-[var(--color-border)] bg-[var(--color-surface-muted)] hover:border-[var(--color-primary)]"
-            } ${isUploading ? "opacity-90" : ""} ${
-              uploadComplete ? "border-green-500 bg-green-500/5" : ""
-            }`}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onClick={() => !isUploading && !uploadComplete && fileInputRef.current?.click()}
-          >
+          /* Staged File Banner or Dropzone / Progress State */
+          <div>
             {isUploading ? (
-              <div className="flex flex-col items-center gap-4">
+              <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--color-primary)] bg-[var(--color-primary-soft)]/20 p-8 text-center">
                 <Loader2 size={40} className="animate-spin text-[var(--color-primary)]" />
-                <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+                <p className="mt-4 text-sm font-semibold text-[var(--color-text-primary)]">
                   {uploadStatusText} {uploadProgress}%
                 </p>
-                <div className="h-2 w-64 overflow-hidden rounded-full bg-[var(--color-border)]">
+                <div className="mt-3 h-2.5 w-64 overflow-hidden rounded-full bg-[var(--color-border)]">
                   <div
                     className="h-full rounded-full bg-[var(--color-primary)] transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
-                <div className="flex items-center gap-3 mt-1">
+                <div className="flex items-center gap-3 mt-4">
                   <button
                     type="button"
                     onClick={(e) => {
@@ -658,43 +382,99 @@ export default function UploadStep() {
                 </div>
               </div>
             ) : uploadComplete ? (
-              <div className="flex flex-col items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-green-500/20 text-green-500">
-                  <CheckCircle2 size={40} />
+              <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-green-500 bg-green-500/5 p-8 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-500/20 text-green-500">
+                  <CheckCircle2 size={36} />
                 </div>
-                <h3 className="text-lg font-bold text-[var(--color-text-primary)]">
+                <h3 className="mt-3 text-lg font-bold text-[var(--color-text-primary)]">
                   Upload Complete! 🎉
                 </h3>
                 <p className="text-sm text-[var(--color-text-muted)]">
-                  {state.video?.filename} đã tải lên thành công
+                  {state.video?.filename} đã tải lên thành công và sẵn sàng để xử lý.
                 </p>
-                <p className="text-xs text-[var(--color-text-muted)]">
+                <p className="text-xs text-[var(--color-text-muted)] mt-1">
                   {state.video?.fileSize != null && state.video.fileSize > 0 
                     ? `${(state.video.fileSize / (1024 * 1024)).toFixed(1)} MB`
                     : ""}
                 </p>
-                <div className="mt-2 flex items-center gap-2 text-sm text-[var(--color-primary)]">
-                  <Loader2 size={16} className="animate-spin" />
-                  Đang chuyển tới bước bóc băng...
+                <button
+                  type="button"
+                  onClick={() => dispatch({ type: "SET_STEP", payload: 2 })}
+                  className="mt-4 flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-[var(--color-primary)]/20 hover:bg-[var(--color-primary-hover)] transition"
+                >
+                  <span>Chuyển tới bước Bóc băng (Transcript)</span>
+                  <ArrowRight size={15} />
+                </button>
+              </div>
+            ) : stagedFile ? (
+              /* Staged file banner with pre-upload configuration review */
+              <div className="p-5 rounded-2xl border border-[var(--color-primary)]/40 bg-[var(--color-primary-soft)]/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--color-primary)] text-white shadow-md">
+                    <FileVideo size={28} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-base text-[var(--color-text-primary)] truncate">
+                        {stagedFile.name}
+                      </h4>
+                      <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-500">
+                        Chưa tải lên
+                      </span>
+                    </div>
+                    <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                      Dung lượng: {(stagedFile.size / (1024 * 1024)).toFixed(2)} MB • Tệp đã được chuẩn bị. Bạn có thể tùy chỉnh cấu hình Demucs bên dưới trước khi bấm tải lên.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setStagedFile(null)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-xs font-semibold text-[var(--color-text-secondary)] hover:text-red-500 hover:border-red-500/40 transition"
+                  >
+                    <Trash2 size={14} />
+                    <span>Hủy chọn</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleFileUpload()}
+                    className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[var(--color-primary)] text-xs font-bold text-white shadow-md shadow-[var(--color-primary)]/20 hover:bg-[var(--color-primary-hover)] transition"
+                  >
+                    <FileUp size={14} />
+                    <span>Bắt đầu tải lên & Xử lý</span>
+                  </button>
                 </div>
               </div>
             ) : (
-              <>
+              /* Dropzone */
+              <div
+                className={`flex min-h-[240px] flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition ${
+                  isDragging
+                    ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)]"
+                    : "border-[var(--color-border)] bg-[var(--color-surface-muted)] hover:border-[var(--color-primary)]"
+                }`}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onClick={() => fileInputRef.current?.click()}
+              >
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
                   <UploadCloud size={30} />
                 </div>
-                <h3 className="mt-5 text-lg font-bold text-[var(--color-text-primary)]">
+                <h3 className="mt-4 text-base font-bold text-[var(--color-text-primary)]">
                   {t("pipeline:steps.upload.dropzoneTitle")}
                 </h3>
-                <p className="mt-2 max-w-md text-sm leading-6 text-[var(--color-text-muted)]">
+                <p className="mt-1.5 max-w-md text-xs leading-5 text-[var(--color-text-muted)]">
                   {t("pipeline:steps.upload.dropzoneDescription")}
                 </p>
-                <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">
                   MP4, MOV, AVI, MKV (Hỗ trợ dung lượng tới 2GB)
                 </p>
                 <button
                   type="button"
-                  className="mt-6 rounded-xl bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(24,195,170,0.2)] transition hover:bg-[var(--color-primary-hover)] hover:scale-105 active:scale-95"
+                  className="mt-4 rounded-xl bg-[var(--color-primary)] px-5 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-[var(--color-primary-hover)] hover:scale-105 active:scale-95 transition"
                   onClick={(e) => {
                     e.stopPropagation();
                     fileInputRef.current?.click();
@@ -709,13 +489,286 @@ export default function UploadStep() {
                   className="hidden"
                   onChange={handleFileSelect}
                 />
-              </>
+              </div>
             )}
           </div>
         )}
+
+        {/* Audio Separation & Pre-processing Studio (Step 1 Pro Workbench) */}
+        {/* Always visible when file is staged OR already uploaded so user can tune settings beforehand */}
+        {(stagedFile || state.video?.filename) && !isUploading && (
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--color-border-muted)]">
+              <div className="flex items-center gap-2">
+                <Layers size={16} className="text-[var(--color-primary)]" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-primary)]">
+                  Tách âm & Tiền xử lý (Audio Separation Studio)
+                </h4>
+              </div>
+              <span className="rounded-full bg-[var(--color-primary)]/10 px-2.5 py-0.5 text-[11px] font-bold text-[var(--color-primary)]">
+                Đồng bộ 2 chiều (Auto-saved)
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Demucs Separation Model */}
+              <div>
+                <label className="text-xs font-bold text-[var(--color-text-primary)] block mb-1.5">
+                  Mô hình bóc tách âm thanh:
+                </label>
+                <select
+                  value={state.pipelineConfig?.audio_separation?.demucs_model || "htdemucs"}
+                  onChange={(e) =>
+                    dispatch({
+                      type: "UPDATE_PIPELINE_CONFIG",
+                      payload: {
+                        audio_separation: {
+                          ...(state.pipelineConfig?.audio_separation || {}),
+                          demucs_model: e.target.value as any,
+                        },
+                      },
+                    })
+                  }
+                  className="w-full h-9 rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs font-semibold text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
+                >
+                  <option value="htdemucs">Demucs v4 HT (4-Stem Tách Chuẩn Vocals/BGM)</option>
+                  <option value="htdemucs_ft">Demucs v4 Fine-tuned (Chất lượng cao nhất)</option>
+                  <option value="mdx_extra">MDX-Net Vocal (Chuyên tách giọng ồn mạnh)</option>
+                  <option value="bypass">Bypass (Không tách vocal / giữ nguyên audio gốc)</option>
+                </select>
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
+                  HT Demucs sử dụng Transformer trích xuất riêng biệt Vocals và Background Music.
+                </p>
+              </div>
+
+              {/* Dubbing Mode: Full Dubbing vs Voiceover */}
+              <div>
+                <label className="text-xs font-bold text-[var(--color-text-primary)] block mb-1.5">
+                  Chế độ lồng tiếng (Dubbing Mode):
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      dispatch({
+                        type: "UPDATE_PIPELINE_CONFIG",
+                        payload: {
+                          export_muxing: {
+                            ...(state.pipelineConfig?.export_muxing || {}),
+                            dubbing_mode: "full_dubbing",
+                          },
+                        },
+                      })
+                    }
+                    className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition ${
+                      (state.pipelineConfig?.export_muxing?.dubbing_mode || "full_dubbing") === "full_dubbing"
+                        ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
+                        : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]/50"
+                    }`}
+                  >
+                    <span className="text-xs font-bold">Full Dubbing</span>
+                    <span className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                      Thay hoàn toàn giọng gốc bằng AI
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      dispatch({
+                        type: "UPDATE_PIPELINE_CONFIG",
+                        payload: {
+                          export_muxing: {
+                            ...(state.pipelineConfig?.export_muxing || {}),
+                            dubbing_mode: "voiceover",
+                          },
+                        },
+                      })
+                    }
+                    className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition ${
+                      state.pipelineConfig?.export_muxing?.dubbing_mode === "voiceover"
+                        ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
+                        : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]/50"
+                    }`}
+                  >
+                    <span className="text-xs font-bold">Voiceover (Thuyết minh)</span>
+                    <span className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                      Giữ giọng gốc nhỏ (~15%) làm nền
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Volume Sliders & Ducking */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1">
+                    <Mic size={12} className="text-[var(--color-primary)]" />
+                    Âm lượng Vocal gốc
+                  </span>
+                  <span className="font-mono text-xs font-bold text-[var(--color-primary)]">
+                    {state.pipelineConfig?.audio_separation?.vocal_volume ?? 100}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="150"
+                  value={state.pipelineConfig?.audio_separation?.vocal_volume ?? 100}
+                  onChange={(e) =>
+                    dispatch({
+                      type: "UPDATE_PIPELINE_CONFIG",
+                      payload: {
+                        audio_separation: {
+                          ...(state.pipelineConfig?.audio_separation || {}),
+                          vocal_volume: parseInt(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                  className="w-full accent-[var(--color-primary)] h-1.5 rounded-lg bg-[var(--color-border)] cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1">
+                    <Music size={12} className="text-indigo-400" />
+                    Âm lượng Nhạc nền (BGM)
+                  </span>
+                  <span className="font-mono text-xs font-bold text-indigo-400">
+                    {Math.round((state.pipelineConfig?.audio_separation?.bgm_volume ?? 0.7) * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="150"
+                  value={Math.round((state.pipelineConfig?.audio_separation?.bgm_volume ?? 0.7) * 100)}
+                  onChange={(e) =>
+                    dispatch({
+                      type: "UPDATE_PIPELINE_CONFIG",
+                      payload: {
+                        audio_separation: {
+                          ...(state.pipelineConfig?.audio_separation || {}),
+                          bgm_volume: parseInt(e.target.value) / 100,
+                        },
+                      },
+                    })
+                  }
+                  className="w-full accent-indigo-500 h-1.5 rounded-lg bg-[var(--color-border)] cursor-pointer"
+                />
+              </div>
+
+              <div className="flex flex-col justify-center">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={state.pipelineConfig?.audio_separation?.enable_ducking ?? true}
+                    onChange={(e) =>
+                      dispatch({
+                        type: "UPDATE_PIPELINE_CONFIG",
+                        payload: {
+                          audio_separation: {
+                            ...(state.pipelineConfig?.audio_separation || {}),
+                            enable_ducking: e.target.checked,
+                          },
+                        },
+                      })
+                    }
+                    className="h-4 w-4 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer"
+                  />
+                  <span className="text-xs font-semibold text-[var(--color-text-primary)]">
+                    Smart Ducking (Tự né BGM)
+                  </span>
+                </label>
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 pl-6">
+                  Giảm nhạc nền {state.pipelineConfig?.audio_separation?.ducking_level || -14}dB khi có giọng nói
+                </p>
+              </div>
+
+              <div className="flex flex-col justify-center">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={Boolean((state.pipelineConfig?.audio_separation as any)?.audio_denoise)}
+                    onChange={(e) =>
+                      dispatch({
+                        type: "UPDATE_PIPELINE_CONFIG",
+                        payload: {
+                          audio_separation: {
+                            ...(state.pipelineConfig?.audio_separation || {}),
+                            audio_denoise: e.target.checked,
+                          } as any,
+                        },
+                      })
+                    }
+                    className="h-4 w-4 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer"
+                  />
+                  <span className="text-xs font-semibold text-[var(--color-text-primary)]">
+                    Audio Denoise (Khử ồn mic)
+                  </span>
+                </label>
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 pl-6">
+                  Lọc tạp âm và tiếng quạt gió microphone
+                </p>
+              </div>
+            </div>
+
+            {/* Pre-trim Range */}
+            <div className="pt-2 border-t border-[var(--color-border-muted)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <span className="flex items-center gap-1.5 font-semibold text-[var(--color-text-secondary)]">
+                <Scissors size={13} className="text-amber-400" />
+                Cắt xén phạm vi xử lý (In/Out Range Trimming):
+              </span>
+              <div className="flex items-center gap-2 font-mono">
+                <span>Từ</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={(state.pipelineConfig?.audio_separation as any)?.trim_start || 0}
+                  onChange={(e) =>
+                    dispatch({
+                      type: "UPDATE_PIPELINE_CONFIG",
+                      payload: {
+                        audio_separation: {
+                          ...(state.pipelineConfig?.audio_separation || {}),
+                          trim_start: parseFloat(e.target.value) || 0,
+                        } as any,
+                      },
+                    })
+                  }
+                  className="w-16 h-7 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-center text-xs text-[var(--color-text-primary)] focus:border-[var(--color-primary)] outline-none"
+                />
+                <span>giây đến</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  placeholder="Hết"
+                  value={(state.pipelineConfig?.audio_separation as any)?.trim_end || ""}
+                  onChange={(e) =>
+                    dispatch({
+                      type: "UPDATE_PIPELINE_CONFIG",
+                      payload: {
+                        audio_separation: {
+                          ...(state.pipelineConfig?.audio_separation || {}),
+                          trim_end: parseFloat(e.target.value) || 0,
+                        } as any,
+                      },
+                    })
+                  }
+                  className="w-16 h-7 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-center text-xs text-[var(--color-text-primary)] focus:border-[var(--color-primary)] outline-none"
+                />
+                <span>giây (0 = Toàn bộ)</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-
-
 
       {/* Persistent Bottom Action Bar */}
       {state.video?.videoId && !isUploading && (
@@ -730,7 +783,15 @@ export default function UploadStep() {
 
           <button
             type="button"
-            onClick={() => dispatch({ type: "SET_STEP", payload: 2 })}
+            onClick={() => {
+              const targetPId = state.projectId || projectId;
+              const targetVId = state.video?.videoId;
+              if (targetPId && targetVId && routeVideoId === "new") {
+                navigate(`/workspace/project/${targetPId}/video/${targetVId}?step=transcript`, { replace: true });
+              } else {
+                dispatch({ type: "SET_STEP", payload: 2 });
+              }
+            }}
             className="flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-[var(--color-primary)]/30 transition hover:bg-[var(--color-primary-hover)] active:scale-95"
           >
             <span>Tiếp tục: Bóc băng (Transcript)</span>

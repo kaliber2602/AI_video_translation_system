@@ -31,6 +31,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { usePipeline } from "../../hooks/usePipeline";
+import { useHybridProgress } from "../../hooks/useHybridProgress";
 import { videoService } from "../../services/video.service";
 import PipelineStepLayout from "./PipelineStepLayout";
 import { toast } from "../../lib/toast";
@@ -87,9 +88,73 @@ export default function DubbingStep() {
 
   // Background Task & Polling States
   const [ttsProgress, setTtsProgress] = useState<number>(0);
+  const [ttsMessage, setTtsMessage] = useState<string>("");
   const [dubProgress, setDubProgress] = useState<number>(0);
+  const [dubMessage, setDubMessage] = useState<string>("");
   const ttsPollingTimerRef = useRef<any>(null);
   const dubPollingTimerRef = useRef<any>(null);
+
+  // Hybrid Real-time Progress (Mechanism 1: WebSocket with Mechanism 3: REST fallback)
+  const ttsHybrid = useHybridProgress(state.video?.videoId, "tts", async () => {
+    if (state.video?.videoId) {
+      try {
+        const blob = await videoService.getTTSBlob(state.video.videoId, selectedLanguage);
+        const url = URL.createObjectURL(blob);
+        setTtsAudioUrl(url);
+        setIsGeneratingTTS(false);
+        setTtsProgress(100);
+      } catch (err) {
+        console.warn("Auto-reload TTS on WS completion:", err);
+      }
+    }
+  });
+
+  const dubHybrid = useHybridProgress(state.video?.videoId, "dub", async () => {
+    if (state.video?.videoId) {
+      stopDubPolling();
+      setIsGeneratingDub(false);
+      setDubProgress(100);
+      setDubbingStatus("completed");
+      try {
+        const status = await videoService.getDubbingStatus(state.video.videoId);
+        setDubbedVideo(status);
+        const previewUrl = await videoService.getDubbedVideoPreview(state.video.videoId, selectedLanguage);
+        if (previewUrl) {
+          setVideoUrl((prev) => {
+            if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+            return previewUrl;
+          });
+          setIsDubbed(true);
+        }
+      } catch (e) {
+        console.warn("Failed to load dubbed preview after hybrid completion:", e);
+      }
+      loadDubbingStatus();
+      window.dispatchEvent(new CustomEvent("subscription-updated"));
+    }
+  });
+
+  useEffect(() => {
+    if (isGeneratingTTS || (ttsHybrid.progress > 0 && ttsHybrid.progress < 100)) {
+      if (ttsHybrid.progress > 0) setTtsProgress(ttsHybrid.progress);
+      if (ttsHybrid.message) setTtsMessage(ttsHybrid.message);
+      if (ttsHybrid.status === "failed") {
+        setIsGeneratingTTS(false);
+        setDubbingError(ttsHybrid.message || "Tạo giọng nói thất bại");
+      }
+    }
+  }, [ttsHybrid.progress, ttsHybrid.message, ttsHybrid.status, isGeneratingTTS]);
+
+  useEffect(() => {
+    if (isGeneratingDub || (dubHybrid.progress > 0 && dubHybrid.progress < 100)) {
+      if (dubHybrid.progress > 0) setDubProgress(dubHybrid.progress);
+      if (dubHybrid.message) setDubMessage(dubHybrid.message);
+      if (dubHybrid.status === "failed") {
+        setIsGeneratingDub(false);
+        setDubbingError(dubHybrid.message || "Render video thất bại");
+      }
+    }
+  }, [dubHybrid.progress, dubHybrid.message, dubHybrid.status, isGeneratingDub]);
 
   const stopTtsPolling = () => {
     if (ttsPollingTimerRef.current) {
@@ -528,6 +593,9 @@ export default function DubbingStep() {
           if (typeof activeTask.progress === "number" && activeTask.progress > 0) {
             setTtsProgress(activeTask.progress);
           }
+          if (activeTask.message) {
+            setTtsMessage(activeTask.message);
+          }
           if (activeTask.status === "failed") {
             stopTtsPolling();
             setIsGeneratingTTS(false);
@@ -592,6 +660,9 @@ export default function DubbingStep() {
         if (activeTask && (activeTask.current_step === "dub" || activeTask.current_step === "export")) {
           if (typeof activeTask.progress === "number" && activeTask.progress > 0) {
             setDubProgress(activeTask.progress);
+          }
+          if (activeTask.message) {
+            setDubMessage(activeTask.message);
           }
           if (activeTask.status === "failed") {
             stopDubPolling();
@@ -661,12 +732,12 @@ export default function DubbingStep() {
     setDubbingError(null);
 
     try {
-      // 0. Check active Celery tasks for F5 / navigation resilience
+      let summaryData: any = null;
       try {
-        const summary = await videoService.getStepsSummary(vidId);
-        const dubStep = summary?.steps?.dubbing;
-        const exportStep = summary?.steps?.export;
-        const activeTask = summary?.active_task;
+        summaryData = await videoService.getStepsSummary(vidId);
+        const dubStep = summaryData?.steps?.dubbing;
+        const exportStep = summaryData?.steps?.export;
+        const activeTask = summaryData?.active_task;
 
         if (
           dubStep?.status === "processing" ||
@@ -698,94 +769,123 @@ export default function DubbingStep() {
       }
 
       // 1. Fetch Subtitle Segments & Config from Step 4 (Subtitle Studio)
-      try {
-        const subData = await videoService.getSubtitleSegments(vidId, selectedLanguage);
-        if (subData && subData.segments && Array.isArray(subData.segments) && subData.segments.length > 0) {
-          setSegments(subData.segments);
+      const transStatus = summaryData?.steps?.translation?.status;
+      const subStatus = summaryData?.steps?.subtitle?.status;
+      const hasSubOrTrans =
+        transStatus === "completed" ||
+        subStatus === "completed" ||
+        Boolean(state.video?.hasTranslation) ||
+        Boolean(state.video?.subtitlePath);
+
+      if (hasSubOrTrans) {
+        try {
+          const subData = await videoService.getSubtitleSegments(vidId, selectedLanguage);
+          if (subData && subData.segments && Array.isArray(subData.segments) && subData.segments.length > 0) {
+            setSegments(subData.segments);
+          }
+          const cfg = subData?.config || state.subtitles?.config || (state.video as any)?.snapshot_data?.subtitle_config;
+          if (cfg) {
+            const aRatio = cfg.aspect_ratio || cfg.aspectRatio;
+            if (aRatio) setAspectRatio(aRatio);
+            const fName = cfg.font_name || cfg.fontName;
+            if (fName) setFontName(fName);
+            const fSize = cfg.font_size || cfg.fontSize;
+            if (fSize) setFontSize(String(fSize));
+            const pColor = cfg.primary_color || cfg.primaryColor;
+            if (pColor) setPrimaryColor(pColor);
+            const oColor = cfg.outline_color || cfg.outlineColor;
+            if (oColor) setOutlineColor(oColor);
+            const posY = cfg.position_y ?? cfg.positionY;
+            if (typeof posY === "number") setPositionY(posY);
+            const algn = cfg.alignment;
+            if (algn) setAlignment(algn);
+            const lSpacing = cfg.line_spacing ?? cfg.lineSpacing;
+            if (typeof lSpacing === "number") setLineSpacing(lSpacing);
+            const eff = cfg.effect;
+            if (eff) setEffect(eff);
+          }
+        } catch (subErr) {
+          console.warn("Could not load subtitle config/segments:", subErr);
         }
-        const cfg = subData?.config || state.subtitles?.config || (state.video as any)?.snapshot_data?.subtitle_config;
-        if (cfg) {
-          const aRatio = cfg.aspect_ratio || cfg.aspectRatio;
-          if (aRatio) setAspectRatio(aRatio);
-          const fName = cfg.font_name || cfg.fontName;
-          if (fName) setFontName(fName);
-          const fSize = cfg.font_size || cfg.fontSize;
-          if (fSize) setFontSize(String(fSize));
-          const pColor = cfg.primary_color || cfg.primaryColor;
-          if (pColor) setPrimaryColor(pColor);
-          const oColor = cfg.outline_color || cfg.outlineColor;
-          if (oColor) setOutlineColor(oColor);
-          const posY = cfg.position_y ?? cfg.positionY;
-          if (typeof posY === "number") setPositionY(posY);
-          const algn = cfg.alignment;
-          if (algn) setAlignment(algn);
-          const lSpacing = cfg.line_spacing ?? cfg.lineSpacing;
-          if (typeof lSpacing === "number") setLineSpacing(lSpacing);
-          const eff = cfg.effect;
-          if (eff) setEffect(eff);
-        }
-      } catch (subErr) {
-        console.warn("Could not load subtitle config/segments:", subErr);
       }
 
-      // 2. Fetch TTS audio data
-      try {
-        const ttsData = await videoService.getTTS(vidId, selectedLanguage);
-        if (ttsData && (ttsData.status === "available" || ttsData.status === "completed")) {
-          setTtsStatus("completed");
-          try {
-            const blob = await videoService.getTTSBlob(vidId, selectedLanguage);
-            const blobUrl = URL.createObjectURL(blob);
-            setTtsAudioUrl((prev) => {
-              if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
-              return blobUrl;
-            });
-          } catch (audioErr) {
-            console.error("Failed to load TTS blob:", audioErr);
+      // 2. Fetch TTS audio data (only if dubbing step is completed/has audio)
+      const dubStep = summaryData?.steps?.dubbing;
+      const hasTTSAudio =
+        dubStep?.status === "completed" ||
+        Boolean(dubStep?.dubbed_audio_path) ||
+        Boolean(state.video?.dubbedAudioPath);
+
+      if (hasTTSAudio) {
+        try {
+          const ttsData = await videoService.getTTS(vidId, selectedLanguage);
+          if (ttsData && (ttsData.status === "available" || ttsData.status === "completed")) {
+            setTtsStatus("completed");
+            try {
+              const blob = await videoService.getTTSBlob(vidId, selectedLanguage);
+              const blobUrl = URL.createObjectURL(blob);
+              setTtsAudioUrl((prev) => {
+                if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+                return blobUrl;
+              });
+            } catch (audioErr) {
+              console.error("Failed to load TTS blob:", audioErr);
+            }
+          } else {
+            setTtsStatus("not_generated");
           }
-        } else {
+        } catch (error) {
           setTtsStatus("not_generated");
         }
-      } catch (error) {
+      } else {
         setTtsStatus("not_generated");
       }
 
       // 3. Load Dubbed video if completed, otherwise load Step 4 original video
       let dubbedLoaded = false;
-      try {
-        const status = await videoService.getDubbingStatus(vidId);
-        setDubbingStatus(status.status);
-        
-        const isActuallyCompleted =
-          status.status === "completed" &&
-          Boolean(status.output_path) &&
-          state.video?.currentStep === "completed";
+      const exportStep = summaryData?.steps?.export;
+      const hasDubbedVideo =
+        exportStep?.status === "completed" ||
+        Boolean(exportStep?.output_path) ||
+        Boolean(state.video?.outputPath);
 
-        if (isActuallyCompleted) {
-          setDubbedVideo(status);
-          try {
-            const previewUrl = await videoService.getDubbedVideoPreview(
-              vidId,
-              selectedLanguage
-            );
-            if (previewUrl) {
-              setVideoUrl((prev) => {
-                if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
-                return previewUrl;
-              });
-              setIsDubbed(true);
-              dubbedLoaded = true;
+      if (hasDubbedVideo) {
+        try {
+          const status = await videoService.getDubbingStatus(vidId);
+          setDubbingStatus(status.status);
+          
+          const isActuallyCompleted =
+            (status.status === "completed" || Boolean(status.output_path)) &&
+            Boolean(status.output_path);
+
+          if (isActuallyCompleted) {
+            setDubbedVideo(status);
+            try {
+              const previewUrl = await videoService.getDubbedVideoPreview(
+                vidId,
+                selectedLanguage
+              );
+              if (previewUrl) {
+                setVideoUrl((prev) => {
+                  if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+                  return previewUrl;
+                });
+                setIsDubbed(true);
+                dubbedLoaded = true;
+              }
+            } catch (error) {
+              console.error("Failed to get dubbed preview URL:", error);
             }
-          } catch (error) {
-            console.error("Failed to get dubbed preview URL:", error);
+          }
+        } catch (error: any) {
+          if (error.message?.includes("404")) {
+            setDubbingStatus("not_started");
+          } else {
+            setDubbingError(error.message || "Failed to load dubbing status");
           }
         }
-      } catch (error: any) {
-        if (error.message?.includes("404")) {
-          setDubbingStatus("not_started");
-        } else {
-          setDubbingError(error.message || "Failed to load dubbing status");
-        }
+      } else {
+        setDubbingStatus("not_started");
       }
 
       // 4. If not dubbed yet, simply play the Step 4 video (original voice + subtitles)
@@ -825,7 +925,8 @@ export default function DubbingStep() {
     setIsGeneratingTTS(true);
     setDubbingError(null);
     setTtsStatus("processing");
-    setTtsProgress(20);
+    setTtsProgress(0);
+    setTtsMessage("Đang khởi tạo tiến trình tổng hợp giọng nói AI...");
 
     try {
       const result = await videoService.generateTTS(
@@ -888,7 +989,8 @@ export default function DubbingStep() {
     setIsGeneratingDub(true);
     setDubbingError(null);
     setDubbingStatus("processing");
-    setDubProgress(20);
+    setDubProgress(0);
+    setDubMessage("Đang chuẩn bị render và hòa âm video...");
 
     try {
       const result = await videoService.generateDubbedVideo(
@@ -1388,6 +1490,30 @@ export default function DubbingStep() {
                 </span>
               </button>
 
+              {/* Real-time TTS Progress Indicator */}
+              {isGeneratingTTS && (
+                <div className="rounded-xl border border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)]/20 p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-semibold text-[var(--color-text-primary)]">
+                    <span className="flex items-center gap-1.5 truncate max-w-[80%]">
+                      <Loader2 size={13} className="animate-spin text-[var(--color-primary)] shrink-0" />
+                      <span className="truncate">
+                        {ttsMessage || `Đang tổng hợp giọng nói (${ttsProgress}%)...`}
+                      </span>
+                    </span>
+                    <span className="font-mono font-bold text-[var(--color-primary)] shrink-0">{ttsProgress}%</span>
+                  </div>
+                  <div className="w-full bg-[var(--color-border)] h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className="bg-[var(--color-primary)] h-full rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${Math.max(5, Math.min(100, ttsProgress))}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-[var(--color-text-muted)]">
+                    Tiến độ lồng tiếng được tính toán trực tiếp trên số lượng câu AI đã đọc.
+                  </p>
+                </div>
+              )}
+
               {/* TTS AUDIO WAVEFORM TRACK CARD (Inside TTS Tool Panel) */}
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3 space-y-2.5 shadow-2xs">
                 <div className="flex items-center justify-between pb-1.5 border-b border-[var(--color-border)]">
@@ -1748,6 +1874,30 @@ export default function DubbingStep() {
                     : "Tạo Video Lồng Tiếng"}
                 </span>
               </button>
+
+              {/* Real-time Video Dubbing / Mux Progress Indicator */}
+              {isGeneratingDub && (
+                <div className="rounded-xl border border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)]/20 p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-semibold text-[var(--color-text-primary)]">
+                    <span className="flex items-center gap-1.5 truncate max-w-[80%]">
+                      <Loader2 size={13} className="animate-spin text-[var(--color-primary)] shrink-0" />
+                      <span className="truncate">
+                        {dubMessage || `Đang hòa âm và kết xuất video (${dubProgress}%)...`}
+                      </span>
+                    </span>
+                    <span className="font-mono font-bold text-[var(--color-primary)] shrink-0">{dubProgress}%</span>
+                  </div>
+                  <div className="w-full bg-[var(--color-border)] h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className="bg-[var(--color-primary)] h-full rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${Math.max(5, Math.min(100, dubProgress))}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-[var(--color-text-muted)]">
+                    Tiến độ encode FFmpeg / hòa âm âm thanh được cập nhật thời gian thực từ worker.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* QUICK LINK BACK TO PHASE 1 */}

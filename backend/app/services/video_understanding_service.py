@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 
 from app.core.database import DatabaseSession, RowRecord
-from app.models import Video, VideoChapter, VideoDocument, TranscriptSegment, VideoChatMessage, Project
+from app.models import Video, VideoChapter, VideoDocument, TranscriptSegment, VideoChatMessage, Project, ProjectMember
 
 logger = logging.getLogger("app.services.video_understanding_service")
 
@@ -322,11 +322,25 @@ class VideoUnderstandingService:
         if not query or not query.strip():
             return []
 
-        # Validate project ownership if user_id is provided
+        # Validate project access if user_id is provided
         if user_id is not None:
-            proj = self.db.query(Project).filter(Project.id == project_id, Project.owner_id == user_id).first()
+            proj = self.db.query(Project).filter(Project.id == project_id, Project.deleted_at.is_(None)).first()
             if not proj:
-                logger.warning(f"Unauthorized or non-existent project search attempt: user={user_id}, project={project_id}")
+                logger.warning(f"Project not found: project={project_id}")
+                return []
+            owner_id = proj.get("owner_id") if isinstance(proj, dict) else getattr(proj, "owner_id", None)
+            is_owner = (owner_id == user_id)
+            is_member = False
+            if not is_owner:
+                member = self.db.query(ProjectMember).filter(
+                    ProjectMember.project_id == project_id,
+                    ProjectMember.user_id == user_id,
+                    ProjectMember.status == "accepted",
+                ).first()
+                is_member = bool(member)
+
+            if not is_owner and not is_member:
+                logger.warning(f"Unauthorized project search attempt: user={user_id}, project={project_id}")
                 return []
 
         # 1. Try FAISS project-wide semantic search
@@ -577,9 +591,20 @@ class VideoUnderstandingService:
         if not message or not message.strip():
             raise ValueError("Message cannot be empty.")
 
-        project = self.db.query(Project).filter(Project.id == project_id, Project.owner_id == user_id).first()
+        project = self.db.query(Project).filter(Project.id == project_id, Project.deleted_at.is_(None)).first()
         if not project:
-            raise ValueError(f"Project #{project_id} not found or unauthorized.")
+            raise ValueError(f"Project #{project_id} not found.")
+
+        proj_owner_id = project.get("owner_id") if isinstance(project, dict) else getattr(project, "owner_id", None)
+        is_owner = (proj_owner_id == user_id)
+        if not is_owner:
+            member = self.db.query(ProjectMember).filter(
+                ProjectMember.project_id == project_id,
+                ProjectMember.user_id == user_id,
+                ProjectMember.status == "accepted",
+            ).first()
+            if not member:
+                raise ValueError(f"Unauthorized access to project #{project_id}.")
 
         project_name = project.get("name") or f"Project #{project_id}"
 

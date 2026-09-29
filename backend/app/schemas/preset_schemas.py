@@ -27,6 +27,7 @@ class AudioSeparationConfig(BaseModel):
 
 
 class TranscriptionConfig(BaseModel):
+    model_config = {"protected_namespaces": ()}
     model_size: Optional[str] = "medium"
     diarization: Optional[Union[bool, Dict[str, Any]]] = True
     min_speakers: Optional[int] = 1

@@ -10,7 +10,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, Depends, status, Body, Response
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, Depends, status, Body, Response, BackgroundTasks
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.responses import FileResponse, RedirectResponse
 from starlette.concurrency import run_in_threadpool
@@ -27,7 +27,7 @@ except Exception:
 from app.core.config import OUTPUT_DIR, UPLOAD_DIR, AWS_S3_BUCKET, AWS_REGION, S3_ENDPOINT_URL
 from app.core.database import get_db, DatabaseSession, desc, Session
 from app.core.security import get_user_id_from_token
-from app.models import Video, VideoPipelineConfig, PipelineJob, PipelineTaskLog, SpeakerProfile, Project, ProjectFolder, TranscriptSegment, VideoRenderOutput
+from app.models import Video, VideoPipelineConfig, PipelineJob, PipelineTaskLog, SpeakerProfile, Project, ProjectFolder, ProjectMember, TranscriptSegment, VideoRenderOutput
 from app.models.enums import JobStatus, VideoStatus
 from app.services import (
     JobService,
@@ -70,6 +70,7 @@ from fastapi.responses import JSONResponse
 
 
 class VideoChatRequest(BaseModel):
+    model_config = {"protected_namespaces": ()}
     message: str
     chat_history: Optional[List[Dict[str, str]]] = None
     model_name: Optional[str] = None
@@ -125,16 +126,38 @@ def check_user_project_access(
 ) -> tuple[bool, Optional[Project]]:
     """
     Verifies if a user has access to a project:
-    Single-owner isolation model: user must be project.owner_id.
+    Checks if user is owner, or an accepted member with sufficient role.
+    Role hierarchy: owner (3) >= editor (2) >= viewer (1).
     """
     project = db.query(Project).filter(
         Project.id == project_id,
-        Project.owner_id == user_id,
         Project.deleted_at.is_(None),
     ).first()
     if not project:
         return False, None
-    return True, project
+
+    # Owner has complete access to their projects
+    if project.owner_id == user_id:
+        return True, project
+
+    # Check project_members table for collaborative access
+    member = db.query(ProjectMember).filter(
+        ProjectMember.project_id == project_id,
+        ProjectMember.user_id == user_id,
+        ProjectMember.status == "accepted",
+    ).first()
+
+    if not member:
+        return False, None
+
+    role_weights = {"viewer": 1, "editor": 2, "owner": 3}
+    user_weight = role_weights.get(str(member.role).lower(), 1)
+    required_weight = role_weights.get(required_role.lower(), 1)
+
+    if user_weight >= required_weight:
+        return True, project
+
+    return False, project
 
 
 def get_video_with_access(
@@ -281,6 +304,23 @@ async def upload_video(
     db.add(video)
     db.flush()
     
+    # Clean up any leftover local and storage artifacts from previously deleted/reused video IDs
+    try:
+        for dir_pattern in [f"hls_{video.id}_*", f"audio_{video.id}", f"transcript_{video.id}", f"tts_{video.id}"]:
+            for dir_path in OUTPUT_DIR.glob(dir_pattern):
+                try:
+                    shutil.rmtree(dir_path, ignore_errors=True)
+                    logger.info(f"Cleaned stale dir on new upload: {dir_path}")
+                except Exception:
+                    pass
+        delete_prefix(f"videos/{video.id}/")
+        delete_prefix(f"audio/{video.id}/")
+        delete_prefix(f"subtitles/{video.id}/")
+        delete_prefix(f"dubbing/{video.id}/")
+        delete_prefix(f"thumbnails/{video.id}/")
+    except Exception as clean_err:
+        logger.warning(f"Could not purge stale artifacts on upload for video #{video.id}: {clean_err}")
+
     # Move file to final location
     safe_filename = f"{video.id}_{file.filename}"
     input_path = UPLOAD_DIR / safe_filename
@@ -364,6 +404,10 @@ def compute_video_progress_and_step(video: Video, config: Optional[VideoPipeline
         if video.subtitle_path or video.dubbed_audio_path or video.output_path:
             has_translation = True
             
+    # Do not auto-advance pipeline step/progress if video is freshly uploaded and hasn't started processing
+    if video.status == VideoStatus.UPLOADED.value:
+        return 0, "upload", VideoStatus.UPLOADED.value, False, None
+
     # Calculate true progress & milestone step
     if video.output_path or video.status == "completed":
         progress = 100
@@ -698,7 +742,10 @@ async def save_video_snapshot(
     if payload.target_language is not None:
         video.target_language = payload.target_language
     if payload.progress is not None:
-        video.progress = payload.progress
+        # Don't regress progress if video already achieved higher execution progress from Celery tasks
+        current_prog = video.progress or 0
+        if payload.progress >= current_prog or video.status in ["failed", "uploaded"]:
+            video.progress = payload.progress
         
     video.updated_at = now_utc
     db.commit()
@@ -1954,9 +2001,13 @@ async def extract_audio(
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
     
     video_path = None
-    for file in UPLOAD_DIR.glob(f"{video_id}_*"):
-        video_path = str(file)
-        break
+    if video.original_path and os.path.exists(video.original_path):
+        video_path = video.original_path
+    else:
+        for file in sorted(UPLOAD_DIR.glob(f"{video_id}_*"), key=lambda f: f.stat().st_size, reverse=True):
+            if file.suffix.lower() in [".mp4", ".mov", ".avi", ".mkv", ".webm"] and file.stat().st_size > 1024:
+                video_path = str(file)
+                break
     
     if not video_path:
         raise HTTPException(404, "Video file not found")
@@ -2058,6 +2109,128 @@ async def get_audio(
     }
 
 
+@router.get("/{video_id}/audio/vocals")
+async def get_audio_vocals(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Download or stream isolated vocal stem for a video."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+    vocal_path = None
+    if video.extracted_vocal_path and os.path.exists(video.extracted_vocal_path):
+        vocal_path = video.extracted_vocal_path
+    else:
+        candidate = OUTPUT_DIR / f"audio_{video_id}" / "vocals.wav"
+        if candidate.exists():
+            vocal_path = str(candidate)
+
+    if not vocal_path or not os.path.exists(vocal_path):
+        raise HTTPException(404, f"Vocal stem not found for video #{video_id}")
+
+    safe_title = (video.title or f"video_{video_id}").replace('"', "").strip()
+    return FileResponse(
+        vocal_path,
+        media_type="audio/wav",
+        filename=f"Vocal_Stem_{safe_title}.wav",
+        headers={"Content-Disposition": f'attachment; filename="Vocal_Stem_{video_id}.wav"'}
+    )
+
+
+@router.get("/{video_id}/audio/background")
+async def get_audio_background(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Download or stream isolated background music stem for a video."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+    bgm_path = None
+    if video.background_music_path and os.path.exists(video.background_music_path):
+        bgm_path = video.background_music_path
+    else:
+        for p in ["no_vocals.wav", "bgm.wav", "accompaniment.wav"]:
+            candidate = OUTPUT_DIR / f"audio_{video_id}" / p
+            if candidate.exists():
+                bgm_path = str(candidate)
+                break
+
+    if not bgm_path or not os.path.exists(bgm_path):
+        raise HTTPException(404, f"Background music stem not found for video #{video_id}")
+
+    safe_title = (video.title or f"video_{video_id}").replace('"', "").strip()
+    return FileResponse(
+        bgm_path,
+        media_type="audio/wav",
+        filename=f"Background_Music_{safe_title}.wav",
+        headers={"Content-Disposition": f'attachment; filename="Background_Music_{video_id}.wav"'}
+    )
+
+
+@router.get("/{video_id}/audio/dubbed")
+async def get_audio_dubbed(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Download or stream generated dubbed voice track for a video."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+    dub_path = None
+    if video.dubbed_audio_path and os.path.exists(video.dubbed_audio_path):
+        dub_path = video.dubbed_audio_path
+    else:
+        candidate = OUTPUT_DIR / f"tts_{video_id}" / "dubbed_audio.wav"
+        if candidate.exists():
+            dub_path = str(candidate)
+        else:
+            lang = video.target_language or "vi"
+            cand_lang = OUTPUT_DIR / f"tts_{video_id}" / f"tts_{lang}.wav"
+            if cand_lang.exists():
+                dub_path = str(cand_lang)
+
+    if not dub_path or not os.path.exists(dub_path):
+        raise HTTPException(404, f"Dubbed audio not found for video #{video_id}")
+
+    safe_title = (video.title or f"video_{video_id}").replace('"', "").strip()
+    return FileResponse(
+        dub_path,
+        media_type="audio/wav",
+        filename=f"Dubbed_Audio_{safe_title}.wav",
+        headers={"Content-Disposition": f'attachment; filename="Dubbed_Audio_{video_id}.wav"'}
+    )
+
+
+@router.get("/{video_id}/transcript/download")
+async def download_transcript_file(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Download full raw transcript JSON file for a video."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+    trans_path = None
+    if video.transcript_path and os.path.exists(video.transcript_path):
+        trans_path = video.transcript_path
+    else:
+        alt_path1 = OUTPUT_DIR / f"transcript_{video_id}" / "transcript.json"
+        alt_path2 = OUTPUT_DIR / f"video_{video_id}" / "transcript.json"
+        if alt_path1.exists():
+            trans_path = str(alt_path1)
+        elif alt_path2.exists():
+            trans_path = str(alt_path2)
+
+    if not trans_path or not os.path.exists(trans_path):
+        raise HTTPException(404, f"Transcript file not found for video #{video_id}")
+
+    safe_title = (video.title or f"video_{video_id}").replace('"', "").strip()
+    return FileResponse(
+        trans_path,
+        media_type="application/json",
+        filename=f"Transcript_{safe_title}.json",
+        headers={"Content-Disposition": f'attachment; filename="Transcript_{video_id}.json"'}
+    )
+
+
 # ============================================================
 # TRANSCRIPTION / WHISPER
 # ============================================================
@@ -2074,10 +2247,39 @@ async def start_transcription(
     """Start Whisper/WhisperX transcription with speaker detection (supports 202 Async & Sync)."""
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
     
-    # ✅ Check if vocal track exists (separated audio)
+    # ✅ Check if vocal track exists (separated audio or raw extracted audio)
     vocal_path = video.extracted_vocal_path
     if not vocal_path or not os.path.exists(vocal_path):
-        raise HTTPException(400, "Audio not ready. Run /audio/extract and /audio/separate first")
+        # Auto-fallback: check if canonical raw audio exists
+        canonical_audio = OUTPUT_DIR / f"audio_{video_id}" / "audio.wav"
+        if canonical_audio.exists():
+            vocal_path = str(canonical_audio)
+            video.extracted_vocal_path = vocal_path
+            db.commit()
+        else:
+            # Auto extract audio synchronously on demand so user doesn't hit 400
+            video_path = video.original_path
+            if not video_path or not os.path.exists(video_path):
+                for f in UPLOAD_DIR.glob(f"{video_id}_*"):
+                    if f.exists() and f.suffix.lower() in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+                        video_path = str(f)
+                        break
+            if video_path and os.path.exists(video_path):
+                from app.services import AudioService
+                audio_svc = AudioService()
+                out_dir = OUTPUT_DIR / f"audio_{video_id}"
+                out_dir.mkdir(parents=True, exist_ok=True)
+                raw_out = out_dir / "audio.wav"
+                logger.info(f"🎙️ Auto-extracting audio for video #{video_id} before transcription...")
+                audio_svc.extract_audio(video_path, str(raw_out))
+                if raw_out.exists():
+                    vocal_path = str(raw_out)
+                    video.extracted_vocal_path = vocal_path
+                    video.current_step = "audio_extract"
+                    db.commit()
+            
+            if not vocal_path or not os.path.exists(vocal_path):
+                raise HTTPException(400, "Audio not ready. Vui lòng kiểm tra lại file video hoặc thực hiện trích xuất âm thanh.")
     
     # ✅ If the vocal path ends with "audio.wav", it's raw audio - suggest separation
     if vocal_path.endswith("audio.wav"):
@@ -2148,7 +2350,7 @@ async def start_transcription(
                 step="transcript"
             )
 
-            task = task_transcribe_step.delay(video_id, user_id, enable_diarization, str(job.id))
+            task = task_transcribe_step.delay(video_id, user_id, enable_diarization, str(job.id), stt_model)
             job_cfg = job.config_json or {}
             if isinstance(job_cfg, str):
                 try:
@@ -2186,7 +2388,7 @@ async def start_transcription(
     # ============================================================
     # SYNCHRONOUS FALLBACK EXECUTION (When sync=True)
     # ============================================================
-    stt_service = STTService()
+    stt_service = STTService(model_size=stt_model)
     
     try:
         # ============================================================
@@ -2412,21 +2614,56 @@ async def get_video_steps_summary(
             except Exception:
                 cfg = {}
         celery_task_id = cfg.get("celery_task_id")
-        active_task = {
-            "job_id": str(latest_job.id),
-            "celery_task_id": celery_task_id,
-            "status": latest_job.status,
-            "current_step": latest_job.current_step,
-            "progress": latest_job.progress or 0,
-            "error_message": latest_job.error_message
-        }
+        task_progress = latest_job.progress or 0
+        task_message = None
+        task_step = latest_job.current_step
+
+        is_task_dead = False
+        if celery_task_id:
+            try:
+                from celery.result import AsyncResult
+                from app.tasks.celery_app import celery_app
+                async_res = AsyncResult(celery_task_id, app=celery_app)
+                if async_res.state in ("FAILURE", "REVOKED"):
+                    is_task_dead = True
+                    latest_job.status = JobStatus.FAILED.value
+                    latest_job.error_message = str(async_res.result or "Celery task failed or was revoked")
+                    db.commit()
+                elif async_res.state == "SUCCESS":
+                    is_task_dead = True
+                    latest_job.status = JobStatus.COMPLETED.value
+                    latest_job.progress = 100
+                    db.commit()
+                elif async_res.state == "PROCESSING" and isinstance(async_res.info, dict):
+                    meta = async_res.info
+                    if "progress" in meta and isinstance(meta["progress"], (int, float)):
+                        task_progress = max(task_progress, int(meta["progress"]))
+                    if "message" in meta:
+                        task_message = meta["message"]
+                    if "step" in meta:
+                        task_step = meta["step"]
+            except Exception:
+                pass
+
+        if not is_task_dead:
+            active_task = {
+                "job_id": str(latest_job.id),
+                "celery_task_id": celery_task_id,
+                "status": latest_job.status,
+                "current_step": task_step,
+                "progress": task_progress,
+                "message": task_message,
+                "error_message": latest_job.error_message
+            }
     
-    # Check artifacts on disk and DB
-    has_vocal = bool(video.extracted_vocal_path and os.path.exists(video.extracted_vocal_path))
-    has_bgm = bool(video.background_music_path and os.path.exists(video.background_music_path))
-    
+    # Check artifacts on disk and DB (only if video has moved past uploaded state or has DB segments)
+    is_fresh_upload = (video.status == VideoStatus.UPLOADED.value)
+
     transcript_count = db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).count()
-    has_transcript = transcript_count > 0 or bool(video.transcript_path and os.path.exists(video.transcript_path))
+    has_transcript = transcript_count > 0 or (not is_fresh_upload and bool(video.transcript_path and os.path.exists(video.transcript_path)))
+
+    has_vocal = not is_fresh_upload and bool(video.extracted_vocal_path and os.path.exists(video.extracted_vocal_path))
+    has_bgm = not is_fresh_upload and bool(video.background_music_path and os.path.exists(video.background_music_path))
     
     translation_count = 0
     try:
@@ -2441,18 +2678,19 @@ async def get_video_steps_summary(
         translation_count = 0
 
     has_trans_file = False
-    trans_dir = OUTPUT_DIR / f"transcript_{video_id}"
-    if trans_dir.exists():
-        try:
-            has_trans_file = any(f.name.startswith("translation_") and f.name.endswith(".json") for f in trans_dir.iterdir())
-        except Exception:
-            has_trans_file = False
+    if not is_fresh_upload:
+        trans_dir = OUTPUT_DIR / f"transcript_{video_id}"
+        if trans_dir.exists():
+            try:
+                has_trans_file = any(f.name.startswith("translation_") and f.name.endswith(".json") for f in trans_dir.iterdir())
+            except Exception:
+                has_trans_file = False
 
-    has_translation = translation_count > 0 or has_trans_file or bool(getattr(video, "has_translation", False))
+    has_translation = translation_count > 0 or has_trans_file or (not is_fresh_upload and bool(getattr(video, "has_translation", False)))
     
-    has_subtitle = bool(video.subtitle_path and os.path.exists(video.subtitle_path))
-    has_dubbing = bool(video.dubbed_audio_path and os.path.exists(video.dubbed_audio_path))
-    has_export = bool(video.output_path and os.path.exists(video.output_path))
+    has_subtitle = not is_fresh_upload and bool(video.subtitle_path and os.path.exists(video.subtitle_path))
+    has_dubbing = not is_fresh_upload and bool(video.dubbed_audio_path and os.path.exists(video.dubbed_audio_path))
+    has_export = not is_fresh_upload and bool(video.output_path and os.path.exists(video.output_path))
     
     active_step = active_task.get("current_step") if active_task else None
     
@@ -2510,6 +2748,14 @@ async def get_transcription(
     from app.models import TranscriptSegment, SpeakerProfile
     video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
     
+    # If video is fresh upload and not started, transcription is not available
+    if video.status == VideoStatus.UPLOADED.value and not db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).count():
+        return {
+            "video_id": video_id,
+            "status": "not_available",
+            "message": "Transcription not available yet"
+        }
+
     transcript_file = None
     if video.transcript_path and os.path.exists(video.transcript_path):
         transcript_file = Path(video.transcript_path)
@@ -2927,7 +3173,7 @@ async def start_translation(
                 raise HTTPException(500, f"Failed to start async translation: {te}")
 
         # Fallback Synchronous Execution (only when sync=True)
-        translation_service = TranslationService()
+        translation_service = TranslationService(model_name=trans_model)
         nllb_tgt = lang_config["nllb"]
         nllb_src = SOURCE_LANGUAGE_MAP.get(detected_lang, "eng_Latn")
         
@@ -2972,26 +3218,51 @@ async def start_translation(
         try:
             from app.models import TranscriptSegment, TranslationSegment
             t_segs = db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).order_by(TranscriptSegment.sequence).all()
-            for idx, seg in enumerate(translated_segments):
-                if idx < len(t_segs):
-                    t_seg_id = t_segs[idx].id
-                    existing_ts = db.query(TranslationSegment).filter(
-                        TranslationSegment.transcript_segment_id == t_seg_id,
-                        TranslationSegment.target_language == target_lang_clean
-                    ).first()
-                    if existing_ts:
-                        existing_ts.translated_text = seg.get("translated_text", "")
-                        existing_ts.translation_model = trans_model
-                        existing_ts.updated_at = datetime.utcnow()
-                    else:
-                        db.add(TranslationSegment(
-                            transcript_segment_id=t_seg_id,
-                            target_language=target_lang_clean,
-                            translated_text=seg.get("translated_text", ""),
-                            translation_model=trans_model,
-                            created_at=datetime.utcnow(),
-                            updated_at=datetime.utcnow()
-                        ))
+            has_constituents = any("_constituent_indices" in s for s in translated_segments)
+            if has_constituents and t_segs:
+                for seg in translated_segments:
+                    text_val = seg.get("translated_text", "")
+                    for orig_idx in seg.get("_constituent_indices", []):
+                        if orig_idx < len(t_segs):
+                            t_seg_id = t_segs[orig_idx].id
+                            existing_ts = db.query(TranslationSegment).filter(
+                                TranslationSegment.transcript_segment_id == t_seg_id,
+                                TranslationSegment.target_language == target_lang_clean
+                            ).first()
+                            if existing_ts:
+                                existing_ts.translated_text = text_val
+                                existing_ts.translation_model = trans_model
+                                existing_ts.updated_at = datetime.utcnow()
+                            else:
+                                db.add(TranslationSegment(
+                                    transcript_segment_id=t_seg_id,
+                                    target_language=target_lang_clean,
+                                    translated_text=text_val,
+                                    translation_model=trans_model,
+                                    created_at=datetime.utcnow(),
+                                    updated_at=datetime.utcnow()
+                                ))
+            else:
+                for idx, seg in enumerate(translated_segments):
+                    if idx < len(t_segs):
+                        t_seg_id = t_segs[idx].id
+                        existing_ts = db.query(TranslationSegment).filter(
+                            TranslationSegment.transcript_segment_id == t_seg_id,
+                            TranslationSegment.target_language == target_lang_clean
+                        ).first()
+                        if existing_ts:
+                            existing_ts.translated_text = seg.get("translated_text", "")
+                            existing_ts.translation_model = trans_model
+                            existing_ts.updated_at = datetime.utcnow()
+                        else:
+                            db.add(TranslationSegment(
+                                transcript_segment_id=t_seg_id,
+                                target_language=target_lang_clean,
+                                translated_text=seg.get("translated_text", ""),
+                                translation_model=trans_model,
+                                created_at=datetime.utcnow(),
+                                updated_at=datetime.utcnow()
+                            ))
             db.flush()
         except Exception as dbe:
             logger.warning(f"Could not persist translation_segments to DB: {dbe}")
@@ -3055,18 +3326,19 @@ async def list_translations(
     
     translations = []
     seen_langs = set()
-    for p_dir in possible_dirs:
-        if p_dir.exists():
-            for file in os.listdir(p_dir):
-                if file.startswith("translation_") and file.endswith(".json"):
-                    lang = file.replace("translation_", "").replace(".json", "").lower()
-                    if lang not in seen_langs:
-                        seen_langs.add(lang)
-                        translations.append({
-                            "language": lang,
-                            "path": str(p_dir / file),
-                            "size": os.path.getsize(str(p_dir / file))
-                        })
+    if video.status != VideoStatus.UPLOADED.value:
+        for p_dir in possible_dirs:
+            if p_dir.exists():
+                for file in os.listdir(p_dir):
+                    if file.startswith("translation_") and file.endswith(".json"):
+                        lang = file.replace("translation_", "").replace(".json", "").lower()
+                        if lang not in seen_langs:
+                            seen_langs.add(lang)
+                            translations.append({
+                                "language": lang,
+                                "path": str(p_dir / file),
+                                "size": os.path.getsize(str(p_dir / file))
+                            })
     
     return {
         "video_id": video_id,
@@ -3085,6 +3357,9 @@ async def get_translation(
     """Get translation for a specific language, with canonical path and DB recovery."""
     video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
     lang_clean = language.lower().strip()
+
+    if video.status == VideoStatus.UPLOADED.value:
+        raise HTTPException(404, f"Translation for language '{language}' not found (video is not translated yet)")
     
     # 1. Search in canonical directories
     possible_dirs = [
@@ -3998,6 +4273,61 @@ async def download_subtitles_file(
     raise HTTPException(404, f"Subtitles for language '{language}' not found")
 
 
+@router.get("/{video_id}/subtitles/download")
+async def download_default_subtitles_file(
+    video_id: int,
+    language: Optional[str] = Query(None, description="Optional subtitle language code (e.g. vi, en)"),
+    format: str = Query("srt", regex="^(srt|vtt|ass)$"),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Download subtitle file for a video, resolving language from video record or available files."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+    
+    target_lang = language or video.target_language or "vi"
+    subtitle_dir = os.path.dirname(video.subtitle_path) if video.subtitle_path and os.path.exists(video.subtitle_path) else None
+    if not subtitle_dir:
+        alt_dir = OUTPUT_DIR / f"transcript_{video_id}"
+        if alt_dir.exists():
+            subtitle_dir = str(alt_dir)
+            
+    if subtitle_dir:
+        # Check requested target_lang first
+        subtitle_path = os.path.join(subtitle_dir, f"subtitles_{target_lang}.{format}")
+        if not os.path.exists(subtitle_path) and os.path.exists(os.path.join(subtitle_dir, f"subtitles_{target_lang}.srt")) and format == "vtt":
+            srt_path = os.path.join(subtitle_dir, f"subtitles_{target_lang}.srt")
+            with open(srt_path, "r", encoding="utf-8") as f:
+                srt_data = f.read()
+            vtt_data = SubtitleService.srt_to_vtt(srt_data)
+            subtitle_path = os.path.join(subtitle_dir, f"subtitles_{target_lang}.vtt")
+            with open(subtitle_path, "w", encoding="utf-8") as f:
+                f.write(vtt_data)
+
+        # Check default subtitles.srt
+        if not os.path.exists(subtitle_path):
+            def_path = os.path.join(subtitle_dir, f"subtitles.{format}")
+            if os.path.exists(def_path):
+                subtitle_path = def_path
+
+        # Check any matching subtitle file
+        if not os.path.exists(subtitle_path):
+            for candidate in Path(subtitle_dir).glob(f"*.{format}"):
+                subtitle_path = str(candidate)
+                break
+
+        if os.path.exists(subtitle_path):
+            media_type = "text/plain" if format in ["srt", "ass"] else "text/vtt"
+            safe_title = (video.title or f"video_{video_id}").replace('"', "").strip()
+            return FileResponse(
+                subtitle_path,
+                media_type=media_type,
+                filename=f"Subtitles_{safe_title}.{format}",
+                headers={"Content-Disposition": f'attachment; filename="Subtitles_{video_id}.{format}"'}
+            )
+
+    raise HTTPException(404, f"Subtitles not found for video #{video_id}")
+
+
 # ============================================================
 # TTS / VOICE
 # ============================================================
@@ -4345,12 +4675,16 @@ async def generate_tts(
     try:
         # Generate TTS
         logger.info(f"🔧 Generating TTS for {len(segments)} segments...")
+        voice_id_str = str(speaker_id) if speaker_id is not None else None
         tts_service.generate_tts_with_alignment(
             segments=segments,
             output_path=str(tts_path),
             temp_dir=str(tts_dir),
             vocal_path=vocal_path,
-            tgt_lang=xtts_lang
+            tgt_lang=xtts_lang,
+            video_id=video_id,
+            voice_id=voice_id_str,
+            model=tts_model
         )
         
         # Validate the generated file
@@ -5490,6 +5824,216 @@ async def export_video(
         raise HTTPException(404, f"Translation for language '{language}' not found")
     
     raise HTTPException(400, f"Invalid export type: {export_type}")
+
+
+@router.get("/{video_id}/export-zip")
+async def export_all_assets_zip(
+    video_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """
+    Step 6 (Review & Export): Bundle all assets of this video into a single ZIP file.
+    Includes:
+      - transcript.json / transcript text
+      - all translations (translation_vi.json, translation_zh.json, etc.)
+      - all subtitle files (.srt, .vtt, .ass)
+      - dubbing audio files (.wav / .mp3)
+      - final rendered video (.mp4) and original uploaded video
+    """
+    import zipfile
+    import tempfile
+
+    video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+
+    # Prepare temporary file for the zip archive
+    temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+    temp_zip_path = temp_zip.name
+    temp_zip.close()
+
+    try:
+        added_names = set()
+        with zipfile.ZipFile(temp_zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            def add_file_safe(file_path: Optional[str or Path], archive_name: str):
+                if not file_path:
+                    return
+                p = Path(file_path)
+                if p.exists() and p.is_file() and archive_name not in added_names:
+                    zf.write(p, arcname=archive_name)
+                    added_names.add(archive_name)
+
+            # 1. Transcript files
+            if video.transcript_path:
+                add_file_safe(video.transcript_path, "transcript/transcript.json")
+            cand_trans_dir = OUTPUT_DIR / f"transcript_{video_id}"
+            if cand_trans_dir.exists():
+                for f in cand_trans_dir.glob("transcript*.*"):
+                    add_file_safe(f, f"transcript/{f.name}")
+
+            # 2. Translation files (translation_vi, translation_zh, etc.)
+            possible_trans_dirs = [
+                OUTPUT_DIR / f"transcript_{video_id}",
+                OUTPUT_DIR / f"video_{video_id}",
+            ]
+            if video.transcript_path and os.path.exists(os.path.dirname(video.transcript_path)):
+                possible_trans_dirs.append(Path(os.path.dirname(video.transcript_path)))
+
+            for t_dir in possible_trans_dirs:
+                if t_dir.exists():
+                    for f in t_dir.glob("translation_*.json"):
+                        add_file_safe(f, f"translations/{f.name}")
+                    for f in t_dir.glob("subtitle_config_*.json"):
+                        add_file_safe(f, f"subtitles/{f.name}")
+
+            # 3. Subtitles (.srt, .vtt, .ass)
+            if video.subtitle_path:
+                add_file_safe(video.subtitle_path, f"subtitles/{Path(video.subtitle_path).name}")
+            for t_dir in possible_trans_dirs:
+                if t_dir.exists():
+                    for f in t_dir.glob("subtitles_*.*"):
+                        add_file_safe(f, f"subtitles/{f.name}")
+
+            # 4. Dubbed audio files & TTS audio
+            if video.dubbed_audio_path:
+                add_file_safe(video.dubbed_audio_path, f"audio/{Path(video.dubbed_audio_path).name}")
+            tts_dir = OUTPUT_DIR / f"tts_{video_id}"
+            if tts_dir.exists():
+                for f in tts_dir.glob("*.wav"):
+                    add_file_safe(f, f"audio/{f.name}")
+                for f in tts_dir.glob("*.mp3"):
+                    add_file_safe(f, f"audio/{f.name}")
+            audio_dir = OUTPUT_DIR / f"audio_{video_id}"
+            if audio_dir.exists():
+                for f in audio_dir.glob("*.wav"):
+                    add_file_safe(f, f"audio/{f.name}")
+
+            # 5. Final rendered MP4 video(s)
+            if video.output_path:
+                add_file_safe(video.output_path, f"video/{Path(video.output_path).name}")
+            vid_dir = OUTPUT_DIR / f"video_{video_id}"
+            if vid_dir.exists():
+                for f in vid_dir.glob("dubbed_*.mp4"):
+                    add_file_safe(f, f"video/{f.name}")
+
+            # 6. Original video
+            if video.original_path:
+                add_file_safe(video.original_path, f"video/original_{Path(video.original_path).name}")
+            for f in UPLOAD_DIR.glob(f"{video_id}_*"):
+                if f.is_file() and f.suffix.lower() in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+                    add_file_safe(f, f"video/original_{f.name}")
+
+        def cleanup_temp():
+            try:
+                if os.path.exists(temp_zip_path):
+                    os.remove(temp_zip_path)
+            except Exception:
+                pass
+
+        background_tasks.add_task(cleanup_temp)
+
+        safe_title = re.sub(r'[\\/*?:"<>|#%\s]+', '_', (video.title or video.original_filename or f"video_{video_id}").strip()).strip('._ ')
+        zip_filename = f"{safe_title}_all_assets.zip"
+
+        return FileResponse(
+            temp_zip_path,
+            media_type="application/zip",
+            filename=zip_filename,
+            headers={"Content-Disposition": f'attachment; filename="{zip_filename}"'}
+        )
+    except Exception as e:
+        if os.path.exists(temp_zip_path):
+            try:
+                os.remove(temp_zip_path)
+            except Exception:
+                pass
+        logger.error(f"Failed to generate asset zip for video #{video_id}: {e}")
+        raise HTTPException(500, f"Failed to generate asset ZIP: {str(e)}")
+
+
+@router.post("/{video_id}/generate-hls")
+async def generate_video_hls_stream(
+    video_id: int,
+    payload: Dict[str, Any] = Body(default={}),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """
+    Step 6 (Review & Export): Trigger adaptive multi-bitrate HLS encoding and S3 upload
+    with real-time telemetry (step: 'export').
+    """
+    video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
+    
+    config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
+    target_lang = payload.get("language") or (config.target_language if config else video.target_language) or "vi"
+    qualities = payload.get("qualities") or ["240p", "360p", "720p", "1080p"]
+
+    # Redis Lock
+    lock_key = f"lock:video:{video_id}:step:export"
+    r = None
+    try:
+        from app.core.config import REDIS_URL
+        import redis
+        r = redis.Redis.from_url(REDIS_URL)
+        acquired = r.set(lock_key, "active", nx=True, ex=1800)
+        if not acquired:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "HLS export stream generation is already running for this video."
+            )
+    except HTTPException:
+        raise
+    except Exception as re_err:
+        logger.warning(f"Could not check Redis lock: {re_err}")
+
+    try:
+        from app.services.job_service import JobService
+        from app.tasks.video_tasks import task_generate_hls_stream
+        job_service = JobService(db)
+        job = job_service.create_job(
+            video_id=video_id,
+            triggered_by=user_id,
+            config={
+                "language": target_lang,
+                "qualities": qualities,
+                "mode": "single_step",
+                "step": "export"
+            },
+            step="export"
+        )
+
+        task = task_generate_hls_stream.delay(
+            video_id, user_id, target_lang, qualities, str(job.id)
+        )
+
+        job_cfg = job.config_json or {}
+        if isinstance(job_cfg, str):
+            try:
+                job_cfg = json.loads(job_cfg)
+            except Exception:
+                job_cfg = {}
+        job_cfg["celery_task_id"] = task.id
+        job.config_json = job_cfg
+        db.commit()
+
+        return {
+            "status": "processing",
+            "video_id": video_id,
+            "job_id": str(job.id),
+            "celery_task_id": task.id,
+            "step": "export",
+            "message": "HLS streaming generation dispatched to worker"
+        }
+    except Exception as err:
+        if r:
+            try:
+                r.delete(lock_key)
+            except Exception:
+                pass
+        logger.error(f"Failed to dispatch HLS task for video {video_id}: {err}")
+        raise HTTPException(500, f"Failed to dispatch HLS generation: {str(err)}")
+
+
 # ============================================================
 # PLAYBACK (HLS Streaming)
 # ============================================================

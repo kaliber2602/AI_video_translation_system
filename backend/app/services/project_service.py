@@ -905,23 +905,6 @@ def add_project_member(
 
         connection.commit()
 
-        # 4. Dispatch notification if user exists in system
-        if target_user_id:
-            try:
-                from app.services.notification_service import create_notification
-                create_notification(
-                    user_id=target_user_id,
-                    type="collaboration",
-                    title="Project Invitation",
-                    message=f"You have been invited you to project: {project_name}",
-                    action_url=f"/workspace/project/{project_id}",
-                    target_type="project",
-                    target_id=project_id,
-                    metadata={"event": "project_invitation", "role": role, "inviter_id": owner_id},
-                )
-            except Exception as notif_err:
-                logger.warning(f"Failed to dispatch project invitation notification: {notif_err}")
-
         return {
             "id": member_row[0],
             "project_id": member_row[1],

@@ -2,7 +2,7 @@
 import os
 import subprocess
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Callable
 from pydub import AudioSegment
 import torch
 import uuid
@@ -72,6 +72,12 @@ class AudioService:
             else:
                 raise
         
+        finally:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            import gc
+            gc.collect()
+
         base_name = os.path.splitext(os.path.basename(audio_path))[0]
         vocal_path = os.path.join(output_dir, "htdemucs", base_name, "vocals.wav")
         bgm_path = os.path.join(output_dir, "htdemucs", base_name, "no_vocals.wav")
@@ -102,7 +108,8 @@ class AudioService:
         burn_subtitles: bool = True,
         aspect_ratio: Optional[str] = None,
         subtitle_mask: Optional[Dict[str, Any]] = None,
-        overlay_config: Optional[Dict[str, Any]] = None
+        overlay_config: Optional[Dict[str, Any]] = None,
+        progress_callback: Optional[Callable[[int, str], None]] = None,
     ):
         """
         Mix TTS audio with optional BGM and mux with video.
@@ -439,7 +446,8 @@ class AudioService:
                             input_path=final_output_path,
                             video_id=video_id,
                             language=language or "vi",
-                            qualities=["240p", "360p", "720p", "1080p"]
+                            qualities=["240p", "360p", "720p", "1080p"],
+                            progress_callback=progress_callback
                         )
                         result["hls"] = hls_result
                         logger.info(f" HLS generated for video {video_id}: {len(hls_result.get('qualities', []))} qualities")

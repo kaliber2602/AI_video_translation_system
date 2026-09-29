@@ -33,6 +33,7 @@ try:
             "task_generate_tts_step": {"queue": "queue_tts"},
             "task_extract_audio_step": {"queue": "queue_media"},
             "task_dub_mux_step": {"queue": "queue_media"},
+            "task_generate_hls_stream": {"queue": "queue_media"},
             "process_video_pipeline": {"queue": "queue_pipeline"},
             "task_process_batch_job": {"queue": "queue_pipeline"},
             "check_task_status": {"queue": "queue_pipeline"},

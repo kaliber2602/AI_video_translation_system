@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePipeline } from "../../hooks/usePipeline";
+import { useHybridProgress } from "../../hooks/useHybridProgress";
 import { videoService } from "../../services/video.service";
 import PipelineStepLayout from "./PipelineStepLayout";
 
@@ -70,7 +71,44 @@ export default function TranscriptStep() {
   const [editingSpeakerText, setEditingSpeakerText] = useState<string>("");
 
   const [taskProgress, setTaskProgress] = useState<number>(0);
+  const [taskMessage, setTaskMessage] = useState<string | null>(null);
   const pollingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Hybrid Real-time Progress (Mechanism 1: WebSocket with Mechanism 3: REST fallback)
+  const hybrid = useHybridProgress(state.video?.videoId, "transcript", async () => {
+    // When completed, reload transcript
+    if (state.video?.videoId) {
+      try {
+        const data = await videoService.getTranscript(state.video.videoId);
+        if (data && data.segments && Array.isArray(data.segments)) {
+          setTranscript(data);
+          dispatch({ type: "SET_TRANSCRIPT", payload: data });
+          setIsGenerating(false);
+          setTaskProgress(100);
+          setActiveRightTab("transcript");
+          setIsPanelOpen(true);
+        }
+      } catch (err) {
+        console.warn("Auto-reload transcript on WS completion:", err);
+      }
+    }
+  });
+
+  // Sync hybrid real-time state when active
+  useEffect(() => {
+    if (isGenerating || (hybrid.progress > 0 && hybrid.progress < 100)) {
+      if (hybrid.progress > 0) {
+        setTaskProgress(hybrid.progress);
+      }
+      if (hybrid.message) {
+        setTaskMessage(hybrid.message);
+      }
+      if (hybrid.status === "failed") {
+        setIsGenerating(false);
+        setTranscriptionError(hybrid.message || "Bóc băng thất bại");
+      }
+    }
+  }, [hybrid.progress, hybrid.message, hybrid.status, isGenerating]);
 
   const stopPolling = () => {
     if (pollingTimerRef.current) {
@@ -180,9 +218,12 @@ export default function TranscriptStep() {
         const transcriptStep = summary?.steps?.transcript;
         const activeTask = summary?.active_task;
 
-        if (activeTask && activeTask.current_step === "transcript") {
+        if (activeTask && (activeTask.current_step === "transcript" || activeTask.current_step === "whisperx")) {
           if (typeof activeTask.progress === "number" && activeTask.progress > 0) {
             setTaskProgress(activeTask.progress);
+          }
+          if (activeTask.message) {
+            setTaskMessage(activeTask.message);
           }
           if (activeTask.status === "failed") {
             stopPolling();
@@ -289,7 +330,8 @@ export default function TranscriptStep() {
   const generateTranscript = async () => {
     if (!state.video?.videoId) return;
     setIsGenerating(true);
-    setTaskProgress(10);
+    setTaskProgress(0);
+    setTaskMessage("Đang khởi tạo tác vụ bóc băng...");
     setTranscriptionError(null);
     setTranscriptionNotice(null);
 
@@ -328,10 +370,10 @@ export default function TranscriptStep() {
         window.dispatchEvent(new CustomEvent("subscription-updated"));
         setIsGenerating(false);
         setTaskProgress(100);
+        setTaskMessage(null);
       } 
       // Case 2: Asynchronous HTTP 202 Accepted response (Celery worker running)
       else if (data && (data.status === "processing" || data.job_id || data.celery_task_id)) {
-        setTaskProgress(15);
         pollTranscriptionStatus(state.video.videoId);
       } else {
         throw new Error(data?.message || "Invalid transcript data received");
@@ -949,28 +991,30 @@ export default function TranscriptStep() {
             {isGenerating && (
               <div className="rounded-xl border border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)]/20 p-3 space-y-2">
                 <div className="flex items-center justify-between text-xs font-semibold text-[var(--color-text-primary)]">
-                  <span className="flex items-center gap-1.5">
-                    <Loader2 size={13} className="animate-spin text-[var(--color-primary)]" />
-                    <span>
-                      {taskProgress < 30
-                        ? "Đang chuẩn bị âm thanh..."
-                        : taskProgress < 70
-                        ? "Đang bóc băng Whisper..."
+                  <span className="flex items-center gap-1.5 truncate max-w-[80%]">
+                    <Loader2 size={13} className="animate-spin text-[var(--color-primary)] shrink-0" />
+                    <span className="truncate">
+                      {taskMessage
+                        ? taskMessage
+                        : taskProgress < 15
+                        ? "Đang khởi động Whisper model..."
+                        : taskProgress < 75
+                        ? `Đang nhận diện giọng nói (${taskProgress}%)...`
                         : taskProgress < 95
                         ? "Đang phân tách người nói (Diarization)..."
-                        : "Đang lưu trữ dữ liệu..."}
+                        : "Đang lưu trữ dữ liệu bản bóc băng..."}
                     </span>
                   </span>
-                  <span className="font-mono font-bold text-[var(--color-primary)]">{taskProgress}%</span>
+                  <span className="font-mono font-bold text-[var(--color-primary)] shrink-0">{taskProgress}%</span>
                 </div>
                 <div className="w-full bg-[var(--color-border)] h-1.5 rounded-full overflow-hidden">
                   <div
-                    className="bg-[var(--color-primary)] h-full rounded-full transition-all duration-500 ease-out"
+                    className="bg-[var(--color-primary)] h-full rounded-full transition-all duration-300 ease-out"
                     style={{ width: `${Math.max(8, taskProgress)}%` }}
                   />
                 </div>
                 <p className="text-[10px] text-[var(--color-text-muted)]">
-                  Tác vụ đang chạy nền trên Celery worker. Bạn có thể tải lại trang (F5) mà không làm gián đoạn tiến trình.
+                  Tiến độ được cập nhật trực tiếp theo thời gian thực từ GPU/Celery worker.
                 </p>
               </div>
             )}

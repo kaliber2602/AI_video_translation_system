@@ -147,7 +147,15 @@ class PipelineSteps:
         self.job_service.update_job_status(job_id, JobStatus.PROCESSING, progress=35, current_step=JobStep.WHISPERX)
         self.job_service.log_task(job_id, "whisperx", "running", "Transcribing with Whisper...")
         try:
-            segments, detected_lang = self.stt_service.transcribe_audio(vocal_path)
+            def on_progress(pct: int, current_ts: float, total_dur: float):
+                # Scale Whisper STT progress (0 - 100%) to full pipeline step 30% -> 40%
+                scaled_prog = 30 + int((pct / 100.0) * 10)
+                try:
+                    self.job_service.update_job_status(job_id, JobStatus.PROCESSING, progress=scaled_prog, current_step=JobStep.WHISPERX)
+                except Exception:
+                    pass
+
+            segments, detected_lang = self.stt_service.transcribe_audio(vocal_path, progress_callback=on_progress)
             
             # Canonical persistent directory
             canonical_dir = OUTPUT_DIR / f"transcript_{video_id}"
@@ -231,8 +239,19 @@ class PipelineSteps:
             if config and getattr(config, "project_id", None):
                 glossary = self._get_glossary(config.project_id)
             
-            translated_segments = self.translation_service.translate_document(
-                segments=segments, glossary=glossary, src_lang=nllb_src, tgt_lang=nllb_tgt
+            def on_trans_prog(pct: int, curr: int, tot: int):
+                # Scale translation (0 - 100%) to full pipeline step 50% -> 60%
+                scaled_prog = 50 + int((pct / 100.0) * 10)
+                try:
+                    self.job_service.update_job_status(job_id, JobStatus.PROCESSING, progress=scaled_prog, current_step=JobStep.TRANSLATION)
+                except Exception:
+                    pass
+
+            trans_model = config.translation_model if config and config.translation_model else "nllb_200_1.3b"
+            translation_svc = TranslationService(model_name=trans_model) if trans_model else self.translation_service
+            translated_segments = translation_svc.translate_document(
+                segments=segments, glossary=glossary, src_lang=nllb_src, tgt_lang=nllb_tgt, model=trans_model,
+                progress_callback=on_trans_prog
             )
             
             # 1. Save to temp_dir for downstream steps in this job
@@ -256,26 +275,51 @@ class PipelineSteps:
             # 4. Save to DB TranslationSegment
             try:
                 t_segs = self.db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).order_by(TranscriptSegment.sequence).all()
-                for idx, seg in enumerate(translated_segments):
-                    if idx < len(t_segs):
-                        t_seg_id = t_segs[idx].id
-                        existing_ts = self.db.query(TranslationSegment).filter(
-                            TranslationSegment.transcript_segment_id == t_seg_id,
-                            TranslationSegment.target_language == target_lang_clean
-                        ).first()
-                        if existing_ts:
-                            existing_ts.translated_text = seg.get("translated_text", "")
-                            existing_ts.translation_model = "nllb_200_1.3b"
-                            existing_ts.updated_at = datetime.utcnow()
-                        else:
-                            self.db.add(TranslationSegment(
-                                transcript_segment_id=t_seg_id,
-                                target_language=target_lang_clean,
-                                translated_text=seg.get("translated_text", ""),
-                                translation_model="nllb_200_1.3b",
-                                created_at=datetime.utcnow(),
-                                updated_at=datetime.utcnow()
-                            ))
+                has_constituents = any("_constituent_indices" in s for s in translated_segments)
+                if has_constituents and t_segs:
+                    for seg in translated_segments:
+                        text_val = seg.get("translated_text", "")
+                        for orig_idx in seg.get("_constituent_indices", []):
+                            if orig_idx < len(t_segs):
+                                t_seg_id = t_segs[orig_idx].id
+                                existing_ts = self.db.query(TranslationSegment).filter(
+                                    TranslationSegment.transcript_segment_id == t_seg_id,
+                                    TranslationSegment.target_language == target_lang_clean
+                                ).first()
+                                if existing_ts:
+                                    existing_ts.translated_text = text_val
+                                    existing_ts.translation_model = trans_model
+                                    existing_ts.updated_at = datetime.utcnow()
+                                else:
+                                    self.db.add(TranslationSegment(
+                                        transcript_segment_id=t_seg_id,
+                                        target_language=target_lang_clean,
+                                        translated_text=text_val,
+                                        translation_model=trans_model,
+                                        created_at=datetime.utcnow(),
+                                        updated_at=datetime.utcnow()
+                                    ))
+                else:
+                    for idx, seg in enumerate(translated_segments):
+                        if idx < len(t_segs):
+                            t_seg_id = t_segs[idx].id
+                            existing_ts = self.db.query(TranslationSegment).filter(
+                                TranslationSegment.transcript_segment_id == t_seg_id,
+                                TranslationSegment.target_language == target_lang_clean
+                            ).first()
+                            if existing_ts:
+                                existing_ts.translated_text = seg.get("translated_text", "")
+                                existing_ts.translation_model = trans_model
+                                existing_ts.updated_at = datetime.utcnow()
+                            else:
+                                self.db.add(TranslationSegment(
+                                    transcript_segment_id=t_seg_id,
+                                    target_language=target_lang_clean,
+                                    translated_text=seg.get("translated_text", ""),
+                                    translation_model=trans_model,
+                                    created_at=datetime.utcnow(),
+                                    updated_at=datetime.utcnow()
+                                ))
                 self.db.commit()
             except Exception as e_db:
                 self.db.rollback()
@@ -312,10 +356,28 @@ class PipelineSteps:
         try:
             lang_config = TARGET_LANGUAGE_MAP.get(target_lang)
             xtts_lang = lang_config["xtts"]
+            config = self.db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
+            tts_model = config.tts_model if config and config.tts_model else "xtts_v2"
+            voice_id = None
+            if config and config.config_data:
+                cd = config.config_data if isinstance(config.config_data, dict) else {}
+                tts_cfg = cd.get("tts_dubbing", {})
+                voice_id = tts_cfg.get("voice_id") or tts_cfg.get("default_voice_id")
+            
             tts_path = os.path.join(temp_dir, "tts_track.wav")
+            def on_tts_prog(pct: int, curr: int, tot: int):
+                # Scale TTS (0 - 100%) to full pipeline step 65% -> 75%
+                scaled_prog = 65 + int((pct / 100.0) * 10)
+                try:
+                    self.job_service.update_job_status(job_id, JobStatus.PROCESSING, progress=scaled_prog, current_step=JobStep.TTS_GENERATE)
+                except Exception:
+                    pass
+
             self.tts_aligner.generate_tts_with_alignment(
                 segments=translated_segments, output_path=tts_path, temp_dir=temp_dir,
-                vocal_path=vocal_path, tgt_lang=xtts_lang, video_id=video_id
+                vocal_path=vocal_path, tgt_lang=xtts_lang, video_id=video_id,
+                voice_id=voice_id, model=tts_model,
+                progress_callback=on_tts_prog
             )
             self.job_service.log_task(job_id, "tts_generate", "success", "TTS generated")
             return {"tts_path": tts_path, "success": True}

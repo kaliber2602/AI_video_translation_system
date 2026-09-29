@@ -793,6 +793,17 @@ export default function SubtitleStep() {
 
   const loadSubtitles = async (fmt?: string) => {
     if (!state.video?.videoId) return;
+    // Guard against fetching subtitles before they are generated
+    const hasSubtitles =
+      state.stepsSummary?.steps?.subtitle?.status === "completed" ||
+      Boolean(state.video?.subtitlePath);
+
+    if (!hasSubtitles) {
+      setSubtitles(null);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setSubtitleError(null);
 

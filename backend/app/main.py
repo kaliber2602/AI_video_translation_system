@@ -51,4 +51,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.api.video_ws_routes import router as ws_router
+
 app.include_router(router)
+app.include_router(ws_router)

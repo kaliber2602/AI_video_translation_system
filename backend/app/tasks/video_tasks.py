@@ -2,7 +2,7 @@
 import os
 import logging
 import uuid
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import torch
 try:
     from celery import Task
@@ -315,10 +315,18 @@ def task_extract_audio_step(self, video_id: int, user_id: int, job_id: Optional[
         import shutil
 
         # Locate input video file
+        video = db.query(Video).filter(Video.id == video_id).first()
+        if not video:
+            raise ValueError(f"Video #{video_id} not found")
+
         video_path = None
-        for file in UPLOAD_DIR.glob(f"{video_id}_*"):
-            video_path = str(file)
-            break
+        if video.original_path and os.path.exists(video.original_path):
+            video_path = video.original_path
+        else:
+            for file in sorted(UPLOAD_DIR.glob(f"{video_id}_*"), key=lambda f: f.stat().st_size, reverse=True):
+                if file.suffix.lower() in [".mp4", ".mov", ".avi", ".mkv", ".webm"] and file.stat().st_size > 1024:
+                    video_path = str(file)
+                    break
         if not video_path:
             raise ValueError(f"Original video file not found for video #{video_id}")
 
@@ -353,7 +361,7 @@ def task_extract_audio_step(self, video_id: int, user_id: int, job_id: Optional[
 
         # Upload to Object Storage
         try:
-            from app.services.storage_manager import storage_manager
+            from app.services.s3_service import storage_manager
             if vocal_path and os.path.exists(vocal_path):
                 storage_manager.upload_file(vocal_path, f"audio/{video_id}/vocals.wav", "audio/wav")
             if bgm_path and os.path.exists(bgm_path):
@@ -405,7 +413,7 @@ def task_extract_audio_step(self, video_id: int, user_id: int, job_id: Optional[
 
 @celery_app.task(bind=True, base=PipelineTask, name="task_transcribe_step", 
                  max_retries=1, soft_time_limit=1800, time_limit=2400)
-def task_transcribe_step(self, video_id: int, user_id: int, enable_diarization: bool = True, job_id: Optional[str] = None):
+def task_transcribe_step(self, video_id: int, user_id: int, enable_diarization: bool = True, job_id: Optional[str] = None, stt_model: Optional[str] = None):
     """Execute Whisper STT and Pyannote diarization as a decoupled, asynchronous step."""
     db = self.db
     job_service = JobService(db)
@@ -441,7 +449,8 @@ def task_transcribe_step(self, video_id: int, user_id: int, enable_diarization: 
                     "mode": "single_step",
                     "step": "transcript",
                     "device": "GPU" if cuda_avail else "CPU",
-                    "enable_diarization": enable_diarization
+                    "enable_diarization": enable_diarization,
+                    "stt_model": stt_model
                 },
                 step="transcript"
             )
@@ -456,6 +465,8 @@ def task_transcribe_step(self, video_id: int, user_id: int, enable_diarization: 
             job_cfg["celery_task_id"] = self.request.id
             job_cfg["mode"] = "single_step"
             job_cfg["step"] = "transcript"
+            if stt_model:
+                job_cfg["stt_model"] = stt_model
             job.config_json = job_cfg
             job.status = JobStatus.PROCESSING.value
             job.current_step = "transcript"
@@ -469,6 +480,33 @@ def task_transcribe_step(self, video_id: int, user_id: int, enable_diarization: 
 
         vocal_path = video.extracted_vocal_path
         if not vocal_path or not os.path.exists(vocal_path):
+            canonical_audio = OUTPUT_DIR / f"audio_{video_id}" / "audio.wav"
+            if canonical_audio.exists():
+                vocal_path = str(canonical_audio)
+                video.extracted_vocal_path = vocal_path
+                db.commit()
+            else:
+                video_path = video.original_path
+                if not video_path or not os.path.exists(video_path):
+                    for f in UPLOAD_DIR.glob(f"{video_id}_*"):
+                        if f.exists() and f.suffix.lower() in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+                            video_path = str(f)
+                            break
+                if video_path and os.path.exists(video_path):
+                    from app.services import AudioService
+                    audio_svc = AudioService()
+                    out_dir = OUTPUT_DIR / f"audio_{video_id}"
+                    out_dir.mkdir(parents=True, exist_ok=True)
+                    raw_out = out_dir / "audio.wav"
+                    logger.info(f"🎙️ [task_transcribe_step] Auto-extracting audio for video #{video_id}...")
+                    audio_svc.extract_audio(video_path, str(raw_out))
+                    if raw_out.exists():
+                        vocal_path = str(raw_out)
+                        video.extracted_vocal_path = vocal_path
+                        video.current_step = "audio_extract"
+                        db.commit()
+
+        if not vocal_path or not os.path.exists(vocal_path):
             raise ValueError(f"Vocal track not ready for video #{video_id}. Audio extraction needed first.")
 
         # --- Milestone 1: Whisper STT ---
@@ -478,13 +516,56 @@ def task_transcribe_step(self, video_id: int, user_id: int, enable_diarization: 
         from datetime import datetime
         from app.models import TranscriptSegment, SpeakerProfile
 
-        stt_service = STTService()
+        config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
+        resolved_stt_model = stt_model or (config.stt_model if config and config.stt_model else "small")
+        logger.info(f"🎙️ Using STT model: {resolved_stt_model} for video #{video_id}")
+        stt_service = STTService(model_size=resolved_stt_model)
+        last_reported_pct = -1
+
+        from app.services.progress_broadcaster import publish_video_progress
+
+        def on_stt_progress(pct: int, current_ts: float, total_dur: float):
+            nonlocal last_reported_pct
+            # Direct 1-100% actual audio decoding progress without artificial scaling or clamping
+            real_pct = max(1, min(100, pct))
+            if real_pct != last_reported_pct and (real_pct - last_reported_pct >= 1 or real_pct >= 100):
+                last_reported_pct = real_pct
+                msg = f"Đang bóc băng: {real_pct}% ({int(current_ts)}s / {int(total_dur)}s)..."
+                self.update_state(
+                    state="PROCESSING",
+                    meta={"step": "transcript", "progress": real_pct, "message": msg}
+                )
+                publish_video_progress(
+                    video_id=video_id,
+                    step="transcript",
+                    progress=real_pct,
+                    message=msg,
+                    meta={"current_ts": current_ts, "total_dur": total_dur}
+                )
+                try:
+                    job_service.update_job_status(
+                        job.id,
+                        JobStatus.PROCESSING,
+                        progress=real_pct,
+                        current_step=JobStep.WHISPERX,
+                        is_full_pipeline=False
+                    )
+                except Exception:
+                    pass
+
+        init_msg = f"Bắt đầu nhận diện giọng nói (Whisper {resolved_stt_model})..."
         self.update_state(
             state="PROCESSING",
-            meta={"step": "transcript", "progress": 35, "message": "Transcribing speech into text (Whisper)..."}
+            meta={"step": "transcript", "progress": 1, "message": init_msg}
+        )
+        publish_video_progress(
+            video_id=video_id,
+            step="transcript",
+            progress=1,
+            message=init_msg
         )
 
-        segments, detected_lang = stt_service.transcribe_audio(vocal_path)
+        segments, detected_lang = stt_service.transcribe_audio(vocal_path, progress_callback=on_stt_progress)
         for seg in segments:
             if not seg.get("speaker"):
                 seg["speaker"] = "SPEAKER_01"
@@ -542,13 +623,13 @@ def task_transcribe_step(self, video_id: int, user_id: int, enable_diarization: 
 
         # --- Milestone 2: Diarization Enrichment ---
         if enable_diarization:
-            self.update_state(
-                state="PROCESSING",
-                meta={"step": "transcript", "progress": 70, "message": "Analyzing speakers (Pyannote Diarization)..."}
-            )
             from app.services.diarization_service import DiarizationService
             diar_service = DiarizationService()
             if diar_service.is_available():
+                self.update_state(
+                    state="PROCESSING",
+                    meta={"step": "transcript", "progress": 95, "message": "Đang phân tách người nói (Pyannote Diarization)..."}
+                )
                 try:
                     job_service.log_task(job.id, "diarization", "running", "Running speaker diarization...")
                     diar_segments = diar_service.diarize(vocal_path)
@@ -594,6 +675,15 @@ def task_transcribe_step(self, video_id: int, user_id: int, enable_diarization: 
                 except Exception as de:
                     logger.warning(f"Diarization in task encountered error: {de}. Falling back to single speaker.")
                     job_service.log_task(job.id, "diarization", "failed", error_trace=str(de))
+
+        # Index dialogue segments into FAISS Vector Search (Source Audio Language)
+        try:
+            from app.services.faiss_vector_service import FaissVectorService
+            vec_service = FaissVectorService(db=db)
+            indexed_count = vec_service.index_video_segments(video_id=video_id)
+            logger.info(f"✅ [FAISS] Indexed {indexed_count} source transcript chunks for Video #{video_id}")
+        except Exception as faiss_err:
+            logger.warning(f"⚠️ [FAISS] Indexing failed for video #{video_id} on transcript: {faiss_err}")
 
         # Finalize step job
         from app.models.enums import JobStep
@@ -771,18 +861,46 @@ def task_translate_step(
         config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
         trans_model = model or (config.translation_model if config and config.translation_model else "nllb_200_1.3b")
 
+        from app.services.progress_broadcaster import publish_video_progress
+
+        init_msg = f"Bắt đầu dịch {len(segments)} câu sang {target_lang_clean.upper()}..."
         self.update_state(
             state="PROCESSING",
-            meta={"step": "translation", "progress": 30, "message": f"Translating {len(segments)} segments using {trans_model}..."}
+            meta={"step": "translation", "progress": 1, "message": init_msg}
+        )
+        publish_video_progress(
+            video_id=video_id,
+            step="translation",
+            progress=1,
+            message=init_msg
         )
 
-        translation_service = TranslationService()
+        def on_translate_progress(pct: int, current_count: int, total_count: int):
+            msg = f"Đang dịch: {pct}% ({current_count}/{total_count} câu) sang {target_lang_clean.upper()}..."
+            self.update_state(
+                state="PROCESSING",
+                meta={"step": "translation", "progress": pct, "message": msg}
+            )
+            publish_video_progress(
+                video_id=video_id,
+                step="translation",
+                progress=pct,
+                message=msg,
+                meta={"current_count": current_count, "total_count": total_count}
+            )
+            try:
+                job_service.update_job_status(job.id, JobStatus.PROCESSING, progress=pct, current_step=JobStep.TRANSLATION)
+            except Exception:
+                pass
+
+        translation_service = TranslationService(model_name=trans_model)
         translated_segments = translation_service.translate_document(
             segments=segments,
             glossary={},
             src_lang=nllb_src,
             tgt_lang=nllb_tgt,
             model=trans_model,
+            progress_callback=on_translate_progress,
         )
         try:
             translation_service.unload_model()
@@ -791,7 +909,7 @@ def task_translate_step(
 
         self.update_state(
             state="PROCESSING",
-            meta={"step": "translation", "progress": 70, "message": "Saving translated segments..."}
+            meta={"step": "translation", "progress": 95, "message": "Đang lưu trữ dữ liệu bản dịch và phụ đề..."}
         )
 
         canonical_dir.mkdir(parents=True, exist_ok=True)
@@ -808,26 +926,51 @@ def task_translate_step(
         # Persist translated segments to DB
         try:
             t_segs = db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).order_by(TranscriptSegment.sequence).all()
-            for idx, seg in enumerate(translated_segments):
-                if idx < len(t_segs):
-                    t_seg_id = t_segs[idx].id
-                    existing_ts = db.query(TranslationSegment).filter(
-                        TranslationSegment.transcript_segment_id == t_seg_id,
-                        TranslationSegment.target_language == target_lang_clean
-                    ).first()
-                    if existing_ts:
-                        existing_ts.translated_text = seg.get("translated_text", "")
-                        existing_ts.translation_model = trans_model
-                        existing_ts.updated_at = datetime.utcnow()
-                    else:
-                        db.add(TranslationSegment(
-                            transcript_segment_id=t_seg_id,
-                            target_language=target_lang_clean,
-                            translated_text=seg.get("translated_text", ""),
-                            translation_model=trans_model,
-                            created_at=datetime.utcnow(),
-                            updated_at=datetime.utcnow()
-                        ))
+            has_constituents = any("_constituent_indices" in s for s in translated_segments)
+            if has_constituents and t_segs:
+                for seg in translated_segments:
+                    text_val = seg.get("translated_text", "")
+                    for orig_idx in seg.get("_constituent_indices", []):
+                        if orig_idx < len(t_segs):
+                            t_seg_id = t_segs[orig_idx].id
+                            existing_ts = db.query(TranslationSegment).filter(
+                                TranslationSegment.transcript_segment_id == t_seg_id,
+                                TranslationSegment.target_language == target_lang_clean
+                            ).first()
+                            if existing_ts:
+                                existing_ts.translated_text = text_val
+                                existing_ts.translation_model = trans_model
+                                existing_ts.updated_at = datetime.utcnow()
+                            else:
+                                db.add(TranslationSegment(
+                                    transcript_segment_id=t_seg_id,
+                                    target_language=target_lang_clean,
+                                    translated_text=text_val,
+                                    translation_model=trans_model,
+                                    created_at=datetime.utcnow(),
+                                    updated_at=datetime.utcnow()
+                                ))
+            else:
+                for idx, seg in enumerate(translated_segments):
+                    if idx < len(t_segs):
+                        t_seg_id = t_segs[idx].id
+                        existing_ts = db.query(TranslationSegment).filter(
+                            TranslationSegment.transcript_segment_id == t_seg_id,
+                            TranslationSegment.target_language == target_lang_clean
+                        ).first()
+                        if existing_ts:
+                            existing_ts.translated_text = seg.get("translated_text", "")
+                            existing_ts.translation_model = trans_model
+                            existing_ts.updated_at = datetime.utcnow()
+                        else:
+                            db.add(TranslationSegment(
+                                transcript_segment_id=t_seg_id,
+                                target_language=target_lang_clean,
+                                translated_text=seg.get("translated_text", ""),
+                                translation_model=trans_model,
+                                created_at=datetime.utcnow(),
+                                updated_at=datetime.utcnow()
+                            ))
             db.flush()
         except Exception as dbe:
             logger.warning(f"Could not persist translation_segments to DB: {dbe}")
@@ -884,6 +1027,15 @@ def task_translate_step(
             logger.warning(f"Could not upload translation/subtitles to Object Storage: {s3_err}")
 
         job_service.log_task(job.id, "translation", "success", f"Translated {len(translated_segments)} segments into {target_lang_clean}")
+
+        # Index translated segments into FAISS Vector Search (Target Language)
+        try:
+            from app.services.faiss_vector_service import FaissVectorService
+            vec_service = FaissVectorService(db=db)
+            indexed_count = vec_service.index_video_segments(video_id=video_id)
+            logger.info(f"✅ [FAISS] Indexed {indexed_count} translated segments for Video #{video_id}")
+        except Exception as faiss_err:
+            logger.warning(f"⚠️ [FAISS] Indexing failed for video #{video_id} on translation: {faiss_err}")
 
         # Finalize step job
         job_service.update_job_status(
@@ -1061,10 +1213,37 @@ def task_generate_tts_step(
         tts_dir.mkdir(parents=True, exist_ok=True)
         tts_path = tts_dir / f"tts_{lang_clean}.wav"
 
+        config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
+        tts_model = config.tts_model if config and config.tts_model else "xtts_v2"
+        voice_id_str = str(speaker_id) if speaker_id is not None else None
+        if not voice_id_str and config and config.config_data:
+            cd = config.config_data if isinstance(config.config_data, dict) else {}
+            voice_id_str = cd.get("tts_dubbing", {}).get("voice_id")
+
         self.update_state(
             state="PROCESSING",
-            meta={"step": "tts", "progress": 25, "message": f"Synthesizing voice audio for {len(segments)} segments..."}
+            meta={"step": "tts", "progress": 1, "message": f"Bắt đầu tổng hợp giọng nói cho {len(segments)} câu ({tts_model})..."}
         )
+
+        from app.services.progress_broadcaster import publish_video_progress
+
+        def on_tts_progress(pct: int, current_count: int, total_count: int):
+            msg = f"Đang tạo giọng AI: {pct}% ({current_count}/{total_count} câu)..."
+            self.update_state(
+                state="PROCESSING",
+                meta={"step": "tts", "progress": pct, "message": msg}
+            )
+            publish_video_progress(
+                video_id=video_id,
+                step="tts",
+                progress=pct,
+                message=msg,
+                meta={"current_count": current_count, "total_count": total_count}
+            )
+            try:
+                job_service.update_job_status(job.id, JobStatus.PROCESSING, progress=pct, current_step=JobStep.TTS_GENERATE)
+            except Exception:
+                pass
 
         tts_service.generate_tts_with_alignment(
             segments=segments,
@@ -1072,7 +1251,10 @@ def task_generate_tts_step(
             temp_dir=str(tts_dir),
             vocal_path=vocal_path,
             tgt_lang=xtts_lang,
-            video_id=video_id
+            video_id=video_id,
+            voice_id=voice_id_str,
+            model=tts_model,
+            progress_callback=on_tts_progress
         )
 
         if not os.path.exists(tts_path):
@@ -1261,9 +1443,13 @@ def task_dub_mux_step(
 
         # Find original video file
         video_path = None
-        for file in UPLOAD_DIR.glob(f"{video_id}_*"):
-            video_path = str(file)
-            break
+        if video.original_path and os.path.exists(video.original_path):
+            video_path = video.original_path
+        else:
+            for file in sorted(UPLOAD_DIR.glob(f"{video_id}_*"), key=lambda f: f.stat().st_size, reverse=True):
+                if file.suffix.lower() in [".mp4", ".mov", ".avi", ".mkv", ".webm"] and file.stat().st_size > 1024:
+                    video_path = str(file)
+                    break
         if not video_path:
             raise ValueError(f"Original video file not found for video #{video_id}")
 
@@ -1381,11 +1567,37 @@ def task_dub_mux_step(
         output_path = str(OUTPUT_DIR / output_filename)
 
         audio_service = AudioService()
+        from app.services.progress_broadcaster import publish_video_progress
 
-        self.update_state(
-            state="PROCESSING",
-            meta={"step": "dub", "progress": 35, "message": "Rendering video with audio blending (FFmpeg)..."}
-        )
+        last_dub_pct = -1
+
+        def on_dub_progress(pct: int, msg: str):
+            nonlocal last_dub_pct
+            real_pct = max(1, min(99, pct))
+            if real_pct != last_dub_pct:
+                last_dub_pct = real_pct
+                self.update_state(
+                    state="PROCESSING",
+                    meta={"step": "dub", "progress": real_pct, "message": msg}
+                )
+                publish_video_progress(
+                    video_id=video_id,
+                    step="dub",
+                    progress=real_pct,
+                    message=msg
+                )
+                try:
+                    job_service.update_job_status(
+                        job.id,
+                        JobStatus.PROCESSING,
+                        progress=real_pct,
+                        current_step=JobStep.RENDER_VIDEO,
+                        is_full_pipeline=False
+                    )
+                except Exception:
+                    pass
+
+        on_dub_progress(30, "Đang kết hợp phụ đề và hiệu ứng hình ảnh (FFmpeg)...")
 
         with tempfile.TemporaryDirectory() as temp_dir:
             result = audio_service.mix_and_mux(
@@ -1397,17 +1609,20 @@ def task_dub_mux_step(
                 video_id=video_id,
                 language=lang_clean,
                 quality=quality,
-                generate_hls=True,
+                generate_hls=False,
                 subtitle_path=resolved_sub_path,
                 burn_subtitles=burn_subtitles,
                 aspect_ratio=final_aspect_ratio,
                 subtitle_mask=subtitle_mask,
                 overlay_config=overlay_config,
+                progress_callback=on_dub_progress,
             )
+
+        on_dub_progress(80, "Lưu thông tin video và chuẩn bị tệp xuất bản...")
 
         video.output_path = output_path
         video.status = VideoStatus.COMPLETED.value
-        video.current_step = "export"
+        video.current_step = "dub"
         video.progress = 100
 
         # Also register VideoRenderOutput for caching and download lookups (Upsert)
@@ -1444,6 +1659,7 @@ def task_dub_mux_step(
 
         # Upload final rendered video to Object Storage for multi-container durability
         try:
+            on_dub_progress(90, "Tải bản video master lên Cloud Storage...")
             from app.services.s3_service import storage_manager
             render_s3_key = f"videos/{video_id}/dubbed_{lang_clean}_{quality}_{video_format}.{video_format}"
             content_type = "video/mp4" if video_format.lower() == "mp4" else "video/quicktime"
@@ -1463,6 +1679,14 @@ def task_dub_mux_step(
             progress=100,
             current_step=JobStep.RENDER_VIDEO,
             is_full_pipeline=False
+        )
+
+        publish_video_progress(
+            video_id=video_id,
+            step="dub",
+            progress=100,
+            message="Xuất video lồng tiếng thành công!",
+            meta={"output_path": output_path, "status": "completed"}
         )
 
         # Release Redis lock
@@ -1523,6 +1747,200 @@ def task_dub_mux_step(
             db=db,
         )
 
+        raise
+
+
+@celery_app.task(bind=True, base=PipelineTask, name="task_generate_hls_stream",
+                 max_retries=1, soft_time_limit=3600, time_limit=4200)
+def task_generate_hls_stream(
+    self,
+    video_id: int,
+    user_id: int,
+    language: str = "vi",
+    qualities: Optional[List[str]] = None,
+    job_id: Optional[str] = None
+):
+    """
+    Dedicated Celery task for Step 6 (Review & Export):
+    Generates multi-bitrate HLS segments (240p, 360p, 720p, 1080p) and uploads to S3
+    with continuous granular telemetry reporting (Step: 'export').
+    """
+    db = self.db
+    job = None
+    lang_clean = (language or "vi").lower().strip()
+    qualities = qualities or ["240p", "360p", "720p", "1080p"]
+
+    try:
+        from app.services.job_service import JobService
+        from app.models.enums import JobStep, JobStatus
+        from app.services.progress_broadcaster import publish_video_progress
+        from app.services.hls_service import process_video_to_hls
+
+        job_service = JobService(db)
+        if job_id:
+            try:
+                job_uuid = uuid.UUID(job_id) if isinstance(job_id, str) else job_id
+                job = job_service.get_job(job_uuid)
+            except Exception as e:
+                logger.warning(f"Could not load job {job_id}: {e}")
+
+        if not job:
+            job = job_service.create_job(
+                video_id=video_id,
+                triggered_by=user_id,
+                config={
+                    "language": lang_clean,
+                    "qualities": qualities,
+                    "celery_task_id": self.request.id,
+                    "mode": "single_step",
+                    "step": "export"
+                },
+                step="export"
+            )
+        else:
+            job_cfg = job.config_json or {}
+            if isinstance(job_cfg, str):
+                try:
+                    job_cfg = json.loads(job_cfg)
+                except Exception:
+                    job_cfg = {}
+            job_cfg["celery_task_id"] = self.request.id
+            job_cfg["step"] = "export"
+            job.config_json = job_cfg
+            job.status = JobStatus.PROCESSING.value
+            job.current_step = "export"
+            db.commit()
+
+        video = db.query(Video).filter(Video.id == video_id).first()
+        if not video:
+            raise ValueError(f"Video #{video_id} not found")
+
+        # Find rendered output path or fallback to original path
+        target_video_path = video.output_path
+        if not target_video_path or not os.path.exists(target_video_path):
+            target_video_path = video.original_path
+
+        if not target_video_path or not os.path.exists(target_video_path):
+            raise FileNotFoundError(f"Video file not found on disk for HLS processing: {target_video_path}")
+
+        last_reported_pct = -1
+
+        def on_hls_progress(pct: int, msg: str):
+            nonlocal last_reported_pct
+            real_pct = max(1, min(99, pct))
+            if real_pct != last_reported_pct:
+                last_reported_pct = real_pct
+                self.update_state(
+                    state="PROCESSING",
+                    meta={"step": "export", "progress": real_pct, "message": msg}
+                )
+                publish_video_progress(
+                    video_id=video_id,
+                    step="export",
+                    progress=real_pct,
+                    message=msg
+                )
+                try:
+                    job_service.update_job_status(
+                        job.id,
+                        JobStatus.PROCESSING,
+                        progress=real_pct,
+                        current_step=JobStep.HLS_CONVERT,
+                        is_full_pipeline=False
+                    )
+                except Exception:
+                    pass
+
+        on_hls_progress(5, "Khởi tạo tiến trình mã hóa HLS đa luồng độ phân giải...")
+
+        hls_result = process_video_to_hls(
+            input_path=target_video_path,
+            video_id=video_id,
+            language=lang_clean,
+            qualities=qualities,
+            progress_callback=on_hls_progress
+        )
+
+        video.has_hls = True
+        video.current_step = "export"
+        db.commit()
+
+        master_playlist = hls_result.get("master_playlist_s3")
+        segment_count = hls_result.get("segment_count", 0)
+
+        # Finalize step job
+        job_service.update_job_status(
+            job.id,
+            JobStatus.COMPLETED,
+            progress=100,
+            current_step=JobStep.HLS_CONVERT,
+            is_full_pipeline=False
+        )
+
+        publish_video_progress(
+            video_id=video_id,
+            step="export",
+            progress=100,
+            message="Tạo luồng phát trực tuyến HLS thành công!",
+            meta={"master_playlist": master_playlist, "segment_count": segment_count}
+        )
+
+        # Release Redis lock
+        try:
+            from app.core.config import REDIS_URL
+            import redis
+            r = redis.Redis.from_url(REDIS_URL)
+            r.delete(f"lock:video:{video_id}:step:export")
+        except Exception:
+            pass
+
+        _send_task_notification(
+            user_id=user_id,
+            video_id=video_id,
+            title=f"Tối ưu hóa phát trực tuyến HLS hoàn tất (Video #{video_id})",
+            message=f"Đã xuất bản {segment_count} phân đoạn HLS đa độ phân giải ({', '.join(qualities)}).",
+            step="export",
+            status="completed",
+            language=lang_clean,
+            db=db,
+        )
+
+        return {
+            "status": "completed",
+            "video_id": video_id,
+            "job_id": str(job.id),
+            "step": "export",
+            "master_playlist": master_playlist,
+            "segment_count": segment_count,
+            "message": "HLS streaming generation completed successfully"
+        }
+    except Exception as e:
+        error_msg = str(e)
+        logger.exception(f"task_generate_hls_stream failed for video {video_id}: {error_msg}")
+        try:
+            if job:
+                job_service.update_job_status(job.id, JobStatus.FAILED, error_message=error_msg, is_full_pipeline=False)
+        except Exception:
+            pass
+        try:
+            from app.core.config import REDIS_URL
+            import redis
+            r = redis.Redis.from_url(REDIS_URL)
+            r.delete(f"lock:video:{video_id}:step:export")
+        except Exception:
+            pass
+
+        _send_task_notification(
+            user_id=user_id,
+            video_id=video_id,
+            title=f"Mã hóa HLS thất bại (Video #{video_id})",
+            message=f"Tạo luồng phát trực tuyến cho video #{video_id} thất bại: {error_msg[:120]}",
+            step="export",
+            status="failed",
+            error=error_msg,
+            language=lang_clean,
+            db=db,
+        )
         raise
 
 
@@ -1870,8 +2288,18 @@ def task_process_batch_job(self, batch_id: str, user_id: int):
             finally:
                 conn.close()
 
-        # Update batch progress in Celery state
-        curr_progress = round(((completed_count + failed_count) / total_videos) * 100) if total_videos > 0 else 0
+        # Update batch progress in Celery state using real-time item completion
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COALESCE(AVG(progress), 0) FROM batch_job_items WHERE batch_id = %s;", (batch_id,))
+                row = cur.fetchone()
+                curr_progress = round(float(row[0])) if row else round(((completed_count + failed_count) / total_videos) * 100)
+        except Exception:
+            curr_progress = round(((completed_count + failed_count) / total_videos) * 100) if total_videos > 0 else 0
+        finally:
+            conn.close()
+
         self.update_state(
             state="PROCESSING",
             meta={

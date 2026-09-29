@@ -2,10 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import {
   CheckCircle2,
   HardDrive,
-  MessageSquare,
   Send,
   ShieldAlert,
-  Users,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "../../../lib/toast";
@@ -348,94 +346,6 @@ export default function NotificationsSection() {
           </div>
         </SettingCard>
 
-        {/* =====================================================
-            3. TEAM & COLLABORATION
-        ====================================================== */}
-        <SettingCard
-          title={t("notifications:preferences.collaborationGroup", "Projects & Collaboration")}
-          description={t(
-            "notifications:preferences.collaborationGroupDesc",
-            "Notifications regarding team invitations, shared workspaces, and video comments."
-          )}
-        >
-          <div className="divide-y divide-[var(--color-border)]/60">
-            {/* Project Invitation */}
-            <div className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400">
-                  <Users size={16} />
-                </div>
-                <div>
-                  <h4 className="text-xs sm:text-sm font-bold text-[var(--color-text-primary)]">
-                    {t("notifications:preferences.projectInvitation", "Project Invitation")}
-                  </h4>
-                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-                    {t(
-                      "notifications:preferences.projectInvitationDesc",
-                      "Notify when team members invite you to collaborate on a video project."
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 shrink-0 sm:pl-4">
-                <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)] cursor-pointer">
-                  <span>{t("notifications:preferences.inAppChannel", "In-App")}</span>
-                  <Toggle
-                    checked={preferences.inapp_on_project_invitation}
-                    onChange={(val) => handleToggle("inapp_on_project_invitation", val)}
-                  />
-                </label>
-
-                <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)] cursor-pointer">
-                  <span>{t("notifications:preferences.emailChannel", "Email")}</span>
-                  <Toggle
-                    checked={preferences.email_on_project_invitation}
-                    onChange={(val) => handleToggle("email_on_project_invitation", val)}
-                  />
-                </label>
-              </div>
-            </div>
-
-            {/* Comment Mention */}
-            <div className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400">
-                  <MessageSquare size={16} />
-                </div>
-                <div>
-                  <h4 className="text-xs sm:text-sm font-bold text-[var(--color-text-primary)]">
-                    {t("notifications:preferences.commentMention", "Timeline Review Comments & Mentions")}
-                  </h4>
-                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-                    {t(
-                      "notifications:preferences.commentMentionDesc",
-                      "Notify when collaborators leave timecoded feedback or mention your account."
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 shrink-0 sm:pl-4">
-                <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)] cursor-pointer">
-                  <span>{t("notifications:preferences.inAppChannel", "In-App")}</span>
-                  <Toggle
-                    checked={preferences.inapp_on_comment_mention}
-                    onChange={(val) => handleToggle("inapp_on_comment_mention", val)}
-                  />
-                </label>
-
-                <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)] cursor-pointer">
-                  <span>{t("notifications:preferences.emailChannel", "Email")}</span>
-                  <Toggle
-                    checked={preferences.email_on_comment_mention}
-                    onChange={(val) => handleToggle("email_on_comment_mention", val)}
-                  />
-                </label>
-              </div>
-            </div>
-          </div>
-        </SettingCard>
       </div>
     </div>
   );

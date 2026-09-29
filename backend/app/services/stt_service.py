@@ -1,7 +1,23 @@
 import os
 import gc
-from faster_whisper import WhisperModel
+import ctypes
 import torch
+
+# Ensure NVIDIA cuBLAS and CUDA libraries are dynamically linked for CTranslate2 / Faster-Whisper
+for _lib_path in [
+    '/usr/local/lib/python3.12/site-packages/nvidia/cublas/lib',
+    '/usr/local/lib/python3.12/site-packages/nvidia/cudnn/lib',
+    '/usr/local/lib/python3.12/site-packages/nvidia/cuda_runtime/lib',
+]:
+    if os.path.exists(_lib_path):
+        for _f in sorted(os.listdir(_lib_path)):
+            if _f.endswith('.so') or '.so.' in _f:
+                try:
+                    ctypes.CDLL(os.path.join(_lib_path, _f))
+                except Exception:
+                    pass
+
+from faster_whisper import WhisperModel
 
 _model_cache = {}
 
@@ -15,7 +31,35 @@ def unload_whisper_models():
     print("[STT] 🧹 Đã giải phóng bộ nhớ Faster-Whisper khỏi VRAM.", flush=True)
 
 class STTService:
-    def __init__(self, model_size="small"):
+    def __init__(self, model_size=None):
+        raw_model = (model_size or os.getenv("WHISPER_MODEL", "small")).strip().lower()
+        # Normalization mapping for common UI/DB codes
+        model_map = {
+            "whisper_tiny": "tiny",
+            "whisper-tiny": "tiny",
+            "tiny": "tiny",
+            "whisper_base": "base",
+            "whisper-base": "base",
+            "base": "base",
+            "whisper_small": "small",
+            "whisper-small": "small",
+            "small": "small",
+            "whisper_medium": "medium",
+            "whisper-medium": "medium",
+            "medium": "medium",
+            "whisper_large": "large-v3",
+            "whisper-large": "large-v3",
+            "whisper_large_v3": "large-v3",
+            "whisper-large-v3": "large-v3",
+            "whisperx_large_v3": "large-v3",
+            "whisperx-large-v3": "large-v3",
+            "whisper_turbo": "turbo",
+            "whisper-turbo": "turbo",
+            "turbo": "turbo",
+        }
+        normalized_model = model_map.get(raw_model, raw_model)
+        model_size = normalized_model
+
         # Auto-detect CUDA
         env_device = os.getenv("WHISPER_DEVICE")
         cuda_available = torch.cuda.is_available()
@@ -69,28 +113,81 @@ class STTService:
                 )
                 _model_cache[fallback_key] = self.model
 
-    def transcribe_audio(self, audio_path: str):
+    def transcribe_audio(self, audio_path: str, progress_callback=None):
         """
         Chạy nhận diện giọng nói trên file Vocal sạch.
         Trả về danh sách câu (có mốc start/end) và ngôn ngữ tự động phát hiện được.
+        Hỗ trợ fallback tự động xử lý chuẩn hóa audio nếu gặp sự cố giải mã PyAV/avcodec.
+        Hỗ trợ progress_callback(progress_percent, current_timestamp, total_duration) để cập nhật tiến độ thời gian thực.
         """
-        segments, info = self.model.transcribe(
-            audio_path, 
-            beam_size=5, 
-            vad_filter=True,
-            language=None,
-            condition_on_previous_text=False,
-            temperature=0.0,
-            patience=1.0
-        )
-        detected_iso_lang = info.language
-        
-        result = []
-        for segment in segments:
-            result.append({
-                "start": segment.start,
-                "end": segment.end,
-                "text": segment.text.strip(),
-                "duration": segment.end - segment.start
-            })
-        return result, detected_iso_lang
+        def _get_audio_duration(file_path: str) -> float:
+            try:
+                import subprocess
+                cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file_path]
+                res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, check=True)
+                return max(0.1, float(res.stdout.strip()))
+            except Exception:
+                return 0.0
+
+        total_audio_duration = _get_audio_duration(audio_path)
+
+        def _run_transcription(path_to_transcribe):
+            nonlocal total_audio_duration
+            if total_audio_duration <= 0.0 and path_to_transcribe != audio_path:
+                total_audio_duration = _get_audio_duration(path_to_transcribe)
+
+            segments, info = self.model.transcribe(
+                path_to_transcribe, 
+                beam_size=5, 
+                vad_filter=True,
+                language=None,
+                condition_on_previous_text=False,
+                temperature=0.0,
+                patience=1.0
+            )
+            detected_iso_lang = info.language
+            result = []
+            audio_dur = total_audio_duration if total_audio_duration > 0.0 else getattr(info, "duration", 0.0)
+
+            for segment in segments:
+                seg_dict = {
+                    "start": segment.start,
+                    "end": segment.end,
+                    "text": segment.text.strip(),
+                    "duration": segment.end - segment.start
+                }
+                result.append(seg_dict)
+                if progress_callback and audio_dur > 0:
+                    pct = min(100, int((segment.end / audio_dur) * 100))
+                    try:
+                        progress_callback(pct, segment.end, audio_dur)
+                    except Exception as cb_err:
+                        print(f"[STT] ⚠️ Progress callback warning: {cb_err}", flush=True)
+
+            return result, detected_iso_lang
+
+        try:
+            return _run_transcription(audio_path)
+        except Exception as err:
+            err_str = str(err).lower()
+            if "avcodec" in err_str or "invalid argument" in err_str or "decode" in err_str:
+                import subprocess
+                import tempfile
+                print(f"[STT] ⚠️ Gặp sự cố giải mã audio PyAV ({err}), đang chuẩn hóa lại sang 16kHz mono WAV...", flush=True)
+                clean_tmp = tempfile.NamedTemporaryFile(suffix="_stt_norm.wav", delete=False)
+                clean_tmp.close()
+                try:
+                    subprocess.run(
+                        ["ffmpeg", "-y", "-i", audio_path, "-vn", "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", clean_tmp.name],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        check=True
+                    )
+                    return _run_transcription(clean_tmp.name)
+                finally:
+                    if os.path.exists(clean_tmp.name):
+                        try:
+                            os.remove(clean_tmp.name)
+                        except Exception:
+                            pass
+            raise

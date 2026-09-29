@@ -336,6 +336,7 @@ def test_preference_suppresses_in_app_notification():
 # =========================================================
 
 def test_project_invitation_event_hook():
+    # Per Issue 7: Project collaboration events are decommissioned from notifications.
     # 1. User 1 creates a project
     proj = create_project(
         owner_id=USER_1_ID,
@@ -352,7 +353,7 @@ def test_project_invitation_event_hook():
         role="editor",
     )
 
-    # 3. User 2 checks notifications
+    # 3. User 2 checks notifications: collaboration notifications must NOT be created
     res = client.get("/api/notifications?type=collaboration", headers=headers_user_2)
     assert res.status_code == 200
     data = res.json()
@@ -360,11 +361,7 @@ def test_project_invitation_event_hook():
         n for n in data["items"]
         if n["target_type"] == "project" and n["target_id"] == proj_id
     ]
-    assert len(invitation_notifs) >= 1
-    invited_notif = invitation_notifs[0]
-    assert invited_notif["title"] == "Project Invitation"
-    assert "invited you to project" in invited_notif["message"]
-    assert invited_notif["action_url"] == f"/workspace/project/{proj_id}"
+    assert len(invitation_notifs) == 0
 
 
 # =========================================================

@@ -105,7 +105,7 @@ class FaissVectorService:
             logger.warning(f"[FAISS] Video {video_id} not found for indexing.")
             return 0
 
-        project_id = video.get("project_id") or 0
+        project_id = getattr(video, "project_id", None) or (video.get("project_id") if isinstance(video, dict) else 0) or 0
 
         # Query all transcript segments and join with translated/edited segments
         with get_db_cursor() as cur:
@@ -191,6 +191,7 @@ class FaissVectorService:
                     ))
         except Exception as e:
             logger.error(f"[FAISS] Failed to persist video_embeddings to DB: {e}")
+            raise
 
         # 3. Update FAISS Index File for Project
         if FAISS_AVAILABLE:
@@ -198,49 +199,72 @@ class FaissVectorService:
                 self._update_faiss_project_index(project_id, embeddings, metadata_list)
             except Exception as e:
                 logger.error(f"[FAISS] Failed to update FAISS index for project {project_id}: {e}")
+                raise
 
         logger.info(f"[FAISS] ✅ Indexed {len(chunk_texts)} dual-language chunks for video #{video_id} (Project #{project_id})")
         return len(chunk_texts)
 
     def _update_faiss_project_index(self, project_id: int, new_embeddings: np.ndarray, new_metas: List[Dict[str, Any]]):
-        """Loads or creates a FAISS index, updates it with new vectors, and saves to disk."""
+        """
+        Loads or rebuilds the FAISS index from the authoritative database state.
+        Guarantees that index vector count and metadata array length remain strictly 1:1 synchronized.
+        """
         idx_path = self._get_project_index_path(project_id)
         meta_path = self._get_project_meta_path(project_id)
 
         dim = new_embeddings.shape[1]
-        metas = []
 
-        if idx_path.exists() and meta_path.exists():
-            try:
-                index = faiss.read_index(str(idx_path))
-                with open(meta_path, "r", encoding="utf-8") as f:
-                    metas = json.load(f)
-            except Exception as e:
-                logger.warning(f"[FAISS] Corrupt index or meta for project {project_id}, creating fresh: {e}")
-                index = faiss.IndexFlatIP(dim)
-                metas = []
-        else:
-            # Inner Product on normalized vectors = Cosine Similarity
+        # Rebuild project index authoritatively from database video_embeddings
+        all_project_chunks = []
+        all_project_metas = []
+
+        try:
+            with get_db_cursor() as cur:
+                cur.execute("""
+                    SELECT ve.video_id, ve.transcript_segment_id, ve.vector_id, ve.chunk_text, ve.start_time, ve.end_time,
+                           ts.original_text, tr.translated_text
+                    FROM video_embeddings ve
+                    JOIN videos v ON ve.video_id = v.id
+                    LEFT JOIN transcript_segments ts ON ve.transcript_segment_id = ts.id
+                    LEFT JOIN translation_segments tr ON ts.id = tr.transcript_segment_id
+                    WHERE v.project_id = %s
+                    ORDER BY ve.video_id ASC, ve.start_time ASC;
+                """, (project_id,))
+                rows = cur.fetchall()
+
+            for r in rows:
+                vid, seg_id, vec_id, chunk_txt, st, et, orig_txt, trans_txt = r
+                all_project_chunks.append(chunk_txt)
+                all_project_metas.append({
+                    "vector_id": vec_id,
+                    "video_id": vid,
+                    "project_id": project_id,
+                    "segment_id": seg_id,
+                    "start_time": float(st or 0.0),
+                    "end_time": float(et or 0.0),
+                    "original_text": orig_txt or "",
+                    "translated_text": trans_txt or "",
+                    "chunk_text": chunk_txt
+                })
+        except Exception as qe:
+            logger.warning(f"[FAISS] Could not query project embeddings from DB ({qe}), falling back to direct update.")
+            all_project_chunks = []
+
+        if all_project_chunks:
+            project_embeddings = self.embed_texts(all_project_chunks)
             index = faiss.IndexFlatIP(dim)
-
-        # Filter out old items with same video_id from metadata if re-indexing
-        vid = new_metas[0]["video_id"] if new_metas else None
-        if vid is not None and metas:
-            filtered_metas = [m for m in metas if m.get("video_id") != vid]
-            # If vectors need rebuild
-            if len(filtered_metas) != len(metas):
-                logger.info(f"[FAISS] Rebuilding project #{project_id} index without old video #{vid} vectors")
-                # Re-extract all chunks and vectors from DB for this project
-                # To be simple and robust, add new directly or write updated index
-                metas = filtered_metas
-
-        # Add vectors
-        index.add(new_embeddings)
-        metas.extend(new_metas)
-
-        faiss.write_index(index, str(idx_path))
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(metas, f, ensure_ascii=False)
+            index.add(project_embeddings)
+            faiss.write_index(index, str(idx_path))
+            with open(meta_path, "w", encoding="utf-8") as f:
+                json.dump(all_project_metas, f, ensure_ascii=False)
+            logger.info(f"[FAISS] Synchronized project #{project_id} FAISS index: {len(all_project_metas)} items.")
+        else:
+            # Fallback if DB query returned empty (e.g., project_id=0 or non-relational video)
+            index = faiss.IndexFlatIP(dim)
+            index.add(new_embeddings)
+            faiss.write_index(index, str(idx_path))
+            with open(meta_path, "w", encoding="utf-8") as f:
+                json.dump(new_metas, f, ensure_ascii=False)
 
     def search_semantic(
         self,

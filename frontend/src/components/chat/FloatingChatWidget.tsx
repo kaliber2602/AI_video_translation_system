@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { videoService } from "../../services/video.service";
+import { getUserIdFromToken } from "../../services/api/token";
 
 interface Citation {
   project_id?: number;
@@ -46,8 +47,6 @@ interface ChatSession {
   updatedAt: string;
 }
 
-const STORAGE_KEY = "vidnova_chat_sessions";
-
 export default function FloatingChatWidget() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -76,10 +75,23 @@ export default function FloatingChatWidget() {
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Load sessions from localStorage
+  // Compute isolated storage key per user and context to avoid cross-project/workspace leaking
+  const getStorageKey = (): string => {
+    const userId = getUserIdFromToken() || "anonymous";
+    if (activeVideoId) {
+      return `vidnova_chat_sessions_u${userId}_v${activeVideoId}`;
+    }
+    if (selectedProjectId) {
+      return `vidnova_chat_sessions_u${userId}_p${selectedProjectId}`;
+    }
+    return `vidnova_chat_sessions_u${userId}_global`;
+  };
+
+  // Load sessions from scoped localStorage
   const loadStoredSessions = (): ChatSession[] => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const key = getStorageKey();
+      const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -92,7 +104,8 @@ export default function FloatingChatWidget() {
 
   const saveSessionsToStorage = (updatedSessions: ChatSession[]) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedSessions));
+      const key = getStorageKey();
+      localStorage.setItem(key, JSON.stringify(updatedSessions));
     } catch (e) {
       console.warn("Failed to save chat sessions to localStorage:", e);
     }
@@ -110,22 +123,24 @@ export default function FloatingChatWidget() {
     const projMatch = location.pathname.match(/\/project\/(\d+)/);
     if (projMatch && projMatch[1]) {
       setSelectedProjectId(Number(projMatch[1]));
+    } else {
+      setSelectedProjectId(null);
     }
   }, [location.pathname]);
 
-  // Initialize or restore session when chat widget opens
+  // Initialize or restore session when chat widget opens or context changes
   useEffect(() => {
     if (!isOpen) return;
 
     const stored = loadStoredSessions();
     if (stored.length > 0) {
       setSessions(stored);
-      // If no active session or current active session is not in stored, pick the most recent
       if (!activeSessionId || !stored.find((s) => s.id === activeSessionId)) {
         setActiveSessionId(stored[0].id);
       }
     } else {
-      // Create initial session
+      // Create initial context-specific session
+      setSessions([]);
       createNewSession(activeVideoId, selectedProjectId);
     }
   }, [isOpen, activeVideoId, selectedProjectId]);
@@ -193,7 +208,8 @@ export default function FloatingChatWidget() {
         console.warn("Error clearing backend chat history:", err);
       }
     }
-    localStorage.removeItem(STORAGE_KEY);
+    const key = getStorageKey();
+    localStorage.removeItem(key);
     setSessions([]);
     createNewSession();
   };

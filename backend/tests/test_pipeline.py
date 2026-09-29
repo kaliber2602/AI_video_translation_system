@@ -16,12 +16,12 @@ def test_process_video_translation_orchestrates_pipeline(monkeypatch, tmp_path):
             calls.append("mix_and_mux")
 
     class STT:
-        def transcribe_audio(self, vocal):
+        def transcribe_audio(self, vocal, *args, **kwargs):
             calls.append("transcribe_audio")
             return [{"start": 0.0, "end": 2.0, "text": "Hello"}], "en"
 
     class Translation:
-        def translate_document(self, segments, glossary, src_lang, tgt_lang):
+        def translate_document(self, segments, glossary, src_lang, tgt_lang, **kwargs):
             calls.append(("translate_document", src_lang, tgt_lang))
             segments[0]["translated_text"] = "Xin chao"
             return segments
@@ -66,11 +66,11 @@ def test_pipeline_language_mapping(monkeypatch, tmp_path):
         def mix_and_mux(self, *args): pass
 
     class STT:
-        def transcribe_audio(self, path):
+        def transcribe_audio(self, path, *args, **kwargs):
             return [{"start": 0.0, "end": 1.0, "text": "Hello"}], "en"
 
     class Translation:
-        def translate_document(self, segments, glossary, src_lang, tgt_lang):
+        def translate_document(self, segments, glossary, src_lang, tgt_lang, **kwargs):
             captured["src"] = src_lang
             captured["tgt"] = tgt_lang
             return segments

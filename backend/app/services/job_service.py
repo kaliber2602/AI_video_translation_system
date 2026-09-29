@@ -118,6 +118,28 @@ class JobService:
                 video.status = VideoStatus.PROCESSING.value
             
             self.db.commit()
+
+            # Sync granular item progress to batch_job_items if this job was spawned by a batch
+            batch_item_id = config.get("batch_item_id")
+            if batch_item_id:
+                try:
+                    from app.core.database import get_connection
+                    b_conn = get_connection()
+                    with b_conn.cursor() as b_cur:
+                        item_progress = 100 if status == JobStatus.COMPLETED else (progress or 0)
+                        item_status = "completed" if status == JobStatus.COMPLETED else ("failed" if status == JobStatus.FAILED else "processing")
+                        b_cur.execute(
+                            """
+                            UPDATE batch_job_items
+                            SET progress = %s, status = %s, updated_at = NOW()
+                            WHERE id = %s;
+                            """,
+                            (item_progress, item_status, batch_item_id),
+                        )
+                        b_conn.commit()
+                    b_conn.close()
+                except Exception:
+                    pass
         
         return job
 

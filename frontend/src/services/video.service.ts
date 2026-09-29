@@ -675,7 +675,7 @@ export const videoService = {
     try {
       const response = await api.get(
         `/api/videos/${videoId}/dub/${language}/download?format=mp4&preview=true&quality=${encodeURIComponent(quality)}`,
-        { timeout: 3500 }
+        { timeout: 8000 }
       );
       const data = response.data;
 
@@ -683,7 +683,7 @@ export const videoService = {
         return data.url;
       }
     } catch (e) {
-      console.warn("Could not get presigned preview URL, falling back to stream endpoint:", e);
+      console.debug("Presigned URL lookup skipped, streaming via direct stream endpoint");
     }
 
     return this.getVideoStreamUrl(videoId, "output");
@@ -748,6 +748,22 @@ export const videoService = {
 
     const blobRes = await api.get<Blob>(url, { responseType: "blob", timeout: 600000 });
     return blobRes.data;
+  },
+
+  async downloadAllAssetsZip(videoId: number): Promise<Blob> {
+    const response = await api.get<Blob>(`/api/videos/${videoId}/export-zip`, {
+      responseType: "blob",
+      timeout: 600000,
+    });
+    return response.data;
+  },
+
+  async generateHlsStream(videoId: number, language?: string, qualities?: string[]) {
+    const response = await api.post(`/api/videos/${videoId}/generate-hls`, {
+      language,
+      qualities: qualities || ["240p", "360p", "720p", "1080p"],
+    });
+    return response.data;
   },
 
   // =========================================================

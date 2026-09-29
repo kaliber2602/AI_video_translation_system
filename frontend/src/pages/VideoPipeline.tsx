@@ -623,7 +623,6 @@ function VideoPipelineContent() {
         active_step: stepNum,
         current_step: activeStep,
         target_language: state.targetLanguage,
-        progress: progress,
       });
 
       console.log("💾 [SNAPSHOT API RESPONSE]", res);
@@ -1242,10 +1241,11 @@ function VideoPipelineContent() {
   );
 }
 
-// Main export - wraps with PipelineProvider
+// Main export - wraps with PipelineProvider with unique key per video to prevent state leaking
 export default function VideoPipeline() {
+  const { videoId } = useParams();
   return (
-    <PipelineProvider>
+    <PipelineProvider key={videoId || "new"}>
       <VideoPipelineContent />
     </PipelineProvider>
   );

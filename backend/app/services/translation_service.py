@@ -1,40 +1,68 @@
+import os
 import re
 import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
+_nllb_cache = {}
+
 class TranslationService:
-    def __init__(self):
-        print("[Translate] Đang khởi tạo NLLB-1.3B...", flush=True)
-        model_name = "facebook/nllb-200-1.3B"
+    def __init__(self, model_name=None):
+        raw_model = (model_name or os.getenv("TRANSLATION_MODEL", "nllb_200_1.3b")).strip().lower()
+        model_map = {
+            "nllb_200_1.3b": "facebook/nllb-200-1.3B",
+            "nllb-200-1.3b": "facebook/nllb-200-1.3B",
+            "1.3b": "facebook/nllb-200-1.3B",
+            "facebook/nllb-200-1.3b": "facebook/nllb-200-1.3B",
+            "nllb_200_3.3b": "facebook/nllb-200-3.3B",
+            "nllb-200-3.3b": "facebook/nllb-200-3.3B",
+            "3.3b": "facebook/nllb-200-3.3B",
+            "facebook/nllb-200-3.3b": "facebook/nllb-200-3.3B",
+            "nllb_200_distilled_600m": "facebook/nllb-200-distilled-600M",
+            "nllb-200-distilled-600m": "facebook/nllb-200-distilled-600M",
+            "600m": "facebook/nllb-200-distilled-600M",
+        }
+        self.hf_model_name = model_map.get(raw_model, raw_model if "/" in raw_model else "facebook/nllb-200-1.3B")
+        self.current_model_code = raw_model
         
         # Auto-detect CUDA
         cuda_available = torch.cuda.is_available()
         self.device = "cuda" if cuda_available else "cpu"
         
+        cache_key = f"{self.hf_model_name}_{self.device}"
+        if cache_key in _nllb_cache:
+            print(f"[Translate] ⚡ Reusing cached translation model ({cache_key})", flush=True)
+            self.tokenizer, self.model = _nllb_cache[cache_key]
+            return
+
+        print(f"[Translate] Đang khởi tạo NLLB ({self.hf_model_name}) trên {self.device.upper()}...", flush=True)
         if cuda_available:
             print(f"[Translate] ✅ CUDA detected, using GPU", flush=True)
         else:
             print(f"[Translate] ⚠️ CUDA not detected, using CPU", flush=True)
         
         try:
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.tokenizer = AutoTokenizer.from_pretrained(self.hf_model_name)
             self.model = AutoModelForSeq2SeqLM.from_pretrained(
-                model_name,
+                self.hf_model_name,
                 torch_dtype=torch.float16 if cuda_available else torch.float32
             ).to(self.device)
             print(f"[Translate] ✅ Model loaded successfully on {self.device.upper()}", flush=True)
+            _nllb_cache[cache_key] = (self.tokenizer, self.model)
         except Exception as e:
             print(f"[Translate] ❌ Failed to load on {self.device}: {e}", flush=True)
             print("[Translate] 🔄 Falling back to CPU with float32...", flush=True)
             self.device = "cpu"
             self.model = AutoModelForSeq2SeqLM.from_pretrained(
-                model_name,
+                self.hf_model_name,
                 torch_dtype=torch.float32
             ).to(self.device)
             print(f"[Translate] ✅ Model loaded on CPU", flush=True)
+            _nllb_cache[f"{self.hf_model_name}_cpu"] = (self.tokenizer, self.model)
 
     def unload_model(self):
         """Giải phóng mô hình NLLB khỏi VRAM và dọn dẹp bộ nhớ đệm PyTorch."""
+        global _nllb_cache
+        _nllb_cache.clear()
         if hasattr(self, "model") and self.model is not None:
             del self.model
             self.model = None
@@ -75,6 +103,7 @@ class TranslationService:
         
         current_merge = segments[0].copy()
         current_merge["text"] = current_merge["text"].strip()
+        current_merge["_constituent_indices"] = [0]
         
         ending_punctuations = ('.', '?', '!', '。', '？', '！', '…')
         
@@ -94,14 +123,16 @@ class TranslationService:
                 merged_segments.append(current_merge)
                 current_merge = next_seg.copy()
                 current_merge["text"] = current_merge["text"].strip()
+                current_merge["_constituent_indices"] = [i]
             else:
                 current_merge["text"] += " " + next_text
                 current_merge["end"] = next_seg["end"]
+                current_merge["_constituent_indices"].append(i)
                 
         merged_segments.append(current_merge)
         return merged_segments
 
-    def translate_document(self, segments: list, glossary: dict, src_lang: str, tgt_lang: str, model: str = "nllb_200_1.3b"):
+    def translate_document(self, segments: list, glossary: dict, src_lang: str, tgt_lang: str, model: str = "nllb_200_1.3b", progress_callback=None):
         if not segments:
             return []
             
@@ -109,6 +140,11 @@ class TranslationService:
             print(f"[Translate] Ngôn ngữ trùng khớp ({src_lang}), bỏ qua dịch.", flush=True)
             for seg in segments:
                 seg["translated_text"] = seg["text"]
+            if progress_callback:
+                try:
+                    progress_callback(100, len(segments), len(segments))
+                except Exception:
+                    pass
             return segments
             
         print(f"[Translate] Dịch {len(segments)} segments ({src_lang} -> {tgt_lang}) sử dụng model: {model}", flush=True)
@@ -120,8 +156,10 @@ class TranslationService:
         
         # Auto-adjust batch size based on device (8 on CUDA for high throughput on 8GB VRAM)
         batch_size = 8 if self.device == "cuda" else 2
+        total_items = len(merged_segments)
+        processed_count = 0
         
-        for i in range(0, len(merged_segments), batch_size):
+        for i in range(0, total_items, batch_size):
             batch = merged_segments[i:i + batch_size]
             
             masked_texts = []
@@ -150,5 +188,13 @@ class TranslationService:
             for j, seg in enumerate(batch):
                 final_text = self.unmask_keywords(decoded_batch[j], mappings[j])
                 seg["translated_text"] = final_text
+                
+            processed_count += len(batch)
+            if progress_callback and total_items > 0:
+                pct = min(100, int((processed_count / total_items) * 100))
+                try:
+                    progress_callback(pct, processed_count, total_items)
+                except Exception as cb_err:
+                    print(f"[Translate] ⚠️ Progress callback error: {cb_err}", flush=True)
                 
         return merged_segments

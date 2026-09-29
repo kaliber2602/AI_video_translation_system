@@ -29,6 +29,7 @@ import {
   deleteProjectAsset,
   bulkDeleteProjectAssets,
 } from "../../services/project.service";
+import { getAccessToken } from "../../services/api/token";
 import type {
   ProjectAssetItem,
   ProjectAssetsResponse,
@@ -214,6 +215,18 @@ export default function ProjectAssetExplorer({
     if (!asset) return "0 B";
     if (asset.size_display) return asset.size_display;
     return formatBytes(asset.size_bytes || 0);
+  };
+
+  const getAuthenticatedAssetUrl = (url?: string | null): string => {
+    if (!url) return "";
+    const token = getAccessToken();
+    if (!token) return url;
+    // If it's already an external absolute URL (e.g. S3 presigned), return as is
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      return url;
+    }
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}token=${encodeURIComponent(token)}`;
   };
 
   const totalStorageDisplay = data ? formatBytes(data.total_size_bytes) : "0 B";
@@ -554,7 +567,7 @@ export default function ProjectAssetExplorer({
                         {/* Download button */}
                         {asset.download_url ? (
                           <a
-                            href={asset.download_url}
+                            href={getAuthenticatedAssetUrl(asset.download_url)}
                             download={asset.name}
                             className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
                             title="Download file"
@@ -616,7 +629,7 @@ export default function ProjectAssetExplorer({
                 <video
                   controls
                   className="w-full max-h-96"
-                  src={previewAsset.download_url}
+                  src={getAuthenticatedAssetUrl(previewAsset.download_url)}
                 >
                   Your browser does not support video playback.
                 </video>
@@ -624,14 +637,14 @@ export default function ProjectAssetExplorer({
             ) : previewAsset.category === "audio" && previewAsset.download_url ? (
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-6 text-center">
                 <Music size={40} className="mx-auto text-violet-500 mb-3" />
-                <audio controls className="w-full" src={previewAsset.download_url}>
+                <audio controls className="w-full" src={getAuthenticatedAssetUrl(previewAsset.download_url)}>
                   Your browser does not support audio playback.
                 </audio>
               </div>
             ) : previewAsset.category === "speaker_voice" && previewAsset.download_url ? (
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-6 text-center">
                 <Mic size={40} className="mx-auto text-rose-500 mb-3" />
-                <audio controls className="w-full" src={previewAsset.download_url}>
+                <audio controls className="w-full" src={getAuthenticatedAssetUrl(previewAsset.download_url)}>
                   Your browser does not support audio playback.
                 </audio>
               </div>
@@ -695,7 +708,7 @@ export default function ProjectAssetExplorer({
 
               {previewAsset.download_url && (
                 <a
-                  href={previewAsset.download_url}
+                  href={getAuthenticatedAssetUrl(previewAsset.download_url)}
                   download={previewAsset.name}
                   className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 text-xs font-semibold text-white transition hover:bg-[var(--color-primary-hover)]"
                 >
