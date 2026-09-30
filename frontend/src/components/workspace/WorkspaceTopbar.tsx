@@ -27,6 +27,7 @@ import NotificationBell from "../notifications/NotificationBell";
 
 import type { UserResponse } from "../../types/auth";
 import type { UserSubscriptionSummary } from "../../types/subscription";
+import logoTopbar from "../../assets/logo-topbar.png";
 
 interface WorkspaceTopbarProps {
   isCollapsed?: boolean;
@@ -256,60 +257,13 @@ export default function WorkspaceTopbar({
       <button
         type="button"
         onClick={handleWorkspace}
-        className="flex shrink-0 items-center gap-2.5 sm:gap-3 text-left lg:w-[220px]"
+        className="flex shrink-0 items-center text-left cursor-pointer group"
       >
-        <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 32 32"
-            fill="none"
-            className="sm:h-7 sm:w-7"
-          >
-            <circle
-              cx="7"
-              cy="16"
-              r="3"
-              fill="currentColor"
-            />
-
-            <circle
-              cx="24"
-              cy="8"
-              r="3"
-              fill="currentColor"
-            />
-
-            <circle
-              cx="24"
-              cy="24"
-              r="3"
-              fill="currentColor"
-            />
-
-            <path
-              d="M9.5 15L21.5 9"
-              stroke="currentColor"
-              strokeWidth="2"
-            />
-
-            <path
-              d="M9.5 17L21.5 23"
-              stroke="currentColor"
-              strokeWidth="2"
-            />
-          </svg>
-        </div>
-
-        <div>
-          <h1 className="text-lg sm:text-[22px] font-bold tracking-tight text-[var(--color-text-primary)]">
-            VIDNOVA
-          </h1>
-
-          <p className="hidden sm:block text-[10px] font-semibold tracking-[5px] text-[var(--color-primary)]">
-            SINCE 2026
-          </p>
-        </div>
+        <img
+          src={logoTopbar}
+          alt="VIDNOVA"
+          className="h-11 sm:h-[50px] md:h-14 w-auto max-w-[240px] sm:max-w-[290px] object-contain transition-transform duration-200 group-hover:scale-[1.02] select-none"
+        />
       </button>
 
       {/* =====================================================

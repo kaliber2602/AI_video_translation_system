@@ -20,6 +20,19 @@ def _format_duration(duration_seconds: float | None) -> str | None:
     return f"{minutes:02d}:{seconds:02d}"
 
 
+def _format_size_bytes(bytes_val: int | float | None) -> str | None:
+    if not bytes_val or bytes_val <= 0:
+        return "0 B"
+    val = float(bytes_val)
+    if val < 1024:
+        return f"{int(val)} B"
+    if val < 1024 * 1024:
+        return f"{val / 1024:.1f} KB"
+    if val < 1024 * 1024 * 1024:
+        return f"{val / (1024 * 1024):.1f} MB"
+    return f"{val / (1024 * 1024 * 1024):.2f} GB"
+
+
 # =========================================================
 # Helper: Enrich Project Rows with Tags and Video Info
 # =========================================================
@@ -62,12 +75,14 @@ def _enrich_projects_data(cursor, project_rows: list[tuple]) -> list[dict[str, A
             }
         )
 
-    # 2. Fetch video count and latest video for each project
+    # 2. Fetch aggregated stats: video count, sum of file sizes, total duration, and recent video
     cursor.execute(
         """
         SELECT
             v.project_id,
             COUNT(v.id) AS video_count,
+            COALESCE(SUM(v.file_size), 0) AS recorded_file_size,
+            COALESCE(SUM(v.duration), 0) AS total_duration,
             (
                 SELECT v2.title
                 FROM videos v2
@@ -75,15 +90,7 @@ def _enrich_projects_data(cursor, project_rows: list[tuple]) -> list[dict[str, A
                   AND (v2.status != 'trash' AND v2.deleted_at IS NULL)
                 ORDER BY v2.updated_at DESC
                 LIMIT 1
-            ) AS recent_title,
-            (
-                SELECT v2.duration
-                FROM videos v2
-                WHERE v2.project_id = v.project_id
-                  AND (v2.status != 'trash' AND v2.deleted_at IS NULL)
-                ORDER BY v2.updated_at DESC
-                LIMIT 1
-            ) AS recent_duration
+            ) AS recent_title
         FROM videos v
         WHERE v.project_id = ANY(%s)
           AND (v.status != 'trash' AND v.deleted_at IS NULL)
@@ -91,21 +98,154 @@ def _enrich_projects_data(cursor, project_rows: list[tuple]) -> list[dict[str, A
         """,
         (project_ids,),
     )
-    video_rows = cursor.fetchall()
-    video_info_by_project: dict[int, dict[str, Any]] = {
-        vr[0]: {
-            "video_count": vr[1],
-            "recent_title": vr[2],
-            "recent_duration": _format_duration(vr[3]),
+    agg_rows = cursor.fetchall()
+    agg_info_by_project: dict[int, dict[str, Any]] = {
+        ar[0]: {
+            "video_count": ar[1],
+            "recorded_size": ar[2],
+            "total_duration": _format_duration(ar[3]) if ar[3] > 0 else None,
+            "recent_title": ar[4],
         }
-        for vr in video_rows
+        for ar in agg_rows
     }
+
+    # 2.1 Calculate actual comprehensive storage per project across ALL file assets:
+    # (original, extracted_vocal, background_music, transcript, subtitle, dubbed_audio, output, video_documents, stems)
+    cursor.execute(
+        """
+        SELECT v.project_id, v.id, COALESCE(v.file_size, 0), v.original_path, v.extracted_vocal_path,
+               v.background_music_path, v.transcript_path, v.subtitle_path, v.dubbed_audio_path, v.output_path
+        FROM videos v
+        WHERE v.project_id = ANY(%s)
+          AND (v.status != 'trash' AND v.deleted_at IS NULL)
+        """,
+        (project_ids,),
+    )
+    all_vid_rows = cursor.fetchall()
+
+    try:
+        from app.services.subscription_service import _get_storage_file_size
+    except Exception:
+        def _get_storage_file_size(p):
+            return 0
+
+    from app.core.config import OUTPUT_DIR, UPLOAD_DIR
+
+    project_total_bytes: dict[int, int] = {pid: 0 for pid in project_ids}
+    for vr in all_vid_rows:
+        pid = vr[0]
+        vid = vr[1]
+        rec_size = vr[2]
+        path_strs = vr[3:]
+        video_bytes = 0
+        checked = set()
+
+        for p_str in path_strs:
+            if not p_str or p_str in checked:
+                continue
+            checked.add(p_str)
+            sz = _get_storage_file_size(p_str)
+            if sz > 0:
+                video_bytes += sz
+            elif p_str == vr[3] and rec_size > 0:
+                video_bytes += rec_size
+
+        # Also inspect generated stems & intermediate folders for this video
+        for folder_pattern in [f"audio_{vid}", f"transcript_{vid}", f"tts_{vid}"]:
+            dir_cand = OUTPUT_DIR / folder_pattern
+            if dir_cand.exists() and dir_cand.is_dir():
+                for item in dir_cand.glob("*"):
+                    if item.is_file():
+                        c_item = str(item).replace("\\", "/")
+                        if c_item not in checked and f"outputs/{c_item}" not in checked:
+                            checked.add(c_item)
+                            try:
+                                video_bytes += item.stat().st_size
+                            except Exception:
+                                pass
+
+        if video_bytes > 0:
+            project_total_bytes[pid] = project_total_bytes.get(pid, 0) + video_bytes
+        else:
+            project_total_bytes[pid] = project_total_bytes.get(pid, 0) + rec_size
+
+    # Also add video_documents generated for videos in these projects
+    cursor.execute(
+        """
+        SELECT v.project_id, COALESCE(SUM(vd.file_size_bytes), 0)
+        FROM video_documents vd
+        JOIN videos v ON v.id = vd.video_id
+        WHERE v.project_id = ANY(%s)
+          AND (v.status != 'trash' AND v.deleted_at IS NULL)
+        GROUP BY v.project_id
+        """,
+        (project_ids,),
+    )
+    doc_rows = cursor.fetchall()
+    for dr in doc_rows:
+        pid = dr[0]
+        doc_sz = dr[1]
+        project_total_bytes[pid] = project_total_bytes.get(pid, 0) + int(doc_sz)
+
+    # 3. Fetch recent videos with thumbnail info for carousel (up to 8 per project)
+    cursor.execute(
+        """
+        SELECT
+            v.project_id,
+            v.id,
+            v.title,
+            v.thumbnail_path,
+            v.duration
+        FROM videos v
+        WHERE v.project_id = ANY(%s)
+          AND (v.status != 'trash' AND v.deleted_at IS NULL)
+        ORDER BY v.updated_at DESC
+        """,
+        (project_ids,),
+    )
+    video_detail_rows = cursor.fetchall()
+    
+    # Try importing storage_manager for presigned URLs
+    try:
+        from app.services.s3_service import storage_manager
+    except Exception:
+        storage_manager = None
+
+    thumbnails_by_project: dict[int, list[dict[str, Any]]] = {pid: [] for pid in project_ids}
+    for vr in video_detail_rows:
+        pid, vid, vtitle, thumb_path, dur = vr
+        if len(thumbnails_by_project[pid]) >= 8:
+            continue
+        
+        t_url = None
+        if thumb_path and storage_manager:
+            try:
+                t_url = storage_manager.generate_presigned_url(thumb_path, expires_in=86400)
+            except Exception:
+                t_url = None
+        if not t_url:
+            t_url = f"/api/videos/{vid}/thumbnail"
+
+        thumbnails_by_project[pid].append(
+            {
+                "id": vid,
+                "title": vtitle or f"Video #{vid}",
+                "thumbnail_url": t_url,
+                "duration": _format_duration(dur),
+            }
+        )
 
     result: list[dict[str, Any]] = []
     for r in project_rows:
         pid = r[0]
-        vinfo = video_info_by_project.get(
-            pid, {"video_count": 0, "recent_title": None, "recent_duration": None}
+        ainfo = agg_info_by_project.get(
+            pid,
+            {
+                "video_count": 0,
+                "total_size": "0 B",
+                "total_duration": None,
+                "recent_title": None,
+            },
         )
         result.append(
             {
@@ -124,10 +264,11 @@ def _enrich_projects_data(cursor, project_rows: list[tuple]) -> list[dict[str, A
                 "owner_name": r[12],
                 "owner_email": r[13],
                 "tags": tags_by_project.get(pid, []),
-                "video_count": vinfo["video_count"],
-                "recent_project": vinfo["recent_title"],
-                "duration": vinfo["recent_duration"],
-                "size": None,
+                "video_count": ainfo["video_count"],
+                "recent_project": ainfo["recent_title"],
+                "duration": ainfo["total_duration"],
+                "size": _format_size_bytes(project_total_bytes.get(pid, 0)),
+                "video_thumbnails": thumbnails_by_project.get(pid, []),
             }
         )
 
@@ -234,7 +375,8 @@ def create_project(
             "video_count": 0,
             "recent_project": None,
             "duration": None,
-            "size": None,
+            "size": "0 B",
+            "video_thumbnails": [],
         }
 
     except Exception:

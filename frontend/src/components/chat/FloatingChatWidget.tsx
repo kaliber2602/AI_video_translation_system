@@ -75,19 +75,13 @@ export default function FloatingChatWidget() {
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Compute isolated storage key per user and context to avoid cross-project/workspace leaking
+  // Unified storage key per user across all routes (workspace, project, video)
   const getStorageKey = (): string => {
     const userId = getUserIdFromToken() || "anonymous";
-    if (activeVideoId) {
-      return `vidnova_chat_sessions_u${userId}_v${activeVideoId}`;
-    }
-    if (selectedProjectId) {
-      return `vidnova_chat_sessions_u${userId}_p${selectedProjectId}`;
-    }
-    return `vidnova_chat_sessions_u${userId}_global`;
+    return `vidnova_chat_sessions_u${userId}_all`;
   };
 
-  // Load sessions from scoped localStorage
+  // Load sessions from unified localStorage and migrate legacy scoped keys if empty
   const loadStoredSessions = (): ChatSession[] => {
     try {
       const key = getStorageKey();
@@ -95,6 +89,44 @@ export default function FloatingChatWidget() {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+
+      // Backward compatibility / migration: look for older scoped keys
+      const userId = getUserIdFromToken() || "anonymous";
+      const legacyKeys: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(`vidnova_chat_sessions_u${userId}_`) && k !== key) {
+          legacyKeys.push(k);
+        }
+      }
+
+      let migratedSessions: ChatSession[] = [];
+      for (const lk of legacyKeys) {
+        try {
+          const lkRaw = localStorage.getItem(lk);
+          if (lkRaw) {
+            const lkParsed = JSON.parse(lkRaw);
+            if (Array.isArray(lkParsed)) {
+              migratedSessions = [...migratedSessions, ...lkParsed];
+            }
+          }
+        } catch {}
+      }
+
+      if (migratedSessions.length > 0) {
+        // Deduplicate by session id
+        const sessionMap = new Map<string, ChatSession>();
+        migratedSessions.forEach((s) => {
+          if (s.id && !sessionMap.has(s.id)) {
+            sessionMap.set(s.id, s);
+          }
+        });
+        const combined = Array.from(sessionMap.values()).sort(
+          (a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
+        );
+        localStorage.setItem(key, JSON.stringify(combined));
+        return combined;
       }
     } catch (e) {
       console.warn("Failed to load chat sessions from localStorage:", e);
@@ -128,9 +160,12 @@ export default function FloatingChatWidget() {
     }
   }, [location.pathname]);
 
-  // Initialize or restore session when chat widget opens or context changes
+  // Restore sessions when chat widget is opened for the first time
   useEffect(() => {
     if (!isOpen) return;
+
+    // If sessions already loaded in state, don't overwrite or reset
+    if (sessions.length > 0) return;
 
     const stored = loadStoredSessions();
     if (stored.length > 0) {
@@ -139,11 +174,10 @@ export default function FloatingChatWidget() {
         setActiveSessionId(stored[0].id);
       }
     } else {
-      // Create initial context-specific session
-      setSessions([]);
+      // Create initial session
       createNewSession(activeVideoId, selectedProjectId);
     }
-  }, [isOpen, activeVideoId, selectedProjectId]);
+  }, [isOpen]);
 
   const createNewSession = (vidId: number | null = activeVideoId, projId: number | null = selectedProjectId) => {
     const newId = `session_${Date.now()}`;
@@ -501,10 +535,14 @@ export default function FloatingChatWidget() {
                     RAG Live
                   </span>
                 </div>
-                <p className="text-[10px] text-[var(--color-text-muted)] truncate max-w-[190px]">
+                <p className="text-[10px] text-[var(--color-text-muted)] truncate max-w-[210px]">
                   {activeVideoId
-                    ? `Video #${activeVideoId}`
-                    : "Workspace Assistant"}
+                    ? `Đang xem: Video #${activeVideoId}`
+                    : selectedProjectId
+                    ? `Dự án #${selectedProjectId}`
+                    : currentSession?.videoId
+                    ? `Hội thoại Video #${currentSession.videoId}`
+                    : "Toàn bộ Workspace"}
                 </p>
               </div>
             </div>
@@ -599,13 +637,24 @@ export default function FloatingChatWidget() {
                         }`}
                         title={s.title}
                       >
-                        <div className="flex items-center gap-1.5 truncate pr-1">
-                          <span
-                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                              isActive ? "bg-white" : "bg-emerald-500 opacity-60"
-                            }`}
-                          />
-                          <span className="truncate">{s.title}</span>
+                        <div className="flex flex-col truncate pr-1 overflow-hidden">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span
+                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                                isActive ? "bg-white" : "bg-emerald-500 opacity-60"
+                              }`}
+                            />
+                            <span className="truncate">{s.title}</span>
+                          </div>
+                          {s.videoId && (
+                            <span
+                              className={`text-[9px] pl-3 truncate ${
+                                isActive ? "text-white/80" : "text-[var(--color-text-muted)]"
+                              }`}
+                            >
+                              Video #{s.videoId}
+                            </span>
+                          )}
                         </div>
                         <button
                           type="button"

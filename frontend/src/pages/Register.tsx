@@ -1,16 +1,46 @@
-import { ArrowRight, BrainCircuit, Globe2, Languages, Mic2 } from "lucide-react";
+import { BrainCircuit, Globe2, Languages, Mic2 } from "lucide-react";
 import AuthBrand from "../components/auth/AuthBrand";
 import RegisterForm from "../components/auth/RegisterForm";
+import bgGlobalLogin from "../assets/bg-global_login.png";
+import bgLoginForm from "../assets/bg-login_form.png";
+import logoTopbar from "../assets/logo-topbar.png";
+import registerHero from "../assets/register-hero.png";
 
 export default function Register() {
   return (
     <div
       data-theme="default_theme"
-      className="min-h-screen bg-[var(--color-background)] p-3 sm:p-5 page-enter transition-colors duration-200"
+      className="relative min-h-screen overflow-hidden bg-[var(--color-background)] text-[var(--color-text-primary)] page-enter"
     >
-      <div className="mx-auto grid min-h-[calc(100vh-24px)] w-full max-w-[1500px] overflow-hidden rounded-2xl sm:rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl transition-colors duration-200 lg:grid-cols-[1.02fr_0.98fr]">
-        {/* LEFT SIDE */}
-        <section className="relative hidden overflow-hidden bg-gradient-to-br from-[var(--color-surface-muted)] via-[var(--color-surface)] to-[var(--color-primary-soft)]/30 px-12 py-12 lg:block xl:px-16 transition-colors duration-200">
+      {/* ================= Global Page Background ================= */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none opacity-90 dark:opacity-40 transition-opacity duration-300"
+        style={{ backgroundImage: `url(${bgGlobalLogin})` }}
+      />
+
+      {/* ================= Glow Orbs ================= */}
+      <div className="absolute inset-0 pointer-events-none">
+        {/* Top Left Glow */}
+        <div className="absolute -top-60 -left-72 h-[900px] w-[900px] rounded-full bg-[var(--color-primary)]/10 blur-[180px]" />
+
+        {/* Top Right Glow */}
+        <div className="absolute -right-52 -top-24 h-[700px] w-[700px] rounded-full bg-[var(--color-primary-soft)]/40 blur-[160px]" />
+
+        {/* Bottom Glow */}
+        <div className="absolute bottom-[-250px] left-[25%] h-[900px] w-[900px] rounded-full bg-[var(--color-secondary)]/10 blur-[200px]" />
+
+        {/* Large Ambient Glow */}
+        <div className="absolute left-1/2 top-[-280px] h-[900px] w-[1800px] -translate-x-1/2 rounded-full bg-[var(--color-surface)]/50 blur-[180px]" />
+      </div>
+
+      {/* ================= Main ================= */}
+      <div className="relative z-10 flex min-h-screen items-center justify-center p-3 sm:p-6 md:p-8 xl:p-12">
+        <div
+          className="relative flex w-full max-w-[1520px] overflow-hidden rounded-2xl sm:rounded-3xl border border-[var(--color-border)] bg-cover bg-center bg-no-repeat shadow-2xl transition-colors duration-200"
+          style={{ backgroundImage: `url(${bgLoginForm})` }}
+        >
+          {/* LEFT SIDE (HERO) */}
+          <section className="relative z-10 hidden overflow-hidden bg-transparent px-12 py-12 lg:block lg:w-[58%] xl:px-16 transition-colors duration-200">
           {/* Decorative lines */}
           <div className="absolute left-0 top-[120px] h-px w-full rotate-[-3deg] bg-[var(--color-border)]" />
 
@@ -19,10 +49,16 @@ export default function Register() {
           <div className="absolute bottom-[-100px] right-[-100px] h-[320px] w-[620px] rounded-[50%] border border-[var(--color-border)] opacity-40" />
 
           <div className="relative z-10 flex h-full flex-col">
-            <AuthBrand />
+            <div className="relative z-20 flex justify-start items-center">
+              <img
+                src={logoTopbar}
+                alt="VIDNOVA"
+                className="h-[68px] sm:h-[82px] w-auto max-w-[400px] sm:max-w-[470px] object-contain select-none -ml-[18px] sm:-ml-[22px] translate-y-[-1px] sm:translate-y-[-1px]"
+              />
+            </div>
 
-            <div className="mt-20 max-w-[600px]">
-              <div className="mb-5 h-1 w-9 rounded-full bg-[var(--color-primary)]" />
+            <div className="relative z-10 max-w-[600px]">
+              <div className="mb-4 h-1 w-10 rounded bg-[#27C6B4]" />
 
               <h2 className="text-[46px] font-bold leading-[1.08] tracking-[-1.8px] text-[var(--color-text-primary)] xl:text-[54px]">
                 Turn your videos
@@ -51,18 +87,12 @@ export default function Register() {
                     <span className="h-2.5 w-2.5 rounded-full bg-[#34C759]" />
                   </div>
 
-                  <div className="flex h-[calc(100%-44px)] items-center justify-center bg-[#EFF4F8]">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#20C5AE] shadow-[0_10px_25px_rgba(32,197,174,0.35)]">
-                      <ArrowRight
-                        size={28}
-                        className="rotate-[-45deg] text-white"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="absolute bottom-4 left-6 right-6 space-y-3">
-                    <div className="h-2 rounded-full bg-[#DDE6ED]" />
-                    <div className="h-2 w-[72%] rounded-full bg-[#DDE6ED]" />
+                  <div className="relative h-[calc(100%-44px)] w-full overflow-hidden bg-slate-900">
+                    <img
+                      src={registerHero}
+                      alt="Register Hero"
+                      className="h-full w-full object-cover select-none"
+                    />
                   </div>
                 </div>
 
@@ -161,12 +191,12 @@ export default function Register() {
           </div>
         </section>
 
-        {/* RIGHT SIDE */}
-        <section className="flex min-h-[calc(100vh-24px)] items-center justify-center bg-[var(--color-surface)] px-4 py-8 sm:px-10 lg:px-12 xl:px-16 transition-colors duration-200">
-          <div className="w-full max-w-[470px]">
+        {/* RIGHT SIDE (REGISTER FORM) */}
+        <section className="relative z-10 flex w-full items-center justify-center bg-transparent px-3 py-6 sm:px-6 sm:py-10 lg:w-[42%] lg:px-12 transition-colors duration-200">
+          <div className="relative w-full max-w-[560px] rounded-2xl sm:rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)]/90 p-5 sm:p-8 md:p-10 lg:p-12 backdrop-blur-2xl shadow-xl transition-colors duration-200">
             {/* Mobile logo */}
             <div className="mb-6 flex justify-center lg:hidden">
-              <AuthBrand />
+              <AuthBrand imageClassName="h-16 sm:h-20" />
             </div>
 
             <div className="text-center">
@@ -184,5 +214,6 @@ export default function Register() {
         </section>
       </div>
     </div>
+  </div>
   );
 }

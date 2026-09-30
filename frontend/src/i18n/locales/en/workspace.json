@@ -76,8 +76,6 @@
     "button": "Upgrade Now"
   },
   "views": {
-    "grid": "Grid View",
-    "freedom": "Freedom View",
     "list": "List View",
     "card": "Card View",
     "switcherAria": "Choose display mode"
@@ -101,6 +99,10 @@
   "states": {
     "noProjects": "No projects yet",
     "noProjectsDesc": "Create your first project to start translating and dubbing videos with AI.",
+    "noFavorites": "No favorite projects yet",
+    "noFavoritesDesc": "Click the star icon on any project to add it to your favorites for quick access.",
+    "noTrash": "Trash is empty",
+    "noTrashDesc": "There are no deleted projects in the trash.",
     "noResults": "No matching projects found",
     "noResultsDesc": "Try adjusting your search query or filter tags to find what you're looking for.",
     "clearSearch": "Clear Search & Filters",

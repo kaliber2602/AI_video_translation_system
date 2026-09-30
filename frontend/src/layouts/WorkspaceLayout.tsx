@@ -28,8 +28,6 @@ import WorkspaceSidebar, { type WorkspaceTab } from "../components/workspace/Wor
 import WorkspaceHeader from "../components/workspace/WorkspaceHeader";
 import ProjectToolbar, { type SortOption } from "../components/workspace/ProjectToolbar";
 import type { ViewMode } from "../components/workspace/ViewSwitcher";
-import ProjectGridView from "../components/workspace/ProjectGridView";
-import ProjectFreedomView from "../components/workspace/ProjectFreedomView";
 import ProjectTable from "../components/workspace/ProjectTable";
 import ProjectCardView from "../components/workspace/ProjectCardView";
 import ProjectSkeletonLoader from "../components/workspace/ProjectSkeletonLoader";
@@ -44,10 +42,10 @@ const VIEW_MODE_STORAGE_KEY = "vidnova_workspace_view_mode";
 
 function getInitialViewMode(): ViewMode {
   const savedMode = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
-  if (savedMode === "grid" || savedMode === "freedom" || savedMode === "list" || savedMode === "card") {
+  if (savedMode === "list" || savedMode === "card") {
     return savedMode as ViewMode;
   }
-  return "grid";
+  return "card";
 }
 
 const getBackendScope = (tab: WorkspaceTab): "all" | "favorites" | "trash" => {
@@ -542,92 +540,76 @@ export default function WorkspaceLayout() {
           trashCount={trashCount}
         />
 
-        <main className="min-w-0 flex-1 px-3.5 py-6 sm:px-6 lg:px-8 transition-all duration-300 page-enter">
-          <WorkspaceHeader
-            totalProjects={projects.length}
-            matchingCount={processedProjects.length}
-            isFiltered={isFilteringActive}
-            currentTab={currentTab}
-          />
-
-          <ProjectToolbar
-            search={searchQuery}
-            onSearchChange={setSearchQuery}
-            tags={tags}
-            selectedTagId={selectedTagId}
-            onTagSelect={setSelectedTagId}
-            sortOption={sortOption}
-            onSortChange={setSortOption}
-            viewMode={viewMode}
-            onViewModeChange={handleViewModeChange}
-            onNewProject={handleOpenCreateModal}
-            isTrashMode={currentTab === "trash"}
-            onEmptyTrash={() => setIsEmptyTrashConfirmOpen(true)}
-            trashCount={trashCount}
-            isSearchingSemantic={isSearchingSemantic}
-          />
-
-          {/* View Content States */}
-          {isLoading ? (
-            <ProjectSkeletonLoader viewMode={viewMode} />
-          ) : error ? (
-            <ProjectErrorState onRetry={loadProjects} />
-          ) : processedProjects.length === 0 ? (
-            <ProjectEmptyState
-              isFiltered={isFilteringActive || projects.length > 0}
-              onNewProject={handleOpenCreateModal}
-              onClearFilters={handleClearFilters}
+        <main className="min-w-0 flex-1 px-3.5 py-6 sm:px-6 lg:px-8 transition-all duration-300 page-enter flex flex-col">
+          <div className="flex flex-col">
+            <WorkspaceHeader
+              totalProjects={projects.length}
+              matchingCount={processedProjects.length}
+              isFiltered={isFilteringActive}
+              currentTab={currentTab}
             />
-          ) : (
-            <>
-              {viewMode === "grid" && (
-                <ProjectGridView
-                  projects={paginatedProjects}
-                  onProjectClick={handleProjectClick}
-                  onEditProject={handleOpenEditModal}
-                  onDeleteProject={handleOpenDeleteModal}
-                  onToggleFavorite={handleToggleFavorite}
-                  onRestoreProject={handleRestoreProject}
-                  isTrashMode={currentTab === "trash"}
-                />
-              )}
 
-              {viewMode === "freedom" && (
-                <ProjectFreedomView
-                  projects={paginatedProjects}
-                  onProjectClick={handleProjectClick}
-                  onEditProject={handleOpenEditModal}
-                  onDeleteProject={handleOpenDeleteModal}
-                  onToggleFavorite={handleToggleFavorite}
-                  onRestoreProject={handleRestoreProject}
-                  isTrashMode={currentTab === "trash"}
-                />
-              )}
+            <ProjectToolbar
+              search={searchQuery}
+              onSearchChange={setSearchQuery}
+              tags={tags}
+              selectedTagId={selectedTagId}
+              onTagSelect={setSelectedTagId}
+              sortOption={sortOption}
+              onSortChange={setSortOption}
+              viewMode={viewMode}
+              onViewModeChange={handleViewModeChange}
+              onNewProject={handleOpenCreateModal}
+              isTrashMode={currentTab === "trash"}
+              onEmptyTrash={() => setIsEmptyTrashConfirmOpen(true)}
+              trashCount={trashCount}
+              isSearchingSemantic={isSearchingSemantic}
+            />
 
-              {viewMode === "list" && (
-                <ProjectTable
-                  projects={paginatedProjects}
-                  onProjectClick={handleProjectClick}
-                  onEditProject={handleOpenEditModal}
-                  onDeleteProject={handleOpenDeleteModal}
-                  onToggleFavorite={handleToggleFavorite}
-                  onRestoreProject={handleRestoreProject}
-                  isTrashMode={currentTab === "trash"}
-                />
-              )}
+            {/* View Content States */}
+            {isLoading ? (
+              <ProjectSkeletonLoader viewMode={viewMode} />
+            ) : error ? (
+              <ProjectErrorState onRetry={loadProjects} />
+            ) : processedProjects.length === 0 ? (
+              <ProjectEmptyState
+                isFiltered={isFilteringActive || (currentTab === "allProjects" && projects.length > 0)}
+                currentTab={currentTab}
+                onNewProject={handleOpenCreateModal}
+                onClearFilters={handleClearFilters}
+              />
+            ) : (
+              <>
+                {viewMode === "card" && (
+                  <ProjectCardView
+                    projects={processedProjects}
+                    onProjectClick={handleProjectClick}
+                    onEditProject={handleOpenEditModal}
+                    onDeleteProject={handleOpenDeleteModal}
+                    onToggleFavorite={handleToggleFavorite}
+                    onRestoreProject={handleRestoreProject}
+                    isTrashMode={currentTab === "trash"}
+                  />
+                )}
 
-              {viewMode === "card" && (
-                <ProjectCardView
-                  projects={paginatedProjects}
-                  onProjectClick={handleProjectClick}
-                  onEditProject={handleOpenEditModal}
-                  onDeleteProject={handleOpenDeleteModal}
-                  onToggleFavorite={handleToggleFavorite}
-                  onRestoreProject={handleRestoreProject}
-                  isTrashMode={currentTab === "trash"}
-                />
-              )}
+                {viewMode === "list" && (
+                  <ProjectTable
+                    projects={paginatedProjects}
+                    onProjectClick={handleProjectClick}
+                    onEditProject={handleOpenEditModal}
+                    onDeleteProject={handleOpenDeleteModal}
+                    onToggleFavorite={handleToggleFavorite}
+                    onRestoreProject={handleRestoreProject}
+                    isTrashMode={currentTab === "trash"}
+                  />
+                )}
+              </>
+            )}
+          </div>
 
+          {/* Sticky/Fixed to Bottom Pagination Navbar (Only for List View) */}
+          {viewMode === "list" && !isLoading && !error && processedProjects.length > 0 && (
+            <div className="mt-auto pt-6 pb-2">
               <ProjectPagination
                 totalItems={processedProjects.length}
                 currentPage={currentPage}
@@ -638,7 +620,7 @@ export default function WorkspaceLayout() {
                   setCurrentPage(1);
                 }}
               />
-            </>
+            </div>
           )}
         </main>
       </div>

@@ -1,17 +1,21 @@
 import {
-  Apple,
   Eye,
   EyeOff,
   Loader2,
   Lock,
   Mail,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { login } from "../../services/auth.service";
-import { setTokens } from "../../services/api/token";
+import {
+  setTokens,
+  getRememberedEmail,
+  saveRememberedEmail,
+  clearRememberedEmail,
+} from "../../services/api/token";
 import AuthBrand from "./AuthBrand";
 
 export default function LoginForm() {
@@ -28,6 +32,17 @@ export default function LoginForm() {
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // =====================================================
+  // RESTORE REMEMBERED EMAIL
+  // =====================================================
+  useEffect(() => {
+    const savedEmail = getRememberedEmail();
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setRememberMe(true);
+    }
+  }, []);
 
   // =====================================================
   // HANDLE SUBMIT
@@ -71,7 +86,14 @@ export default function LoginForm() {
         throw new Error("Login response does not contain required tokens.");
       }
 
-      setTokens(result.access_token, result.refresh_token);
+      // Handle Remember Me persistence
+      if (rememberMe) {
+        saveRememberedEmail(requestData.email);
+      } else {
+        clearRememberedEmail();
+      }
+
+      setTokens(result.access_token, result.refresh_token, rememberMe);
 
       navigate("/workspace", {
         state: {
@@ -134,8 +156,8 @@ export default function LoginForm() {
     <div className="flex w-full justify-center px-4 sm:px-8">
       <div className="w-full max-w-[430px]">
         {/* Brand Header */}
-        <div className="mb-8 flex justify-center">
-          <AuthBrand />
+        <div className="mb-[5px] flex justify-center">
+          <AuthBrand imageClassName="h-20 sm:h-[104px]" />
         </div>
 
         {/* Title */}
@@ -153,15 +175,15 @@ export default function LoginForm() {
         {/* Form */}
         <form
           onSubmit={handleSubmit}
-          className="mt-8 space-y-5"
+          className="mt-9 space-y-6"
         >
           {/* Email */}
           <div>
-            <label className="mb-1.5 block text-xs font-semibold text-[var(--color-text-secondary)]">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
               {t("auth:email")}
             </label>
 
-            <div className="flex h-12 items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-3.5 transition-all duration-200 ease-out focus-within:border-[var(--color-primary)] focus-within:ring-4 focus-within:ring-[var(--color-primary)]/10">
+            <div className="flex h-12 items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-4 transition-all duration-200 ease-out focus-within:border-[var(--color-primary)] focus-within:ring-4 focus-within:ring-[var(--color-primary)]/10">
               <Mail
                 size={18}
                 className="text-[var(--color-text-muted)]"
@@ -183,11 +205,11 @@ export default function LoginForm() {
 
           {/* Password */}
           <div>
-            <label className="mb-1.5 block text-xs font-semibold text-[var(--color-text-secondary)]">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
               {t("auth:password")}
             </label>
 
-            <div className="flex h-12 items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-3.5 transition-all duration-200 ease-out focus-within:border-[var(--color-primary)] focus-within:ring-4 focus-within:ring-[var(--color-primary)]/10">
+            <div className="flex h-12 items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-4 transition-all duration-200 ease-out focus-within:border-[var(--color-primary)] focus-within:ring-4 focus-within:ring-[var(--color-primary)]/10">
               <Lock
                 size={18}
                 className="text-[var(--color-text-muted)]"
@@ -227,9 +249,9 @@ export default function LoginForm() {
             </div>
           </div>
 
-          {/* Remember */}
-          <div className="flex items-center justify-between text-xs sm:text-sm">
-            <label className="flex cursor-pointer items-center gap-2 text-[var(--color-text-secondary)]">
+          {/* Remember & Forgot Password */}
+          <div className="flex items-center justify-between pt-1 text-xs sm:text-sm">
+            <label className="flex cursor-pointer items-center gap-2 text-[var(--color-text-secondary)] select-none">
               <input
                 type="checkbox"
                 checked={rememberMe}
@@ -256,57 +278,32 @@ export default function LoginForm() {
 
           {/* Error */}
           {error && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs font-semibold text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
               {error}
             </div>
           )}
 
           {/* Sign In Button */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] text-sm font-bold text-white shadow-[0_8px_20px_rgba(21,194,168,0.25)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-[var(--color-primary-hover)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? (
-              <>
-                <Loader2 size={18} className="animate-spin" />
-                <span>{t("auth:signingIn")}</span>
-              </>
-            ) : (
-              <span>{t("auth:signIn")}</span>
-            )}
-          </button>
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] text-sm font-bold text-white shadow-[0_8px_20px_rgba(21,194,168,0.25)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-[var(--color-primary-hover)] hover:shadow-[0_12px_24px_rgba(21,194,168,0.32)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  <span>{t("auth:signingIn")}</span>
+                </>
+              ) : (
+                <span>{t("auth:signIn")}</span>
+              )}
+            </button>
+          </div>
         </form>
 
-        {/* Divider */}
-        <div className="my-7 flex items-center gap-4">
-          <div className="h-px flex-1 bg-[var(--color-border)]" />
-          <span className="text-xs font-medium text-[var(--color-text-muted)]">
-            {t("auth:orContinueWith")}
-          </span>
-          <div className="h-px flex-1 bg-[var(--color-border)]" />
-        </div>
-
-        {/* Social */}
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            className="flex h-11 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-xs font-semibold text-[var(--color-text-secondary)] transition-all duration-200 ease-out hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)]"
-          >
-            Microsoft
-          </button>
-
-          <button
-            type="button"
-            aria-label="Sign in with Apple"
-            className="flex h-11 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] transition-all duration-200 ease-out hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)]"
-          >
-            <Apple size={18} />
-          </button>
-        </div>
-
         {/* Footer */}
-        <p className="mt-8 text-center text-xs text-[var(--color-text-muted)]">
+        <p className="mt-10 text-center text-sm text-[var(--color-text-muted)]">
           {t("auth:dontHaveAccount")}
           <button
             type="button"

@@ -20,6 +20,12 @@ export interface Project {
   recent_project: string | null;
   duration: string | null;
   size: string | null;
+  video_thumbnails?: Array<{
+    id: number;
+    title: string;
+    thumbnail_url?: string | null;
+    duration?: string | null;
+  }>;
   matched_snippets?: Array<{
     video_id: number;
     video_title?: string;

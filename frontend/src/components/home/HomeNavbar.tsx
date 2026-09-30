@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "../../app/providers/LanguageContext";
 import RippleDistortion from "../common/RippleDistortion";
+import logoTopbar from "../../assets/logo-topbar.png";
 
 export default function HomeNavbar() {
   const { t } = useTranslation(["navigation", "common"]);
@@ -18,7 +19,7 @@ export default function HomeNavbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full pt-3 sm:pt-4 pb-2 px-3 sm:px-6 transition-all duration-300">
-      <div className="mx-auto max-w-[1320px] h-[58px] sm:h-[64px] relative rounded-full overflow-hidden border border-[var(--color-border)]/50 bg-white/20 dark:bg-white/5 shadow-[0_8px_32px_rgba(0,0,0,0.03),0_4px_24px_color-mix(in_srgb,var(--color-primary)_12%,transparent)] backdrop-blur-lg backdrop-saturate-150 transition-all">
+      <div className="mx-auto max-w-[1320px] h-[74px] sm:h-[84px] relative rounded-full overflow-hidden border border-[var(--color-border)]/50 bg-white/20 dark:bg-white/5 shadow-[0_8px_32px_rgba(0,0,0,0.03),0_4px_24px_color-mix(in_srgb,var(--color-primary)_12%,transparent)] backdrop-blur-lg backdrop-saturate-150 transition-all">
         
         {/* ======================================================== */}
         {/* RIPPLE DISTORTION BACKGROUND EFFECT (React Bits) */}
@@ -71,30 +72,12 @@ export default function HomeNavbar() {
         {/* ======================================================== */}
         <div className="relative z-30 flex h-full items-center justify-between px-4 sm:px-6 pointer-events-auto">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-primary)] text-white shadow-sm transition-transform duration-200 group-hover:scale-105">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 32 32"
-                fill="none"
-              >
-                <circle cx="7" cy="16" r="3" fill="currentColor" />
-                <circle cx="24" cy="8" r="3" fill="currentColor" />
-                <circle cx="24" cy="24" r="3" fill="currentColor" />
-                <path d="M9.5 15L21.5 9" stroke="currentColor" strokeWidth="2" />
-                <path d="M9.5 17L21.5 23" stroke="currentColor" strokeWidth="2" />
-              </svg>
-            </div>
-
-            <div className="leading-none">
-              <div className="text-[15px] sm:text-[16px] font-black tracking-[0.14em] text-[var(--color-text-primary)]">
-                VIDNOVA
-              </div>
-              <div className="mt-0.5 text-[7px] font-bold tracking-[0.35em] text-[var(--color-primary)]">
-                SINCE 2026
-              </div>
-            </div>
+          <Link to="/" className="flex items-center group">
+            <img
+              src={logoTopbar}
+              alt="VIDNOVA"
+              className="h-14 sm:h-[66px] w-auto max-w-[310px] sm:max-w-[360px] object-contain transition-transform duration-200 group-hover:scale-[1.02] select-none"
+            />
           </Link>
 
           {/* Navigation Links */}

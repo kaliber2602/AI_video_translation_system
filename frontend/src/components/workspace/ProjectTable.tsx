@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   Edit,
+  HardDrive,
   MoreHorizontal,
   PlaySquare,
   RotateCcw,
@@ -163,8 +164,15 @@ export default function ProjectTable({
               </div>
 
               {/* Size */}
-              <div className="text-xs font-medium text-[var(--color-text-muted)]">
-                {project.size || "—"}
+              <div className="text-xs font-semibold text-[var(--color-text-secondary)]">
+                {project.size && project.size !== "0 B" ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-surface-muted)]/80 px-2 py-0.5 font-mono text-[11px] text-[var(--color-text-primary)]">
+                    <HardDrive size={12} className="text-[var(--color-primary)]" />
+                    <span>{project.size}</span>
+                  </span>
+                ) : (
+                  <span className="text-[var(--color-text-muted)] italic">0 B</span>
+                )}
               </div>
 
               {/* Tags */}

@@ -31,6 +31,7 @@ import { clearTokens } from "../services/api/token";
 import { toast } from "../lib/toast";
 import type { UserResponse } from "../types/auth";
 import type { SystemHealthResponse } from "../types/admin";
+import logoTopbar from "../assets/logo-topbar.png";
 
 export default function AdminLayout() {
   const { t } = useTranslation(["admin", "common", "navigation"]);
@@ -130,19 +131,15 @@ export default function AdminLayout() {
       <aside className="hidden lg:flex w-72 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
         {/* Brand header */}
         <div className="flex h-16 items-center justify-between border-b border-[var(--color-border)] px-6">
-          <Link to="/admin/dashboard" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-[var(--color-primary)] to-emerald-400 text-white shadow-sm font-bold text-lg">
-              V
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-base tracking-tight text-[var(--color-text-primary)]">VIDNOVA</span>
-                <span className="rounded bg-gradient-to-r from-red-500/10 to-amber-500/10 border border-red-500/20 px-1.5 py-0.2 text-[9px] font-black uppercase text-red-600 dark:text-red-400">
-                  ADMIN
-                </span>
-              </div>
-              <p className="text-[11px] font-medium text-[var(--color-text-muted)]">Control & Telemetry</p>
-            </div>
+          <Link to="/admin/dashboard" className="flex items-center gap-2">
+            <img
+              src={logoTopbar}
+              alt="VIDNOVA"
+              className="h-7 w-auto max-w-[130px] object-contain select-none"
+            />
+            <span className="rounded bg-gradient-to-r from-red-500/10 to-amber-500/10 border border-red-500/20 px-1.5 py-0.5 text-[9px] font-black uppercase text-red-600 dark:text-red-400 tracking-wide">
+              ADMIN
+            </span>
           </Link>
         </div>
 
@@ -334,10 +331,14 @@ export default function AdminLayout() {
           <div className="relative flex w-72 flex-col bg-[var(--color-surface)] border-r border-[var(--color-border)] p-4 shadow-xl z-10">
             <div className="flex items-center justify-between pb-4 border-b border-[var(--color-border)]">
               <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white font-bold">
-                  V
-                </div>
-                <span className="font-bold text-sm">VIDNOVA ADMIN</span>
+                <img
+                  src={logoTopbar}
+                  alt="VIDNOVA"
+                  className="h-6 w-auto max-w-[120px] object-contain select-none"
+                />
+                <span className="rounded bg-gradient-to-r from-red-500/10 to-amber-500/10 border border-red-500/20 px-1 py-0.2 text-[8px] font-black uppercase text-red-600 dark:text-red-400">
+                  ADMIN
+                </span>
               </div>
               <button
                 type="button"

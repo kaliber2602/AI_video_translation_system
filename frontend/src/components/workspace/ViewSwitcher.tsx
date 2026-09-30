@@ -1,7 +1,7 @@
-import { LayoutGrid, Sparkles, Table, CreditCard } from "lucide-react";
+import { LayoutGrid, Table } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-export type ViewMode = "grid" | "freedom" | "list" | "card";
+export type ViewMode = "card" | "list";
 
 interface ViewSwitcherProps {
   viewMode: ViewMode;
@@ -16,24 +16,14 @@ export default function ViewSwitcher({
 
   const modes: { id: ViewMode; label: string; icon: typeof LayoutGrid }[] = [
     {
-      id: "grid",
-      label: t("workspace:views.grid"),
+      id: "card",
+      label: t("workspace:views.card", "Dạng thẻ"),
       icon: LayoutGrid,
     },
     {
-      id: "freedom",
-      label: t("workspace:views.freedom"),
-      icon: Sparkles,
-    },
-    {
       id: "list",
-      label: t("workspace:views.list"),
+      label: t("workspace:views.list", "Danh sách"),
       icon: Table,
-    },
-    {
-      id: "card",
-      label: t("workspace:views.card"),
-      icon: CreditCard,
     },
   ];
 

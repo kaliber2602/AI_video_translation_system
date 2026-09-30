@@ -76,10 +76,8 @@
     "button": "Nâng cấp ngay"
   },
   "views": {
-    "grid": "Dạng lưới",
-    "freedom": "Tự do",
     "list": "Danh sách",
-    "card": "Thẻ",
+    "card": "Dạng thẻ",
     "switcherAria": "Chọn chế độ hiển thị"
   },
   "sort": {
@@ -101,6 +99,10 @@
   "states": {
     "noProjects": "Chưa có dự án nào",
     "noProjectsDesc": "Tạo dự án đầu tiên của bạn để bắt đầu dịch thuật và lồng tiếng video với AI.",
+    "noFavorites": "Chưa có dự án yêu thích nào",
+    "noFavoritesDesc": "Nhấp vào biểu tượng ngôi sao trên bất kỳ dự án nào để thêm vào mục yêu thích và truy cập nhanh chóng.",
+    "noTrash": "Thùng rác trống",
+    "noTrashDesc": "Không có dự án nào bị xóa trong thùng rác.",
     "noResults": "Không tìm thấy dự án phù hợp",
     "noResultsDesc": "Hãy thử thay đổi từ khóa tìm kiếm hoặc bỏ chọn các thẻ bộ lọc.",
     "clearSearch": "Xóa tìm kiếm & Bộ lọc",

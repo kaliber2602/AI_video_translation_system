@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import image from "../../assets/1.png";
+import logoTopbar from "../../assets/logo-topbar.png";
 const outputFiles = [
   {
     label: "SRT",
@@ -73,14 +74,12 @@ export default function HomeProductPreview() {
       <div className="relative overflow-hidden rounded-[24px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-card)] transition-colors duration-200">
         {/* App Header */}
         <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-primary-soft)]">
-              <div className="h-4 w-4 rounded-full bg-[var(--color-primary)]" />
-            </div>
-
-            <span className="text-[11px] font-black tracking-[0.15em] text-[var(--color-text-primary)]">
-              VIDNOVA
-            </span>
+          <div className="flex items-center">
+            <img
+              src={logoTopbar}
+              alt="VIDNOVA"
+              className="h-10 sm:h-12 w-auto max-w-[220px] object-contain select-none"
+            />
           </div>
 
           <div className="flex items-center gap-2">

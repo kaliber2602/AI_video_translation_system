@@ -50,6 +50,13 @@ class ProjectUpdateRequest(BaseModel):
 # Project Response
 # =========================================================
 
+class ProjectVideoPreview(BaseModel):
+    id: int
+    title: str
+    thumbnail_url: str | None = None
+    duration: str | None = None
+
+
 class ProjectResponse(BaseModel):
     id: int
     owner_id: int
@@ -70,6 +77,7 @@ class ProjectResponse(BaseModel):
     recent_project: str | None = None
     duration: str | None = None
     size: str | None = None
+    video_thumbnails: list[ProjectVideoPreview] = []
 
 
 # =========================================================

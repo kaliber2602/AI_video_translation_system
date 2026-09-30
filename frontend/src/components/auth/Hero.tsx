@@ -5,55 +5,24 @@ import {
   AudioLines,
 } from "lucide-react";
 import HeroIllustration from "./HeroIllustration";
-import AuthBrand from "./AuthBrand";
+import logoTopbar from "../../assets/logo-topbar.png";
 
 export default function Hero() {
   return (
-    <section className="relative h-full overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#F9FFFE] via-[#EEFCF9] to-[#DFF8F4]" />
-
-      {/* Blur */}
-      <div className="absolute -top-32 right-0 h-80 w-80 rounded-full bg-cyan-200/30 blur-[100px]" />
-      <div className="absolute bottom-0 left-0 h-96 w-96 rounded-full bg-emerald-200/20 blur-[120px]" />
-
-      {/* Decorative line */}
-      <div className="absolute top-0 left-0 h-full w-full opacity-40">
-        <svg
-          width="100%"
-          height="100%"
-          preserveAspectRatio="none"
-        >
-          <path
-            d="M0 120 C300 30 500 220 900 120"
-            stroke="#CDEFE8"
-            strokeWidth="2"
-            fill="none"
-          />
-          <path
-            d="M0 500 C350 350 600 650 900 500"
-            stroke="#CDEFE8"
-            strokeWidth="2"
-            fill="none"
-          />
-          <path
-            d="M0 720 C250 560 600 820 900 680"
-            stroke="#CDEFE8"
-            strokeWidth="2"
-            fill="none"
-          />
-        </svg>
-      </div>
-
+    <section className="relative h-full overflow-hidden bg-transparent">
       {/* Content */}
       <div className="relative z-10 flex h-full flex-col px-12 py-12 xl:px-16">
         {/* Brand */}
-        <div>
-          <AuthBrand />
+        <div className="relative z-20 flex justify-start items-center">
+          <img
+            src={logoTopbar}
+            alt="VIDNOVA"
+            className="h-[68px] sm:h-[82px] w-auto max-w-[400px] sm:max-w-[470px] object-contain select-none -ml-[18px] sm:-ml-[22px] translate-y-[-1px] sm:translate-y-[-1px]"
+          />
         </div>
 
         {/* Headline */}
-        <div className="mt-10">
+        <div className="relative z-10">
           <div className="mb-4 h-1 w-10 rounded bg-[#27C6B4]" />
 
           <h1 className="text-[52px] font-black leading-[56px] text-slate-900 xl:text-[64px] xl:leading-[68px]">

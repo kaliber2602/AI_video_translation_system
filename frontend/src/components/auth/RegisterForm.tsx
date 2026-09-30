@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  Apple,
   Eye,
   EyeOff,
   Loader2,
@@ -308,52 +307,25 @@ export default function RegisterForm() {
       )}
 
       {/* Register */}
-      <button
-        type="submit"
-        disabled={loading}
-        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] text-xs font-bold text-white shadow-[0_8px_20px_rgba(21,194,168,0.25)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-[var(--color-primary-hover)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {loading ? (
-          <>
-            <Loader2 size={16} className="animate-spin" />
-            <span>{t("auth:creatingAccount")}</span>
-          </>
-        ) : (
-          <span>{t("auth:createAccount")}</span>
-        )}
-      </button>
-
-      {/* Divider */}
-      <div className="my-5 flex items-center gap-4">
-        <div className="h-px flex-1 bg-[var(--color-border)]" />
-        <span className="text-[11px] font-medium text-[var(--color-text-muted)]">
-          {t("auth:orContinueWith")}
-        </span>
-        <div className="h-px flex-1 bg-[var(--color-border)]" />
-      </div>
-
-      {/* Social */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="pt-2">
         <button
-          type="button"
+          type="submit"
           disabled={loading}
-          className="flex h-10 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-xs font-semibold text-[var(--color-text-secondary)] transition-all duration-200 ease-out hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)]"
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] text-sm font-bold text-white shadow-[0_8px_20px_rgba(21,194,168,0.25)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-[var(--color-primary-hover)] hover:shadow-[0_12px_24px_rgba(21,194,168,0.32)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Microsoft
-        </button>
-
-        <button
-          type="button"
-          disabled={loading}
-          aria-label="Sign up with Apple"
-          className="flex h-10 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] transition-all duration-200 ease-out hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)]"
-        >
-          <Apple size={17} />
+          {loading ? (
+            <>
+              <Loader2 size={18} className="animate-spin" />
+              <span>{t("auth:creatingAccount")}</span>
+            </>
+          ) : (
+            <span>{t("auth:createAccount")}</span>
+          )}
         </button>
       </div>
 
       {/* Login */}
-      <div className="pt-2 text-center text-xs text-[var(--color-text-muted)]">
+      <div className="pt-4 text-center text-sm text-[var(--color-text-muted)]">
         {t("auth:alreadyHaveAccount")}{" "}
         <button
           type="button"
