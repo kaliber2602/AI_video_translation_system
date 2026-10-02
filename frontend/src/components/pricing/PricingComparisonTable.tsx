@@ -98,7 +98,7 @@ export default function PricingComparisonTable() {
                   <tr className="bg-[var(--color-background)]/50">
                     <td
                       colSpan={3}
-                      className="py-3 px-6 text-[11px] font-black uppercase tracking-wider text-[var(--color-primary)]"
+                      className="py-3 px-6 text-xs font-black uppercase tracking-wider text-[var(--color-primary)]"
                     >
                       {section.category}
                     </td>

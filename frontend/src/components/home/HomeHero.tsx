@@ -82,7 +82,7 @@ export default function HomeHero() {
             folderPath={`/assets/hero-illustration_${activeSubSequence}`}
             frameCount={300}
             progress={subProgress}
-            priorityFrameCount={45}
+            priorityFrameCount={5}
             className="w-full h-full"
           />
         </div>
@@ -113,6 +113,8 @@ export default function HomeHero() {
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
                 <button
                   type="button"
+                  onMouseEnter={() => import("../../pages/Register")}
+                  onPointerDown={() => import("../../pages/Register")}
                   onClick={() => navigate("/register")}
                   className="group relative flex h-12 items-center gap-2.5 rounded-full bg-gradient-to-r from-[#0A8450] to-[#00C7BE] px-8 text-sm font-semibold text-white shadow-[0_8px_25px_rgba(10,132,80,0.28)] transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_12px_32px_rgba(0,199,190,0.35)] cursor-pointer"
                 >

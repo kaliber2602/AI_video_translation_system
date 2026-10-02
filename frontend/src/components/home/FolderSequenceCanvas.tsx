@@ -109,121 +109,127 @@ export const FolderSequenceCanvas: React.FC<FolderSequenceCanvasProps> = ({
     lastDrawnImageRef.current = img;
   }, []);
 
-  // Preload priority frames first, then progressively stream all remaining frames into global cache
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [isInView, setIsInView] = useState(false);
+  const loadingSetRef = useRef<Set<number>>(new Set());
+
+  // Only start loading resources when canvas is in or near viewport
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setIsInView(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting) {
+          setIsInView(true);
+        }
+      },
+      { rootMargin: "350px" }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Frame loader function
+  const loadImage = useCallback((idx: number) => {
+    if (idx < 0 || idx >= resolvedFrameCount) return Promise.resolve();
+    if (isLoadedRef.current[idx] || loadingSetRef.current.has(idx)) {
+      return Promise.resolve();
+    }
+
+    const url = getFrameUrl(idx);
+    if (globalImageCache.has(url)) {
+      const cached = globalImageCache.get(url)!;
+      imagesRef.current[idx] = cached;
+      isLoadedRef.current[idx] = true;
+      if (idx === 0 && lastRenderedIndexRef.current === -1) {
+        drawFrame(cached);
+        lastRenderedIndexRef.current = 0;
+      }
+      return Promise.resolve();
+    }
+
+    loadingSetRef.current.add(idx);
+    return new Promise<void>((resolve) => {
+      const img = new Image();
+      img.src = url;
+      img.decoding = "async";
+      img.onload = () => {
+        loadingSetRef.current.delete(idx);
+        globalImageCache.set(url, img);
+        imagesRef.current[idx] = img;
+        isLoadedRef.current[idx] = true;
+
+        if (idx === 0 && lastRenderedIndexRef.current === -1) {
+          drawFrame(img);
+          lastRenderedIndexRef.current = 0;
+        }
+        resolve();
+      };
+      img.onerror = () => {
+        loadingSetRef.current.delete(idx);
+        resolve();
+      };
+    });
+  }, [resolvedFrameCount, getFrameUrl, drawFrame]);
+
+  // Buffer a small window around the active target frame
+  const loadWindowAround = useCallback((centerIdx: number, radius = 5) => {
+    const start = Math.max(0, centerIdx - 2);
+    const end = Math.min(resolvedFrameCount - 1, centerIdx + radius);
+    for (let i = start; i <= end; i++) {
+      loadImage(i);
+    }
+  }, [resolvedFrameCount, loadImage]);
+
+  // On mount or folderPath change, if in view, load initial frame immediately
   useEffect(() => {
     let isCancelled = false;
     imagesRef.current = new Array(resolvedFrameCount).fill(null);
     isLoadedRef.current = new Array(resolvedFrameCount).fill(false);
+    loadingSetRef.current.clear();
     lastRenderedIndexRef.current = -1;
 
-    // If we have a previously drawn image from another folder, immediately draw it to prevent white flash
+    // Draw cached image immediately if available to eliminate blank space
     if (lastDrawnImageRef.current && canvasRef.current) {
       drawFrame(lastDrawnImageRef.current);
     }
 
-    let priorityLoaded = 0;
-    const neededPriority = Math.min(priorityFrameCount, resolvedFrameCount);
+    if (!isInView) return;
 
-    const loadImage = (idx: number, isPriority: boolean = false) => {
-      return new Promise<void>((resolve) => {
-        if (isCancelled) return resolve();
-        const url = getFrameUrl(idx);
-
-        // Check global cache first to prevent any re-downloading or white flashes
-        if (globalImageCache.has(url)) {
-          const cachedImg = globalImageCache.get(url)!;
-          imagesRef.current[idx] = cachedImg;
-          isLoadedRef.current[idx] = true;
-
-          if (idx === 0 && lastRenderedIndexRef.current === -1) {
-            drawFrame(cachedImg);
-            lastRenderedIndexRef.current = 0;
-          }
-
-          if (isPriority) {
-            priorityLoaded++;
-            if (priorityLoaded >= neededPriority) {
-              setInitialReady(true);
-              onLoaded?.();
-            }
-          }
-          return resolve();
-        }
-
-        const img = new Image();
-        img.src = url;
-        img.decoding = "async";
-        img.onload = () => {
-          if (isCancelled) return resolve();
-          globalImageCache.set(url, img);
-          imagesRef.current[idx] = img;
-          isLoadedRef.current[idx] = true;
-
-          // Render first frame immediately once loaded
-          if (idx === 0 && lastRenderedIndexRef.current === -1) {
-            drawFrame(img);
-            lastRenderedIndexRef.current = 0;
-          }
-
-          if (isPriority) {
-            priorityLoaded++;
-            if (priorityLoaded >= neededPriority) {
-              setInitialReady(true);
-              onLoaded?.();
-            }
-          }
-          resolve();
-        };
-        img.onerror = () => {
-          if (isPriority) {
-            priorityLoaded++;
-            if (priorityLoaded >= neededPriority) {
-              setInitialReady(true);
-              onLoaded?.();
-            }
-          }
-          resolve();
-        };
-      });
-    };
-
-    // Priority parallel loading
-    const priorityPromises: Promise<void>[] = [];
-    for (let i = 0; i < neededPriority; i++) {
-      priorityPromises.push(loadImage(i, true));
-    }
-
-    Promise.all(priorityPromises).then(() => {
+    // Step 1: Immediately load frame 0 to paint canvas without network bottleneck
+    loadImage(0).then(() => {
       if (isCancelled) return;
       setInitialReady(true);
+      onLoaded?.();
 
-      // Background streaming for complete frame collection
-      const queueRemaining = async () => {
-        const batchSize = 12;
-        for (let i = neededPriority; i < resolvedFrameCount; i += batchSize) {
-          if (isCancelled) break;
-          const batch: Promise<void>[] = [];
-          for (let b = 0; b < batchSize && i + b < resolvedFrameCount; b++) {
-            batch.push(loadImage(i + b, false));
-          }
-          await Promise.all(batch);
-          await new Promise((r) => setTimeout(r, 4));
-        }
-      };
-      queueRemaining();
+      // Step 2: Preload tiny 2-frame buffer so initial scrub feels instant
+      const initialBuffer = Math.min(priorityFrameCount, 2, resolvedFrameCount - 1);
+      for (let i = 1; i <= initialBuffer; i++) {
+        loadImage(i);
+      }
     });
 
     return () => {
       isCancelled = true;
     };
-  }, [folderPath, resolvedFrameCount, getFrameUrl, priorityFrameCount, drawFrame, onLoaded]);
+  }, [folderPath, resolvedFrameCount, isInView, priorityFrameCount, loadImage, drawFrame, onLoaded]);
 
   // Exact 100% full-frame linear mapping: maps [0, 1] strictly to [0, resolvedFrameCount - 1]
   useEffect(() => {
     const clampedProgress = Math.max(0, Math.min(1, isNaN(progress) ? 0 : progress));
     const exactTarget = clampedProgress * (resolvedFrameCount - 1);
-    targetFrameRef.current = Math.min(resolvedFrameCount - 1, Math.max(0, exactTarget));
-  }, [progress, resolvedFrameCount]);
+    const targetIdx = Math.min(resolvedFrameCount - 1, Math.max(0, Math.round(exactTarget)));
+    targetFrameRef.current = targetIdx;
+    if (isInView) {
+      loadWindowAround(targetIdx);
+    }
+  }, [progress, resolvedFrameCount, isInView, loadWindowAround]);
 
   // Buttery-Smooth Lerp Animation Loop with Continuous RequestAnimationFrame
   useEffect(() => {
@@ -319,7 +325,10 @@ export const FolderSequenceCanvas: React.FC<FolderSequenceCanvasProps> = ({
   }, [drawFrame, resolvedFrameCount]);
 
   return (
-    <div className={`relative w-full h-full overflow-hidden select-none bg-[#F8F9FA] ${className}`}>
+    <div
+      ref={containerRef}
+      className={`relative w-full h-full overflow-hidden select-none bg-[#F8F9FA] ${className}`}
+    >
       <canvas
         ref={canvasRef}
         style={{

@@ -94,7 +94,7 @@ export default function RAGFlowDiagram() {
               </div>
 
               <div className="mt-4 flex items-center justify-between border-t border-[var(--color-border)] pt-3">
-                <span className="rounded-md bg-[var(--color-background)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-primary)]">
+                <span className="rounded-md bg-[var(--color-background)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-primary)]">
                   {step.badge}
                 </span>
 
@@ -119,7 +119,7 @@ export default function RAGFlowDiagram() {
               <h4 className="text-sm font-black text-[var(--color-text-primary)]">
                 {t("home:semanticSearch.comparison.keyword")}
               </h4>
-              <span className="text-[11px] text-[var(--color-text-muted)]">
+              <span className="text-xs text-[var(--color-text-muted)]">
                 Exact Substring Token Matching
               </span>
             </div>
@@ -146,7 +146,7 @@ export default function RAGFlowDiagram() {
               <h4 className="text-sm font-black text-[var(--color-text-primary)]">
                 {t("home:semanticSearch.comparison.semantic")}
               </h4>
-              <span className="text-[11px] font-bold text-[var(--color-primary)]">
+              <span className="text-xs font-bold text-[var(--color-primary)]">
                 Contextual Vector AI + Source Grounding
               </span>
             </div>

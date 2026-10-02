@@ -54,7 +54,7 @@ export default function StorageAddonSection({
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)] transition-transform duration-200 group-hover:scale-110">
                       <HardDrive size={20} />
                     </div>
-                    <span className="flex items-center gap-0.5 rounded-md bg-[var(--color-surface)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-text-muted)] border border-[var(--color-border)]">
+                    <span className="flex items-center gap-0.5 rounded-md bg-[var(--color-surface)] px-2 py-0.5 text-xs font-bold text-[var(--color-text-muted)] border border-[var(--color-border)]">
                       <Plus size={10} /> Add-on
                     </span>
                   </div>
@@ -79,7 +79,7 @@ export default function StorageAddonSection({
                   </div>
 
                   {billingCycle === "yearly" && (
-                    <div className="mt-1 text-[11px] font-medium text-[var(--color-primary)]">
+                    <div className="mt-1 text-xs font-medium text-[var(--color-primary)]">
                       ${addon.price_yearly} {t("pricing:storageAddons.pricePerYear")}
                     </div>
                   )}

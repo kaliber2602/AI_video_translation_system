@@ -36,6 +36,8 @@ export default function HomeCTA() {
 
         <button
           type="button"
+          onMouseEnter={() => import("../../pages/Register")}
+          onPointerDown={() => import("../../pages/Register")}
           onClick={() => navigate("/register")}
           className="mx-auto mt-6 flex min-h-[48px] items-center gap-2 rounded-xl bg-[var(--color-primary)] px-8 py-3.5 text-sm sm:text-base font-bold text-white shadow-[0_10px_25px_rgba(32,197,174,0.25)] transition hover:-translate-y-0.5 hover:bg-[var(--color-primary-hover)] cursor-pointer"
         >

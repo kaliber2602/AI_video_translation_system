@@ -1,7 +1,7 @@
 import Hero from "../components/auth/Hero";
 import LoginForm from "../components/auth/LoginForm";
-import bgLoginForm from "../assets/bg-login_form.png";
-import bgGlobalLogin from "../assets/bg-global_login.png";
+import bgLoginForm from "../assets/bg-login_form.webp";
+import bgGlobalLogin from "../assets/bg-global_login.webp";
 
 export default function Login() {
   return (

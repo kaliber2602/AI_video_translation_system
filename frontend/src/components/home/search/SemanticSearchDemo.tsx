@@ -111,11 +111,11 @@ export default function SemanticSearchDemo() {
         {/* Top Search Interface Bar */}
         <div className="border-b border-[var(--color-border)] bg-[var(--color-background)]/70 p-6 sm:p-8">
           <div className="flex items-center justify-between mb-3">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 text-[11px] font-bold text-amber-600">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 px-3 py-1 text-xs font-bold text-amber-800 dark:text-amber-300">
               <Sparkles size={12} />
               <span>Interactive RAG Preview Demo</span>
             </div>
-            <span className="text-[11px] text-[var(--color-text-muted)]">
+            <span className="text-xs text-[var(--color-text-muted)]">
               Simulated Vector Search & LLM Grounding
             </span>
           </div>
@@ -156,9 +156,9 @@ export default function SemanticSearchDemo() {
                 key={item.id}
                 type="button"
                 onClick={() => handleSelectQuery(idx)}
-                className={`min-h-[40px] rounded-xl border px-3.5 py-2 text-xs sm:text-sm font-medium transition-all duration-200 cursor-pointer ${
+                className={`min-h-[38px] rounded-xl border px-3 py-1.5 text-xs font-medium transition-all duration-200 cursor-pointer ${
                   selectedQueryIndex === idx
-                    ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-primary)] font-bold shadow-sm"
+                    ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-primary)] font-bold shadow-xs"
                     : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]/50 hover:text-[var(--color-text-primary)]"
                 }`}
               >
@@ -177,7 +177,7 @@ export default function SemanticSearchDemo() {
                 <FileVideo size={16} className="text-[var(--color-primary)]" />
                 <span>{t("home:semanticSearch.results.header")}</span>
               </div>
-              <span className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-0.5 text-[10px] font-black text-[var(--color-primary)]">
+              <span className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-0.5 text-xs font-black text-[var(--color-primary)]">
                 {currentItem.results.length} Segments Found
               </span>
             </div>
@@ -202,7 +202,7 @@ export default function SemanticSearchDemo() {
                     </div>
 
                     {/* Relevance match badge */}
-                    <span className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-600">
+                    <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-400">
                       {res.relevance}% {t("home:semanticSearch.results.relevance")}
                     </span>
                   </div>
@@ -214,7 +214,7 @@ export default function SemanticSearchDemo() {
                   </div>
 
                   {/* Footer with Video source */}
-                  <div className="mt-3 flex items-center justify-between text-[10px] text-[var(--color-text-muted)]">
+                  <div className="mt-3 flex items-center justify-between text-xs text-[var(--color-text-muted)]">
                     <span className="font-semibold">{res.video}</span>
                     <span className="flex items-center gap-1 font-bold text-[var(--color-primary)] transition group-hover:underline">
                       {t("home:semanticSearch.results.jumpTo")} <ExternalLink size={10} />
@@ -239,7 +239,7 @@ export default function SemanticSearchDemo() {
                       <h3 className="text-sm font-black text-[var(--color-text-primary)]">
                         {t("home:semanticSearch.aiAnswer.title")}
                       </h3>
-                      <span className="text-[10px] font-bold text-[var(--color-primary)]">
+                      <span className="text-xs font-bold text-[var(--color-primary)]">
                         {t("home:semanticSearch.aiAnswer.badge")}
                       </span>
                     </div>
@@ -256,7 +256,7 @@ export default function SemanticSearchDemo() {
 
               {/* Citations & Sources list */}
               <div className="mt-6 border-t border-[var(--color-border)] pt-4">
-                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] mb-2.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)] mb-2.5">
                   <CheckCircle2 size={13} className="text-[var(--color-primary)]" />
                   <span>{t("home:semanticSearch.aiAnswer.sourcesLabel")}</span>
                 </div>
@@ -265,7 +265,7 @@ export default function SemanticSearchDemo() {
                   {currentItem.sources.map((src, idx) => (
                     <div
                       key={idx}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-secondary)] shadow-sm"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] shadow-sm"
                     >
                       <Clock size={11} className="text-[var(--color-primary)]" />
                       <span className="font-mono font-bold text-[var(--color-primary)]">{src.time}</span>

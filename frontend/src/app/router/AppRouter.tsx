@@ -43,7 +43,8 @@ function VideoEditorRedirect() {
 
 import ProtectedRoute from "./ProtectedRoute";
 import AdminRoute from "./AdminRoute";
-import FloatingChatWidget from "../../components/chat/FloatingChatWidget";
+
+const FloatingChatWidget = lazy(() => import("../../components/chat/FloatingChatWidget"));
 
 function PageLoadingFallback() {
   return (
@@ -59,7 +60,9 @@ function PageLoadingFallback() {
 export default function AppRouter() {
   return (
     <BrowserRouter>
-      <FloatingChatWidget />
+      <Suspense fallback={null}>
+        <FloatingChatWidget />
+      </Suspense>
       <Suspense fallback={<PageLoadingFallback />}>
         <Routes>
 

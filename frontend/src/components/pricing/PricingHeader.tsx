@@ -56,7 +56,7 @@ export default function PricingHeader({
         >
           <span>{t("pricing:billing.yearly")}</span>
           <span
-            className={`rounded-full px-2 py-0.5 text-[11px] font-black uppercase tracking-wider transition-colors ${
+            className={`rounded-full px-2.5 py-0.5 text-xs font-black uppercase tracking-wider transition-colors ${
               billingCycle === "yearly"
                 ? "bg-white/20 text-white"
                 : "bg-[var(--color-primary-soft)] text-[var(--color-primary)]"

@@ -168,7 +168,7 @@ export default function ContactForm() {
               />
             </div>
             {errors.name && (
-              <p className="mt-1.5 flex items-center gap-1 text-[11px] text-rose-500 font-medium">
+              <p className="mt-1.5 flex items-center gap-1 text-xs text-rose-600 dark:text-rose-400 font-medium">
                 <AlertCircle size={12} /> {errors.name}
               </p>
             )}
@@ -202,7 +202,7 @@ export default function ContactForm() {
               />
             </div>
             {errors.email && (
-              <p className="mt-1.5 flex items-center gap-1 text-[11px] text-rose-500 font-medium">
+              <p className="mt-1.5 flex items-center gap-1 text-xs text-rose-600 dark:text-rose-400 font-medium">
                 <AlertCircle size={12} /> {errors.email}
               </p>
             )}
@@ -261,7 +261,7 @@ export default function ContactForm() {
             />
           </div>
           {errors.message && (
-            <p className="mt-1.5 flex items-center gap-1 text-[11px] text-rose-500 font-medium">
+            <p className="mt-1.5 flex items-center gap-1 text-xs text-rose-600 dark:text-rose-400 font-medium">
               <AlertCircle size={12} /> {errors.message}
             </p>
           )}

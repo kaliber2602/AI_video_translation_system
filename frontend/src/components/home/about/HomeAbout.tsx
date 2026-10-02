@@ -88,7 +88,7 @@ export default function HomeAbout() {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-1 text-[10px] font-bold text-[var(--color-text-muted)] border border-[var(--color-border)] rounded-full px-3 py-1 bg-[var(--color-background)]">
+                  <div className="flex items-center gap-1 text-xs font-bold text-[var(--color-text-muted)] border border-[var(--color-border)] rounded-full px-3 py-1 bg-[var(--color-background)]">
                     <Terminal size={11} className="text-[var(--color-primary)]" />
                     <span>Core Contributor</span>
                   </div>

@@ -115,7 +115,7 @@ export default function PipelineScrollytelling() {
       id="how-it-works"
       ref={containerRef}
       className="relative w-full bg-[#F8F9FA] transition-colors duration-200"
-      style={{ height: "450vh" }}
+      style={{ height: "450vh", contentVisibility: "auto", containIntrinsicSize: "1000px" }}
     >
       {/* Sticky Full-Bleed Viewport Theater (Zero boxed white borders or rigid cards) */}
       <div className="sticky top-0 h-screen w-full overflow-hidden flex items-center justify-center bg-[#F8F9FA]">
@@ -131,7 +131,7 @@ export default function PipelineScrollytelling() {
             folderPath={currentStep.folder}
             frameCount={300}
             progress={stepLocalProgress}
-            priorityFrameCount={45}
+            priorityFrameCount={5}
             className="w-full h-full"
           />
         </div>
@@ -143,40 +143,40 @@ export default function PipelineScrollytelling() {
             <div className="w-full max-w-[440px] pointer-events-auto rounded-3xl border border-white/80 bg-white/75 p-7 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.04)] backdrop-blur-2xl transition-all duration-300">
               {/* Node Identifier */}
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono font-bold tracking-wider uppercase text-[#0A8450]">
+                <span className="text-xs font-mono font-bold tracking-wider uppercase text-[var(--color-primary)]">
                   Node {currentStep.stepNum} of 05
                 </span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#1D1D1F] text-white">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--color-text-primary)] text-white">
                   {React.createElement(currentStep.icon, { size: 18 })}
                 </div>
               </div>
 
               {/* Title & Description */}
-              <h4 className="mt-4 text-xl sm:text-2xl font-bold tracking-tight text-[#1D1D1F] leading-snug">
+              <h4 className="mt-4 text-xl sm:text-2xl font-bold tracking-tight text-[var(--color-text-primary)] leading-snug">
                 {currentStep.title}
               </h4>
-              <p className="mt-3 text-sm leading-relaxed text-[#6E6E73]">
+              <p className="mt-3 text-sm leading-relaxed text-[var(--color-text-muted)]">
                 {currentStep.desc}
               </p>
 
               {/* Technical Specifications */}
               <div className="mt-5 rounded-2xl bg-[#F8F9FA] p-3.5 border border-[#E5E7EB]/60">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#6E6E73] block mb-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)] block mb-1">
                   Engine & Model
                 </span>
-                <p className="font-mono text-xs font-semibold text-[#1D1D1F]">
+                <p className="font-mono text-xs font-semibold text-[var(--color-text-primary)]">
                   {currentStep.tech}
                 </p>
               </div>
 
               {/* Deliverables / Outputs */}
               <div className="mt-5 space-y-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#6E6E73] block">
+                <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)] block">
                   Generated Deliverables
                 </span>
                 {currentStep.outputs.map((out, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs font-medium text-[#1D1D1F]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#0A8450] shrink-0" />
+                  <div key={i} className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-primary)]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-primary)] shrink-0" />
                     <span>{out}</span>
                   </div>
                 ))}

@@ -15,14 +15,14 @@
 
   --color-text-primary: #152238;
   --color-text-secondary: #4a5c66;
-  --color-text-muted: #596b73;
+  --color-text-muted: #4a5c66;
 
-  --color-primary: #0d9488;
-  --color-primary-hover: #0f766e;
+  --color-primary: #0f766e;
+  --color-primary-hover: #0d5f58;
   --color-primary-soft: #e6f6f4;
 
   --color-secondary: #4c94e8;
-  --color-accent: #0d9488;
+  --color-accent: #0f766e;
 
   --color-border: #e3ebe9;
   --color-border-muted: #e7efee;

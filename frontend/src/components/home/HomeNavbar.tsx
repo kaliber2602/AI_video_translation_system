@@ -150,6 +150,8 @@ export default function HomeNavbar() {
             {/* Sign In Link */}
             <Link
               to="/login"
+              onMouseEnter={() => import("../../pages/Login")}
+              onPointerDown={() => import("../../pages/Login")}
               className="hidden h-10 items-center justify-center rounded-full px-3.5 text-xs sm:text-sm font-semibold text-[var(--color-text-primary)] transition hover:text-[var(--color-primary)] sm:flex"
             >
               {t("navigation:login")}
@@ -158,6 +160,8 @@ export default function HomeNavbar() {
             {/* Right-aligned Gradient CTA Button ("Get Started") */}
             <button
               type="button"
+              onMouseEnter={() => import("../../pages/Register")}
+              onPointerDown={() => import("../../pages/Register")}
               onClick={() => navigate("/register")}
               className="hidden sm:inline-flex items-center gap-1.5 h-10 px-5 rounded-full bg-gradient-to-r from-[#0A8450] to-[#00C7BE] text-xs sm:text-sm font-bold text-white shadow-[0_4px_18px_rgba(10,132,80,0.25)] transition-all hover:scale-105 hover:shadow-[0_6px_22px_rgba(0,199,190,0.35)] cursor-pointer"
             >
@@ -244,6 +248,8 @@ export default function HomeNavbar() {
           <div className="mt-4 flex items-center gap-3 border-t border-[var(--color-border)] pt-4">
             <Link
               to="/login"
+              onMouseEnter={() => import("../../pages/Login")}
+              onPointerDown={() => import("../../pages/Login")}
               onClick={() => setMobileMenuOpen(false)}
               className="flex-1 flex h-10 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-xs font-bold text-[var(--color-text-primary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
             >
@@ -252,6 +258,8 @@ export default function HomeNavbar() {
 
             <button
               type="button"
+              onMouseEnter={() => import("../../pages/Register")}
+              onPointerDown={() => import("../../pages/Register")}
               onClick={() => {
                 setMobileMenuOpen(false);
                 navigate("/register");

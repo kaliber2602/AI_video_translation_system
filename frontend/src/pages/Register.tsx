@@ -1,10 +1,10 @@
 import { BrainCircuit, Globe2, Languages, Mic2 } from "lucide-react";
 import AuthBrand from "../components/auth/AuthBrand";
 import RegisterForm from "../components/auth/RegisterForm";
-import bgGlobalLogin from "../assets/bg-global_login.png";
-import bgLoginForm from "../assets/bg-login_form.png";
+import bgGlobalLogin from "../assets/bg-global_login.webp";
+import bgLoginForm from "../assets/bg-login_form.webp";
 import logoTopbar from "../assets/logo-topbar.png";
-import registerHero from "../assets/register-hero.png";
+import registerHero from "../assets/register-hero.webp";
 
 export default function Register() {
   return (

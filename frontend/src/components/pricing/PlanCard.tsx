@@ -102,7 +102,7 @@ export default function PlanCard({
       {/* Popular Star Badge */}
       {isPopular && (
         <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-primary)] px-4 py-1 text-[11px] font-black uppercase tracking-wider text-white shadow-md">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-primary)] px-4 py-1 text-xs font-black uppercase tracking-wider text-white shadow-md">
             <Star size={12} className="fill-current" />
             {t("pricing:plans.pro.popular")}
           </span>
@@ -116,7 +116,7 @@ export default function PlanCard({
             {plan.name}
           </h3>
           {isCurrentPlan && (
-            <span className="rounded-lg bg-[var(--color-primary-soft)] px-2.5 py-1 text-[11px] font-bold text-[var(--color-primary)]">
+            <span className="rounded-lg bg-[var(--color-primary-soft)] px-2.5 py-1 text-xs font-bold text-[var(--color-primary)]">
               {t("pricing:plans.currentPlan")}
             </span>
           )}
@@ -137,7 +137,7 @@ export default function PlanCard({
             </span>
           </div>
           {billingCycle === "yearly" && !isFree && (
-            <p className="mt-1 text-[11px] font-medium text-[var(--color-primary)]">
+            <p className="mt-1 text-xs font-medium text-[var(--color-primary)]">
               ${plan.price_yearly} {t("pricing:plans.billedYearly")}
             </p>
           )}
@@ -152,7 +152,7 @@ export default function PlanCard({
           <div className="mt-2 text-lg font-black text-[var(--color-text-primary)]">
             {formatStorage(storageResource?.limit_value)}
           </div>
-          <div className="text-[11px] text-[var(--color-text-muted)]">
+          <div className="text-xs text-[var(--color-text-muted)]">
             + {t("pricing:storageAddons.badge")}
           </div>
         </div>
@@ -166,16 +166,16 @@ export default function PlanCard({
           <div className="mt-2 text-lg font-black text-[var(--color-text-primary)]">
             {wordCount.toLocaleString()} {t("pricing:comparison.rows.words", "Từ (Words) / Tháng")}
           </div>
-          <div className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1.5 mt-0.5">
+          <div className="text-xs text-[var(--color-text-muted)] flex items-center gap-1.5 mt-0.5">
             <span>~ {estimatedMinutes.toLocaleString()} {t("pricing:comparison.rows.minutesEstimate", "phút âm thanh")}</span>
             <span>•</span>
-            <span className="text-emerald-600 dark:text-emerald-400 font-medium">{t("pricing:comparison.rows.tokenizeMethod", "Khấu trừ theo từ")}</span>
+            <span className="text-emerald-700 dark:text-emerald-400 font-medium">{t("pricing:comparison.rows.tokenizeMethod", "Khấu trừ theo từ")}</span>
           </div>
         </div>
 
         {/* 3. LIMITS */}
         <div className="mt-5 space-y-2 text-xs text-[var(--color-text-secondary)]">
-          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
             <Sliders size={14} className="text-[var(--color-primary)]" />
             <span>{t("pricing:sections.limits")}</span>
           </div>
@@ -225,7 +225,7 @@ export default function PlanCard({
 
         {/* 4. FEATURES (All active) */}
         <div className="mt-5 space-y-2 text-xs">
-          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
             <ShieldCheck size={14} className="text-[var(--color-primary)]" />
             <span>{t("pricing:sections.features")}</span>
           </div>
