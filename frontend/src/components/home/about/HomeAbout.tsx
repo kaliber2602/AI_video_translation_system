@@ -125,9 +125,9 @@ export default function HomeAbout() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={`${member.name} GitHub`}
-                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] shadow-2xs"
                   >
-                    <GithubIcon size={14} />
+                    <GithubIcon size={16} />
                   </a>
 
                   <a
@@ -135,9 +135,9 @@ export default function HomeAbout() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={`${member.name} LinkedIn`}
-                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] shadow-2xs"
                   >
-                    <LinkedinIcon size={14} />
+                    <LinkedinIcon size={16} />
                   </a>
 
                   <a
@@ -145,9 +145,9 @@ export default function HomeAbout() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={`${member.name} X / Twitter`}
-                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] shadow-2xs"
                   >
-                    <TwitterIcon size={14} />
+                    <TwitterIcon size={16} />
                   </a>
                 </div>
               </div>

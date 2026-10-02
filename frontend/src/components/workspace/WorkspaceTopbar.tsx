@@ -257,6 +257,7 @@ export default function WorkspaceTopbar({
       <button
         type="button"
         onClick={handleWorkspace}
+        aria-label="VIDNOVA Workspace Home"
         className="flex shrink-0 items-center text-left cursor-pointer group"
       >
         <img
@@ -344,9 +345,9 @@ export default function WorkspaceTopbar({
                 {displayName}
               </span>
               <span
-                className={`text-[10px] font-extrabold uppercase tracking-wider ${
+                className={`text-[11px] font-bold uppercase tracking-wider ${
                   planCode === "pro"
-                    ? "text-emerald-600 dark:text-emerald-400"
+                    ? "text-emerald-700 dark:text-emerald-400"
                     : "text-[var(--color-text-muted)]"
                 }`}
               >
@@ -562,16 +563,16 @@ export default function WorkspaceTopbar({
           onClick={onToggleCollapse}
           aria-label={isCollapsed ? "Expand navbar" : "Collapse navbar"}
           title={isCollapsed ? t("workspace:expandNavbar", "Hiện thanh điều hướng") : t("workspace:collapseNavbar", "Thu gọn thanh điều hướng")}
-          className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex h-6 items-center gap-1 rounded-full border border-color-mix(in srgb, var(--color-primary) 35%, var(--color-border)) bg-[var(--color-surface)] px-2.5 text-[11px] font-bold text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-110 hover:bg-[var(--color-primary)] hover:text-white hover:border-[var(--color-primary)] active:scale-95 z-40 group cursor-pointer"
+          className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex h-8 min-w-[48px] items-center justify-center gap-1 rounded-full border border-color-mix(in srgb, var(--color-primary) 35%, var(--color-border)) bg-[var(--color-surface)] px-3.5 text-xs font-bold text-[var(--color-text-secondary)] shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 hover:bg-[var(--color-primary)] hover:text-white hover:border-[var(--color-primary)] active:scale-95 z-40 group cursor-pointer"
         >
           {isCollapsed ? (
             <ChevronDown
-              size={14}
+              size={15}
               className="text-[var(--color-primary)] group-hover:text-white transition-transform duration-200 group-hover:translate-y-0.5"
             />
           ) : (
             <ChevronUp
-              size={13}
+              size={14}
               className="transition-transform duration-200 group-hover:-translate-y-0.5"
             />
           )}

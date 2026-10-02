@@ -42,7 +42,8 @@
     "deleted": "Project deleted successfully.",
     "saveError": "Failed to save project",
     "deleteError": "Failed to delete project",
-    "nameEmptyError": "Project name cannot be empty."
+    "nameEmptyError": "Project name cannot be empty.",
+    "noTagsAvailable": "No tags available."
   },
   "tags": {
     "title": "Tags",
@@ -175,7 +176,18 @@
     "emptyTrashButton": "Empty Trash",
     "deletedAt": "Deleted {{date}}",
     "inTrashNotice": "This project is in trash. Restore it to continue editing or accessing.",
-    "cannotOpenInTrash": "Project is in trash. Please restore it before opening."
+    "cannotOpenInTrash": "Project is in trash. Please restore it before opening.",
+    "batchSelected": "{{count}} projects selected",
+    "batchMoveToTrash": "Move {{count}} projects to trash",
+    "batchMoveToTrashTitle": "Move selected projects to trash?",
+    "batchMoveToTrashConfirm": "Are you sure you want to move {{count}} selected projects to trash?",
+    "batchMoveToTrashSuccess": "Moved {{count}} projects to trash successfully.",
+    "batchPermanentDelete": "Permanently delete {{count}} projects",
+    "batchPermanentDeleteTitle": "Permanently delete selected projects?",
+    "batchPermanentDeleteConfirm": "Are you sure you want to permanently delete {{count}} selected projects? This action cannot be undone.",
+    "batchPermanentDeleteSuccess": "Permanently deleted {{count}} projects successfully.",
+    "batchRestore": "Restore {{count}} projects",
+    "batchRestoreSuccess": "Restored {{count}} projects successfully."
   }
 }
 

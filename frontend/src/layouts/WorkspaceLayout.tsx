@@ -91,6 +91,7 @@ export default function WorkspaceLayout() {
   const [projectModalMode, setProjectModalMode] = useState<"create" | "edit" | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
+  const [deletingProjects, setDeletingProjects] = useState<Project[]>([]);
   const [deleteModalMode, setDeleteModalMode] = useState<"soft" | "permanent">("soft");
   const [isEmptyTrashConfirmOpen, setIsEmptyTrashConfirmOpen] = useState(false);
 
@@ -149,6 +150,18 @@ export default function WorkspaceLayout() {
       console.error("[WorkspaceLayout] Failed to load tags:", err);
     }
   }, []);
+
+  // Listen to tag creations/updates/deletions across components
+  useEffect(() => {
+    const handleTagsUpdated = () => {
+      loadTags();
+    };
+
+    window.addEventListener("tags-updated", handleTagsUpdated);
+    return () => {
+      window.removeEventListener("tags-updated", handleTagsUpdated);
+    };
+  }, [loadTags]);
 
   // Update Trash Count
   const updateTrashCount = useCallback(async () => {
@@ -358,11 +371,13 @@ export default function WorkspaceLayout() {
 
   // Project Modal Actions
   const handleOpenCreateModal = () => {
+    loadTags();
     setEditingProject(null);
     setProjectModalMode("create");
   };
 
   const handleOpenEditModal = (project: Project) => {
+    loadTags();
     setEditingProject(project);
     setProjectModalMode("edit");
   };
@@ -407,33 +422,92 @@ export default function WorkspaceLayout() {
     await loadTags();
   };
 
-  // Delete Project Actions
+  // Delete Project Actions (Single & Batch)
   const handleOpenDeleteModal = (project: Project) => {
     setDeletingProject(project);
+    setDeletingProjects([]);
+    setDeleteModalMode(currentTab === "trash" ? "permanent" : "soft");
+  };
+
+  const handleOpenBatchDeleteModal = (selectedProjects: Project[]) => {
+    setDeletingProject(null);
+    setDeletingProjects(selectedProjects);
     setDeleteModalMode(currentTab === "trash" ? "permanent" : "soft");
   };
 
   const handleCloseDeleteModal = () => {
     setDeletingProject(null);
+    setDeletingProjects([]);
   };
 
-  const handleConfirmDelete = async (projectId: number) => {
-    const deletedName = deletingProject?.name || "";
-    if (deleteModalMode === "permanent") {
-      await permanentDeleteProject(projectId);
-      toast.success(
-        t("workspace:trash.permanentSuccess", { name: deletedName, defaultValue: `Đã xóa vĩnh viễn dự án "${deletedName}".` })
-      );
-      setProjects((prev) => prev.filter((p) => p.id !== projectId));
-      setTrashCount((prev) => Math.max(0, prev - 1));
+  const handleConfirmDelete = async (projectIds: number[]) => {
+    const isBatch = projectIds.length > 1;
+    const isPermanent = deleteModalMode === "permanent";
+
+    if (isPermanent) {
+      for (const id of projectIds) {
+        await permanentDeleteProject(id);
+      }
+      if (isBatch) {
+        toast.success(
+          t("workspace:trash.batchPermanentDeleteSuccess", {
+            count: projectIds.length,
+            defaultValue: `Đã xóa vĩnh viễn ${projectIds.length} dự án thành công.`,
+          })
+        );
+      } else {
+        const deletedName = deletingProject?.name || "";
+        toast.success(
+          t("workspace:trash.permanentSuccess", {
+            name: deletedName,
+            defaultValue: `Đã xóa vĩnh viễn dự án "${deletedName}".`,
+          })
+        );
+      }
+      setProjects((prev) => prev.filter((p) => !projectIds.includes(p.id)));
+      setTrashCount((prev) => Math.max(0, prev - projectIds.length));
     } else {
-      await deleteProject(projectId);
+      for (const id of projectIds) {
+        await deleteProject(id);
+      }
+      if (isBatch) {
+        toast.success(
+          t("workspace:trash.moveToTrashTitle", "Chuyển vào thùng rác"),
+          t("workspace:trash.batchMoveToTrashSuccess", {
+            count: projectIds.length,
+            defaultValue: `Đã chuyển ${projectIds.length} dự án vào thùng rác thành công.`,
+          })
+        );
+      } else {
+        const deletedName = deletingProject?.name || "";
+        toast.success(
+          t("workspace:trash.moveToTrashTitle", "Chuyển vào thùng rác"),
+          t("workspace:project.deletedDesc", { name: deletedName })
+        );
+      }
+      setProjects((prev) => prev.filter((p) => !projectIds.includes(p.id)));
+      setTrashCount((prev) => prev + projectIds.length);
+    }
+  };
+
+  // Batch Restore Action
+  const handleBatchRestoreProjects = async (projectsToRestore: Project[]) => {
+    try {
+      const ids = projectsToRestore.map((p) => p.id);
+      for (const id of ids) {
+        await restoreProject(id);
+      }
       toast.success(
-        t("workspace:trash.moveToTrashTitle", "Chuyển vào thùng rác"),
-        t("workspace:project.deletedDesc", { name: deletedName })
+        t("workspace:trash.batchRestoreSuccess", {
+          count: ids.length,
+          defaultValue: `Đã khôi phục ${ids.length} dự án thành công.`,
+        })
       );
-      setProjects((prev) => prev.filter((p) => p.id !== projectId));
-      setTrashCount((prev) => prev + 1);
+      setProjects((prev) => prev.filter((p) => !ids.includes(p.id)));
+      setTrashCount((prev) => Math.max(0, prev - ids.length));
+    } catch (err) {
+      console.error("[WorkspaceLayout] Batch restore error:", err);
+      await loadProjects();
     }
   };
 
@@ -598,6 +672,8 @@ export default function WorkspaceLayout() {
                     onProjectClick={handleProjectClick}
                     onEditProject={handleOpenEditModal}
                     onDeleteProject={handleOpenDeleteModal}
+                    onBatchDeleteProjects={handleOpenBatchDeleteModal}
+                    onBatchRestoreProjects={handleBatchRestoreProjects}
                     onToggleFavorite={handleToggleFavorite}
                     onRestoreProject={handleRestoreProject}
                     isTrashMode={currentTab === "trash"}
@@ -635,10 +711,11 @@ export default function WorkspaceLayout() {
         onSubmit={handleSubmitProjectModal}
       />
 
-      {/* Delete Project Confirmation Modal */}
+      {/* Delete Project Confirmation Modal (Single & Batch) */}
       <DeleteProjectModal
         project={deletingProject}
-        isOpen={deletingProject !== null}
+        projects={deletingProjects}
+        isOpen={deletingProject !== null || deletingProjects.length > 0}
         mode={deleteModalMode}
         onClose={handleCloseDeleteModal}
         onConfirm={handleConfirmDelete}

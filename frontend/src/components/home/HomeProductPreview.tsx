@@ -78,6 +78,8 @@ export default function HomeProductPreview() {
             <img
               src={logoTopbar}
               alt="VIDNOVA"
+              width={220}
+              height={48}
               className="h-10 sm:h-12 w-auto max-w-[220px] object-contain select-none"
             />
           </div>
@@ -85,40 +87,41 @@ export default function HomeProductPreview() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              aria-label="Settings"
-              className="rounded-lg p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)]"
+              aria-label="Preview editor settings"
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-muted)] transition cursor-pointer"
             >
-              <Settings size={13} />
+              <Settings size={16} />
             </button>
 
             <button
               type="button"
-              aria-label="More"
-              className="rounded-lg p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)]"
+              aria-label="More preview options"
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-muted)] transition cursor-pointer"
             >
-              <MoreHorizontal size={15} />
+              <MoreHorizontal size={18} />
             </button>
           </div>
         </div>
 
         {/* Content */}
-        <div className="grid gap-4 md:grid-cols-[1fr_150px]">
+        <div className="grid gap-4 md:grid-cols-[1fr_165px]">
           {/* Main video */}
           <div>
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <h3 className="text-xs font-bold text-[var(--color-text-primary)]">
+                <div role="heading" aria-level={2} className="text-xs sm:text-sm font-bold text-[var(--color-text-primary)]">
                   {t("home:preview.videoTitle")}
-                </h3>
+                </div>
 
-                <p className="mt-1 text-[9px] text-[var(--color-text-muted)]">
+                <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
                   AI Introduction.mp4
                 </p>
               </div>
 
               <button
                 type="button"
-                className="rounded-lg border border-[var(--color-border)] px-2 py-1 text-[9px] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]"
+                aria-label="Share video link"
+                className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition cursor-pointer"
               >
                 {t("home:preview.share")}
               </button>
@@ -126,10 +129,11 @@ export default function HomeProductPreview() {
 
             {/* Video */}
             <div className="relative aspect-video overflow-hidden rounded-xl bg-gradient-to-br from-[#14201D] via-[#33483F] to-[#728C80]">
-              
               <img
                 src={image}
                 alt="Preview video"
+                width={640}
+                height={360}
                 className="absolute inset-0 h-full w-full object-cover"
               />
             </div>
@@ -137,27 +141,27 @@ export default function HomeProductPreview() {
 
           {/* Processing */}
           <div className="rounded-xl border border-[var(--color-border-muted)] bg-[var(--color-surface-muted)] p-3">
-            <h4 className="mb-3 text-[10px] font-bold text-[var(--color-text-secondary)]">
+            <div role="heading" aria-level={3} className="mb-3 text-xs font-bold text-[var(--color-text-primary)]">
               {t("home:preview.pipelineTitle")}
-            </h4>
+            </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {processingSteps.map((step) => (
                 <div
                   key={step.label}
                   className="flex items-center gap-2"
                 >
                   <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
-                    <Check size={9} strokeWidth={3} />
+                    <Check size={10} strokeWidth={3} />
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[8px] font-semibold text-[var(--color-text-secondary)]">
+                    <p className="truncate text-xs font-semibold text-[var(--color-text-primary)]">
                       {step.label}
                     </p>
                   </div>
 
-                  <span className="text-[7px] text-[var(--color-text-muted)]">
+                  <span className="text-[11px] font-mono text-[var(--color-text-muted)]">
                     {step.time}
                   </span>
                 </div>
@@ -176,10 +180,10 @@ export default function HomeProductPreview() {
               <div
                 className={`mb-1 flex h-7 w-7 items-center justify-center rounded-lg ${file.className}`}
               >
-                <FileText size={13} />
+                <FileText size={14} />
               </div>
 
-              <span className="text-[8px] font-bold text-[var(--color-text-secondary)]">
+              <span className="text-xs font-bold text-[var(--color-text-primary)]">
                 {file.label}
               </span>
             </div>

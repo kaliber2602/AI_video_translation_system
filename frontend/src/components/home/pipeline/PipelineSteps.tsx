@@ -114,9 +114,9 @@ export default function PipelineSteps() {
 
               {/* Bottom Step Indicator Arrow */}
               {idx < steps.length - 1 && (
-                <div className="relative z-10 mt-4 hidden items-center text-[10px] font-bold text-[var(--color-text-muted)] lg:flex">
+                <div className="relative z-10 mt-4 hidden items-center text-xs font-bold text-[var(--color-text-muted)] lg:flex">
                   <span className="transition-transform group-hover:translate-x-1">
-                    <ArrowRight size={13} className="text-[var(--color-primary)]" />
+                    <ArrowRight size={14} className="text-[var(--color-primary)]" />
                   </span>
                 </div>
               )}

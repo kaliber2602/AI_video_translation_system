@@ -41,7 +41,7 @@ export default function NotificationBell({ className = "" }: NotificationBellPro
         {/* Unread Badge Counter */}
         {unreadCount > 0 && (
           <span
-            className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[var(--color-primary)] px-1 text-[10px] font-extrabold text-white shadow-xs animate-in zoom-in duration-200 ring-2 ring-[var(--color-surface)]"
+            className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-600 px-1 text-xs font-black text-white shadow-xs animate-in zoom-in duration-200 ring-2 ring-[var(--color-surface)]"
             aria-hidden="true"
           >
             {displayCount}

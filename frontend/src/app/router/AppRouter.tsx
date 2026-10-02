@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import {
   BrowserRouter,
   Navigate,
@@ -6,19 +7,31 @@ import {
   useParams,
 } from "react-router-dom";
 
-import Home from "../../pages/Home";
-import PricingPage from "../../pages/PricingPage";
-import Login from "../../pages/Login";
-import Register from "../../pages/Register";
-import Workspace from "../../pages/Workspace";
-import ProjectDetail from "../../pages/ProjectDetail";
-import VideoPipeline from "../../pages/VideoPipeline";
-import Setting from "../../pages/Settings";
-import NotificationsPage from "../../pages/NotificationsPage";
-import ResetPasswordPage from "../../pages/ResetPasswordPage";
-import VerifyOtpPage from "../../pages/VerifyOtpPage";
-import ForgotPasswordPage from "../../pages/ForgotPasswordPage";
-import VNPayReturnPage from "../../pages/VNPayReturnPage";
+// Code splitting with React.lazy
+const Home = lazy(() => import("../../pages/Home"));
+const PricingPage = lazy(() => import("../../pages/PricingPage"));
+const Login = lazy(() => import("../../pages/Login"));
+const Register = lazy(() => import("../../pages/Register"));
+const Workspace = lazy(() => import("../../pages/Workspace"));
+const ProjectDetail = lazy(() => import("../../pages/ProjectDetail"));
+const VideoPipeline = lazy(() => import("../../pages/VideoPipeline"));
+const Setting = lazy(() => import("../../pages/Settings"));
+const NotificationsPage = lazy(() => import("../../pages/NotificationsPage"));
+const ResetPasswordPage = lazy(() => import("../../pages/ResetPasswordPage"));
+const VerifyOtpPage = lazy(() => import("../../pages/VerifyOtpPage"));
+const ForgotPasswordPage = lazy(() => import("../../pages/ForgotPasswordPage"));
+const VNPayReturnPage = lazy(() => import("../../pages/VNPayReturnPage"));
+
+// Admin lazy routes
+const AdminLayout = lazy(() => import("../../layouts/AdminLayout"));
+const AdminDashboard = lazy(() => import("../../pages/admin/AdminDashboard"));
+const AdminJobsPage = lazy(() => import("../../pages/admin/AdminJobsPage"));
+const AdminModelsPage = lazy(() => import("../../pages/admin/AdminModelsPage"));
+const AdminUsersPage = lazy(() => import("../../pages/admin/AdminUsersPage"));
+const AdminFinancePage = lazy(() => import("../../pages/admin/AdminFinancePage"));
+const AdminLogsPage = lazy(() => import("../../pages/admin/AdminLogsPage"));
+const AdminContactsPage = lazy(() => import("../../pages/admin/AdminContactsPage"));
+const AdminToolsPage = lazy(() => import("../../pages/admin/AdminToolsPage"));
 
 function VideoEditorRedirect() {
   const { projectId, videoId } = useParams<{ projectId?: string; videoId?: string }>();
@@ -30,22 +43,25 @@ function VideoEditorRedirect() {
 
 import ProtectedRoute from "./ProtectedRoute";
 import AdminRoute from "./AdminRoute";
-import AdminLayout from "../../layouts/AdminLayout";
-import AdminDashboard from "../../pages/admin/AdminDashboard";
-import AdminJobsPage from "../../pages/admin/AdminJobsPage";
-import AdminModelsPage from "../../pages/admin/AdminModelsPage";
-import AdminUsersPage from "../../pages/admin/AdminUsersPage";
-import AdminFinancePage from "../../pages/admin/AdminFinancePage";
-import AdminLogsPage from "../../pages/admin/AdminLogsPage";
-import AdminContactsPage from "../../pages/admin/AdminContactsPage";
-import AdminToolsPage from "../../pages/admin/AdminToolsPage";
 import FloatingChatWidget from "../../components/chat/FloatingChatWidget";
+
+function PageLoadingFallback() {
+  return (
+    <div className="flex min-h-screen w-full items-center justify-center bg-[var(--color-background)]">
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-9 w-9 animate-spin rounded-full border-3 border-[var(--color-primary)] border-t-transparent" />
+        <span className="text-xs font-semibold text-[var(--color-text-muted)]">Loading...</span>
+      </div>
+    </div>
+  );
+}
 
 export default function AppRouter() {
   return (
     <BrowserRouter>
       <FloatingChatWidget />
-      <Routes>
+      <Suspense fallback={<PageLoadingFallback />}>
+        <Routes>
 
         {/* ================================================== */}
         {/* PUBLIC ROUTES */}
@@ -198,6 +214,7 @@ export default function AppRouter() {
         />
 
       </Routes>
-    </BrowserRouter>
-  );
+    </Suspense>
+  </BrowserRouter>
+);
 }

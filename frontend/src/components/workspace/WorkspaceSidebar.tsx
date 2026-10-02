@@ -235,6 +235,7 @@ export default function WorkspaceSidebar({
         });
 
         setTags((currentTags) => [...currentTags, newTag]);
+        window.dispatchEvent(new CustomEvent("tags-updated", { detail: { action: "create", tag: newTag } }));
         toast.success(
           t("workspace:tags.tagCreated"),
           t("workspace:tags.deleteCreated", { name: newTag.name })
@@ -251,6 +252,7 @@ export default function WorkspaceSidebar({
         setTags((currentTags) =>
           currentTags.map((tag) => (tag.id === updatedTag.id ? updatedTag : tag))
         );
+        window.dispatchEvent(new CustomEvent("tags-updated", { detail: { action: "update", tag: updatedTag } }));
 
         toast.success(
           t("workspace:tags.tagUpdated"),
@@ -281,6 +283,7 @@ export default function WorkspaceSidebar({
       await deleteTag(deletingTag.id);
 
       setTags((currentTags) => currentTags.filter((tag) => tag.id !== deletingTag.id));
+      window.dispatchEvent(new CustomEvent("tags-updated", { detail: { action: "delete", tagId: deletingTag.id } }));
 
       if (selectedTagId === deletingTag.id) {
         onTagSelect?.(null);
@@ -397,7 +400,7 @@ export default function WorkspaceSidebar({
       {/* Tags */}
       <div className="mt-8 sm:mt-9">
         <div className="mb-3 sm:mb-4 flex items-center justify-between px-3">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+          <p className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
             {t("workspace:tags.title")}
           </p>
         </div>
@@ -504,7 +507,7 @@ export default function WorkspaceSidebar({
         <button
           type="button"
           onClick={openCreateTagModal}
-          className="mt-3 flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)] active:scale-[0.98]"
+          className="mt-3 flex min-h-[40px] w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-primary)] active:scale-[0.98]"
         >
           <Plus size={16} />
           {t("workspace:tags.addTag")}
@@ -531,7 +534,7 @@ export default function WorkspaceSidebar({
           <div className="flex items-center gap-2">
             <div className={`flex h-7 w-7 items-center justify-center rounded-lg shadow-xs ${
               planCode === "pro"
-                ? "bg-emerald-500/15 text-emerald-600"
+                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
                 : "bg-[var(--color-primary-soft)] text-[var(--color-primary)]"
             }`}>
               {planCode === "pro" ? <Crown size={15} /> : <Zap size={15} />}
@@ -540,8 +543,8 @@ export default function WorkspaceSidebar({
               <h4 className="text-xs font-bold leading-none text-[var(--color-text-primary)]">
                 {planName} Plan
               </h4>
-              <span className="text-[10px] font-semibold text-emerald-600 flex items-center gap-1 mt-0.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
                 {t("workspace:quota.active", "Active")}
               </span>
             </div>
@@ -550,7 +553,7 @@ export default function WorkspaceSidebar({
           <button
             type="button"
             onClick={() => navigate("/workspace/settings")}
-            className="text-[10px] font-bold text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition cursor-pointer"
+            className="flex min-h-[36px] items-center px-2 py-1 text-xs font-bold text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition cursor-pointer"
             title="Settings & Billing"
           >
             {t("workspace:quota.managePlan", "Manage")}
@@ -559,12 +562,12 @@ export default function WorkspaceSidebar({
 
         {/* Cloud Storage Usage Bar */}
         <div className="mt-3 space-y-1.5">
-          <div className="flex items-center justify-between text-[11px]">
+          <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1 font-semibold text-[var(--color-text-secondary)]">
-              <HardDrive size={12} className="text-[var(--color-primary)]" />
+              <HardDrive size={13} className="text-[var(--color-primary)]" />
               <span>{t("workspace:quota.storage", "Cloud Storage")}</span>
             </span>
-            <span className="font-bold text-[var(--color-text-primary)] text-[10px]">
+            <span className="font-bold text-[var(--color-text-primary)] text-xs">
               {usedGb} / {totalGb} GB
             </span>
           </div>
@@ -585,12 +588,12 @@ export default function WorkspaceSidebar({
 
         {/* AI Word Quota Counter */}
         <div className="mt-3 space-y-1.5">
-          <div className="flex items-center justify-between text-[11px]">
+          <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1 font-semibold text-[var(--color-text-secondary)]">
-              <Sparkles size={12} className="text-amber-500" />
+              <Sparkles size={13} className="text-amber-500" />
               <span>{t("workspace:quota.words", "Quota từ AI")}</span>
             </span>
-            <span className="font-bold text-[var(--color-text-primary)] text-[10px]">
+            <span className="font-bold text-[var(--color-text-primary)] text-xs">
               {remainingWords.toLocaleString()} / {totalWords.toLocaleString()} từ
             </span>
           </div>
@@ -605,13 +608,13 @@ export default function WorkspaceSidebar({
           </div>
         </div>
 
-        {/* Action Button: + Add Storage */}
+        {/* Action Button: + Add Storage (Secondary subtle CTA to avoid competing with main New Project CTA) */}
         <button
           type="button"
           onClick={() => setIsAddonModalOpen(true)}
-          className="mt-3.5 flex w-full items-center justify-center gap-1.5 rounded-xl bg-[var(--color-primary)] py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)] active:scale-95 cursor-pointer"
+          className="mt-3.5 flex min-h-[42px] w-full items-center justify-center gap-1.5 rounded-xl border border-[var(--color-primary)]/40 bg-[var(--color-primary-soft)] px-4 py-2.5 text-xs font-bold text-[var(--color-primary)] shadow-xs transition hover:bg-[var(--color-primary)] hover:text-white active:scale-95 cursor-pointer"
         >
-          <PlusCircle size={14} />
+          <PlusCircle size={15} />
           <span>{t("workspace:quota.addStorage", "+ Add Storage")}</span>
         </button>
       </div>

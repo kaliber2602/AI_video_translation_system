@@ -105,12 +105,12 @@ export default function ProjectToolbar({
           )}
 
           <span
-            className={`flex items-center gap-1 rounded-md bg-[var(--color-primary)]/10 px-1.5 py-0.5 text-[10px] font-bold text-[var(--color-primary)] select-none transition-all ${
+            className={`flex items-center gap-1 rounded-md bg-[var(--color-primary-soft)] px-2 py-0.5 text-xs font-bold text-teal-800 dark:text-teal-300 select-none transition-all ${
               isSearchingSemantic ? "animate-pulse ring-1 ring-[var(--color-primary)]" : ""
             }`}
             title="Semantic AI Search hỗ trợ tìm kiếm theo ngữ nghĩa và từ khóa"
           >
-            <Sparkles size={11} className={isSearchingSemantic ? "animate-spin" : ""} />
+            <Sparkles size={12} className={isSearchingSemantic ? "animate-spin" : "text-teal-700 dark:text-teal-400"} />
             <span>AI</span>
           </span>
         </div>

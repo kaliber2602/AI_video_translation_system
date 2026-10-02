@@ -59,7 +59,7 @@ export default function HomeContact() {
                     </p>
                     <a
                       href={`mailto:${t("home:contact.info.emailValue")}`}
-                      className="truncate font-bold text-[var(--color-text-primary)] hover:text-[var(--color-primary)] transition"
+                      className="inline-block py-1 truncate font-bold text-[var(--color-text-primary)] hover:text-[var(--color-primary)] transition"
                     >
                       {t("home:contact.info.emailValue")}
                     </a>
@@ -99,7 +99,7 @@ export default function HomeContact() {
 
               {/* Social Channels */}
               <div className="mt-8 border-t border-[var(--color-border)] pt-5">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] mb-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)] mb-3">
                   Follow the project
                 </p>
                 <div className="flex items-center gap-2.5">
@@ -108,7 +108,7 @@ export default function HomeContact() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="GitHub Repository"
-                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] shadow-2xs"
                   >
                     <GithubIcon size={16} />
                   </a>
@@ -118,7 +118,7 @@ export default function HomeContact() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="LinkedIn"
-                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] shadow-2xs"
                   >
                     <LinkedinIcon size={16} />
                   </a>
@@ -128,7 +128,7 @@ export default function HomeContact() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Discord Community"
-                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] shadow-2xs"
                   >
                     <MessageCircle size={16} />
                   </a>

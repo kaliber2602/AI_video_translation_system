@@ -53,10 +53,25 @@ function ProjectCardItem({
   getStaggerClass,
 }: ProjectCardItemProps) {
   const { t } = useTranslation(["workspace", "common"]);
-  const [activeDropdownId, setActiveDropdownId] = useState<number | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [isDropdownOpen]);
 
   const thumbnails = project.video_thumbnails || [];
   const currentVideo = thumbnails[currentVideoIndex] || thumbnails[0] || null;
@@ -86,8 +101,6 @@ function ProjectCardItem({
   return (
     <ElasticCard
       project={project}
-      role="button"
-      tabIndex={0}
       onClick={() => {
         if (!isTrashMode) onProjectClick(project.id);
       }}
@@ -133,7 +146,7 @@ function ProjectCardItem({
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md shadow-inner transition-transform duration-500 group-hover:scale-110">
             <FolderIcon size="lg" className="opacity-40" />
           </div>
-          <span className="mt-2 text-[11px] font-medium text-white/40 tracking-wide">
+          <span className="mt-2 text-xs font-medium text-white/50 tracking-wide">
             Trống • Chưa có video
           </span>
         </div>
@@ -153,12 +166,12 @@ function ProjectCardItem({
       {/* ========================================================================= */}
       {/* SECTION 1: HEADER (LIGHTWEIGHT FLOATING TEXT & MINIMALIST CONTROLS)       */}
       {/* ========================================================================= */}
-      <div className="relative z-10 p-4 pb-0 flex flex-col gap-0.5">
+      <div className={`relative ${isDropdownOpen ? "z-40" : "z-20"} p-4 pb-0 flex flex-col gap-0.5`}>
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="truncate text-base font-bold text-white tracking-tight drop-shadow-[0_2px_6px_rgba(0,0,0,0.85)]">
+            <h2 className="truncate text-base font-bold text-white tracking-tight drop-shadow-[0_2px_6px_rgba(0,0,0,0.85)]">
               {project.name}
-            </h3>
+            </h2>
           </div>
 
           {/* Right Action Icons: Star & Three-dot menu (subtle floating glass) */}
@@ -173,97 +186,123 @@ function ProjectCardItem({
                 }
                 aria-label={
                   project.is_favorite
-                    ? t("workspace:favorite.removeFromFavorites")
-                    : t("workspace:favorite.addToFavorites")
+                    ? `${t("workspace:favorite.removeFromFavorites")} - ${project.name}`
+                    : `${t("workspace:favorite.addToFavorites")} - ${project.name}`
                 }
                 onClick={() => onToggleFavorite(project)}
-                className={`flex h-8 w-8 items-center justify-center rounded-full backdrop-blur-md transition cursor-pointer shadow-md ${
+                className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-md transition cursor-pointer shadow-md ${
                   project.is_favorite
                     ? "bg-amber-500/30 border border-amber-400/50 text-amber-300"
                     : "bg-white/10 hover:bg-white/25 text-white/80 hover:text-white border border-white/10"
                 }`}
               >
-                <Star size={14} className={project.is_favorite ? "fill-amber-400" : ""} />
+                <Star size={16} className={project.is_favorite ? "fill-amber-400" : ""} />
               </button>
             )}
 
             {/* Three-dot dropdown menu */}
-            <div className="relative">
+            <div className="relative" ref={dropdownRef}>
               <button
                 type="button"
-                aria-label={t("common:more")}
-                onClick={() =>
-                  setActiveDropdownId(
-                    activeDropdownId === project.id ? null : project.id
-                  )
-                }
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-white/80 transition hover:bg-white/25 hover:text-white cursor-pointer shadow-md"
+                data-no-drag="true"
+                aria-label={`${t("common:more")} - ${project.name}`}
+                title={t("common:more")}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsDropdownOpen((prev) => !prev);
+                }}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-white/80 transition hover:bg-white/25 hover:text-white cursor-pointer shadow-md"
               >
-                <MoreVertical size={15} />
+                <MoreVertical size={17} />
               </button>
 
-              {activeDropdownId === project.id && (
-                <>
-                  <div
-                    className="fixed inset-0 z-30 cursor-default"
-                    onClick={() => setActiveDropdownId(null)}
-                  />
-                  <div className="absolute right-0 top-10 z-40 w-44 overflow-hidden rounded-2xl border border-white/20 bg-neutral-900/95 backdrop-blur-xl p-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.5)] animate-dropdown-reveal">
-                    {isTrashMode ? (
-                      <>
-                        {onRestoreProject && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveDropdownId(null);
-                              onRestoreProject(project);
-                            }}
-                            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
-                          >
-                            <RotateCcw size={13} />
-                            <span>{t("workspace:trash.restore", "Khôi phục")}</span>
-                          </button>
-                        )}
+              {isDropdownOpen && (
+                <div
+                  data-no-drag="true"
+                  style={{ cursor: "default" }}
+                  className="absolute right-0 top-10 z-50 w-44 cursor-default select-auto overflow-hidden rounded-2xl border border-white/20 bg-neutral-900/95 backdrop-blur-xl p-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.5)] animate-dropdown-reveal pointer-events-auto"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                >
+                  {isTrashMode ? (
+                    <>
+                      {onRestoreProject && (
                         <button
                           type="button"
-                          onClick={() => {
-                            setActiveDropdownId(null);
-                            onDeleteProject(project);
+                          data-no-drag="true"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onRestoreProject(project);
+                            setIsDropdownOpen(false);
                           }}
-                          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-rose-400 transition hover:bg-rose-500/20"
+                          className="flex min-h-[40px] w-full items-center gap-2.5 rounded-xl px-3.5 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/10 hover:text-white cursor-pointer select-none"
                         >
-                          <Trash2 size={13} />
-                          <span>{t("workspace:trash.permanentDelete", "Xóa vĩnh viễn")}</span>
+                          <RotateCcw size={14} />
+                          <span>{t("workspace:trash.restore", "Khôi phục")}</span>
                         </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveDropdownId(null);
-                            onEditProject(project);
-                          }}
-                          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
-                        >
-                          <Edit size={13} />
-                          <span>{t("common:edit")}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveDropdownId(null);
-                            onDeleteProject(project);
-                          }}
-                          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-rose-400 transition hover:bg-rose-500/20"
-                        >
-                          <Trash2 size={13} />
-                          <span>{t("workspace:trash.moveToTrashBtn", "Chuyển vào thùng rác")}</span>
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </>
+                      )}
+                      <button
+                        type="button"
+                        data-no-drag="true"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onDeleteProject(project);
+                          setIsDropdownOpen(false);
+                        }}
+                        className="flex min-h-[40px] w-full items-center gap-2.5 rounded-xl px-3.5 py-2 text-xs font-semibold text-rose-400 transition hover:bg-rose-500/20 cursor-pointer select-none"
+                      >
+                        <Trash2 size={14} />
+                        <span>{t("workspace:trash.permanentDelete", "Xóa vĩnh viễn")}</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        data-no-drag="true"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onEditProject(project);
+                          setIsDropdownOpen(false);
+                        }}
+                        className="flex min-h-[40px] w-full items-center gap-2.5 rounded-xl px-3.5 py-2 text-xs font-semibold text-white/90 transition hover:bg-white/10 hover:text-white cursor-pointer select-none"
+                      >
+                        <Edit size={14} />
+                        <span>{t("common:edit")}</span>
+                      </button>
+                      <button
+                        type="button"
+                        data-no-drag="true"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onDeleteProject(project);
+                          setIsDropdownOpen(false);
+                        }}
+                        className="flex min-h-[40px] w-full items-center gap-2.5 rounded-xl px-3.5 py-2 text-xs font-semibold text-rose-400 transition hover:bg-rose-500/20 cursor-pointer select-none"
+                      >
+                        <Trash2 size={14} />
+                        <span>{t("workspace:trash.moveToTrashBtn", "Chuyển vào thùng rác")}</span>
+                      </button>
+                    </>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -297,7 +336,7 @@ function ProjectCardItem({
                 </span>
               </div>
               {currentVideo.duration && (
-                <span className="shrink-0 text-[10.5px] font-medium font-mono text-white/80">
+                <span className="shrink-0 text-xs font-medium font-mono text-white/90">
                   {currentVideo.duration}
                 </span>
               )}
@@ -307,11 +346,11 @@ function ProjectCardItem({
           {/* Matched Semantic Snippet if available */}
           {project.matched_snippets && project.matched_snippets.length > 0 && (
             <div className="rounded-xl border border-white/15 bg-black/40 backdrop-blur-md p-1.5 text-left shadow-sm">
-              <div className="flex items-center gap-1 text-[9.5px] font-bold text-emerald-300 mb-0.5">
-                <Sparkles size={10} className="shrink-0" />
+              <div className="flex items-center gap-1 text-xs font-bold text-emerald-300 mb-0.5">
+                <Sparkles size={11} className="shrink-0" />
                 <span>Khớp thoại ({project.matched_snippets[0].timestamp_formatted}):</span>
               </div>
-              <p className="text-[9.5px] italic text-white/90 line-clamp-1">
+              <p className="text-xs italic text-white/90 line-clamp-1">
                 "{project.matched_snippets[0].text}"
               </p>
             </div>
@@ -323,7 +362,7 @@ function ProjectCardItem({
               {project.tags.slice(0, 3).map((tag) => (
                 <span
                   key={tag.id}
-                  className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/10 backdrop-blur-md px-1.5 py-0.5 text-[9.5px] font-medium text-white/90 shadow-2xs"
+                  className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/10 backdrop-blur-md px-1.5 py-0.5 text-xs font-medium text-white/90 shadow-2xs"
                 >
                   <span
                     className="h-1.5 w-1.5 rounded-full"
@@ -335,7 +374,7 @@ function ProjectCardItem({
                 </span>
               ))}
               {project.tags.length > 3 && (
-                <span className="inline-flex items-center rounded-md border border-white/10 bg-white/10 backdrop-blur-md px-1.5 py-0.5 text-[9px] font-medium text-white/70">
+                <span className="inline-flex items-center rounded-md border border-white/10 bg-white/10 backdrop-blur-md px-1.5 py-0.5 text-xs font-medium text-white/70">
                   +{project.tags.length - 3}
                 </span>
               )}
@@ -387,7 +426,7 @@ function ProjectCardItem({
         </div>
 
         {/* Last Modified Date */}
-        <div className="flex items-center gap-1.5 text-[11px] text-white/75 font-medium drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
+        <div className="flex items-center gap-1.5 text-xs text-white/80 font-medium drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
           <Clock size={12} className="opacity-70" />
           <span className="truncate">
             {isTrashMode && project.deleted_at

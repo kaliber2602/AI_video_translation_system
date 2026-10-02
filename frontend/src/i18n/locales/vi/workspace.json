@@ -42,7 +42,8 @@
     "deleted": "Đã xóa dự án thành công.",
     "saveError": "Không thể lưu dự án",
     "deleteError": "Không thể xóa dự án",
-    "nameEmptyError": "Tên dự án không được để trống."
+    "nameEmptyError": "Tên dự án không được để trống.",
+    "noTagsAvailable": "Chưa có thẻ nào khả dụng."
   },
   "tags": {
     "title": "Thẻ phân loại",
@@ -175,7 +176,18 @@
     "emptyTrashButton": "Dọn sạch thùng rác",
     "deletedAt": "Đã xóa {{date}}",
     "inTrashNotice": "Dự án này đang ở trong thùng rác. Khôi phục dự án để tiếp tục chỉnh sửa hoặc truy cập.",
-    "cannotOpenInTrash": "Dự án đang ở trong thùng rác. Vui lòng khôi phục trước khi mở."
+    "cannotOpenInTrash": "Dự án đang ở trong thùng rác. Vui lòng khôi phục trước khi mở.",
+    "batchSelected": "Đã chọn {{count}} dự án",
+    "batchMoveToTrash": "Chuyển {{count}} dự án vào thùng rác",
+    "batchMoveToTrashTitle": "Chuyển các dự án đã chọn vào thùng rác?",
+    "batchMoveToTrashConfirm": "Bạn có chắc chắn muốn chuyển {{count}} dự án đã chọn vào thùng rác?",
+    "batchMoveToTrashSuccess": "Đã chuyển {{count}} dự án vào thùng rác thành công.",
+    "batchPermanentDelete": "Xóa vĩnh viễn {{count}} dự án",
+    "batchPermanentDeleteTitle": "Xóa vĩnh viễn các dự án đã chọn?",
+    "batchPermanentDeleteConfirm": "Bạn có chắc chắn muốn xóa vĩnh viễn {{count}} dự án đã chọn? Hành động này không thể hoàn tác.",
+    "batchPermanentDeleteSuccess": "Đã xóa vĩnh viễn {{count}} dự án thành công.",
+    "batchRestore": "Khôi phục {{count}} dự án",
+    "batchRestoreSuccess": "Đã khôi phục {{count}} dự án thành công."
   }
 }
 

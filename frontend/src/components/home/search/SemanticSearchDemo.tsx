@@ -136,9 +136,10 @@ export default function SemanticSearchDemo() {
             <div className="absolute inset-y-1.5 right-1.5 flex items-center">
               <button
                 type="button"
-                className="flex items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)]"
+                aria-label={t("home:semanticSearch.input.button")}
+                className="flex min-h-[40px] items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-4 sm:px-5 py-2 text-xs sm:text-sm font-bold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)] cursor-pointer"
               >
-                <Sparkles size={14} />
+                <Sparkles size={15} />
                 <span className="hidden sm:inline">{t("home:semanticSearch.input.button")}</span>
               </button>
             </div>
@@ -146,7 +147,7 @@ export default function SemanticSearchDemo() {
 
           {/* Suggested Query Chips */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-bold text-[var(--color-text-muted)]">
+            <span className="text-xs font-bold text-[var(--color-text-muted)]">
               {t("home:semanticSearch.input.suggestedLabel")}
             </span>
 
@@ -155,7 +156,7 @@ export default function SemanticSearchDemo() {
                 key={item.id}
                 type="button"
                 onClick={() => handleSelectQuery(idx)}
-                className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
+                className={`min-h-[40px] rounded-xl border px-3.5 py-2 text-xs sm:text-sm font-medium transition-all duration-200 cursor-pointer ${
                   selectedQueryIndex === idx
                     ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-primary)] font-bold shadow-sm"
                     : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]/50 hover:text-[var(--color-text-primary)]"
@@ -235,9 +236,9 @@ export default function SemanticSearchDemo() {
                       <Bot size={18} />
                     </div>
                     <div>
-                      <h4 className="text-sm font-black text-[var(--color-text-primary)]">
+                      <h3 className="text-sm font-black text-[var(--color-text-primary)]">
                         {t("home:semanticSearch.aiAnswer.title")}
-                      </h4>
+                      </h3>
                       <span className="text-[10px] font-bold text-[var(--color-primary)]">
                         {t("home:semanticSearch.aiAnswer.badge")}
                       </span>

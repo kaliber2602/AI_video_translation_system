@@ -496,13 +496,14 @@ export default function FloatingChatWidget() {
         <button
           type="button"
           onClick={() => setIsOpen(true)}
+          aria-label="VidNova AI Video Assistant (RAG & Chat)"
           className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-[var(--color-primary)] to-indigo-500 text-white shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-indigo-500/50 cursor-pointer group"
           title="VidNova AI Video Assistant (RAG & Chat)"
         >
           <Sparkles className="h-6 w-6 animate-pulse" />
-          <span className="absolute -top-1 -right-1 flex h-4 w-4">
+          <span className="absolute -top-1 -right-1 flex h-5 w-5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 text-[9px] font-black text-white items-center justify-center">
+            <span className="relative inline-flex rounded-full h-5 w-5 bg-emerald-700 text-xs font-bold text-white items-center justify-center shadow-xs">
               AI
             </span>
           </span>
@@ -531,7 +532,7 @@ export default function FloatingChatWidget() {
                   <h3 className="text-xs font-bold text-[var(--color-text-primary)]">
                     VidNova AI
                   </h3>
-                  <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold text-emerald-500">
+                  <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-400">
                     RAG Live
                   </span>
                 </div>

@@ -36,7 +36,7 @@ export default function PricingHeader({
         <button
           type="button"
           onClick={() => onBillingCycleChange("monthly")}
-          className={`relative rounded-xl px-5 py-2 text-xs font-bold transition-all duration-200 ${
+          className={`relative min-h-[42px] rounded-xl px-6 py-2.5 text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${
             billingCycle === "monthly"
               ? "bg-[var(--color-primary)] text-white shadow-sm"
               : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
@@ -48,7 +48,7 @@ export default function PricingHeader({
         <button
           type="button"
           onClick={() => onBillingCycleChange("yearly")}
-          className={`relative flex items-center gap-2 rounded-xl px-5 py-2 text-xs font-bold transition-all duration-200 ${
+          className={`relative flex min-h-[42px] items-center gap-2 rounded-xl px-6 py-2.5 text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${
             billingCycle === "yearly"
               ? "bg-[var(--color-primary)] text-white shadow-sm"
               : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
@@ -56,7 +56,7 @@ export default function PricingHeader({
         >
           <span>{t("pricing:billing.yearly")}</span>
           <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider transition-colors ${
+            className={`rounded-full px-2 py-0.5 text-[11px] font-black uppercase tracking-wider transition-colors ${
               billingCycle === "yearly"
                 ? "bg-white/20 text-white"
                 : "bg-[var(--color-primary-soft)] text-[var(--color-primary)]"

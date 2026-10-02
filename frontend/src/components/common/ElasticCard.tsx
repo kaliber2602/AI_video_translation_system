@@ -109,7 +109,7 @@ export default function ElasticCard({
       if (
         target.closest("button, a, input, textarea, select, [data-no-drag], [role='menuitem']")
       ) {
-        if (target !== el) return;
+        return;
       }
 
       if (animFrameRef.current) {
@@ -277,9 +277,16 @@ export default function ElasticCard({
   }, [elasticity, maxDisplacement, tiltFactor, project, onDropToTrash]);
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (hasMovedRef.current) {
+    if (e.defaultPrevented || hasMovedRef.current) {
       e.preventDefault();
       e.stopPropagation();
+      return;
+    }
+    const target = e.target as HTMLElement;
+    if (
+      !cardRef.current?.contains(target) ||
+      target.closest("button, a, input, textarea, select, [data-no-drag], [role='menuitem']")
+    ) {
       return;
     }
     onClick?.();

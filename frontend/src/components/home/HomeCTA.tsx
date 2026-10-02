@@ -37,25 +37,25 @@ export default function HomeCTA() {
         <button
           type="button"
           onClick={() => navigate("/register")}
-          className="mx-auto mt-6 flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-7 py-3.5 text-sm font-bold text-white shadow-[0_10px_25px_rgba(32,197,174,0.25)] transition hover:-translate-y-0.5 hover:bg-[var(--color-primary-hover)]"
+          className="mx-auto mt-6 flex min-h-[48px] items-center gap-2 rounded-xl bg-[var(--color-primary)] px-8 py-3.5 text-sm sm:text-base font-bold text-white shadow-[0_10px_25px_rgba(32,197,174,0.25)] transition hover:-translate-y-0.5 hover:bg-[var(--color-primary-hover)] cursor-pointer"
         >
           {t("home:startFree")}
           <span>→</span>
         </button>
 
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[10px] text-[var(--color-text-muted)]">
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-medium text-[var(--color-text-muted)]">
           <span className="flex items-center gap-1.5">
-            <CheckCircle2 size={12} className="text-[var(--color-primary)]" />
+            <CheckCircle2 size={14} className="text-[var(--color-primary)]" />
             {t("home:cta.freeTrial")}
           </span>
 
           <span className="flex items-center gap-1.5">
-            <CheckCircle2 size={12} className="text-[var(--color-primary)]" />
+            <CheckCircle2 size={14} className="text-[var(--color-primary)]" />
             {t("home:cta.noCreditCard")}
           </span>
 
           <span className="flex items-center gap-1.5">
-            <CheckCircle2 size={12} className="text-[var(--color-primary)]" />
+            <CheckCircle2 size={14} className="text-[var(--color-primary)]" />
             {t("home:cta.cancelAnytime")}
           </span>
         </div>

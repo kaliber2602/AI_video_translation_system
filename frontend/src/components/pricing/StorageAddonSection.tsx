@@ -87,7 +87,8 @@ export default function StorageAddonSection({
                   <button
                     type="button"
                     onClick={() => onSelectAddon && onSelectAddon(addon)}
-                    className="mt-4 w-full rounded-xl bg-[var(--color-surface)] py-2 text-xs font-bold text-[var(--color-primary)] border border-[var(--color-primary)]/40 hover:bg-[var(--color-primary)] hover:text-white transition cursor-pointer"
+                    aria-label={`Add ${addon.name} to Workspace`}
+                    className="mt-4 flex min-h-[40px] w-full items-center justify-center rounded-xl bg-[var(--color-surface)] py-2.5 px-4 text-xs sm:text-sm font-bold text-[var(--color-primary)] border border-[var(--color-primary)]/40 hover:bg-[var(--color-primary)] hover:text-white transition cursor-pointer shadow-2xs"
                   >
                     + Add to Workspace
                   </button>

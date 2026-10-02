@@ -76,57 +76,59 @@ export default function HomeNavbar() {
             <img
               src={logoTopbar}
               alt="VIDNOVA"
+              width={360}
+              height={66}
               className="h-14 sm:h-[66px] w-auto max-w-[310px] sm:max-w-[360px] object-contain transition-transform duration-200 group-hover:scale-[1.02] select-none"
             />
           </Link>
 
           {/* Navigation Links */}
-          <nav className="hidden items-center gap-6 xl:gap-7 lg:flex">
+          <nav className="hidden items-center gap-4 xl:gap-6 lg:flex">
             <a
               href="#home"
-              className="py-1 text-xs font-bold text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-primary)]"
+              className="px-2.5 py-2.5 text-xs sm:text-sm font-bold text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-primary)] inline-flex items-center"
             >
               {t("navigation:home")}
             </a>
 
             <a
               href="#features"
-              className="py-1 text-xs font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+              className="px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] inline-flex items-center"
             >
               {t("navigation:features")}
             </a>
 
             <a
               href="#how-it-works"
-              className="py-1 text-xs font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+              className="px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] inline-flex items-center"
             >
               {t("navigation:howItWorks")}
             </a>
 
             <a
               href="#semantic-search"
-              className="py-1 text-xs font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+              className="px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] inline-flex items-center"
             >
               {t("navigation:semanticSearch")}
             </a>
 
             <a
               href="#pricing"
-              className="py-1 text-xs font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+              className="px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] inline-flex items-center"
             >
               {t("navigation:pricing")}
             </a>
 
             <a
               href="#about"
-              className="py-1 text-xs font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+              className="px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] inline-flex items-center"
             >
               {t("navigation:about")}
             </a>
 
             <a
               href="#contact"
-              className="py-1 text-xs font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+              className="px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] inline-flex items-center"
             >
               {t("navigation:contact")}
             </a>
@@ -138,29 +140,39 @@ export default function HomeNavbar() {
             <button
               type="button"
               onClick={handleLanguageToggle}
-              className="flex h-8 sm:h-9 items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-white/40 px-2.5 sm:px-3 text-[11px] font-bold text-[var(--color-text-primary)] backdrop-blur-sm transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] shadow-xs"
+              className="flex h-10 items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-white/50 dark:bg-white/10 px-3.5 text-xs font-bold text-[var(--color-text-primary)] backdrop-blur-sm transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] shadow-xs cursor-pointer"
               title={`Switch to ${language === "en" ? "Tiếng Việt" : "English"}`}
             >
-              <Globe size={13} className="text-[var(--color-primary)]" />
+              <Globe size={14} className="text-[var(--color-primary)]" />
               <span>{language.toUpperCase()}</span>
             </button>
 
             {/* Sign In Link */}
             <Link
               to="/login"
-              className="hidden h-8 sm:h-9 items-center justify-center rounded-full px-3 sm:px-4 text-xs font-semibold text-[var(--color-text-primary)] transition hover:text-[var(--color-primary)] sm:flex"
+              className="hidden h-10 items-center justify-center rounded-full px-3.5 text-xs sm:text-sm font-semibold text-[var(--color-text-primary)] transition hover:text-[var(--color-primary)] sm:flex"
             >
               {t("navigation:login")}
             </Link>
+
+            {/* Right-aligned Gradient CTA Button ("Get Started") */}
+            <button
+              type="button"
+              onClick={() => navigate("/register")}
+              className="hidden sm:inline-flex items-center gap-1.5 h-10 px-5 rounded-full bg-gradient-to-r from-[#0A8450] to-[#00C7BE] text-xs sm:text-sm font-bold text-white shadow-[0_4px_18px_rgba(10,132,80,0.25)] transition-all hover:scale-105 hover:shadow-[0_6px_22px_rgba(0,199,190,0.35)] cursor-pointer"
+            >
+              <span>{t("navigation:register") || "Get Started"}</span>
+              <span className="text-sm">→</span>
+            </button>
 
             {/* Mobile Menu Toggle Button */}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Toggle navigation menu"
-              className="flex h-8 sm:h-9 w-8 sm:w-9 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/40 text-[var(--color-text-secondary)] shadow-xs transition hover:text-[var(--color-primary)] lg:hidden"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-border)] bg-white/50 dark:bg-white/10 text-[var(--color-text-secondary)] shadow-xs transition hover:text-[var(--color-primary)] lg:hidden cursor-pointer"
             >
-              {mobileMenuOpen ? <X size={17} /> : <Menu size={17} />}
+              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
           </div>
         </div>

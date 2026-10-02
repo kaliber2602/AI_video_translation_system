@@ -48,8 +48,8 @@ export default function WorkspaceHeader({
             {title}
           </h1>
 
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs font-bold text-[var(--color-primary)] shadow-2xs">
-            <FolderGit2 size={13} />
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs font-bold text-teal-800 dark:text-teal-300 shadow-2xs">
+            <FolderGit2 size={13} className="text-teal-700 dark:text-teal-400" />
             <span>
               {isFiltered
                 ? t("workspace:filters.filteredResults", { count: matchingCount })
