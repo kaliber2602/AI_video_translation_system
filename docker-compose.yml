@@ -16,6 +16,8 @@ services:
 
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       PYTHONUNBUFFERED: "1"
       HF_TOKEN: ${HF_TOKEN}
@@ -91,20 +93,18 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      target: development  # Use development stage
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      target: production  # Use high-performance Nginx production stage
     ports:
-      - "5173:5173"
+      - "5173:80"
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     environment:
       VITE_S3_BUCKET_URL: ${VITE_S3_BUCKET_URL:-http://localhost:9000}
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
       VITE_MINIO_ENDPOINT: ${VITE_MINIO_ENDPOINT:-http://localhost:9000}
     depends_on:
       - backend
-    stdin_open: true
-    tty: true
 
   db:
     image: postgres:16-alpine
@@ -152,28 +152,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  tts-service:
-    build:
-      context: ./tts_service
-      dockerfile: Dockerfile.tts
-    volumes:
-      - ./backend/uploads:/app/uploads
-      - ./tts-model-cache:/root/.local/share/tts
-      - ./tts_service/tts_server.py:/app/tts_server.py
-    environment:
-      PYTHONUNBUFFERED: "1"
-      COQUI_TOS_AGREED: "1"
-      CUDA_VISIBLE_DEVICES: "0"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    ports:
-      - "8001:8001"
 
   # ============================================================================
   # DECOUPLED STEP-SPECIFIC CELERY WORKERS (Phân tách theo từng tác vụ)
@@ -256,9 +234,13 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: celery -A app.tasks.celery_app worker -Q queue_tts -n worker_tts@%h --concurrency=2 --loglevel=info
+    command: celery -A app.tasks.celery_app worker -P solo -Q queue_tts -n worker_tts@%h --loglevel=info
     volumes:
       - ./backend:/app
+      - ./model-cache:/opt/model-cache
+      - ./model-cache/tts:/root/.local/share/tts
+    env_file:
+      - .env
     environment:
       PYTHONUNBUFFERED: "1"
       DATABASE_URL: "postgresql://ai_video:ai_video@db:5432/ai_video"
@@ -270,14 +252,21 @@ services:
       AWS_S3_BUCKET: ${AWS_S3_BUCKET:-vidnova-media}
       S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
       TTS_API_URL: "http://tts-service:8001/generate_tts"
+      CUDA_VISIBLE_DEVICES: "0"
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       JWT_ALGORITHM: "HS256"
       ACCESS_TOKEN_EXPIRE_MINUTES: 30
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     depends_on:
       - db
       - redis
       - minio
-      - tts-service
 
   celery-worker-media:
     build:
@@ -328,6 +317,8 @@ services:
     volumes:
       - ./backend:/app
       - ./model-cache:/opt/model-cache
+    env_file:
+      - .env
     environment:
       PYTHONUNBUFFERED: "1"
       DATABASE_URL: "postgresql://ai_video:ai_video@db:5432/ai_video"

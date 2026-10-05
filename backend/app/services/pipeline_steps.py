@@ -41,7 +41,7 @@ def _load_subtitle_config(video_id: int, language: str, video=None, db=None) -> 
         "outline_color": "#000000",
         "position": "bottom",
         "max_lines": 2,
-        "effect": "pop",
+        "effect": "none",
         "aspect_ratio": "16:9",
         "alignment": "center",
         "position_y": 84.0,
@@ -132,11 +132,11 @@ class PipelineSteps:
             self.job_service.log_task(job_id, "audio_extract", "failed", error_trace=str(e))
             raise
 
-    def step_separate_vocal_bgm(self, job_id: uuid.UUID, video_id: int, audio_path: str, temp_dir: str) -> Dict[str, Any]:
+    def step_separate_vocal_bgm(self, job_id: uuid.UUID, video_id: int, audio_path: str, temp_dir: str, model_name: str = "htdemucs") -> Dict[str, Any]:
         self.job_service.update_job_status(job_id, JobStatus.PROCESSING, progress=20, current_step=JobStep.AUDIO_SEPARATE)
-        self.job_service.log_task(job_id, "demucs_separate", "running", "Separating vocal and BGM...")
+        self.job_service.log_task(job_id, "demucs_separate", "running", f"Separating vocal and BGM with {model_name}...")
         try:
-            vocal_path, bgm_path = self.audio_service.separate_vocal_bgm(audio_path, temp_dir)
+            vocal_path, bgm_path = self.audio_service.separate_vocal_bgm(audio_path, temp_dir, model_name=model_name)
             self.job_service.log_task(job_id, "demucs_separate", "success", "Vocal and BGM separated")
             return {"vocal_path": vocal_path, "bgm_path": bgm_path, "success": True}
         except Exception as e:

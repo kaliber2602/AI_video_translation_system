@@ -20,6 +20,43 @@ except Exception:
 
 logger = logging.getLogger("app.services.tts_aligner_service")
 
+# Global singleton cho local XTTS model
+_xtts_model_instance = None
+
+def get_xtts_model():
+    """Lazy load singleton instance của XTTS-v2 in-process trong Celery worker."""
+    global _xtts_model_instance
+    if _xtts_model_instance is not None:
+        return _xtts_model_instance
+
+    logger.info("[Coqui XTTS-v2] Khởi tạo mô hình XTTS-v2 cục bộ trong Celery Worker...")
+    try:
+        import torch
+        from packaging import version
+        import transformers.utils.import_utils as _u
+        import transformers.pytorch_utils as _tpu
+
+        # Compatibility shims giữa transformers 4.46+ và coqui-tts
+        if not hasattr(_u, "is_torch_greater_or_equal"):
+            _u.is_torch_greater_or_equal = lambda v: version.parse(torch.__version__.split('+')[0]) >= version.parse(v)
+        if not hasattr(_u, "is_torchcodec_available"):
+            _u.is_torchcodec_available = lambda: False
+        if not hasattr(_tpu, "isin_mps_friendly"):
+            _tpu.isin_mps_friendly = torch.isin
+
+        os.environ["COQUI_TOS_AGREED"] = "1"
+        from TTS.api import TTS
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info(f"[Coqui XTTS-v2] Đang tải weights mô hình lên device: {device}")
+        _xtts_model_instance = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(device)
+        logger.info("[Coqui XTTS-v2] Tải mô hình thành công và sẵn sàng phục vụ.")
+        return _xtts_model_instance
+    except Exception as e:
+        logger.exception(f"[Coqui XTTS-v2] Lỗi khởi tạo mô hình XTTS: {e}")
+        raise RuntimeError(f"Không thể khởi tạo mô hình Coqui XTTS-v2 cục bộ: {e}")
+
+
 class TTSAlignerService:
     def __init__(self, tts_api_url: str = None):
         self.tts_api_url = tts_api_url or os.getenv("TTS_API_URL", "http://tts-service:8001/generate_tts")
@@ -69,31 +106,34 @@ class TTSAlignerService:
         audio_segments = []
         manifest_chunks = []
         
+        total_segs = len(segments)
         for idx, seg in enumerate(segments):
             text = seg.get("translated_text", seg.get("text", ""))
             if not text or len(text.strip()) < 1:
                 logger.warning(f"Segment {idx} has empty text, skipping")
                 continue
             
-            logger.info(f"Generating TTS for segment {idx}: {text[:50]}...")
-            
             try:
                 # Generate TTS with speaker voice
-                audio_data = self._call_tts_service(text, tgt_lang, speaker_wav_data, voice_id=voice_id, model=model)
+                audio_data = self._call_tts_service(
+                    text,
+                    tgt_lang,
+                    speaker_wav_data,
+                    voice_id=voice_id,
+                    model=model,
+                    segment_idx=idx + 1,
+                    total_segments=total_segs
+                )
                 
                 # Dedicated chunk path
                 chunk_filename = f"seg_{idx:04d}.wav"
                 chunk_path = str(chunks_dir / chunk_filename)
                 
-                if audio_data is not None and sf is not None:
-                    sf.write(chunk_path, audio_data, 22050)
-                    audio_seg = AudioSegment.from_file(chunk_path)
-                else:
-                    logger.warning(f"TTS service failed or sf missing for segment {idx}, generating fallback tone")
-                    est_duration = max(1.0, len(text.split()) * 0.35)
-                    from pydub.generators import Sine
-                    audio_seg = Sine(440).to_audio_segment(duration=int(est_duration * 1000)).apply_gain(-25)
-                    audio_seg.export(chunk_path, format="wav")
+                if audio_data is None or sf is None:
+                    raise RuntimeError(f"Không thể tạo âm thanh cho đoạn {idx+1}/{total_segs}.")
+
+                sf.write(chunk_path, audio_data, 22050)
+                audio_seg = AudioSegment.from_file(chunk_path)
                 
                 # Get original duration
                 original_duration = float(seg.get("end", 0)) - float(seg.get("start", 0))
@@ -136,13 +176,7 @@ class TTSAlignerService:
                 
             except Exception as e:
                 logger.error(f"Failed to generate TTS for segment {idx}: {e}")
-                if progress_callback and len(segments) > 0:
-                    pct = min(100, int(((idx + 1) / len(segments)) * 100))
-                    try:
-                        progress_callback(pct, idx + 1, len(segments))
-                    except Exception:
-                        pass
-                continue
+                raise e
         
         if not audio_segments:
             raise Exception("No TTS segments were generated successfully")
@@ -202,112 +236,203 @@ class TTSAlignerService:
         tgt_lang: str,
         speaker_wav_data: Optional[bytes] = None,
         voice_id: Optional[str] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        segment_idx: Optional[int] = None,
+        total_segments: Optional[int] = None
     ) -> Optional[np.ndarray]:
-        """Call the TTS service to generate audio with voice cloning."""
+        """Call the TTS service to generate audio with voice cloning or ElevenLabs API."""
         try:
-            # ✅ Check if we have speaker data
-            if speaker_wav_data is None:
-                # Try to use a default voice
-                logger.warning("No speaker voice data available, trying with default voice")
-                # Some TTS services allow empty speaker_wav for default voice
-            
-            # ✅ Prepare multipart/form-data for TTS service
-            # The service expects:
-            # - text: string (required)
-            # - speaker_wav: file (required for voice cloning)
-            
-            # Create multipart form data
-            files = {}
-            data = {
-                "text": text,
-                "language": tgt_lang,
-                "speaker_id": "0",
-                "style": "neutral",
-                "speed": 1.0,
-                "voice": voice_id or "",
-                "model": model or ""
-            }
-            
-            # ✅ Add speaker_wav as file if available
-            if speaker_wav_data:
-                files["speaker_wav"] = ("speaker.wav", speaker_wav_data, "audio/wav")
-                logger.info(f"Sending speaker_wav: {len(speaker_wav_data)} bytes")
-            
-            # Make request with multipart/form-data
-            response = requests.post(
-                self.tts_api_url,
-                data=data,
-                files=files if files else None,
-                timeout=120
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"TTS service returned {response.status_code}: {response.text[:500]}")
-                return None
-            
-            # Check response content type
-            content_type = response.headers.get("content-type", "")
-            
-            if "audio" in content_type or "octet-stream" in content_type:
-                # Save response to temp file and load
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
-                    f.write(response.content)
-                    temp_file = f.name
-                
+            seg_info = f"[{segment_idx}/{total_segments}]" if (segment_idx and total_segments) else (f"[{segment_idx}]" if segment_idx else "")
+
+            clean_model = (model or "").lower().strip()
+            eleven_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
+            is_elevenlabs = "eleven" in clean_model or (voice_id and "eleven" in voice_id.lower())
+            is_edge = "edge" in clean_model
+            is_xtts = ("xtts" in clean_model or "coqui" in clean_model)
+            # If user hasn't specified any model, default based on voice_id or provider
+            if not is_edge and not is_xtts and not is_elevenlabs:
+                if speaker_wav_data is not None:
+                    is_xtts = True
+                else:
+                    is_edge = True
+
+            # ------------------------------------------------------------------
+            # 1. ElevenLabs API Branch
+            # ------------------------------------------------------------------
+            if is_elevenlabs:
+                if not eleven_key:
+                    raise RuntimeError("ElevenLabs API Key chưa được cấu hình. Vui lòng kiểm tra cài đặt ELEVENLABS_API_KEY.")
+                eleven_voice = voice_id.replace("eleven_", "") if voice_id and voice_id.startswith("eleven_") else (voice_id or "21m00Tcm4TlvDq8ikWAM")
+                eleven_url = f"https://api.elevenlabs.io/v1/text-to-speech/{eleven_voice}"
+                eleven_headers = {
+                    "Accept": "audio/mpeg",
+                    "Content-Type": "application/json",
+                    "xi-api-key": eleven_key,
+                }
+                eleven_payload = {
+                    "text": text,
+                    "model_id": "eleven_multilingual_v2",
+                    "voice_settings": {
+                        "stability": 0.5,
+                        "similarity_boost": 0.75
+                    }
+                }
+                logger.info(f"[ElevenLabs] {seg_info} [voice: {eleven_voice}] [lang: {tgt_lang}] Generating speech...")
+                res = requests.post(eleven_url, json=eleven_payload, headers=eleven_headers, timeout=60)
+                if res.status_code == 200:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f:
+                        f.write(res.content)
+                        temp_mp3 = f.name
+                    try:
+                        pydub_seg = AudioSegment.from_file(temp_mp3)
+                        wav_temp = temp_mp3.replace(".mp3", ".wav")
+                        pydub_seg.export(wav_temp, format="wav")
+                        audio, sr = sf.read(wav_temp)
+                        if sr != 22050:
+                            from scipy import signal
+                            audio = signal.resample(audio, int(len(audio) * 22050 / sr))
+                        if os.path.exists(wav_temp):
+                            os.unlink(wav_temp)
+                        return audio
+                    finally:
+                        if os.path.exists(temp_mp3):
+                            os.unlink(temp_mp3)
+                else:
+                    err_detail = res.text[:200]
+                    logger.error(f"[ElevenLabs] Service error {res.status_code}: {err_detail}")
+                    raise RuntimeError(f"ElevenLabs API trả về lỗi ({res.status_code}): {err_detail}")
+
+            # ------------------------------------------------------------------
+            # 2. Coqui XTTS-v2 Voice Cloning Branch
+            # ------------------------------------------------------------------
+            if is_xtts:
+                xtts_supported = {"en", "es", "fr", "de", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh", "zh-cn", "ja", "hu", "ko", "hi"}
+                clean_target = (tgt_lang or "").lower().split("_")[0].strip()
+                if clean_target not in xtts_supported:
+                    raise RuntimeError(f"Mô hình Coqui XTTS-v2 không hỗ trợ ngôn ngữ '{tgt_lang}'. Vui lòng chọn Microsoft Edge-TTS hoặc ElevenLabs.")
+
+                # Chạy inference trực tiếp bằng local XTTS model trong worker
                 try:
-                    # Load audio
-                    audio, sr = sf.read(temp_file)
-                    if sr != 22050:
-                        # Resample to 22050 if needed
-                        from scipy import signal
-                        audio = signal.resample(audio, int(len(audio) * 22050 / sr))
-                    return audio
-                finally:
-                    os.unlink(temp_file)
-            elif "json" in content_type:
-                # Try JSON response with base64 audio
-                data = response.json()
-                if "audio" in data:
-                    import base64
-                    audio_bytes = base64.b64decode(data["audio"])
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
-                        f.write(audio_bytes)
-                        temp_file = f.name
-                    
+                    logger.info(f"[Coqui XTTS-v2] {seg_info} [voice_clone: {'provided' if speaker_wav_data else 'default'}] [lang: {tgt_lang}] Generating speech locally...")
+                    tts_model = get_xtts_model()
+
+                    # Chuẩn bị file audio speaker wav mẫu
+                    temp_spk_path = None
+                    if speaker_wav_data:
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as spk_f:
+                            spk_f.write(speaker_wav_data)
+                            temp_spk_path = spk_f.name
+
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as out_f:
+                        temp_out_wav = out_f.name
+
                     try:
-                        audio, sr = sf.read(temp_file)
+                        xtts_lang = clean_target
+                        if temp_spk_path and os.path.exists(temp_spk_path):
+                            tts_model.tts_to_file(
+                                text=text,
+                                speaker_wav=temp_spk_path,
+                                language=xtts_lang,
+                                file_path=temp_out_wav
+                            )
+                        else:
+                            tts_model.tts_to_file(
+                                text=text,
+                                language=xtts_lang,
+                                file_path=temp_out_wav
+                            )
+
+                        audio, sr = sf.read(temp_out_wav)
                         if sr != 22050:
                             from scipy import signal
                             audio = signal.resample(audio, int(len(audio) * 22050 / sr))
                         return audio
                     finally:
-                        os.unlink(temp_file)
-                elif "url" in data:
-                    # Download audio from URL
-                    audio_response = requests.get(data["url"], timeout=30)
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
-                        f.write(audio_response.content)
-                        temp_file = f.name
-                    
+                        if temp_spk_path and os.path.exists(temp_spk_path):
+                            os.unlink(temp_spk_path)
+                        if os.path.exists(temp_out_wav):
+                            os.unlink(temp_out_wav)
+
+                except Exception as xtts_err:
+                    logger.exception(f"[Coqui XTTS-v2] Local XTTS inference failed: {xtts_err}")
+                    raise RuntimeError(f"Lỗi tạo giọng nói Coqui XTTS-v2 cục bộ: {xtts_err}")
+
+            # ------------------------------------------------------------------
+            # 3. Direct Edge-TTS Branch (Microsoft Studio-quality Neural TTS)
+            # ------------------------------------------------------------------
+            if is_edge:
+                import asyncio
+                import edge_tts
+
+                voice_map = {
+                    "vi_female_loan": "vi-VN-HoaiMyNeural",
+                    "vi_male_nam": "vi-VN-NamMinhNeural",
+                    "female_warm": "vi-VN-HoaiMyNeural",
+                    "female": "vi-VN-HoaiMyNeural",
+                    "male": "vi-VN-NamMinhNeural",
+                    "en_female": "en-US-JennyNeural",
+                    "en_male": "en-US-GuyNeural",
+                    "rachel": "en-US-JennyNeural",
+                    "domi": "en-US-JennyNeural",
+                    "antoni": "en-US-GuyNeural",
+                    "adam": "en-US-GuyNeural",
+                }
+                lang_defaults = {
+                    "vi": "vi-VN-HoaiMyNeural",
+                    "en": "en-US-JennyNeural",
+                    "ja": "ja-JP-NanamiNeural",
+                    "ko": "ko-KR-SunHiNeural",
+                    "zh": "zh-CN-XiaoxiaoNeural",
+                    "fr": "fr-FR-DeniseNeural",
+                    "de": "de-DE-KatjaNeural",
+                    "es": "es-ES-ElviraNeural",
+                    "ru": "ru-RU-SvetlanaNeural",
+                }
+                clean_lang = (tgt_lang or "vi").lower().split("-")[0].split("_")[0]
+                default_voice = lang_defaults.get(clean_lang, "vi-VN-HoaiMyNeural")
+                target_voice = voice_map.get((voice_id or "").lower(), (voice_id if voice_id and "-" in voice_id else default_voice))
+
+                logger.info(f"[Edge-TTS] {seg_info} [voice: {target_voice}] [lang: {tgt_lang}] Generating speech...")
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f:
+                    temp_edge_mp3 = f.name
+
+                async def _run_edge():
+                    comm = edge_tts.Communicate(text, target_voice)
+                    await comm.save(temp_edge_mp3)
+
+                try:
+                    asyncio.run(_run_edge())
+                except Exception as edge_err:
+                    logger.error(f"[Edge-TTS] Run failed: {edge_err}")
+                    raise RuntimeError(f"Edge-TTS không thể tạo giọng cho ngôn ngữ '{tgt_lang}': {edge_err}")
+
+                if os.path.exists(temp_edge_mp3) and os.path.getsize(temp_edge_mp3) > 100:
                     try:
-                        audio, sr = sf.read(temp_file)
+                        pydub_seg = AudioSegment.from_file(temp_edge_mp3)
+                        wav_temp = temp_edge_mp3.replace(".mp3", ".wav")
+                        pydub_seg.export(wav_temp, format="wav")
+                        audio, sr = sf.read(wav_temp)
                         if sr != 22050:
                             from scipy import signal
                             audio = signal.resample(audio, int(len(audio) * 22050 / sr))
+                        if os.path.exists(wav_temp):
+                            os.unlink(wav_temp)
                         return audio
                     finally:
-                        os.unlink(temp_file)
-            else:
-                logger.error(f"Unexpected response from TTS service: {content_type[:100]}")
-                return None
-                
+                        if os.path.exists(temp_edge_mp3):
+                            os.unlink(temp_edge_mp3)
+                else:
+                    raise RuntimeError(f"Edge-TTS tạo file âm thanh rỗng hoặc không hợp lệ cho giọng {target_voice}.")
+
+            raise RuntimeError(f"Mô hình TTS '{model}' không được hệ thống hỗ trợ.")
+        except RuntimeError:
+            raise
         except requests.exceptions.Timeout:
             logger.error("TTS service timeout after 120 seconds")
-            return None
+            raise RuntimeError("Dịch vụ TTS phản hồi quá lâu (quá thời gian chờ 120s).")
         except Exception as e:
             logger.error(f"Error calling TTS service: {e}")
-            return None
+            raise RuntimeError(f"Lỗi khi thực thi TTS ({model}): {str(e)}")
 
     def _get_speaker_wav(self, vocal_path: str) -> Optional[bytes]:
         """Extract speaker voice sample from vocal track."""
@@ -416,6 +541,8 @@ class TTSAlignerService:
         tgt_lang: str = "vi",
         vocal_path: Optional[str] = None,
         speed: float = 1.0,
+        voice_id: Optional[str] = None,
+        model: Optional[str] = None,
         master_output_path: Optional[str] = None,
         segments_meta: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
@@ -442,20 +569,23 @@ class TTSAlignerService:
             speaker_wav_data = self._get_speaker_wav(vocal_path)
         
         # 3. Call TTS for new text
-        audio_data = self._call_tts_service(new_text, tgt_lang, speaker_wav_data)
+        audio_data = self._call_tts_service(
+            new_text,
+            tgt_lang,
+            speaker_wav_data,
+            voice_id=voice_id,
+            model=model,
+            segment_idx=segment_id
+        )
         
         chunk_filename = f"seg_{segment_id:04d}.wav"
         chunk_path = str(chunks_dir / chunk_filename)
         
-        if audio_data is not None and sf is not None:
-            sf.write(chunk_path, audio_data, 22050)
-            audio_seg = AudioSegment.from_file(chunk_path)
-        else:
-            logger.warning(f"TTS service unavailable, generating fallback tone for segment #{segment_id}")
-            est_duration = max(1.0, len(new_text.split()) * 0.35)
-            from pydub.generators import Sine
-            audio_seg = Sine(440).to_audio_segment(duration=int(est_duration * 1000)).apply_gain(-25)
-            audio_seg.export(chunk_path, format="wav")
+        if audio_data is None or sf is None:
+            raise RuntimeError(f"Không thể tạo âm thanh giọng đọc cho đoạn #{segment_id}.")
+        
+        sf.write(chunk_path, audio_data, 22050)
+        audio_seg = AudioSegment.from_file(chunk_path)
         
         # 4. Find segment timing metadata
         target_duration = 0.0

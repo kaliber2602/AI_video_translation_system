@@ -1,13 +1,27 @@
 import os
+import json
 from pathlib import Path
+from dotenv import load_dotenv
 
+# Automatically load .env from project root or current working dir if available
+env_paths = [
+    Path(".env"),
+    Path(__file__).resolve().parent.parent.parent / ".env",
+    Path("/app/.env"),
+    Path("/app/../.env"),
+]
+for p in env_paths:
+    if p.exists():
+        load_dotenv(dotenv_path=p, override=False)
+        break
+else:
+    load_dotenv(override=False)
 
 UPLOAD_DIR = Path("uploads")
 OUTPUT_DIR = Path("outputs")
 
 UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
-
 
 APP_TITLE = "AI Video Translation Platform"
 
@@ -118,6 +132,42 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip() or None
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip() or None
 CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "").strip() or None
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "").strip() or None
+ELEVENLABS_DEFAULT_VOICE_ID = os.getenv("ELEVENLABS_DEFAULT_VOICE_ID", "21m00Tcm4TlvDq8ikWAM").strip()
+
+def get_elevenlabs_voices() -> dict:
+    """
+    Parse ELEVENLABS_VOICES from .env which can be:
+    1. JSON dictionary: '{"Rachel (Nu EN)": "21m00Tcm4TlvDq8ikWAM", "Antoni (Nam EN)": "ErXwobaYiN019PkySvjV"}'
+    2. Key-Value pairs: 'Rachel=21m00Tcm4TlvDq8ikWAM, Antoni=ErXwobaYiN019PkySvjV'
+    """
+    raw = os.getenv("ELEVENLABS_VOICES", "").strip()
+    default_dict = {
+        "Antoni (Nam Chuẩn)": "ErXwobaYiN019PkySvjV",
+        "Adam (Nam Trầm)": "pNInz6obpgDQGcFmaJgB",
+        "George (Nam Ấm)": "JBFqnCBsd6RMkjVDRZzb",
+        "Sarah (Nữ Trẻ)": "EXAVITQu4vr4xnSDxMaL",
+        "Alice (Nữ Dịu Dàng)": "Xb7hH8MSUJpSbSDYk0k2",
+    }
+    if not raw:
+        return default_dict
+    if raw.startswith("{"):
+        try:
+            return json.loads(raw)
+        except Exception:
+            pass
+    # Parse format: Name=ID, Name2=ID2
+    voices = {}
+    for item in raw.split(","):
+        if "=" in item:
+            k, v = item.split("=", 1)
+            if k.strip() and v.strip():
+                voices[k.strip()] = v.strip()
+        elif ":" in item:
+            k, v = item.split(":", 1)
+            if k.strip() and v.strip():
+                voices[k.strip().strip('"').strip("'")] = v.strip().strip('"').strip("'")
+    return voices or default_dict
+
 
 
 # =========================================================

@@ -27,25 +27,29 @@ class AudioService:
         logger.info(f"✅ Audio extracted to: {output_audio_path}")
 
     @staticmethod
-    def separate_vocal_bgm(audio_path: str, output_dir: str):
+    def separate_vocal_bgm(audio_path: str, output_dir: str, model_name: str = "htdemucs"):
         """
         Separate audio into vocal and BGM tracks using Demucs:
         - Vocal Track: For speech recognition (STT) & voice profile extraction
         - BGM Track: Background music & sound effects to keep for post-production mixing
         """
+        # Validate model name
+        allowed_models = {"htdemucs", "htdemucs_ft", "mdx_extra"}
+        selected_model = model_name if model_name in allowed_models else "htdemucs"
+
         # Auto-detect CUDA
         cuda_available = torch.cuda.is_available()
         
         if cuda_available:
-            logger.info("[Demucs] ✅ CUDA detected, using GPU")
+            logger.info(f"[Demucs] ✅ CUDA detected, using GPU with model {selected_model}")
             device = "cuda"
         else:
-            logger.info("[Demucs] ⚠️ CUDA not detected, using CPU")
+            logger.info(f"[Demucs] ⚠️ CUDA not detected, using CPU with model {selected_model}")
             device = "cpu"
         
         command = [
             "demucs", "--two-stems=vocals",
-            "-n", "htdemucs",
+            "-n", selected_model,
             "-o", output_dir,
             "--device", device,
             "--shifts", "2" if cuda_available else "1",
@@ -54,15 +58,15 @@ class AudioService:
         
         try:
             subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-            logger.info(f"[Demucs] ✅ Separation complete on {device.upper()}")
+            logger.info(f"[Demucs] ✅ Separation complete on {device.upper()} using {selected_model}")
         except Exception as e:
             logger.error(f"[Demucs] ❌ Separation failed: {e}")
             # Fallback: try CPU if GPU failed
             if device == "cuda":
-                logger.info("[Demucs] 🔄 Retrying on CPU...")
+                logger.info(f"[Demucs] 🔄 Retrying on CPU with {selected_model}...")
                 command = [
                     "demucs", "--two-stems=vocals",
-                    "-n", "htdemucs",
+                    "-n", selected_model,
                     "-o", output_dir,
                     "--device", "cpu",
                     "--shifts", "1",
@@ -79,9 +83,19 @@ class AudioService:
             gc.collect()
 
         base_name = os.path.splitext(os.path.basename(audio_path))[0]
-        vocal_path = os.path.join(output_dir, "htdemucs", base_name, "vocals.wav")
-        bgm_path = os.path.join(output_dir, "htdemucs", base_name, "no_vocals.wav")
+        vocal_path = os.path.join(output_dir, selected_model, base_name, "vocals.wav")
+        bgm_path = os.path.join(output_dir, selected_model, base_name, "no_vocals.wav")
         
+        # Fallback check in case output directory structure differs slightly
+        if not os.path.exists(vocal_path):
+            alt_vocal = os.path.join(output_dir, "htdemucs", base_name, "vocals.wav")
+            if os.path.exists(alt_vocal):
+                vocal_path = alt_vocal
+        if not os.path.exists(bgm_path):
+            alt_bgm = os.path.join(output_dir, "htdemucs", base_name, "no_vocals.wav")
+            if os.path.exists(alt_bgm):
+                bgm_path = alt_bgm
+
         # Verify files exist
         if not os.path.exists(vocal_path):
             raise FileNotFoundError(f"Vocal track not found at: {vocal_path}")
@@ -110,48 +124,71 @@ class AudioService:
         subtitle_mask: Optional[Dict[str, Any]] = None,
         overlay_config: Optional[Dict[str, Any]] = None,
         progress_callback: Optional[Callable[[int, str], None]] = None,
+        original_vocal_path: Optional[str] = None,
+        vocal_volume: float = 0.0,
+        bgm_volume: float = 0.7,
+        dub_volume: float = 1.0,
     ):
         """
-        Mix TTS audio with optional BGM and mux with video.
+        Mix TTS audio with optional BGM, optional original vocal stem, and mux with video.
         Optionally burn subtitles into the video stream.
         The output video will maintain the full original video length.
         """
         mixed_audio_path = os.path.join(temp_dir, "mixed_audio.wav")
         
         try:
-            # 1. Load TTS audio
+            import math
+            def pct_to_db(pct: float) -> float:
+                if pct <= 0.001:
+                    return -120.0
+                return 20.0 * math.log10(pct / 1.0)
+
+            # 1. Load TTS audio (Track 3: AI Dubbing)
             logger.info(f"Loading TTS audio from: {tts_audio_path}")
             if not os.path.exists(tts_audio_path):
                 raise FileNotFoundError(f"TTS audio not found at: {tts_audio_path}")
             
             tts_audio = AudioSegment.from_file(tts_audio_path)
             logger.info(f"TTS audio duration: {len(tts_audio)/1000:.2f}s, channels: {tts_audio.channels}")
+            if dub_volume < 0.99 or dub_volume > 1.01:
+                tts_db = pct_to_db(dub_volume)
+                if tts_db <= -100:
+                    tts_audio = AudioSegment.silent(duration=len(tts_audio))
+                else:
+                    tts_audio = tts_audio + tts_db
             
-            # 2. Handle BGM (if provided)
-            if bgm_audio_path and os.path.exists(bgm_audio_path):
-                logger.info(f"Loading BGM from: {bgm_audio_path}")
-                bgm_audio = AudioSegment.from_file(bgm_audio_path)
-                logger.info(f"BGM duration: {len(bgm_audio)/1000:.2f}s, channels: {bgm_audio.channels}")
-                
-                # Reduce BGM volume by 10dB to make voice clearer
-                bgm_audio = bgm_audio - 10
-                
-                # Ensure BGM is same length as TTS (or loop if shorter)
-                if len(bgm_audio) < len(tts_audio):
-                    logger.info(f"BGM shorter than TTS, looping...")
-                    loop_count = (len(tts_audio) // len(bgm_audio)) + 1
-                    bgm_audio = bgm_audio * loop_count
-                
-                # Trim BGM to match TTS duration
-                bgm_audio = bgm_audio[:len(tts_audio)]
-                
-                # Overlay TTS on BGM
-                logger.info("Mixing TTS with BGM...")
-                mixed_audio = bgm_audio.overlay(tts_audio)
-            else:
-                # No BGM, use TTS only
-                logger.info("No BGM provided, using TTS audio only")
-                mixed_audio = tts_audio
+            target_duration_ms = len(tts_audio)
+
+            # 2. Handle BGM (Track 2: Background Music)
+            bgm_audio = None
+            if bgm_audio_path and os.path.exists(bgm_audio_path) and bgm_volume > 0.01:
+                logger.info(f"Loading BGM from: {bgm_audio_path} with volume {bgm_volume}")
+                raw_bgm = AudioSegment.from_file(bgm_audio_path)
+                bgm_db = pct_to_db(bgm_volume) - 3.0  # Balance baseline
+                raw_bgm = raw_bgm + bgm_db
+                if len(raw_bgm) < target_duration_ms:
+                    loop_count = (target_duration_ms // len(raw_bgm)) + 1
+                    raw_bgm = raw_bgm * loop_count
+                bgm_audio = raw_bgm[:target_duration_ms]
+
+            # 3. Handle Original Vocal (Track 1: Voice Gốc, e.g. for Discovery 70/30 or background voice)
+            vocal_audio = None
+            if original_vocal_path and os.path.exists(original_vocal_path) and vocal_volume > 0.01:
+                logger.info(f"Loading Original Vocal from: {original_vocal_path} with volume {vocal_volume}")
+                raw_vocal = AudioSegment.from_file(original_vocal_path)
+                vocal_db = pct_to_db(vocal_volume)
+                raw_vocal = raw_vocal + vocal_db
+                if len(raw_vocal) < target_duration_ms:
+                    loop_count = (target_duration_ms // len(raw_vocal)) + 1
+                    raw_vocal = raw_vocal * loop_count
+                vocal_audio = raw_vocal[:target_duration_ms]
+
+            # Combine all active tracks
+            mixed_audio = tts_audio
+            if bgm_audio:
+                mixed_audio = bgm_audio.overlay(mixed_audio)
+            if vocal_audio:
+                mixed_audio = mixed_audio.overlay(vocal_audio)
             
             # 3. Get video duration
             logger.info(f"Checking video file: {video_path}")
@@ -205,23 +242,25 @@ class AudioService:
             # Build video filters (scaling/cropping per aspect_ratio + optional burned subtitles)
             clean_aspect = (aspect_ratio or "").strip().lower()
             if clean_aspect in ["9:16", "portrait", "doc", "vertical"]:
-                # TikTok / Shorts standard vertical: 1080x1920 (or scaled based on quality)
+                # TikTok / Shorts standard vertical: 1080x1920 (pad with black bars, no content loss)
                 vert_map = {360: (360, 640), 720: (720, 1280), 1080: (1080, 1920), 1440: (1440, 2560), 2160: (2160, 3840)}
-                w, h = vert_map.get(target_h, (1080, 1920))
-                crop_scale_filter = f"crop='min(iw,ih*9/16)':'min(ih,iw*16/9)':(iw-ow)/2:(ih-oh)/2,scale={w}:{h}"
+                tw, th = vert_map.get(target_h, (1080, 1920))
+                crop_scale_filter = f"scale={tw}:{th}:force_original_aspect_ratio=decrease,pad={tw}:{th}:(ow-iw)/2:(oh-ih)/2:black"
             elif clean_aspect in ["1:1", "square", "vuong"]:
-                w = h = target_h
-                crop_scale_filter = f"crop='min(iw,ih)':'min(iw,ih)':(iw-ow)/2:(ih-oh)/2,scale={w}:{h}"
+                tw = th = target_h
+                crop_scale_filter = f"scale={tw}:{th}:force_original_aspect_ratio=decrease,pad={tw}:{th}:(ow-iw)/2:(oh-ih)/2:black"
             elif clean_aspect in ["4:3"]:
-                w = int(round(target_h * 4 / 3 / 2) * 2)
-                h = target_h
-                crop_scale_filter = f"crop='min(iw,ih*4/3)':'min(ih,iw*3/4)':(iw-ow)/2:(ih-oh)/2,scale={w}:{h}"
+                tw = int(round(target_h * 4 / 3 / 2) * 2)
+                th = target_h
+                crop_scale_filter = f"scale={tw}:{th}:force_original_aspect_ratio=decrease,pad={tw}:{th}:(ow-iw)/2:(oh-ih)/2:black"
             elif clean_aspect in ["4:5"]:
-                w = int(round(target_h * 4 / 5 / 2) * 2)
-                h = target_h
-                crop_scale_filter = f"crop='min(iw,ih*4/5)':'min(ih,iw*5/4)':(iw-ow)/2:(ih-oh)/2,scale={w}:{h}"
+                tw = int(round(target_h * 4 / 5 / 2) * 2)
+                th = target_h
+                crop_scale_filter = f"scale={tw}:{th}:force_original_aspect_ratio=decrease,pad={tw}:{th}:(ow-iw)/2:(oh-ih)/2:black"
             elif clean_aspect in ["16:9", "landscape"]:
-                crop_scale_filter = f"crop='min(iw,ih*16/9)':'min(ih,iw*9/16)':(iw-ow)/2:(ih-oh)/2,scale=-2:{target_h}"
+                tw = int(round(target_h * 16 / 9 / 2) * 2)
+                th = target_h
+                crop_scale_filter = f"scale={tw}:{th}:force_original_aspect_ratio=decrease,pad={tw}:{th}:(ow-iw)/2:(oh-ih)/2:black"
             else:
                 crop_scale_filter = f"scale=-2:{target_h}"
 

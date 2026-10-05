@@ -52,6 +52,21 @@ librosa==0.10.2.post1
 soundfile==0.12.1
 pyannote.audio==3.3.2
 matplotlib>=3.8.0
+edge-tts>=7.0.0
+coqui-tts==0.27.5
+coqui-tts-trainer>=0.3.0,<0.4.0
+tensorboard==2.21.0
+coqpit-config==0.2.5
+anyascii==0.3.3
+inflect==7.5.0
+ko-speech-tools==0.1.0
+monotonic-alignment-search==0.2.1
+num2words==0.5.14
+pysbd==0.3.4
+gruut==2.4.0
+pypinyin>=0.50.0
+jieba>=0.42.1
+hangul-romanize>=0.1.0
 
 # --- AWS S3 ---
 boto3==1.34.0

@@ -560,7 +560,8 @@ def list_ai_models(
                     credit_cost_per_minute,
                     is_active,
                     required_plan,
-                    created_at
+                    created_at,
+                    COALESCE(word_cost_multiplier, 1)
                 FROM ai_models
                 {where_sql}
                 ORDER BY category ASC, id ASC;
@@ -580,6 +581,7 @@ def list_ai_models(
                     is_active=r[6],
                     required_plan=r[7],
                     created_at=r[8],
+                    word_cost_multiplier=r[9] if len(r) > 9 else 1,
                 )
                 for r in rows
             ]
@@ -601,6 +603,10 @@ def update_ai_model(model_id: int, update_data: AdminAIModelUpdateRequest) -> Ad
             if update_data.credit_cost_per_minute is not None:
                 updates.append("credit_cost_per_minute = %s")
                 params.append(update_data.credit_cost_per_minute)
+
+            if update_data.word_cost_multiplier is not None:
+                updates.append("word_cost_multiplier = %s")
+                params.append(update_data.word_cost_multiplier)
 
             if update_data.is_active is not None:
                 updates.append("is_active = %s")
@@ -631,7 +637,8 @@ def update_ai_model(model_id: int, update_data: AdminAIModelUpdateRequest) -> Ad
                     credit_cost_per_minute,
                     is_active,
                     required_plan,
-                    created_at;
+                    created_at,
+                    COALESCE(word_cost_multiplier, 1);
                 """,
                 params,
             )
@@ -653,6 +660,7 @@ def update_ai_model(model_id: int, update_data: AdminAIModelUpdateRequest) -> Ad
                 is_active=row[6],
                 required_plan=row[7],
                 created_at=row[8],
+                word_cost_multiplier=row[9] if len(row) > 9 else 1,
             )
     finally:
         conn.close()

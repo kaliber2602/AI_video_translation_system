@@ -25,7 +25,7 @@ export const FolderSequenceCanvas: React.FC<FolderSequenceCanvasProps> = ({
   progress,
   className = "",
   canvasClassName = "",
-  priorityFrameCount = 45,
+  priorityFrameCount: _priorityFrameCount = 45,
   onLoaded,
 }) => {
   const resolvedFrameCount = Math.max(1, totalFrames ?? frameCount);
@@ -128,7 +128,7 @@ export const FolderSequenceCanvas: React.FC<FolderSequenceCanvasProps> = ({
           setIsInView(true);
         }
       },
-      { rootMargin: "350px" }
+      { rootMargin: "100px" }
     );
 
     observer.observe(el);
@@ -179,15 +179,15 @@ export const FolderSequenceCanvas: React.FC<FolderSequenceCanvasProps> = ({
   }, [resolvedFrameCount, getFrameUrl, drawFrame]);
 
   // Buffer a small window around the active target frame
-  const loadWindowAround = useCallback((centerIdx: number, radius = 5) => {
-    const start = Math.max(0, centerIdx - 2);
+  const loadWindowAround = useCallback((centerIdx: number, radius = 3) => {
+    const start = Math.max(0, centerIdx - 1);
     const end = Math.min(resolvedFrameCount - 1, centerIdx + radius);
     for (let i = start; i <= end; i++) {
       loadImage(i);
     }
   }, [resolvedFrameCount, loadImage]);
 
-  // On mount or folderPath change, if in view, load initial frame immediately
+  // On mount or folderPath change, if in view, load ONLY frame 0 immediately for initial display
   useEffect(() => {
     let isCancelled = false;
     imagesRef.current = new Array(resolvedFrameCount).fill(null);
@@ -202,31 +202,31 @@ export const FolderSequenceCanvas: React.FC<FolderSequenceCanvasProps> = ({
 
     if (!isInView) return;
 
-    // Step 1: Immediately load frame 0 to paint canvas without network bottleneck
+    // Strictly load frame 0 to paint canvas with zero network congestion
     loadImage(0).then(() => {
       if (isCancelled) return;
       setInitialReady(true);
       onLoaded?.();
-
-      // Step 2: Preload tiny 2-frame buffer so initial scrub feels instant
-      const initialBuffer = Math.min(priorityFrameCount, 2, resolvedFrameCount - 1);
-      for (let i = 1; i <= initialBuffer; i++) {
-        loadImage(i);
-      }
     });
 
     return () => {
       isCancelled = true;
     };
-  }, [folderPath, resolvedFrameCount, isInView, priorityFrameCount, loadImage, drawFrame, onLoaded]);
+  }, [folderPath, resolvedFrameCount, isInView, loadImage, drawFrame, onLoaded]);
 
-  // Exact 100% full-frame linear mapping: maps [0, 1] strictly to [0, resolvedFrameCount - 1]
+  // Track last window loaded to prevent re-triggering requests on micro-scrolls
+  const lastLoadedWindowIdxRef = useRef<number>(-1);
+
+  // Linear frame mapping: loads window around target only when target changes meaningfully
   useEffect(() => {
     const clampedProgress = Math.max(0, Math.min(1, isNaN(progress) ? 0 : progress));
     const exactTarget = clampedProgress * (resolvedFrameCount - 1);
     const targetIdx = Math.min(resolvedFrameCount - 1, Math.max(0, Math.round(exactTarget)));
     targetFrameRef.current = targetIdx;
-    if (isInView) {
+
+    // If progress is at 0, frame 0 is already loaded; only buffer window when user actually scrubs (> 0)
+    if (isInView && targetIdx > 0 && Math.abs(targetIdx - lastLoadedWindowIdxRef.current) >= 2) {
+      lastLoadedWindowIdxRef.current = targetIdx;
       loadWindowAround(targetIdx);
     }
   }, [progress, resolvedFrameCount, isInView, loadWindowAround]);

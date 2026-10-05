@@ -103,10 +103,16 @@ DEFAULT_ADDONS_SEED = [
 # Ensure Tables Exist (Migration / Schema Helper)
 # =========================================================
 
+_SUBSCRIPTION_TABLES_ENSURED = False
+
 def ensure_subscription_tables_exist(connection=None):
     """
     Creates subscription tables and seeds default catalog if not already present.
     """
+    global _SUBSCRIPTION_TABLES_ENSURED
+    if _SUBSCRIPTION_TABLES_ENSURED:
+        return
+
     should_close = False
     if connection is None:
         try:
@@ -215,6 +221,7 @@ def ensure_subscription_tables_exist(connection=None):
                     period_start TIMESTAMP NOT NULL,
                     period_end TIMESTAMP NOT NULL,
                     credits_used INTEGER NOT NULL DEFAULT 0,
+                    words_used INTEGER NOT NULL DEFAULT 0,
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     CONSTRAINT uq_user_consumable_period UNIQUE (user_id, period_start, period_end)
@@ -296,6 +303,24 @@ def ensure_subscription_tables_exist(connection=None):
                                 res["unit"],
                             ),
                         )
+            else:
+                # Ensure words_monthly is seeded for existing plans if missing
+                for plan in DEFAULT_PLANS_SEED:
+                    cursor.execute("SELECT id FROM plans WHERE code = %s", (plan["code"],))
+                    prow = cursor.fetchone()
+                    if prow:
+                        p_id = prow[0]
+                        for res in plan["resources"]:
+                            if res["resource_key"] == "words_monthly":
+                                cursor.execute(
+                                    """
+                                    INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+                                    VALUES (%s, %s, %s, %s, %s)
+                                    ON CONFLICT (plan_id, resource_key) DO UPDATE
+                                    SET limit_value = EXCLUDED.limit_value
+                                    """,
+                                    (p_id, res["resource_type"], res["resource_key"], res["limit_value"], res["unit"])
+                                )
 
             # Seed Storage Add-ons if table is empty
             cursor.execute("SELECT COUNT(*) FROM storage_addons")
@@ -318,6 +343,7 @@ def ensure_subscription_tables_exist(connection=None):
                     )
 
         connection.commit()
+        _SUBSCRIPTION_TABLES_ENSURED = True
     except Exception as e:
         if connection:
             connection.rollback()
@@ -820,12 +846,7 @@ def get_user_consumable_usage(user_id: int) -> Dict[str, int]:
 
     try:
         with connection.cursor() as cursor:
-            # Ensure column exists
-            try:
-                cursor.execute("ALTER TABLE user_consumable_usage ADD COLUMN IF NOT EXISTS words_used INTEGER NOT NULL DEFAULT 0;")
-                connection.commit()
-            except Exception:
-                connection.rollback()
+
 
             cursor.execute(
                 """
@@ -895,7 +916,7 @@ def deduct_user_words(
             else:
                 period_end = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc) - timedelta(seconds=1)
 
-            cur.execute("ALTER TABLE user_consumable_usage ADD COLUMN IF NOT EXISTS words_used INTEGER NOT NULL DEFAULT 0;")
+
 
             cur.execute(
                 """
@@ -935,13 +956,15 @@ def refund_user_words(
     description: Optional[str] = None,
     video_id: Optional[int] = None,
     job_id: Optional[str] = None,
+    reason: Optional[str] = None,
+    **kwargs,
 ) -> bool:
     """Refunds previously deducted word quota."""
     amount = int(words_amount) if words_amount else 0
     if amount <= 0:
         return True
 
-    desc = description or f"Word refund for video #{video_id or 'job'}"
+    desc = description or reason or f"Word refund for video #{video_id or 'job'}"
     conn = get_connection()
     try:
         with conn.cursor() as cur:
@@ -1124,7 +1147,7 @@ def get_model_credit_cost(model_code: Optional[str], default_cost: int = 1) -> i
         conn = get_connection()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT credit_cost_per_minute FROM ai_models WHERE code = %s AND is_active = true LIMIT 1;",
+                "SELECT COALESCE(word_cost_multiplier, credit_cost_per_minute) FROM ai_models WHERE code = %s AND is_active = true LIMIT 1;",
                 (model_code,)
             )
             row = cur.fetchone()
@@ -1135,6 +1158,31 @@ def get_model_credit_cost(model_code: Optional[str], default_cost: int = 1) -> i
     return default_cost
 
 
+def get_model_word_multiplier(model_code: Optional[str], default_multiplier: int = 1) -> int:
+    """
+    Look up the word cost multiplier (1x, 2x, 3x...) for an AI model from the ai_models database table.
+    Separation models default to 0x.
+    """
+    if not model_code:
+        return default_multiplier
+    clean_code = model_code.lower().strip()
+    if clean_code in ("htdemucs", "htdemucs_ft", "mdx_extra", "demucs_v4", "mdx_net_karaoke"):
+        return 0
+    try:
+        conn = get_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COALESCE(word_cost_multiplier, credit_cost_per_minute) FROM ai_models WHERE code = %s AND is_active = true LIMIT 1;",
+                (model_code,)
+            )
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                return int(row[0])
+    except Exception as e:
+        logger.error(f"[SubscriptionService] Failed to query word cost multiplier for model {model_code}: {e}")
+    return default_multiplier
+
+
 def get_all_ai_model_credit_costs() -> Dict[str, int]:
     """
     Returns a dictionary mapping model_code -> credit_cost_per_minute from the ai_models table.
@@ -1143,7 +1191,7 @@ def get_all_ai_model_credit_costs() -> Dict[str, int]:
     try:
         conn = get_connection()
         with conn.cursor() as cur:
-            cur.execute("SELECT code, credit_cost_per_minute FROM ai_models WHERE is_active = true;")
+            cur.execute("SELECT code, COALESCE(word_cost_multiplier, credit_cost_per_minute) FROM ai_models WHERE is_active = true;")
             for r in cur.fetchall():
                 result[r[0]] = int(r[1])
     except Exception as e:

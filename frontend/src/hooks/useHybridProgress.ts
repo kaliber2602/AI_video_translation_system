@@ -81,7 +81,7 @@ export function useHybridProgress(
 
     pollTimerRef.current = window.setInterval(() => {
       fetchSnapshot();
-    }, 1500);
+    }, 3500);
   }, [videoId, fetchSnapshot]);
 
   // Stop Polling Loop
@@ -99,10 +99,10 @@ export function useHybridProgress(
       return;
     }
 
-    const token = localStorage.getItem("access_token") || "";
+    const token = (typeof window !== "undefined" ? (localStorage.getItem("access_token") || sessionStorage.getItem("access_token")) : null) || "";
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/ws/videos/${videoId}/progress${token ? `?token=${token}` : ""}`;
+    const wsUrl = `${protocol}//${host}/ws/videos/${videoId}/progress${token ? `?token=${encodeURIComponent(token)}` : ""}`;
 
     let pingTimer: number | null = null;
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import {
   ArrowLeft,
   Check,
@@ -16,13 +16,14 @@ import {
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom";
 
-import UploadStep from "../components/pipeline/UploadStep";
-import TranscriptStep from "../components/pipeline/TranscriptStep";
-import TranslationStep from "../components/pipeline/TranslationStep";
-import SubtitleStep from "../components/pipeline/SubtitleStep";
-import DubbingStep from "../components/pipeline/DubbingStep";
-import ReviewExportStep from "../components/pipeline/ReviewExportStep";
-import PresetStudioModal from "../components/batch/PresetStudioModal";
+// Code splitting pipeline steps with React.lazy
+const UploadStep = lazy(() => import("../components/pipeline/upload"));
+const TranscriptStep = lazy(() => import("../components/pipeline/transcript"));
+const TranslationStep = lazy(() => import("../components/pipeline/translation"));
+const SubtitleStep = lazy(() => import("../components/pipeline/subtitle"));
+const DubbingStep = lazy(() => import("../components/pipeline/DubbingStep"));
+const ReviewExportStep = lazy(() => import("../components/pipeline/review"));
+const PresetStudioModal = lazy(() => import("../components/batch/PresetStudioModal"));
 import { type PipelinePreset, applyPresetToVideo } from "../services/preset.service";
 import { toast } from "../lib/toast";
 
@@ -56,23 +57,42 @@ const STEP_NUM_TO_ID: Record<number, string> = {
   6: "review-export",
 };
 
+function StepLoadingFallback() {
+  return (
+    <div className="flex min-h-[420px] w-full flex-col items-center justify-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-[var(--shadow-card)]">
+      <Loader2 size={36} className="animate-spin text-[var(--color-primary)]" />
+      <span className="text-sm font-semibold text-[var(--color-text-primary)]">Đang tải tài nguyên bước xử lý...</span>
+      <span className="text-xs text-[var(--color-text-muted)]">Tải mô-đun tối ưu theo yêu cầu (Lazy Loading)</span>
+    </div>
+  );
+}
+
 function renderStep(step: string) {
+  let stepComponent;
   switch (step) {
     case "upload":
-      return <UploadStep />;
+      stepComponent = <UploadStep />;
+      break;
     case "transcript":
-      return <TranscriptStep />;
+      stepComponent = <TranscriptStep />;
+      break;
     case "translation":
-      return <TranslationStep />;
+      stepComponent = <TranslationStep />;
+      break;
     case "subtitle":
-      return <SubtitleStep />;
+      stepComponent = <SubtitleStep />;
+      break;
     case "dubbing":
-      return <DubbingStep />;
+      stepComponent = <DubbingStep />;
+      break;
     case "review-export":
-      return <ReviewExportStep />;
+      stepComponent = <ReviewExportStep />;
+      break;
     default:
-      return <UploadStep />;
+      stepComponent = <UploadStep />;
+      break;
   }
+  return <Suspense fallback={<StepLoadingFallback />}>{stepComponent}</Suspense>;
 }
 
 function formatSnapshotTime(snapshotData: any): string | null {
@@ -503,13 +523,6 @@ function VideoPipelineContent() {
 
   // Decouple Step Checkpoint Completion from Step Index (UX-02, UX-07, Phase 4)
   const isStepCheckpointCompleted = (stepId: string): boolean => {
-    // 1. Authoritative check via backend stepsSummary
-    const stepSummary = state.stepsSummary?.steps?.[stepId];
-    if (stepSummary && stepSummary.status === "completed") {
-      return true;
-    }
-
-    // 2. Fallback check via context state / video attributes
     switch (stepId) {
       case "upload":
         return Boolean(state.video?.videoId);
@@ -517,60 +530,49 @@ function VideoPipelineContent() {
         return Boolean(
           state.stepsSummary?.steps?.transcript?.status === "completed" ||
           state.video?.transcriptPath ||
-          state.transcript ||
-          state.video?.hasTranslation ||
-          state.video?.translationPath ||
-          state.subtitles ||
-          state.video?.subtitlePath ||
-          state.video?.dubbedAudioPath ||
-          state.dubbedVideo?.output_path ||
-          (state.video as any)?.outputPath ||
-          (state.video as any)?.output_path
+          (state.transcript?.segments && state.transcript.segments.length > 0)
         );
       case "translation":
+        // Requires transcript completion
+        const isTranscriptDone = Boolean(
+          state.stepsSummary?.steps?.transcript?.status === "completed" ||
+          state.video?.transcriptPath ||
+          (state.transcript?.segments && state.transcript.segments.length > 0)
+        );
+        if (!isTranscriptDone) return false;
         return Boolean(
           state.stepsSummary?.steps?.translation?.status === "completed" ||
           (state.translation?.segments && state.translation.segments.length > 0) ||
           state.video?.hasTranslation ||
-          state.video?.translationPath ||
-          state.subtitles ||
-          state.video?.subtitlePath ||
-          state.video?.dubbedAudioPath ||
-          state.dubbedVideo?.output_path ||
-          (state.video as any)?.outputPath ||
-          (state.video as any)?.output_path
+          state.video?.translationPath
         );
       case "subtitle":
+        // Requires translation completion
+        if (!isStepCheckpointCompleted("translation")) return false;
+        // If subtitle is disabled/bypassed by user, consider checkpoint satisfied
+        if (state.pipelineConfig?.subtitles?.enabled === false) return true;
         return Boolean(
           state.stepsSummary?.steps?.subtitle?.status === "completed" ||
-          state.subtitles ||
-          state.video?.subtitlePath ||
-          state.video?.dubbedAudioPath ||
-          state.dubbedVideo?.output_path ||
-          (state.video as any)?.outputPath ||
-          (state.video as any)?.output_path
+          (state.subtitles && state.subtitles.length > 0) ||
+          state.video?.subtitlePath
         );
       case "dubbing":
+        // Requires subtitle and translation completion
+        if (!isStepCheckpointCompleted("subtitle")) return false;
         return Boolean(
           state.stepsSummary?.steps?.dubbing?.status === "completed" ||
-          state.dubbedVideo?.output_path ||
-          (state.dubbedVideo as any)?.s3_path ||
-          state.video?.outputPath ||
-          (state.video as any)?.output_path ||
-          state.video?.dubbedAudioPath ||
-          state.video?.status === "completed" ||
-          (state.video?.progress !== undefined && state.video.progress >= 85)
+          state.video?.dubbedAudioPath
         );
       case "review-export":
+        // Final milestone: Dubbing must be completed first
+        if (!isStepCheckpointCompleted("dubbing")) return false;
         return Boolean(
           state.stepsSummary?.steps?.export?.status === "completed" ||
           state.dubbedVideo?.output_path ||
           (state.dubbedVideo as any)?.s3_path ||
           state.video?.outputPath ||
           (state.video as any)?.output_path ||
-          state.video?.status === "completed" ||
-          state.video?.currentStep === "completed" ||
-          (state.video?.progress !== undefined && state.video.progress >= 100)
+          state.video?.status === "completed"
         );
       default:
         return false;
@@ -1159,11 +1161,13 @@ function VideoPipelineContent() {
         </section>
       </main>
 
-      <PresetStudioModal
-        isOpen={isPresetStudioOpen}
-        onClose={() => setIsPresetStudioOpen(false)}
-        onSelectPreset={handleApplyPreset}
-      />
+      <Suspense fallback={null}>
+        <PresetStudioModal
+          isOpen={isPresetStudioOpen}
+          onClose={() => setIsPresetStudioOpen(false)}
+          onSelectPreset={handleApplyPreset}
+        />
+      </Suspense>
 
       {/* Save as Preset Modal */}
       {isSavePresetModalOpen && (

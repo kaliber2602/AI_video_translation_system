@@ -47,6 +47,7 @@ from app.services.subscription_service import (
     deduct_user_words,
     refund_user_words,
     get_model_credit_cost,
+    get_model_word_multiplier,
     validate_model_access,
 )
 from app.core.tokenizer import TokenizerService
@@ -217,6 +218,157 @@ async def get_supported_languages():
     """Return the list of supported source and target languages."""
     from app.core.languages import SUPPORTED_LANGUAGES
     return {"languages": SUPPORTED_LANGUAGES}
+
+
+@router.get("/elevenlabs/voices")
+async def get_elevenlabs_voices_list():
+    """Return dictionary of available ElevenLabs voices with valid preview audio URLs."""
+    from app.core.config import get_elevenlabs_voices
+    voices_dict = get_elevenlabs_voices()
+    result = []
+    for name, voice_id in voices_dict.items():
+        result.append({
+            "id": voice_id,
+            "name": name,
+            "sample_url": f"/api/videos/elevenlabs/voices/{voice_id}/sample"
+        })
+    return {"voices": result}
+
+
+@router.get("/elevenlabs/voices/{voice_id}/sample")
+async def get_elevenlabs_voice_sample(
+    voice_id: str,
+):
+    """Proxy or serve verified sample audio for an ElevenLabs voice."""
+    sample_cache_dir = OUTPUT_DIR / "elevenlabs_samples"
+    sample_cache_dir.mkdir(parents=True, exist_ok=True)
+    local_sample_file = sample_cache_dir / f"{voice_id}.mp3"
+
+    if local_sample_file.exists() and local_sample_file.stat().st_size > 1024:
+        return FileResponse(
+            str(local_sample_file),
+            media_type="audio/mpeg",
+            filename=f"eleven_{voice_id}.mp3",
+            headers={"Content-Disposition": f"inline; filename=eleven_{voice_id}.mp3"}
+        )
+
+    # 1. Fetch official sample URL from public ElevenLabs voice catalog
+    try:
+        import urllib.request
+        with urllib.request.urlopen("https://api.elevenlabs.io/v1/voices", timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            for v in data.get("voices", []):
+                if v.get("voice_id") == voice_id and v.get("preview_url"):
+                    preview_url = v["preview_url"]
+                    req = urllib.request.Request(preview_url, headers={"User-Agent": "Mozilla/5.0"})
+                    with urllib.request.urlopen(req, timeout=15) as audio_resp:
+                        content = audio_resp.read()
+                        if len(content) > 1024:
+                            with open(local_sample_file, "wb") as f:
+                                f.write(content)
+                            return FileResponse(
+                                str(local_sample_file),
+                                media_type="audio/mpeg",
+                                filename=f"eleven_{voice_id}.mp3",
+                                headers={"Content-Disposition": f"inline; filename=eleven_{voice_id}.mp3"}
+                            )
+    except Exception as fetch_err:
+        logger.warning(f"Could not fetch public sample for ElevenLabs voice {voice_id}: {fetch_err}")
+
+    # Fallback to predefined verified CDN samples
+    known_samples = {
+        "21m00Tcm4TlvDq8ikWAM": "https://storage.googleapis.com/eleven-public-prod/premade/voices/CwhRBWXzGAHq8TQ4Fs17/58ee3ff5-f6f2-4628-93b8-e38eb31806b0.mp3",
+        "AZnzlk1XvdvUeBnXmlld": "https://storage.googleapis.com/eleven-public-prod/premade/voices/EXAVITQu4vr4xnSDxMaL/01a3e33c-6e99-4ee7-8543-ff2216a32186.mp3",
+        "ErXwobaYiN019PkySvjV": "https://storage.googleapis.com/eleven-public-prod/premade/voices/N2lVS1w4EtoT3dr4eOWO/ac833bd8-ffda-4938-9ebc-b0f99ca25481.mp3",
+        "pNInz6obpgDQGcFmaJgB": "https://storage.googleapis.com/eleven-public-prod/premade/voices/pNInz6obpgDQGcFmaJgB/d6905d7a-dd26-4187-bfff-1bd3a5ea7cac.mp3",
+        "JBFqnCBsd6RMkjVDRZzb": "https://storage.googleapis.com/eleven-public-prod/premade/voices/JBFqnCBsd6RMkjVDRZzb/e6206d1a-0721-4787-acbc-64c6fe703c32.mp3",
+        "EXAVITQu4vr4xnSDxMaL": "https://storage.googleapis.com/eleven-public-prod/premade/voices/EXAVITQu4vr4xnSDxMaL/01a3e33c-6e99-4ee7-8543-ff2216a32186.mp3",
+        "Xb7hH8MSUJpSbSDYk0k2": "https://storage.googleapis.com/eleven-public-prod/premade/voices/Xb7hH8MSUJpSbSDYk0k2/d1079831-45fb-419a-9190-aa5477d43030.mp3",
+    }
+    if voice_id in known_samples:
+        try:
+            import urllib.request
+            req = urllib.request.Request(known_samples[voice_id], headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=15) as audio_resp:
+                content = audio_resp.read()
+                if len(content) > 1024:
+                    with open(local_sample_file, "wb") as f:
+                        f.write(content)
+                    return FileResponse(
+                        str(local_sample_file),
+                        media_type="audio/mpeg",
+                        filename=f"eleven_{voice_id}.mp3",
+                        headers={"Content-Disposition": f"inline; filename=eleven_{voice_id}.mp3"}
+                    )
+        except Exception:
+            pass
+
+    raise HTTPException(404, f"Sample audio for voice {voice_id} not available")
+
+
+@router.get("/edge/voices")
+async def get_edge_voices_list(language: Optional[str] = Query(None)):
+    """Return verified Neural voices for Microsoft Edge-TTS."""
+    voices_catalog = [
+        {"id": "vi-VN-HoaiMyNeural", "name": "Hoài My (Nữ Việt Nam - Chuẩn)", "lang": "vi"},
+        {"id": "vi-VN-NamMinhNeural", "name": "Nam Minh (Nam Việt Nam - Chuẩn)", "lang": "vi"},
+        {"id": "en-US-JennyNeural", "name": "Jenny (Nữ Mỹ - Tự nhiên)", "lang": "en"},
+        {"id": "en-US-GuyNeural", "name": "Guy (Nam Mỹ - Trầm ấm)", "lang": "en"},
+        {"id": "ja-JP-NanamiNeural", "name": "Nanami (Nữ Nhật Bản)", "lang": "ja"},
+        {"id": "ko-KR-SunHiNeural", "name": "SunHi (Nữ Hàn Quốc)", "lang": "ko"},
+        {"id": "zh-CN-XiaoxiaoNeural", "name": "Xiaoxiao (Nữ Trung Quốc)", "lang": "zh"},
+        {"id": "fr-FR-DeniseNeural", "name": "Denise (Nữ Pháp)", "lang": "fr"},
+    ]
+    if language:
+        clean = language.lower().split("-")[0].split("_")[0]
+        filtered = [v for v in voices_catalog if v["lang"] == clean]
+        if filtered:
+            return {"voices": filtered}
+    return {"voices": voices_catalog}
+
+
+@router.get("/edge/voices/{voice_id}/sample")
+async def get_edge_voice_sample(voice_id: str):
+    """Generate or serve cached sample audio for Edge-TTS voice."""
+    sample_cache_dir = OUTPUT_DIR / "edge_samples"
+    sample_cache_dir.mkdir(parents=True, exist_ok=True)
+    local_sample_file = sample_cache_dir / f"{voice_id}.mp3"
+
+    if local_sample_file.exists() and local_sample_file.stat().st_size > 500:
+        return FileResponse(
+            str(local_sample_file),
+            media_type="audio/mpeg",
+            filename=f"edge_{voice_id}.mp3",
+            headers={"Content-Disposition": f"inline; filename=edge_{voice_id}.mp3"}
+        )
+
+    try:
+        import edge_tts
+        text_samples = {
+            "vi": "Xin chào, đây là giọng đọc thử nghiệm chất lượng cao từ Microsoft Edge Neural.",
+            "en": "Hello, this is a high quality neural voice sample from Microsoft Edge.",
+            "ja": "こんにちは、これは高品質な音声合成のサンプルです。",
+            "ko": "안녕하세요, 이것은 고품질 음성 샘플입니다.",
+            "zh": "你好，这是微软高质量神经网络语音样本。",
+            "fr": "Bonjour, ceci est un échantillon vocal de haute qualité.",
+        }
+        lang_key = voice_id.split("-")[0].lower() if "-" in voice_id else "vi"
+        sample_text = text_samples.get(lang_key, text_samples["vi"])
+
+        comm = edge_tts.Communicate(sample_text, voice_id)
+        await comm.save(str(local_sample_file))
+
+        if local_sample_file.exists() and local_sample_file.stat().st_size > 500:
+            return FileResponse(
+                str(local_sample_file),
+                media_type="audio/mpeg",
+                filename=f"edge_{voice_id}.mp3",
+                headers={"Content-Disposition": f"inline; filename=edge_{voice_id}.mp3"}
+            )
+    except Exception as err:
+        logger.warning(f"Failed to generate Edge-TTS sample for {voice_id}: {err}")
+
+    raise HTTPException(404, f"Sample audio for Edge voice {voice_id} could not be generated")
 
 
 
@@ -1274,6 +1426,7 @@ async def get_segment_tts_audio(
 async def stream_audio_stem(
     video_id: int,
     kind: str = Query("dubbed", description="'dubbed', 'vocals', 'bgm', or 'original'"),
+    token: Optional[str] = Query(None, description="Optional access token for direct media streaming"),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
@@ -1364,6 +1517,7 @@ async def upload_overlay_logo(
 @router.get("/{video_id}/overlay/logo")
 async def get_overlay_logo(
     video_id: int,
+    token: Optional[str] = Query(None, description="Optional access token for direct image loading"),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
@@ -1641,6 +1795,7 @@ async def delete_video_thumbnail(
 async def stream_video_file(
     video_id: int,
     kind: str = Query("output", description="'output' or 'original'"),
+    token: Optional[str] = Query(None, description="Optional access token for direct media streaming"),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
@@ -2413,14 +2568,16 @@ async def start_transcription(
             }, f, indent=2)
 
         # Enforce word quota deduction for tokenize-based subscription
-        transcribed_words = TokenizerService.count_segments_words(segments)
-        if transcribed_words <= 0:
-            transcribed_words = TokenizerService.estimate_video_words(video.duration or 60.0)
+        raw_words = TokenizerService.count_segments_words(segments)
+        if raw_words <= 0:
+            raw_words = TokenizerService.estimate_video_words(video.duration or 60.0)
+        multiplier = get_model_word_multiplier(stt_model, default_multiplier=1)
+        transcribed_words = raw_words * multiplier
         deduct_user_words(
             user_id=user_id,
             words_amount=transcribed_words,
             service_type="WHISPER_STT",
-            description=f"Whisper STT for video #{video_id} ({transcribed_words} words)",
+            description=f"Whisper STT ({stt_model}, {multiplier}x) for video #{video_id} ({transcribed_words} words)",
             video_id=video_id,
         )
 
@@ -2688,9 +2845,10 @@ async def get_video_steps_summary(
 
     has_translation = translation_count > 0 or has_trans_file or (not is_fresh_upload and bool(getattr(video, "has_translation", False)))
     
-    has_subtitle = not is_fresh_upload and bool(video.subtitle_path and os.path.exists(video.subtitle_path))
-    has_dubbing = not is_fresh_upload and bool(video.dubbed_audio_path and os.path.exists(video.dubbed_audio_path))
-    has_export = not is_fresh_upload and bool(video.output_path and os.path.exists(video.output_path))
+    # Strict Sequential Prerequisite Chain (Prevents skipping or premature completion when reusing videos/stale fields)
+    has_subtitle = has_translation and not is_fresh_upload and bool(video.subtitle_path and os.path.exists(video.subtitle_path))
+    has_dubbing = has_subtitle and not is_fresh_upload and bool(video.dubbed_audio_path and os.path.exists(video.dubbed_audio_path))
+    has_export = has_dubbing and not is_fresh_upload and bool(video.output_path and os.path.exists(video.output_path))
     
     active_step = active_task.get("current_step") if active_task else None
     
@@ -2867,19 +3025,74 @@ async def update_transcription(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    """Edit/correct transcript text, timestamps, or speaker labels."""
+    """Edit/correct transcript text, timestamps, or speaker labels, supporting batch segments update."""
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
     
-    if not video.transcript_path or not os.path.exists(video.transcript_path):
+    canonical_dir = OUTPUT_DIR / f"transcript_{video_id}"
+    canonical_dir.mkdir(parents=True, exist_ok=True)
+    canonical_transcript = canonical_dir / "transcript.json"
+
+    transcript_path = video.transcript_path
+    if (not transcript_path or not os.path.exists(transcript_path)) and canonical_transcript.exists():
+        transcript_path = str(canonical_transcript)
+        video.transcript_path = transcript_path
+
+    if not transcript_path or not os.path.exists(transcript_path):
         raise HTTPException(404, "Transcript not found")
     
     try:
-        with open(video.transcript_path, 'r', encoding='utf-8') as f:
+        with open(transcript_path, 'r', encoding='utf-8') as f:
             transcript_data = json.load(f)
+
+        # Batch segments update (e.g. from Split or Merge)
+        if "segments" in updates and isinstance(updates["segments"], list):
+            new_segments = updates["segments"]
+            transcript_data["segments"] = new_segments
+            transcript_data["total_segments"] = len(new_segments)
+
+            with open(transcript_path, 'w', encoding='utf-8') as f:
+                json.dump(transcript_data, f, indent=2, ensure_ascii=False)
+            if str(canonical_transcript) != str(transcript_path):
+                with open(canonical_transcript, 'w', encoding='utf-8') as f:
+                    json.dump(transcript_data, f, indent=2, ensure_ascii=False)
+
+            # Sync DB transcript_segments table
+            try:
+                db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).delete()
+                db.flush()
+
+                # Get or create default speaker
+                speaker_rec = db.query(SpeakerProfile).filter(SpeakerProfile.video_id == video_id).first()
+                speaker_id = speaker_rec.id if speaker_rec else None
+
+                for idx, seg in enumerate(new_segments):
+                    db.add(TranscriptSegment(
+                        video_id=video_id,
+                        speaker_id=speaker_id,
+                        sequence=idx + 1,
+                        start_time=float(seg.get("start", 0.0)),
+                        end_time=float(seg.get("end", 0.0)),
+                        original_text=str(seg.get("text", "")).strip(),
+                        language=transcript_data.get("language") or video.source_language or "en",
+                        confidence=float(seg.get("confidence", 1.0)) if seg.get("confidence") is not None else 1.0,
+                        created_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow()
+                    ))
+                db.commit()
+            except Exception as dbe:
+                logger.warning(f"Could not sync batch transcript_segments to DB: {dbe}")
+                db.rollback()
+
+            return {
+                "video_id": video_id,
+                "updated": True,
+                "total_segments": len(new_segments),
+                "message": "Transcript segments synchronized"
+            }
         
         segment_id = updates.get("segment_id")
         if segment_id is None:
-            raise HTTPException(400, "segment_id required")
+            raise HTTPException(400, "segment_id or segments required")
         
         segments = transcript_data.get("segments", [])
         if segment_id < 0 or segment_id >= len(segments):
@@ -2894,8 +3107,26 @@ async def update_transcription(
         if "speaker" in updates:
             segments[segment_id]["speaker"] = updates["speaker"]
         
-        with open(video.transcript_path, 'w', encoding='utf-8') as f:
-            json.dump(transcript_data, f, indent=2)
+        with open(transcript_path, 'w', encoding='utf-8') as f:
+            json.dump(transcript_data, f, indent=2, ensure_ascii=False)
+        if str(canonical_transcript) != str(transcript_path) and canonical_transcript.exists():
+            with open(canonical_transcript, 'w', encoding='utf-8') as f:
+                json.dump(transcript_data, f, indent=2, ensure_ascii=False)
+
+        # Update specific DB record if present
+        try:
+            t_segs = db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).order_by(TranscriptSegment.sequence).all()
+            if segment_id < len(t_segs):
+                if "text" in updates:
+                    t_segs[segment_id].original_text = updates["text"]
+                if "start" in updates:
+                    t_segs[segment_id].start_time = float(updates["start"])
+                if "end" in updates:
+                    t_segs[segment_id].end_time = float(updates["end"])
+                t_segs[segment_id].updated_at = datetime.utcnow()
+                db.commit()
+        except Exception as dbe:
+            logger.warning(f"Could not update single transcript_segment in DB: {dbe}")
         
         return {
             "video_id": video_id,
@@ -3017,7 +3248,7 @@ async def get_diarization(
 # ============================================================
 
 @router.post("/{video_id}/translations")
-async def start_translation(
+def start_translation(
     video_id: int,
     response: Response,
     target_language: str = Query(..., description="Target language code (e.g., vi, en, fr)"),
@@ -3064,14 +3295,16 @@ async def start_translation(
         detected_lang = transcript_data.get("language", "en")
 
         # Enforce word quota deduction for tokenize-based subscription
-        trans_words = TokenizerService.count_segments_words(segments)
-        if trans_words <= 0:
-            trans_words = TokenizerService.estimate_video_words(video.duration or 60.0)
+        raw_words = TokenizerService.count_segments_words(segments)
+        if raw_words <= 0:
+            raw_words = TokenizerService.estimate_video_words(video.duration or 60.0)
+        multiplier = get_model_word_multiplier(trans_model, default_multiplier=1)
+        trans_words = raw_words * multiplier
         deduct_user_words(
             user_id=user_id,
             words_amount=trans_words,
             service_type="TRANSLATION",
-            description=f"Translation ({target_language}) for video #{video_id} ({trans_words} words)",
+            description=f"Translation ({trans_model}, {target_language}, {multiplier}x) for video #{video_id} ({trans_words} words)",
             video_id=video_id,
         )
         
@@ -3445,9 +3678,133 @@ async def update_translation(
         with open(translation_path, 'r', encoding='utf-8') as f:
             translation_data = json.load(f)
         
+        if "segments" in updates and isinstance(updates["segments"], list):
+            segments = updates["segments"]
+            translation_data["segments"] = segments
+            translation_data["total_segments"] = len(segments)
+            with open(translation_path, 'w', encoding='utf-8') as f:
+                json.dump(translation_data, f, indent=2, ensure_ascii=False)
+            
+            # 1. Also synchronize transcript.json so source segments stay 1:1 aligned
+            try:
+                canonical_transcript = canonical_dir / "transcript.json"
+                target_transcript_paths = [canonical_transcript]
+                if video.transcript_path and os.path.exists(video.transcript_path):
+                    alt_trans = Path(video.transcript_path)
+                    if alt_trans.resolve() != canonical_transcript.resolve():
+                        target_transcript_paths.append(alt_trans)
+
+                t_data = None
+                for tp in target_transcript_paths:
+                    if tp.exists():
+                        try:
+                            with open(tp, 'r', encoding='utf-8') as tf:
+                                t_data = json.load(tf)
+                            break
+                        except Exception:
+                            pass
+                
+                if t_data is None:
+                    t_data = {
+                        "video_id": video_id,
+                        "language": video.source_language or "en",
+                        "segments": [],
+                        "total_segments": 0,
+                    }
+
+                # Construct updated transcript segments preserving source text, speaker, and timestamps
+                new_transcript_segs = []
+                for seg in segments:
+                    new_transcript_segs.append({
+                        "start": float(seg.get("start", 0.0)),
+                        "end": float(seg.get("end", 0.0)),
+                        "text": str(seg.get("text", "")).strip(),
+                        "speaker": seg.get("speaker") or "SPEAKER_01",
+                        "confidence": float(seg.get("confidence", 1.0)) if seg.get("confidence") is not None else 1.0
+                    })
+                t_data["segments"] = new_transcript_segs
+                t_data["total_segments"] = len(new_transcript_segs)
+
+                for tp in target_transcript_paths:
+                    with open(tp, 'w', encoding='utf-8') as tf:
+                        json.dump(t_data, tf, indent=2, ensure_ascii=False)
+            except Exception as te:
+                logger.warning(f"Could not synchronize transcript.json on translation batch update: {te}")
+
+            # 2. Synchronize PostgreSQL database tables (transcript_segments & translation_segments)
+            try:
+                from app.models import TranscriptSegment, TranslationSegment, SpeakerProfile
+                # Deleting transcript_segments will cascade delete translation_segments due to FK
+                db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).delete()
+                db.flush()
+
+                speaker_rec = db.query(SpeakerProfile).filter(SpeakerProfile.video_id == video_id).first()
+                speaker_id = speaker_rec.id if speaker_rec else None
+
+                for idx, seg in enumerate(segments):
+                    t_seg = TranscriptSegment(
+                        video_id=video_id,
+                        speaker_id=speaker_id,
+                        sequence=idx + 1,
+                        start_time=float(seg.get("start", 0.0)),
+                        end_time=float(seg.get("end", 0.0)),
+                        original_text=str(seg.get("text", "")).strip(),
+                        language=video.source_language or "en",
+                        confidence=float(seg.get("confidence", 1.0)) if seg.get("confidence") is not None else 1.0,
+                        created_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow()
+                    )
+                    db.add(t_seg)
+                    db.flush()
+
+                    db.add(TranslationSegment(
+                        transcript_segment_id=t_seg.id,
+                        target_language=lang_clean,
+                        translated_text=str(seg.get("translated_text", "")).strip(),
+                        edited_text=str(seg.get("translated_text", "")).strip(),
+                        translation_model=translation_data.get("translation_model") or "google",
+                        created_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow()
+                    ))
+                db.commit()
+                logger.info(f"Synchronized {len(segments)} segments to DB for video #{video_id}")
+            except Exception as dbe:
+                logger.warning(f"Could not sync batch translation to DB: {dbe}")
+                db.rollback()
+
+            # 3. Sync subtitle files immediately
+            try:
+                from app.services.pipeline_steps import _load_subtitle_config
+                sub_cfg = _load_subtitle_config(video_id, lang_clean, video=video, db=db)
+                subtitle_service = SubtitleService()
+                subtitle_service.save_all_subtitles(
+                    segments=segments,
+                    base_dir=str(canonical_dir),
+                    language=lang_clean,
+                    text_key="translated_text",
+                    font_size=int(sub_cfg["font_size"]),
+                    position=sub_cfg["position"],
+                    font_name=sub_cfg["font_name"],
+                    primary_color=sub_cfg["primary_color"],
+                    outline_color=sub_cfg["outline_color"],
+                    max_lines=int(sub_cfg["max_lines"]),
+                    effect=sub_cfg["effect"],
+                    auto_split=True,
+                )
+            except Exception as se:
+                logger.warning(f"Could not re-generate subtitles on batch update: {se}")
+
+            return {
+                "video_id": video_id,
+                "language": lang_clean,
+                "updated": True,
+                "total_segments": len(segments),
+                "message": "Translation and transcript segments synchronized successfully"
+            }
+
         segment_id = updates.get("segment_id")
         if segment_id is None:
-            raise HTTPException(400, "segment_id required")
+            raise HTTPException(400, "segment_id or segments required")
         
         segments = translation_data.get("segments", [])
         if segment_id < 0 or segment_id >= len(segments):
@@ -3558,6 +3915,7 @@ async def generate_subtitles(
     alignment: str = Query("center", description="Subtitle alignment: left, center, right, justify"),
     position_y: Optional[float] = Query(None, description="Subtitle vertical position in percentage: 5-95"),
     line_spacing: Optional[float] = Query(1.2, description="Line spacing multiplier: 1.0-2.0"),
+    bilingual: bool = Query(False, description="Generate bilingual dual-line subtitles"),
     body: Optional[dict] = Body(None),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
@@ -3706,6 +4064,7 @@ async def generate_subtitles(
             final_line_spacing = float(raw_spacing) if raw_spacing is not None else 1.2
         except (ValueError, TypeError):
             final_line_spacing = 1.2
+        final_bilingual = bool(b.get("bilingual") if b.get("bilingual") is not None else bilingual)
 
         # Save all 3 formats (srt, vtt, ass) using translated_text
         paths = subtitle_service.save_all_subtitles(
@@ -3728,6 +4087,7 @@ async def generate_subtitles(
             alignment=final_alignment,
             position_y=final_position_y,
             line_spacing=final_line_spacing,
+            bilingual=final_bilingual,
         )
         subtitle_path = paths.get(final_format, subtitle_path)
         video.subtitle_path = subtitle_path
@@ -3937,6 +4297,7 @@ async def get_subtitle_segments(
             ("max_lines", "maxLines"),
             ("aspect_ratio", "aspectRatio"),
             ("position_y", "positionY"),
+            ("position_x", "positionX"),
             ("line_spacing", "lineSpacing"),
         ]
         for snake, camel in aliases:
@@ -4037,6 +4398,11 @@ async def update_subtitle_segments(
         position_y = float(raw_pos_y) if raw_pos_y is not None else 84.0
     except (ValueError, TypeError):
         position_y = 84.0
+    raw_pos_x = get_style_val("position_x", "positionX", 50)
+    try:
+        position_x = float(raw_pos_x) if raw_pos_x is not None else 50.0
+    except (ValueError, TypeError):
+        position_x = 50.0
     raw_spacing = get_style_val("line_spacing", "lineSpacing", 1.2)
     try:
         line_spacing = float(raw_spacing) if raw_spacing is not None else 1.2
@@ -4063,8 +4429,12 @@ async def update_subtitle_segments(
         "alignment": alignment,
         "position_y": position_y,
         "positionY": position_y,
+        "position_x": position_x,
+        "positionX": position_x,
         "line_spacing": line_spacing,
         "lineSpacing": line_spacing,
+        "bilingual": bool(get_style_val("bilingual", "bilingual", False)),
+        "enabled": bool(get_style_val("enabled", "enabled", True)),
     }
 
     snap = dict(getattr(video, "snapshot_data", None) or {})
@@ -4343,6 +4713,9 @@ async def list_voices(
     
     speakers = db.query(SpeakerProfile).filter(SpeakerProfile.video_id == video_id).all()
     
+    from app.core.config import get_elevenlabs_voices
+    eleven_map = get_elevenlabs_voices()
+
     return {
         "video_id": video_id,
         "speakers": [
@@ -4354,6 +4727,10 @@ async def list_voices(
                 "voice_sample_path": s.voice_sample_path
             }
             for s in speakers
+        ],
+        "elevenlabs_voices": [
+            {"name": name, "id": vid}
+            for name, vid in eleven_map.items()
         ],
         "count": len(speakers)
     }
@@ -4480,6 +4857,70 @@ async def get_speaker_sample(
         )
 
 
+@router.get("/{video_id}/audio/vocal")
+async def get_vocal_track_stream(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Serve the isolated original vocal track for real-time mixer playback."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+    
+    candidates = [
+        video.extracted_vocal_path,
+        str(OUTPUT_DIR / f"audio_{video_id}" / "vocals.wav"),
+        str(OUTPUT_DIR / f"audio_{video_id}" / "audio.wav"),
+    ]
+    audio_dir = OUTPUT_DIR / f"audio_{video_id}"
+    if audio_dir.exists():
+        for root, _, files in os.walk(audio_dir):
+            for f in files:
+                if f in ("vocals.wav", "audio.wav"):
+                    p = os.path.join(root, f)
+                    if p not in candidates:
+                        candidates.append(p)
+    for c in candidates:
+        if c and os.path.exists(c) and os.path.getsize(c) > 1024:
+            return FileResponse(
+                c,
+                media_type="audio/wav",
+                filename=f"video_{video_id}_vocal.wav",
+                headers={"Content-Disposition": f"inline; filename=video_{video_id}_vocal.wav"}
+            )
+    raise HTTPException(404, "Original vocal track not available")
+
+
+@router.get("/{video_id}/audio/bgm")
+async def get_bgm_track_stream(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Serve the isolated background music (BGM/no_vocals) track for real-time mixer playback."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+    
+    candidates = [
+        video.background_music_path,
+    ]
+    audio_dir = OUTPUT_DIR / f"audio_{video_id}"
+    if audio_dir.exists():
+        for root, _, files in os.walk(audio_dir):
+            for f in files:
+                f_lower = f.lower()
+                if "no_vocals" in f_lower or "bgm" in f_lower or "instrumental" in f_lower:
+                    p = os.path.join(root, f)
+                    if p not in candidates:
+                        candidates.append(p)
+    for c in candidates:
+        if c and os.path.exists(c) and os.path.getsize(c) > 1024:
+            return FileResponse(
+                c,
+                media_type="audio/wav",
+                filename=f"video_{video_id}_bgm.wav",
+                headers={"Content-Disposition": f"inline; filename=video_{video_id}_bgm.wav"}
+            )
+    raise HTTPException(404, "Original BGM track not available")
+
 
 @router.post("/{video_id}/tts")
 async def generate_tts(
@@ -4487,6 +4928,8 @@ async def generate_tts(
     response: Response,
     language: str = Query(..., description="Target language for TTS"),
     speaker_id: Optional[int] = Query(None, description="Speaker ID for voice cloning"),
+    voice_id: Optional[str] = Query(None, description="ElevenLabs or specific voice ID"),
+    model: Optional[str] = Query(None, description="TTS engine/model override (e.g., elevenlabs)"),
     style: str = Query("neutral", description="Speaking style"),
     speed: float = Query(1.0, description="Speaking speed multiplier (0.5 - 2.0)"),
     sync: bool = Query(False, description="Run synchronously instead of dispatching to Celery worker"),
@@ -4495,13 +4938,26 @@ async def generate_tts(
 ):
     """Generate speech from translated text with voice selection and style (supports HTTP 202 Async & Sync)."""
     logger.info(f"🎤 Starting TTS generation for video {video_id}")
-    logger.info(f"   Language: {language}, Style: {style}, Speed: {speed}")
+    logger.info(f"   Language: {language}, Style: {style}, Speed: {speed}, Model: {model}, Voice: {voice_id}")
     
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
     
     # Enforce AI credit deduction for Neural TTS from ai_models table
     config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
-    tts_model = config.tts_model if config and config.tts_model else "xtts_v2"
+    if model and config:
+        config.tts_model = model
+        db.commit()
+    tts_model = model or (config.tts_model if config and config.tts_model else "xtts_v2")
+    
+    # Coqui XTTS-v2 language constraint check
+    xtts_supported = {"en", "es", "fr", "de", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh", "zh-cn", "ja", "hu", "ko", "hi"}
+    clean_lang = (language or "").lower().strip()
+    if ("xtts" in tts_model.lower() or "coqui" in tts_model.lower()) and clean_lang not in xtts_supported:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Mô hình Coqui XTTS-v2 không hỗ trợ ngôn ngữ '{language.upper()}'. Vui lòng chọn Microsoft Edge-TTS hoặc ElevenLabs."
+        )
+
     cost_per_min = get_model_credit_cost(tts_model, default_cost=2)
     duration_mins = max(1, int(math.ceil((video.duration or 60) / 60.0)))
     credits_needed = duration_mins * cost_per_min
@@ -4537,14 +4993,16 @@ async def generate_tts(
         logger.info(f"📄 Loaded {len(segments)} segments from translation")
 
         # Enforce word quota deduction for tokenize-based subscription
-        tts_words = TokenizerService.count_segments_words(segments)
-        if tts_words <= 0:
-            tts_words = TokenizerService.estimate_video_words(video.duration or 60.0)
+        raw_words = TokenizerService.count_segments_words(segments)
+        if raw_words <= 0:
+            raw_words = TokenizerService.estimate_video_words(video.duration or 60.0)
+        multiplier = get_model_word_multiplier(tts_model, default_multiplier=1)
+        tts_words = raw_words * multiplier
         deduct_user_words(
             user_id=user_id,
             words_amount=tts_words,
             service_type="TTS_SYNTHESIS",
-            description=f"Voice TTS ({tts_model}, {language}) for video #{video_id} ({tts_words} words)",
+            description=f"Voice TTS ({tts_model}, {language}, {multiplier}x) for video #{video_id} ({tts_words} words)",
             video_id=video_id,
         )
     except Exception as e:
@@ -4598,6 +5056,7 @@ async def generate_tts(
                 config={
                     "language": language,
                     "speaker_id": speaker_id,
+                    "voice_id": voice_id,
                     "style": style,
                     "speed": speed,
                     "credits_needed": credits_needed,
@@ -4608,7 +5067,7 @@ async def generate_tts(
             )
 
             task = task_generate_tts_step.delay(
-                video_id, user_id, language, speaker_id, style, speed, str(job.id)
+                video_id, user_id, language, speaker_id, style, speed, str(job.id), voice_id, tts_model
             )
             job_cfg = job.config_json or {}
             if isinstance(job_cfg, str):
@@ -4675,7 +5134,7 @@ async def generate_tts(
     try:
         # Generate TTS
         logger.info(f"🔧 Generating TTS for {len(segments)} segments...")
-        voice_id_str = str(speaker_id) if speaker_id is not None else None
+        voice_id_str = voice_id or (str(speaker_id) if speaker_id is not None else None)
         tts_service.generate_tts_with_alignment(
             segments=segments,
             output_path=str(tts_path),
@@ -4762,7 +5221,12 @@ async def get_tts(
     video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
     
     tts_dir = OUTPUT_DIR / f"tts_{video_id}"
+    lang_clean = (language or "vi").lower().split("-")[0].split("_")[0]
     tts_path = tts_dir / f"tts_{language}.wav"
+    if not tts_path.exists():
+        tts_path = tts_dir / f"tts_{lang_clean}.wav"
+    if not tts_path.exists() and video.dubbed_audio_path and os.path.exists(video.dubbed_audio_path):
+        tts_path = Path(video.dubbed_audio_path)
     
     if tts_path.exists():
         file_size = os.path.getsize(tts_path)
@@ -4804,11 +5268,13 @@ async def get_tts(
                 pass
             
             return FileResponse(
-                tts_path,
+                str(tts_path),
                 media_type="audio/wav",
                 filename=f"tts_{language}_preview.wav",
                 headers={
-                    "Content-Disposition": f"inline; filename=tts_{language}_preview.wav"
+                    "Content-Disposition": f"inline; filename=tts_{language}_preview.wav",
+                    "Accept-Ranges": "bytes",
+                    "Cache-Control": "no-cache",
                 }
             )
         
@@ -4843,6 +5309,100 @@ async def get_tts(
     }
 
 
+@router.post("/{video_id}/tts/segment/{segment_id}")
+@router.post("/{video_id}/tts/segments/{segment_id}/resynthesize")
+async def resynthesize_segment(
+    video_id: int,
+    segment_id: int,
+    payload: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Micro-resynthesize a single TTS segment chunk in real time (< 1s)."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
+    
+    new_text = payload.get("text", "").strip()
+    if not new_text:
+        raise HTTPException(400, "Text cannot be empty for resynthesis")
+    
+    tgt_lang = payload.get("language") or "vi"
+    speed = float(payload.get("speed", 1.0))
+    voice_id = payload.get("voice_id")
+    model = payload.get("model")
+    
+    # Locate vocal track if available
+    vocal_path = video.extracted_vocal_path
+    if not vocal_path or not os.path.exists(vocal_path):
+        canonical_audio = OUTPUT_DIR / f"audio_{video_id}" / "audio.wav"
+        if canonical_audio.exists():
+            vocal_path = str(canonical_audio)
+
+    # Load segments metadata for duration calibration
+    segments_meta = None
+    translation_dir = os.path.dirname(video.transcript_path) if video.transcript_path else None
+    if translation_dir:
+        t_path = os.path.join(translation_dir, f"translation_{tgt_lang}.json")
+        if os.path.exists(t_path):
+            try:
+                with open(t_path, "r", encoding="utf-8") as f:
+                    t_data = json.load(f)
+                    segments_meta = t_data.get("segments", [])
+            except Exception:
+                pass
+
+    master_path = video.dubbed_audio_path or str(OUTPUT_DIR / f"tts_{video_id}" / f"tts_{tgt_lang}.wav")
+
+    from app.services.tts_aligner_service import TTSAlignerService
+    tts_service = TTSAlignerService()
+
+    try:
+        res = tts_service.resynthesize_single_segment(
+            video_id=video_id,
+            segment_id=segment_id,
+            new_text=new_text,
+            tgt_lang=tgt_lang,
+            vocal_path=vocal_path,
+            speed=speed,
+            voice_id=voice_id,
+            model=model,
+            master_output_path=master_path,
+            segments_meta=segments_meta,
+        )
+        return res
+    except Exception as e:
+        logger.error(f"Error resynthesizing segment #{segment_id}: {e}")
+        raise HTTPException(500, f"Micro-TTS failed: {str(e)}")
+
+
+@router.get("/{video_id}/tts/segments/{segment_id}/audio")
+async def get_segment_audio(
+    video_id: int,
+    segment_id: int,
+    language: str = Query("vi"),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Serve single TTS audio chunk."""
+    video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
+    
+    chunk_file = OUTPUT_DIR / f"tts_{video_id}" / language / "chunks" / f"seg_{segment_id:04d}.wav"
+    if not chunk_file.exists():
+        chunk_file = OUTPUT_DIR / f"tts_{video_id}" / "chunks" / f"seg_{segment_id:04d}.wav"
+    if not chunk_file.exists():
+        chunk_file = OUTPUT_DIR / f"{video_id}" / "snippets" / f"seg_{segment_id}.wav"
+        
+    if not chunk_file.exists():
+        raise HTTPException(404, f"Chunk audio for segment {segment_id} not found")
+        
+    return FileResponse(
+        str(chunk_file),
+        media_type="audio/wav",
+        filename=f"chunk_{video_id}_{segment_id}.wav",
+        headers={"Content-Disposition": f"inline; filename=chunk_{segment_id}.wav"}
+    )
+
+
+
 # ============================================================
 # VIDEO DUBBING - UPDATED WITH HLS SUPPORT
 # ============================================================
@@ -4856,11 +5416,14 @@ async def generate_dubbed_video(
     quality: str = Query("1080p", description="Video quality: 360p, 720p, 1080p, 4K"),
     burn_subtitles: bool = Query(True, description="Burn subtitles into video (Hardsub)"),
     aspect_ratio: Optional[str] = Query(None, description="Aspect ratio crop/scale, e.g. 16:9, 9:16, 1:1, 4:3"),
+    vocal_volume: Optional[float] = Query(None, description="Original vocal volume (0-150)%"),
+    bgm_volume: Optional[float] = Query(None, description="Original BGM volume (0-150)%"),
+    dub_volume: Optional[float] = Query(None, description="AI Dubbing volume (0-150)%"),
     sync: bool = Query(False, description="Run synchronously instead of dispatching to Celery worker"),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    """Generate a complete dubbed video with format, quality, and aspect ratio options (supports HTTP 202 Async & Sync)."""
+    """Generate a complete dubbed video with format, quality, aspect ratio and 3-track audio mixer options (supports HTTP 202 Async & Sync)."""
     logger.info(f"🎬 Starting dubbing for video {video_id}")
     logger.info(f"   Language: {language}, Format: {video_format}, Quality: {quality}, BurnSubtitles: {burn_subtitles}, AspectRatio: {aspect_ratio}")
     
@@ -4962,6 +5525,9 @@ async def generate_dubbed_video(
                     "quality": quality,
                     "burn_subtitles": burn_subtitles,
                     "aspect_ratio": aspect_ratio,
+                    "vocal_volume": vocal_volume,
+                    "bgm_volume": bgm_volume,
+                    "dub_volume": dub_volume,
                     "credits_needed": credits_needed,
                     "mode": "single_step",
                     "step": "dub"
@@ -4970,7 +5536,8 @@ async def generate_dubbed_video(
             )
 
             task = task_dub_mux_step.delay(
-                video_id, user_id, language, video_format, quality, burn_subtitles, aspect_ratio, str(job.id)
+                video_id, user_id, language, video_format, quality, burn_subtitles, aspect_ratio, str(job.id),
+                vocal_volume, bgm_volume, dub_volume
             )
             job_cfg = job.config_json or {}
             if isinstance(job_cfg, str):
@@ -5148,24 +5715,61 @@ async def generate_dubbed_video(
                     except Exception as regen_err:
                         logger.warning(f"Could not re-generate subtitles with saved config: {regen_err}")
 
-            # Auto-resolve aspect ratio from snapshot_data or subtitle config if not provided
+            # Auto-resolve aspect ratio, subtitle_mask, and overlay_config from snapshot_data or config if not provided
             final_aspect_ratio = aspect_ratio
+            resolved_mask = None
+            resolved_overlay = None
+
+            snap = getattr(video, "snapshot_data", None) or {}
+            if isinstance(snap, str):
+                try:
+                    snap = json.loads(snap)
+                except Exception:
+                    snap = {}
+
+            sub_cfg = snap.get("subtitle_config", {})
             if not final_aspect_ratio:
-                snap = getattr(video, "snapshot_data", None) or {}
-                sub_cfg = snap.get("subtitle_config", {})
                 final_aspect_ratio = sub_cfg.get("aspect_ratio")
-                if not final_aspect_ratio:
-                    cand_dir = OUTPUT_DIR / f"transcript_{video_id}"
-                    cfg_file = cand_dir / f"subtitle_config_{language.lower().strip()}.json"
-                    if cfg_file.exists():
-                        try:
-                            with open(cfg_file, "r", encoding="utf-8") as f:
-                                cfg_data = json.load(f)
+
+            resolved_mask = snap.get("subtitle_mask") or sub_cfg.get("subtitle_mask")
+            resolved_overlay = snap.get("overlay_config") or sub_cfg.get("overlay_config")
+
+            if not final_aspect_ratio or not resolved_mask:
+                cand_dir = OUTPUT_DIR / f"transcript_{video_id}"
+                cfg_file = cand_dir / f"subtitle_config_{language.lower().strip()}.json"
+                if cfg_file.exists():
+                    try:
+                        with open(cfg_file, "r", encoding="utf-8") as f:
+                            cfg_data = json.load(f)
+                            if not final_aspect_ratio:
                                 final_aspect_ratio = cfg_data.get("aspect_ratio")
-                        except Exception:
-                            pass
+                            if not resolved_mask:
+                                resolved_mask = cfg_data.get("subtitle_mask")
+                            if not resolved_overlay:
+                                resolved_overlay = cfg_data.get("overlay_config")
+                    except Exception:
+                        pass
 
             logger.info(f"📐 Applying aspect ratio for dubbing: {final_aspect_ratio or 'original/source'}")
+
+            # Resolve original vocal path if vocal_volume > 0
+            resolved_vocal_path = None
+            raw_vocal_vol = (vocal_volume if vocal_volume is not None else 0.0) / 100.0
+            raw_bgm_vol = (bgm_volume if bgm_volume is not None else 70.0) / 100.0
+            raw_dub_vol = (dub_volume if dub_volume is not None else 100.0) / 100.0
+            if raw_vocal_vol > 0.01:
+                if video.extracted_vocal_path and os.path.exists(video.extracted_vocal_path):
+                    resolved_vocal_path = video.extracted_vocal_path
+                else:
+                    audio_dir = OUTPUT_DIR / f"audio_{video_id}"
+                    if audio_dir.exists():
+                        for root, _, files in os.walk(audio_dir):
+                            for f in files:
+                                if f in ("vocals.wav", "audio.wav"):
+                                    p = os.path.join(root, f)
+                                    if os.path.exists(p):
+                                        resolved_vocal_path = p
+                                        break
 
             # Generate dubbed video and upload to S3 with HLS (non-blocking worker thread)
             result = await asyncio.to_thread(
@@ -5182,6 +5786,12 @@ async def generate_dubbed_video(
                 subtitle_path=resolved_sub_path,
                 burn_subtitles=burn_subtitles,
                 aspect_ratio=final_aspect_ratio,
+                subtitle_mask=resolved_mask,
+                overlay_config=resolved_overlay,
+                original_vocal_path=resolved_vocal_path,
+                vocal_volume=raw_vocal_vol,
+                bgm_volume=raw_bgm_vol,
+                dub_volume=raw_dub_vol,
             )
         
         # Get results
@@ -5830,17 +6440,16 @@ async def export_video(
 async def export_all_assets_zip(
     video_id: int,
     background_tasks: BackgroundTasks,
+    include_video: bool = Query(True, description="Include rendered final video"),
+    include_subtitles: bool = Query(True, description="Include subtitle files and translations"),
+    include_audio: bool = Query(True, description="Include dubbed audio and vocal tracks"),
+    include_original: bool = Query(False, description="Include original heavy raw video"),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
     """
-    Step 6 (Review & Export): Bundle all assets of this video into a single ZIP file.
-    Includes:
-      - transcript.json / transcript text
-      - all translations (translation_vi.json, translation_zh.json, etc.)
-      - all subtitle files (.srt, .vtt, .ass)
-      - dubbing audio files (.wav / .mp3)
-      - final rendered video (.mp4) and original uploaded video
+    Step 6 (Review & Export): Bundle selected assets of this video into a single ZIP file.
+    Supports filtering to avoid packaging unwanted multi-gigabyte raw files.
     """
     import zipfile
     import tempfile
@@ -5864,12 +6473,13 @@ async def export_all_assets_zip(
                     added_names.add(archive_name)
 
             # 1. Transcript files
-            if video.transcript_path:
-                add_file_safe(video.transcript_path, "transcript/transcript.json")
-            cand_trans_dir = OUTPUT_DIR / f"transcript_{video_id}"
-            if cand_trans_dir.exists():
-                for f in cand_trans_dir.glob("transcript*.*"):
-                    add_file_safe(f, f"transcript/{f.name}")
+            if include_subtitles:
+                if video.transcript_path:
+                    add_file_safe(video.transcript_path, "transcript/transcript.json")
+                cand_trans_dir = OUTPUT_DIR / f"transcript_{video_id}"
+                if cand_trans_dir.exists():
+                    for f in cand_trans_dir.glob("transcript*.*"):
+                        add_file_safe(f, f"transcript/{f.name}")
 
             # 2. Translation files (translation_vi, translation_zh, etc.)
             possible_trans_dirs = [
@@ -5879,49 +6489,53 @@ async def export_all_assets_zip(
             if video.transcript_path and os.path.exists(os.path.dirname(video.transcript_path)):
                 possible_trans_dirs.append(Path(os.path.dirname(video.transcript_path)))
 
-            for t_dir in possible_trans_dirs:
-                if t_dir.exists():
-                    for f in t_dir.glob("translation_*.json"):
-                        add_file_safe(f, f"translations/{f.name}")
-                    for f in t_dir.glob("subtitle_config_*.json"):
-                        add_file_safe(f, f"subtitles/{f.name}")
+            if include_subtitles:
+                for t_dir in possible_trans_dirs:
+                    if t_dir.exists():
+                        for f in t_dir.glob("translation_*.json"):
+                            add_file_safe(f, f"translations/{f.name}")
+                        for f in t_dir.glob("subtitle_config_*.json"):
+                            add_file_safe(f, f"subtitles/{f.name}")
 
-            # 3. Subtitles (.srt, .vtt, .ass)
-            if video.subtitle_path:
-                add_file_safe(video.subtitle_path, f"subtitles/{Path(video.subtitle_path).name}")
-            for t_dir in possible_trans_dirs:
-                if t_dir.exists():
-                    for f in t_dir.glob("subtitles_*.*"):
-                        add_file_safe(f, f"subtitles/{f.name}")
+                # 3. Subtitles (.srt, .vtt, .ass)
+                if video.subtitle_path:
+                    add_file_safe(video.subtitle_path, f"subtitles/{Path(video.subtitle_path).name}")
+                for t_dir in possible_trans_dirs:
+                    if t_dir.exists():
+                        for f in t_dir.glob("subtitles_*.*"):
+                            add_file_safe(f, f"subtitles/{f.name}")
 
             # 4. Dubbed audio files & TTS audio
-            if video.dubbed_audio_path:
-                add_file_safe(video.dubbed_audio_path, f"audio/{Path(video.dubbed_audio_path).name}")
-            tts_dir = OUTPUT_DIR / f"tts_{video_id}"
-            if tts_dir.exists():
-                for f in tts_dir.glob("*.wav"):
-                    add_file_safe(f, f"audio/{f.name}")
-                for f in tts_dir.glob("*.mp3"):
-                    add_file_safe(f, f"audio/{f.name}")
-            audio_dir = OUTPUT_DIR / f"audio_{video_id}"
-            if audio_dir.exists():
-                for f in audio_dir.glob("*.wav"):
-                    add_file_safe(f, f"audio/{f.name}")
+            if include_audio:
+                if video.dubbed_audio_path:
+                    add_file_safe(video.dubbed_audio_path, f"audio/{Path(video.dubbed_audio_path).name}")
+                tts_dir = OUTPUT_DIR / f"tts_{video_id}"
+                if tts_dir.exists():
+                    for f in tts_dir.glob("*.wav"):
+                        add_file_safe(f, f"audio/{f.name}")
+                    for f in tts_dir.glob("*.mp3"):
+                        add_file_safe(f, f"audio/{f.name}")
+                audio_dir = OUTPUT_DIR / f"audio_{video_id}"
+                if audio_dir.exists():
+                    for f in audio_dir.glob("*.wav"):
+                        add_file_safe(f, f"audio/{f.name}")
 
             # 5. Final rendered MP4 video(s)
-            if video.output_path:
-                add_file_safe(video.output_path, f"video/{Path(video.output_path).name}")
-            vid_dir = OUTPUT_DIR / f"video_{video_id}"
-            if vid_dir.exists():
-                for f in vid_dir.glob("dubbed_*.mp4"):
-                    add_file_safe(f, f"video/{f.name}")
+            if include_video:
+                if video.output_path:
+                    add_file_safe(video.output_path, f"video/{Path(video.output_path).name}")
+                vid_dir = OUTPUT_DIR / f"video_{video_id}"
+                if vid_dir.exists():
+                    for f in vid_dir.glob("dubbed_*.mp4"):
+                        add_file_safe(f, f"video/{f.name}")
 
             # 6. Original video
-            if video.original_path:
-                add_file_safe(video.original_path, f"video/original_{Path(video.original_path).name}")
-            for f in UPLOAD_DIR.glob(f"{video_id}_*"):
-                if f.is_file() and f.suffix.lower() in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
-                    add_file_safe(f, f"video/original_{f.name}")
+            if include_original:
+                if video.original_path:
+                    add_file_safe(video.original_path, f"video/original_{Path(video.original_path).name}")
+                for f in UPLOAD_DIR.glob(f"{video_id}_*"):
+                    if f.is_file() and f.suffix.lower() in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
+                        add_file_safe(f, f"video/original_{f.name}")
 
         def cleanup_temp():
             try:
@@ -6236,6 +6850,7 @@ async def cancel_job(
 @router.post("/{video_id}/audio/separate")
 async def separate_audio(
     video_id: int,
+    model_name: Optional[str] = Query(None, description="Demucs model: htdemucs, htdemucs_ft, or mdx_extra"),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
@@ -6251,6 +6866,12 @@ async def separate_audio(
     if not audio_path or not os.path.exists(audio_path):
         raise HTTPException(400, "Audio not extracted yet. Use POST /audio/extract first")
     
+    # Resolve demucs model from query or pipeline config
+    config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
+    selected_model = model_name or (config.demucs_model if config and getattr(config, "demucs_model", None) else "htdemucs")
+    if selected_model not in ("htdemucs", "htdemucs_ft", "mdx_extra"):
+        selected_model = "htdemucs"
+
     audio_service = AudioService()
     
     output_dir = OUTPUT_DIR / f"audio_{video_id}"
@@ -6258,7 +6879,7 @@ async def separate_audio(
     
     try:
         # Separate vocal and BGM
-        vocal_path, bgm_path = audio_service.separate_vocal_bgm(audio_path, str(output_dir))
+        vocal_path, bgm_path = audio_service.separate_vocal_bgm(audio_path, str(output_dir), model_name=selected_model)
         
         # ✅ Save both paths to the video record
         video.extracted_vocal_path = vocal_path

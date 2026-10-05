@@ -248,12 +248,20 @@ class SubtitleService:
         return text
     
     @staticmethod
-    def generate_srt(segments: List[Dict], text_key: str = "translated_text", max_lines: int = 2) -> str:
-        """Generate SRT subtitle content with line limit wrapping."""
+    def generate_srt(segments: List[Dict], text_key: str = "translated_text", max_lines: int = 2, bilingual: bool = False) -> str:
+        """Generate SRT subtitle content with line limit wrapping and optional bilingual dual-line."""
         content = []
         for i, seg in enumerate(segments, 1):
-            raw_text = seg.get(text_key, seg.get("text", ""))
-            text = SubtitleService.wrap_text_lines(raw_text, max_lines=max_lines, newline_token="\n")
+            orig_text = (seg.get("text") or "").strip()
+            trans_text = (seg.get(text_key) or seg.get("translated_text") or "").strip()
+            if bilingual and orig_text and trans_text and orig_text.lower() != trans_text.lower():
+                wrapped_orig = SubtitleService.wrap_text_lines(orig_text, max_lines=1, newline_token=" ")
+                wrapped_trans = SubtitleService.wrap_text_lines(trans_text, max_lines=max_lines, newline_token="\n")
+                text = f"{wrapped_orig}\n{wrapped_trans}"
+            else:
+                raw_text = trans_text or orig_text or seg.get("text", "")
+                text = SubtitleService.wrap_text_lines(raw_text, max_lines=max_lines, newline_token="\n")
+
             content.append(str(i))
             content.append(f"{SubtitleService.format_time_srt(seg['start'])} --> {SubtitleService.format_time_srt(seg['end'])}")
             content.append(text)
@@ -261,12 +269,20 @@ class SubtitleService:
         return "\n".join(content)
     
     @staticmethod
-    def generate_vtt(segments: List[Dict], text_key: str = "translated_text", max_lines: int = 2) -> str:
-        """Generate WebVTT subtitle content with line limit wrapping."""
+    def generate_vtt(segments: List[Dict], text_key: str = "translated_text", max_lines: int = 2, bilingual: bool = False) -> str:
+        """Generate WebVTT subtitle content with line limit wrapping and optional bilingual dual-line."""
         content = ["WEBVTT", ""]
         for i, seg in enumerate(segments, 1):
-            raw_text = seg.get(text_key, seg.get("text", ""))
-            text = SubtitleService.wrap_text_lines(raw_text, max_lines=max_lines, newline_token="\n")
+            orig_text = (seg.get("text") or "").strip()
+            trans_text = (seg.get(text_key) or seg.get("translated_text") or "").strip()
+            if bilingual and orig_text and trans_text and orig_text.lower() != trans_text.lower():
+                wrapped_orig = SubtitleService.wrap_text_lines(orig_text, max_lines=1, newline_token=" ")
+                wrapped_trans = SubtitleService.wrap_text_lines(trans_text, max_lines=max_lines, newline_token="\n")
+                text = f"{wrapped_orig}\n{wrapped_trans}"
+            else:
+                raw_text = trans_text or orig_text or seg.get("text", "")
+                text = SubtitleService.wrap_text_lines(raw_text, max_lines=max_lines, newline_token="\n")
+
             content.append(str(i))
             content.append(f"{SubtitleService.format_time_vtt(seg['start'])} --> {SubtitleService.format_time_vtt(seg['end'])}")
             content.append(text)
@@ -382,6 +398,7 @@ class SubtitleService:
         alignment: str = "center",
         position_y: Optional[float] = None,
         line_spacing: Optional[float] = 1.2,
+        bilingual: bool = False,
     ) -> str:
         """Generate ASS subtitle content with styling, colors, limits, animation effects, alignment, and multi-aspect ratio adaptation."""
         align_clean = (alignment or "center").lower().strip()
@@ -436,6 +453,10 @@ class SubtitleService:
         bold_flag = 1 if bold else 0
         outline_width = 3 if outline_color.lower() not in ["none", "transparent"] else 0
         shadow_dist = 2 if outline_width > 0 else 0
+
+        # Secondary style for bilingual source text (slightly smaller, subtle muted tint)
+        orig_font_size = max(12, int(scaled_font_size * 0.78))
+        orig_primary_ass = "&H00D0D0D0"  # Subtle light grey for original text
         
         content = [
             "[Script Info]",
@@ -446,21 +467,42 @@ class SubtitleService:
             "",
             "[V4+ Styles]",
             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-            f"Style: Default,{font_name},{scaled_font_size},{primary_ass},&H0000FFFF,{outline_ass},{back_ass},{bold_flag},0,0,0,100,100,0,0,1,{outline_width},{shadow_dist},{alignment},{margin_lr},{margin_lr},{margin_v},1",
+            f"Style: Default,{font_name},{scaled_font_size},{primary_ass},&H0000FFFF,{outline_ass},{back_ass},{bold_flag},0,0,0,100,100,0,0,1,{outline_width},{shadow_dist},{ass_alignment},{margin_lr},{margin_lr},{margin_v},1",
             "",
             "[Events]",
             "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"
         ]
         
         for seg in segments:
-            raw_text = seg.get(text_key, seg.get("text", ""))
-            wrapped_text = SubtitleService.wrap_text_lines(
-                raw_text,
-                max_lines=max_lines,
-                max_chars=max_chars,
-                newline_token="\\N",
-            )
-            effect_text = SubtitleService.apply_ass_effect(wrapped_text, effect=effect, primary_ass=primary_ass)
+            orig_text = (seg.get("text") or "").strip()
+            trans_text = (seg.get(text_key) or seg.get("translated_text") or "").strip()
+
+            if bilingual and orig_text and trans_text and orig_text.lower() != trans_text.lower():
+                # Bilingual dual-line mode: Line 1 = Original (muted, 78% font size), Line 2 = Translated (bold, primary)
+                wrapped_orig = SubtitleService.wrap_text_lines(
+                    orig_text,
+                    max_lines=1,
+                    max_chars=int(max_chars * 1.2),
+                    newline_token=" ",
+                )
+                wrapped_trans = SubtitleService.wrap_text_lines(
+                    trans_text,
+                    max_lines=max_lines,
+                    max_chars=max_chars,
+                    newline_token="\\N",
+                )
+                bilingual_line = f"{{\\fs{orig_font_size}\\c{orig_primary_ass}&}}{wrapped_orig}\\N{{\\fs{scaled_font_size}\\c{primary_ass}&}}{wrapped_trans}"
+                effect_text = SubtitleService.apply_ass_effect(bilingual_line, effect=effect, primary_ass=primary_ass)
+            else:
+                raw_text = trans_text or orig_text or seg.get("text", "")
+                wrapped_text = SubtitleService.wrap_text_lines(
+                    raw_text,
+                    max_lines=max_lines,
+                    max_chars=max_chars,
+                    newline_token="\\N",
+                )
+                effect_text = SubtitleService.apply_ass_effect(wrapped_text, effect=effect, primary_ass=primary_ass)
+
             content.append(
                 f"Dialogue: 0,{SubtitleService.format_time_ass(seg['start'])},{SubtitleService.format_time_ass(seg['end'])},Default,,0,0,0,,{effect_text}"
             )
@@ -486,13 +528,14 @@ class SubtitleService:
         alignment: str = "center",
         position_y: Optional[float] = None,
         line_spacing: Optional[float] = 1.2,
+        bilingual: bool = False,
     ) -> str:
         """Generate subtitles in specified format with aspect ratio and positioning support"""
         fmt = (format or "srt").lower().lstrip(".")
         if fmt == "srt":
-            return SubtitleService.generate_srt(segments, text_key=text_key, max_lines=max_lines)
+            return SubtitleService.generate_srt(segments, text_key=text_key, max_lines=max_lines, bilingual=bilingual)
         elif fmt == "vtt":
-            return SubtitleService.generate_vtt(segments, text_key=text_key, max_lines=max_lines)
+            return SubtitleService.generate_vtt(segments, text_key=text_key, max_lines=max_lines, bilingual=bilingual)
         elif fmt == "ass":
             return SubtitleService.generate_ass(
                 segments=segments,
@@ -511,6 +554,7 @@ class SubtitleService:
                 alignment=alignment,
                 position_y=position_y,
                 line_spacing=line_spacing,
+                bilingual=bilingual,
             )
         return SubtitleService.generate_srt(segments, text_key=text_key, max_lines=max_lines)
     
@@ -534,6 +578,7 @@ class SubtitleService:
         alignment: str = "center",
         position_y: Optional[float] = None,
         line_spacing: Optional[float] = 1.2,
+        bilingual: bool = False,
     ) -> str:
         """Generate and save subtitles to file"""
         content = SubtitleService.generate_subtitles(
@@ -554,6 +599,7 @@ class SubtitleService:
             alignment=alignment,
             position_y=position_y,
             line_spacing=line_spacing,
+            bilingual=bilingual,
         )
         
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -582,6 +628,7 @@ class SubtitleService:
         alignment: str = "center",
         position_y: Optional[float] = None,
         line_spacing: Optional[float] = 1.2,
+        bilingual: bool = False,
     ) -> Dict[str, str]:
         """Generate and save subtitles in srt, vtt, and ass formats with automatic long-chunk splitting and aspect ratio adaptation."""
         os.makedirs(base_dir, exist_ok=True)
@@ -616,6 +663,7 @@ class SubtitleService:
                 alignment=alignment,
                 position_y=position_y,
                 line_spacing=line_spacing,
+                bilingual=bilingual,
             )
             paths[fmt] = out_path
         return paths

@@ -39,7 +39,7 @@ def get_tts_aligner():
         tts_aligner = TTSAlignerService(tts_api_url=tts_url)
     return tts_aligner
 
-def _video_translation(video_input_path: str, final_output_path: str, target_language: str, glossary: dict = None, stt_model: str = None, translation_model: str = None, tts_model: str = None, voice_id: str = None):
+def _video_translation(video_input_path: str, final_output_path: str, target_language: str, glossary: dict = None, stt_model: str = None, translation_model: str = None, tts_model: str = None, voice_id: str = None, demucs_model: str = "htdemucs"):
     """
     Process video translation with auto device detection
     
@@ -78,10 +78,10 @@ def _video_translation(video_input_path: str, final_output_path: str, target_lan
         temp_final_tts = os.path.join(temp_dir, "final_tts_track.wav")
         
         # --- BƯỚC 1: Tiền xử lý & Tách âm thanh ---
-        print("[1/5] 🔄 Trích xuất và bóc tách Vocal / Nhạc nền (Demucs)...", flush=True)
+        print(f"[1/5] 🔄 Trích xuất và bóc tách Vocal / Nhạc nền (Demucs {demucs_model or 'htdemucs'})...", flush=True)
         try:
             audio_service.extract_audio(video_input_path, temp_raw_audio)
-            vocal_path, bgm_path = audio_service.separate_vocal_bgm(temp_raw_audio, temp_dir)
+            vocal_path, bgm_path = audio_service.separate_vocal_bgm(temp_raw_audio, temp_dir, model_name=demucs_model or "htdemucs")
             print("[1/5] ✅ Audio extraction and separation complete", flush=True)
         except Exception as e:
             print(f"[1/5] ❌ Audio extraction failed: {e}", flush=True)

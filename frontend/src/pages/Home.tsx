@@ -34,7 +34,7 @@ function LazySection({ children, minHeight = "400px" }: { children: ReactNode; m
           observer.disconnect();
         }
       },
-      { rootMargin: "350px 0px" }
+      { rootMargin: "100px 0px" }
     );
 
     observer.observe(el);

@@ -30,15 +30,15 @@ class TranslationService:
         
         cache_key = f"{self.hf_model_name}_{self.device}"
         if cache_key in _nllb_cache:
-            print(f"[Translate] ⚡ Reusing cached translation model ({cache_key})", flush=True)
+            print(f"[Translate]  Reusing cached translation model ({cache_key})", flush=True)
             self.tokenizer, self.model = _nllb_cache[cache_key]
             return
 
         print(f"[Translate] Đang khởi tạo NLLB ({self.hf_model_name}) trên {self.device.upper()}...", flush=True)
         if cuda_available:
-            print(f"[Translate] ✅ CUDA detected, using GPU", flush=True)
+            print(f"[Translate]  CUDA detected, using GPU", flush=True)
         else:
-            print(f"[Translate] ⚠️ CUDA not detected, using CPU", flush=True)
+            print(f"[Translate]  CUDA not detected, using CPU", flush=True)
         
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(self.hf_model_name)
@@ -46,17 +46,17 @@ class TranslationService:
                 self.hf_model_name,
                 torch_dtype=torch.float16 if cuda_available else torch.float32
             ).to(self.device)
-            print(f"[Translate] ✅ Model loaded successfully on {self.device.upper()}", flush=True)
+            print(f"[Translate]  Model loaded successfully on {self.device.upper()}", flush=True)
             _nllb_cache[cache_key] = (self.tokenizer, self.model)
         except Exception as e:
-            print(f"[Translate] ❌ Failed to load on {self.device}: {e}", flush=True)
-            print("[Translate] 🔄 Falling back to CPU with float32...", flush=True)
+            print(f"[Translate] Failed to load on {self.device}: {e}", flush=True)
+            print("[Translate] Falling back to CPU with float32...", flush=True)
             self.device = "cpu"
             self.model = AutoModelForSeq2SeqLM.from_pretrained(
                 self.hf_model_name,
                 torch_dtype=torch.float32
             ).to(self.device)
-            print(f"[Translate] ✅ Model loaded on CPU", flush=True)
+            print(f"[Translate] Model loaded on CPU", flush=True)
             _nllb_cache[f"{self.hf_model_name}_cpu"] = (self.tokenizer, self.model)
 
     def unload_model(self):
@@ -73,7 +73,7 @@ class TranslationService:
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        print("[Translate] 🧹 Đã giải phóng bộ nhớ NLLB khỏi VRAM.", flush=True)
+        print("[Translate] Đã giải phóng bộ nhớ NLLB khỏi VRAM.", flush=True)
 
     def mask_keywords(self, text: str, glossary: dict):
         """Bảo vệ các từ khóa (Tên riêng, Thuật ngữ) không bị AI dịch sai."""
@@ -132,7 +132,7 @@ class TranslationService:
         merged_segments.append(current_merge)
         return merged_segments
 
-    def translate_document(self, segments: list, glossary: dict, src_lang: str, tgt_lang: str, model: str = "nllb_200_1.3b", progress_callback=None):
+    def translate_document(self, segments: list, glossary: dict, src_lang: str, tgt_lang: str, model: str = "nllb_200_1.3b", progress_callback=None, smart_merge: bool = False):
         if not segments:
             return []
             
@@ -148,19 +148,23 @@ class TranslationService:
             return segments
             
         print(f"[Translate] Dịch {len(segments)} segments ({src_lang} -> {tgt_lang}) sử dụng model: {model}", flush=True)
-        merged_segments = self._smart_merge_segments(segments)
-        print(f"[Translate] Đã gộp {len(segments)} đoạn cắt vụn thành {len(merged_segments)} câu hoàn chỉnh ngữ nghĩa.", flush=True)
+        # Preserve user split segments 1:1 unless explicitly requested
+        target_segments = self._smart_merge_segments(segments) if smart_merge else [s.copy() for s in segments]
+        if smart_merge:
+            print(f"[Translate] Đã gộp {len(segments)} đoạn cắt vụn thành {len(target_segments)} câu hoàn chỉnh ngữ nghĩa.", flush=True)
+        else:
+            print(f"[Translate] Bảo toàn cấu trúc {len(target_segments)} phân đoạn (1:1 timeline) từ Step 2.", flush=True)
         
         self.tokenizer.src_lang = src_lang
         tgt_lang_id = self.tokenizer.convert_tokens_to_ids(tgt_lang)
         
         # Auto-adjust batch size based on device (8 on CUDA for high throughput on 8GB VRAM)
         batch_size = 8 if self.device == "cuda" else 2
-        total_items = len(merged_segments)
+        total_items = len(target_segments)
         processed_count = 0
         
         for i in range(0, total_items, batch_size):
-            batch = merged_segments[i:i + batch_size]
+            batch = target_segments[i:i + batch_size]
             
             masked_texts = []
             mappings = []
@@ -195,6 +199,6 @@ class TranslationService:
                 try:
                     progress_callback(pct, processed_count, total_items)
                 except Exception as cb_err:
-                    print(f"[Translate] ⚠️ Progress callback error: {cb_err}", flush=True)
+                    print(f"[Translate] Progress callback error: {cb_err}", flush=True)
                 
-        return merged_segments
+        return target_segments

@@ -164,6 +164,10 @@ def ensure_db_schema():
             cur.execute("ALTER TABLE videos ADD COLUMN IF NOT EXISTS target_language VARCHAR(20);")
             cur.execute("ALTER TABLE videos ADD COLUMN IF NOT EXISTS source_language VARCHAR(20);")
             cur.execute("ALTER TABLE videos ADD COLUMN IF NOT EXISTS snapshot_data JSONB DEFAULT '{}'::jsonb;")
+
+            # 7. AI model and word consumable columns
+            cur.execute("ALTER TABLE ai_models ADD COLUMN IF NOT EXISTS word_cost_multiplier INTEGER NOT NULL DEFAULT 1;")
+            cur.execute("ALTER TABLE user_consumable_usage ADD COLUMN IF NOT EXISTS words_used INTEGER NOT NULL DEFAULT 0;")
             logger.info("Database schema verification and dynamic migration completed successfully.")
     except Exception as exc:
         logger.warning(f"Error checking/migrating DB schema: {exc}")

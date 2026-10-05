@@ -252,7 +252,7 @@ export default function ProjectDetail() {
     if (hasActiveJobs) {
       pollingTimerRef.current = setInterval(() => {
         loadVideos(pId, true);
-      }, 4000);
+      }, 6000);
     } else if (pollingTimerRef.current) {
       clearInterval(pollingTimerRef.current);
       pollingTimerRef.current = null;

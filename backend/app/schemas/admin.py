@@ -101,6 +101,7 @@ class AdminAIModelResponse(BaseModel):
     category: str
     provider: str
     credit_cost_per_minute: int
+    word_cost_multiplier: int = 1
     is_active: bool
     required_plan: str
     created_at: datetime
@@ -109,6 +110,7 @@ class AdminAIModelResponse(BaseModel):
 class AdminAIModelUpdateRequest(BaseModel):
     name: Optional[str] = None
     credit_cost_per_minute: Optional[int] = Field(default=None, ge=0)
+    word_cost_multiplier: Optional[int] = Field(default=None, ge=0)
     is_active: Optional[bool] = None
     required_plan: Optional[str] = None
 

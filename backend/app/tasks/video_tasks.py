@@ -349,7 +349,9 @@ def task_extract_audio_step(self, video_id: int, user_id: int, job_id: Optional[
                 state="PROCESSING",
                 meta={"step": "audio_extract", "progress": 50, "message": "Separating vocal and background music (Demucs)..."}
             )
-            vocal_path, bgm_path = audio_service.separate_vocal_bgm(str(raw_audio_path), str(output_dir))
+            config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
+            demucs_model = config.demucs_model if config and getattr(config, "demucs_model", None) else "htdemucs"
+            vocal_path, bgm_path = audio_service.separate_vocal_bgm(str(raw_audio_path), str(output_dir), model_name=demucs_model)
             video.extracted_vocal_path = vocal_path
             video.background_music_path = bgm_path
             db.commit()
@@ -420,7 +422,7 @@ def task_transcribe_step(self, video_id: int, user_id: int, enable_diarization: 
     
     try:
         cuda_avail = torch.cuda.is_available()
-        logger.info(f"🎙️ [task_transcribe_step] Starting STT for video {video_id} on {'GPU' if cuda_avail else 'CPU'}")
+        logger.info(f"[task_transcribe_step] Starting STT for video {video_id} on {'GPU' if cuda_avail else 'CPU'}")
         
         self.update_state(
             state="PROCESSING",
@@ -498,7 +500,7 @@ def task_transcribe_step(self, video_id: int, user_id: int, enable_diarization: 
                     out_dir = OUTPUT_DIR / f"audio_{video_id}"
                     out_dir.mkdir(parents=True, exist_ok=True)
                     raw_out = out_dir / "audio.wav"
-                    logger.info(f"🎙️ [task_transcribe_step] Auto-extracting audio for video #{video_id}...")
+                    logger.info(f"[task_transcribe_step] Auto-extracting audio for video #{video_id}...")
                     audio_svc.extract_audio(video_path, str(raw_out))
                     if raw_out.exists():
                         vocal_path = str(raw_out)
@@ -518,7 +520,7 @@ def task_transcribe_step(self, video_id: int, user_id: int, enable_diarization: 
 
         config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
         resolved_stt_model = stt_model or (config.stt_model if config and config.stt_model else "small")
-        logger.info(f"🎙️ Using STT model: {resolved_stt_model} for video #{video_id}")
+        logger.info(f"Using STT model: {resolved_stt_model} for video #{video_id}")
         stt_service = STTService(model_size=resolved_stt_model)
         last_reported_pct = -1
 
@@ -1094,12 +1096,12 @@ def task_translate_step(
         _send_task_notification(
             user_id=user_id,
             video_id=video_id,
-            title=f"Dịch thuật thất bại ({target_lang.upper()}) (Video #{video_id})",
-            message=f"Dịch video #{video_id} sang {target_lang.upper()} thất bại: {error_msg[:120]}",
+            title=f"Dịch thuật thất bại ({target_lang_clean.upper()}) (Video #{video_id})",
+            message=f"Dịch video #{video_id} sang {target_lang_clean.upper()} thất bại: {error_msg[:120]}",
             step="translation",
             status="failed",
             error=error_msg,
-            language=target_lang,
+            language=target_lang_clean,
             db=db,
         )
 
@@ -1116,7 +1118,9 @@ def task_generate_tts_step(
     speaker_id: Optional[int] = None,
     style: str = "neutral",
     speed: float = 1.0,
-    job_id: Optional[str] = None
+    job_id: Optional[str] = None,
+    voice_id: Optional[str] = None,
+    model: Optional[str] = None
 ):
     """Asynchronous Voice Synthesis (TTS) step in background worker."""
     db = self.db
@@ -1214,11 +1218,24 @@ def task_generate_tts_step(
         tts_path = tts_dir / f"tts_{lang_clean}.wav"
 
         config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
-        tts_model = config.tts_model if config and config.tts_model else "xtts_v2"
-        voice_id_str = str(speaker_id) if speaker_id is not None else None
+        from app.core.config import get_elevenlabs_voices
+        known_eleven_ids = set(get_elevenlabs_voices().values())
+        
+        voice_id_str = voice_id or (str(speaker_id) if speaker_id is not None else None)
         if not voice_id_str and config and config.config_data:
             cd = config.config_data if isinstance(config.config_data, dict) else {}
             voice_id_str = cd.get("tts_dubbing", {}).get("voice_id")
+
+        tts_model = model or (config.tts_model if config and config.tts_model else None)
+        if not tts_model and config and config.config_data:
+            cd = config.config_data if isinstance(config.config_data, dict) else {}
+            tts_model = cd.get("tts_dubbing", {}).get("engine")
+
+        if voice_id_str and (voice_id_str in known_eleven_ids or str(voice_id_str).startswith("eleven_")):
+            tts_model = "elevenlabs"
+
+        if not tts_model:
+            tts_model = "xtts_v2"
 
         self.update_state(
             state="PROCESSING",
@@ -1377,7 +1394,10 @@ def task_dub_mux_step(
     quality: str = "1080p",
     burn_subtitles: bool = True,
     aspect_ratio: Optional[str] = None,
-    job_id: Optional[str] = None
+    job_id: Optional[str] = None,
+    vocal_volume: Optional[float] = None,
+    bgm_volume: Optional[float] = None,
+    dub_volume: Optional[float] = None,
 ):
     """Asynchronous Dubbing & Muxing step in background worker."""
     db = self.db
@@ -1599,6 +1619,25 @@ def task_dub_mux_step(
 
         on_dub_progress(30, "Đang kết hợp phụ đề và hiệu ứng hình ảnh (FFmpeg)...")
 
+        # Resolve original vocal path if vocal_volume > 0
+        resolved_vocal_path = None
+        raw_vocal_vol = (vocal_volume if vocal_volume is not None else 0.0) / 100.0
+        raw_bgm_vol = (bgm_volume if bgm_volume is not None else 70.0) / 100.0
+        raw_dub_vol = (dub_volume if dub_volume is not None else 100.0) / 100.0
+        if raw_vocal_vol > 0.01:
+            if video.extracted_vocal_path and os.path.exists(video.extracted_vocal_path):
+                resolved_vocal_path = video.extracted_vocal_path
+            else:
+                audio_dir = OUTPUT_DIR / f"audio_{video_id}"
+                if audio_dir.exists():
+                    for root, _, files in os.walk(audio_dir):
+                        for f in files:
+                            if f in ("vocals.wav", "audio.wav"):
+                                p = os.path.join(root, f)
+                                if os.path.exists(p):
+                                    resolved_vocal_path = p
+                                    break
+
         with tempfile.TemporaryDirectory() as temp_dir:
             result = audio_service.mix_and_mux(
                 video_path=video_path,
@@ -1615,6 +1654,10 @@ def task_dub_mux_step(
                 aspect_ratio=final_aspect_ratio,
                 subtitle_mask=subtitle_mask,
                 overlay_config=overlay_config,
+                original_vocal_path=resolved_vocal_path,
+                vocal_volume=raw_vocal_vol,
+                bgm_volume=raw_bgm_vol,
+                dub_volume=raw_dub_vol,
                 progress_callback=on_dub_progress,
             )
 

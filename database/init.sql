@@ -581,6 +581,7 @@ CREATE TABLE ai_models (
     category VARCHAR(50) NOT NULL, -- separation, stt, diarization, translation, tts, llm, embedding
     provider VARCHAR(50) NOT NULL, -- local, openai, elevenlabs, anthropic, google
     credit_cost_per_minute INTEGER NOT NULL DEFAULT 1,
+    word_cost_multiplier INTEGER NOT NULL DEFAULT 1,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     required_plan VARCHAR(50) NOT NULL DEFAULT 'free', -- free, pro
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -1165,37 +1166,47 @@ CREATE INDEX idx_user_storage_addons_active ON user_storage_addons(user_id, is_a
 -- SEED INITIAL AI MODELS
 -- =========================================================
 
-INSERT INTO ai_models (code, name, category, provider, credit_cost_per_minute, is_active, required_plan)
+INSERT INTO ai_models (code, name, category, provider, credit_cost_per_minute, word_cost_multiplier, is_active, required_plan)
 VALUES
-    -- Separation (Local Open-Source)
-    ('demucs_v4', 'Demucs v4 Hybrid (Local)', 'separation', 'local', 1, TRUE, 'free'),
-    ('mdx_net_karaoke', 'MDX-Net Extra Vocal (Local HQ)', 'separation', 'local', 2, TRUE, 'pro'),
+    -- Separation (Local Open-Source - 0 words / free)
+    ('demucs_v4', 'Demucs v4 Hybrid (Local)', 'separation', 'local', 1, 0, TRUE, 'free'),
+    ('htdemucs', 'Meta Demucs v4 HT (Free)', 'separation', 'local', 1, 0, TRUE, 'free'),
+    ('htdemucs_ft', 'Meta Demucs v4 FT (Free)', 'separation', 'local', 1, 0, TRUE, 'free'),
+    ('mdx_extra', 'MDX-Net Extra (Pro)', 'separation', 'local', 2, 0, TRUE, 'pro'),
+    ('mdx_net_karaoke', 'MDX-Net Extra Vocal (Local HQ)', 'separation', 'local', 2, 0, TRUE, 'pro'),
     
     -- STT / Speech-to-Text (Faster-Whisper Local)
-    ('whisper_turbo', 'Whisper Large v3 Turbo (Local Fast)', 'stt', 'local', 1, TRUE, 'free'),
-    ('whisperx_large_v3', 'WhisperX Large v3 (Word-level Alignment)', 'stt', 'local', 1, TRUE, 'free'),
-    ('whisper_large_v3', 'Whisper Large v3 (Local Heavy)', 'stt', 'local', 2, TRUE, 'pro'),
+    ('whisper-base', 'OpenAI Whisper Base (Free)', 'stt', 'local', 1, 1, TRUE, 'free'),
+    ('whisper-small', 'OpenAI Whisper Small (Free)', 'stt', 'local', 1, 1, TRUE, 'free'),
+    ('whisper-medium', 'OpenAI Whisper Medium (Free)', 'stt', 'local', 1, 1, TRUE, 'free'),
+    ('whisper_turbo', 'Whisper Large v3 Turbo (Local Fast)', 'stt', 'local', 1, 1, TRUE, 'free'),
+    ('whisperx-large-v3', 'WhisperX Large v3 (Word-level Alignment)', 'stt', 'local', 1, 1, TRUE, 'free'),
+    ('whisperx_large_v3', 'WhisperX Large v3 (Word-level Alignment)', 'stt', 'local', 1, 1, TRUE, 'free'),
+    ('whisper-large-v3', 'OpenAI Whisper Large v3 (Pro)', 'stt', 'local', 2, 2, TRUE, 'pro'),
+    ('whisper_large_v3', 'Whisper Large v3 (Local Heavy)', 'stt', 'local', 2, 2, TRUE, 'pro'),
 
     -- Diarization (Pyannote Local)
-    ('pyannote_3.1', 'Pyannote Audio 3.1 (Local Diarization)', 'diarization', 'local', 1, TRUE, 'free'),
+    ('pyannote_3.1', 'Pyannote Audio 3.1 (Local Diarization)', 'diarization', 'local', 1, 1, TRUE, 'free'),
 
     -- Translation (Meta NLLB-200 Local)
-    ('nllb_200_1.3b', 'Meta NLLB-200 1.3B (Local MT Fast)', 'translation', 'local', 1, TRUE, 'free'),
-    ('nllb_200_3.3b', 'Meta NLLB-200 3.3B (Local MT High Fidelity)', 'translation', 'local', 2, TRUE, 'pro'),
+    ('nllb_200_1.3b', 'Meta NLLB-200 1.3B (Free)', 'translation', 'local', 1, 1, TRUE, 'free'),
+    ('deepseek_v3', 'DeepSeek V3 (Free)', 'translation', 'local', 1, 1, TRUE, 'free'),
+    ('nllb_200_3.3b', 'Meta NLLB-200 3.3B (Pro)', 'translation', 'local', 2, 2, TRUE, 'pro'),
 
-    -- TTS & Voice Cloning (Coqui XTTS Local & Edge-TTS Free Cloud API)
-    ('edge_tts', 'Microsoft Edge-TTS Neural (Free Cloud API)', 'tts', 'edge_tts', 1, TRUE, 'free'),
-    ('bark', 'Suno Bark Expressive (Local)', 'tts', 'local', 1, TRUE, 'free'),
-    ('xtts_v2', 'Coqui XTTS v2 Voice Clone (Local Deep)', 'tts', 'local', 2, TRUE, 'pro'),
-    ('qwen3_tts', 'Qwen3-TTS Neural Multilingual (Local HQ)', 'tts', 'local', 2, TRUE, 'pro'),
+    -- TTS & Voice Cloning (Coqui XTTS Local & Edge-TTS Free Cloud API & ElevenLabs)
+    ('edge_tts', 'Microsoft Edge-TTS Neural (Free)', 'tts', 'edge_tts', 1, 1, TRUE, 'free'),
+    ('bark', 'Suno Bark (Free)', 'tts', 'local', 1, 1, TRUE, 'free'),
+    ('xtts_v2', 'Coqui XTTS v2 (Pro)', 'tts', 'local', 2, 2, TRUE, 'pro'),
+    ('coqui_xtts_v2', 'Coqui XTTS v2 (Pro)', 'tts', 'local', 2, 2, TRUE, 'pro'),
+    ('elevenlabs_multilingual_v2', 'ElevenLabs Multilingual v2 (Pro)', 'tts', 'elevenlabs', 3, 3, TRUE, 'pro'),
+    ('qwen3_tts', 'Qwen3-TTS Neural Multilingual (Local HQ)', 'tts', 'local', 2, 2, TRUE, 'pro'),
 
     -- LLM & Understanding (Local Open-Source Models)
-    ('deepseek_v3', 'DeepSeek-V3 Open Model (Local/Ollama)', 'llm', 'local', 1, TRUE, 'free'),
-    ('qwen_2.5_72b', 'Qwen 2.5 72B Video Insight (Local HQ)', 'llm', 'local', 2, TRUE, 'pro'),
+    ('qwen_2.5_72b', 'Qwen 2.5 72B Video Insight (Local HQ)', 'llm', 'local', 2, 2, TRUE, 'pro'),
 
     -- Embedding & Vector Search (Local Vector Models)
-    ('qwen3_embedding', 'Qwen3-Embedding 1024d (Local)', 'embedding', 'local', 1, TRUE, 'free'),
-    ('bge_m3', 'BGE-M3 Dense + Sparse Retrieval (Local Pro)', 'embedding', 'local', 2, TRUE, 'pro')
+    ('qwen3_embedding', 'Qwen3-Embedding 1024d (Local)', 'embedding', 'local', 1, 1, TRUE, 'free'),
+    ('bge_m3', 'BGE-M3 Dense + Sparse Retrieval (Local Pro)', 'embedding', 'local', 2, 2, TRUE, 'pro')
 ON CONFLICT (code) DO NOTHING;
 
 -- =========================================================
@@ -1211,6 +1222,9 @@ ON CONFLICT (code) DO NOTHING;
 -- FREE RESOURCES
 INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
 SELECT id, 'STORAGE', 'storage_bytes', '5368709120', 'bytes' FROM plans WHERE code = 'free'
+ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'CONSUMABLE', 'words_monthly', '5000', 'words' FROM plans WHERE code = 'free'
 ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
 INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
 SELECT id, 'CONSUMABLE', 'ai_credits_monthly', '1000', 'credits' FROM plans WHERE code = 'free'
@@ -1273,6 +1287,9 @@ ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_v
 -- PRO RESOURCES
 INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
 SELECT id, 'STORAGE', 'storage_bytes', '107374182400', 'bytes' FROM plans WHERE code = 'pro'
+ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
+INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
+SELECT id, 'CONSUMABLE', 'words_monthly', '100000', 'words' FROM plans WHERE code = 'pro'
 ON CONFLICT (plan_id, resource_key) DO UPDATE SET limit_value = EXCLUDED.limit_value;
 INSERT INTO plan_resources (plan_id, resource_type, resource_key, limit_value, unit)
 SELECT id, 'CONSUMABLE', 'ai_credits_monthly', '10000', 'credits' FROM plans WHERE code = 'pro'

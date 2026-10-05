@@ -11,6 +11,17 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
     ],
+    optimizeDeps: {
+      include: [
+        'react',
+        'react-dom',
+        'react-router-dom',
+        'i18next',
+        'react-i18next',
+        'axios',
+        'lucide-react',
+      ],
+    },
     build: {
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
@@ -43,7 +54,8 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       watch: {
         usePolling: true,
-        interval: 100,
+        interval: 1000,
+        ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**'],
       },
       proxy: {
         '/api': {

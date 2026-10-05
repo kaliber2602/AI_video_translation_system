@@ -17,6 +17,20 @@ for _lib_path in [
                 except Exception:
                     pass
 
+# Compatibility patch for faster-whisper with newer PyAV (>= 14.0 / 19.0)
+# PyAV removed metadata_errors parameter from av.open()
+try:
+    import av
+    _orig_av_open = av.open
+
+    def _safe_av_open(*args, **kwargs):
+        kwargs.pop("metadata_errors", None)
+        return _orig_av_open(*args, **kwargs)
+
+    av.open = _safe_av_open
+except Exception:
+    pass
+
 from faster_whisper import WhisperModel
 
 _model_cache = {}
@@ -28,7 +42,7 @@ def unload_whisper_models():
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-    print("[STT] 🧹 Đã giải phóng bộ nhớ Faster-Whisper khỏi VRAM.", flush=True)
+    print("[STT] Da giai phong bo nho Faster-Whisper khoi VRAM.", flush=True)
 
 class STTService:
     def __init__(self, model_size=None):
@@ -65,7 +79,7 @@ class STTService:
         cuda_available = torch.cuda.is_available()
         device = env_device if env_device else ("cuda" if cuda_available else "cpu")
         if device == "cuda" and not cuda_available:
-            print("[STT] ⚠️ WHISPER_DEVICE=cuda nhưng torch.cuda.is_available()=False, fallback sang CPU.", flush=True)
+            print("[STT] WHISPER_DEVICE=cuda nhung CUDA khong kha dung, fallback sang CPU.", flush=True)
             device = "cpu"
 
         env_compute = os.getenv("WHISPER_COMPUTE_TYPE")
@@ -77,15 +91,15 @@ class STTService:
         cache_key = f"{model_size}_{device}_{compute_type}"
 
         if cache_key in _model_cache:
-            print(f"[STT] ⚡ Reusing cached Faster-Whisper model ({cache_key})", flush=True)
+            print(f"[STT] Reusing cached Faster-Whisper model ({cache_key})", flush=True)
             self.model = _model_cache[cache_key]
             return
 
-        print(f"[STT] Đang khởi tạo mô hình Faster-Whisper ({model_size}) trên {device.upper()}...", flush=True)
+        print(f"[STT] Dang khoi tao mo hinh Faster-Whisper ({model_size}) tren {device.upper()}...", flush=True)
         if cuda_available:
-            print(f"[STT] ✅ CUDA detected, using GPU", flush=True)
+            print(f"[STT] CUDA detected, using GPU", flush=True)
         else:
-            print(f"[STT] ⚠️ CUDA not detected, using CPU", flush=True)
+            print(f"[STT] CUDA not detected, using CPU", flush=True)
         
         try:
             self.model = WhisperModel(
@@ -95,11 +109,11 @@ class STTService:
                 cpu_threads=4 if device == "cpu" else 0,
                 num_workers=1
             )
-            print(f"[STT] ✅ Model loaded successfully on {device.upper()}", flush=True)
+            print(f"[STT] Model loaded successfully on {device.upper()}", flush=True)
             _model_cache[cache_key] = self.model
         except Exception as e:
-            print(f"[STT] ❌ Failed to load on {device}: {e}", flush=True)
-            print("[STT] 🔄 Falling back to CPU with int8...", flush=True)
+            print(f"[STT] Failed to load on {device}: {e}", flush=True)
+            print("[STT] Falling back to CPU with int8...", flush=True)
             fallback_key = f"{model_size}_cpu_int8"
             if fallback_key in _model_cache:
                 self.model = _model_cache[fallback_key]
@@ -162,7 +176,7 @@ class STTService:
                     try:
                         progress_callback(pct, segment.end, audio_dur)
                     except Exception as cb_err:
-                        print(f"[STT] ⚠️ Progress callback warning: {cb_err}", flush=True)
+                        print(f"[STT] Progress callback warning: {cb_err}", flush=True)
 
             return result, detected_iso_lang
 
@@ -173,7 +187,7 @@ class STTService:
             if "avcodec" in err_str or "invalid argument" in err_str or "decode" in err_str:
                 import subprocess
                 import tempfile
-                print(f"[STT] ⚠️ Gặp sự cố giải mã audio PyAV ({err}), đang chuẩn hóa lại sang 16kHz mono WAV...", flush=True)
+                print(f"[STT] PyAV decoding issue encountered ({err}), normalizing audio to 16kHz mono WAV...", flush=True)
                 clean_tmp = tempfile.NamedTemporaryFile(suffix="_stt_norm.wav", delete=False)
                 clean_tmp.close()
                 try:

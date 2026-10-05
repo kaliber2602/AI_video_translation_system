@@ -65,8 +65,9 @@ def run_full_pipeline(
         )
         
         # STEP 2: Separate vocal/BGM
+        demucs_model = getattr(config, "demucs_model", "htdemucs") or "htdemucs"
         separate_result = pipeline.step_separate_vocal_bgm(
-            job_id, video_id, audio_result["audio_path"], temp_dir
+            job_id, video_id, audio_result["audio_path"], temp_dir, model_name=demucs_model
         )
         
         # STEP 3: Transcribe

@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "../../lib/toast";
 
 interface PipelineStepLayoutProps {
   stepBadge?: string;
@@ -45,6 +46,16 @@ export default function PipelineStepLayout({
 }: PipelineStepLayoutProps) {
   const { t } = useTranslation(["pipeline", "common"]);
   const [internalIsOpen, setInternalIsOpen] = useState(defaultToolPanelOpen);
+
+  // Automatically show toast.error when an error occurs across all pipeline steps
+  useEffect(() => {
+    if (error) {
+      toast.error(stepTitle ? `Lỗi: ${stepTitle}` : "Lỗi xử lý", error);
+      if (onDismissError) {
+        onDismissError();
+      }
+    }
+  }, [error, stepTitle, onDismissError]);
 
   const isOpen = isPanelOpen !== undefined ? isPanelOpen : internalIsOpen;
   const togglePanel = (nextState?: boolean) => {
@@ -101,24 +112,6 @@ export default function PipelineStepLayout({
           )}
         </div>
       </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="rounded-2xl border border-red-500/50 bg-red-500/10 p-3.5 text-red-500 text-xs flex items-center justify-between">
-          <span className="font-medium">
-            {t("common:error", "Error")}: {error}
-          </span>
-          {onDismissError && (
-            <button
-              type="button"
-              onClick={onDismissError}
-              className="underline hover:text-red-400 font-semibold ml-3"
-            >
-              {t("common:dismiss", "Dismiss")}
-            </button>
-          )}
-        </div>
-      )}
 
       {/* Main Studio Workspace: Central Content & Right Sticky Tool Panel */}
       <div className="flex flex-col lg:flex-row gap-5 items-start relative">

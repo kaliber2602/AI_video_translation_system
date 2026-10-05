@@ -1,4 +1,5 @@
 import api from "./api/axios";
+import { getAccessToken } from "./api/token";
 import type { VideoUpdateRequest, SubtitleMaskConfig, OverlayConfig } from "../types/video";
 
 
@@ -156,13 +157,13 @@ export const videoService = {
 
 
   getSegmentAudioUrl(videoId: number, segmentId: number): string {
-    const token = localStorage.getItem("access_token");
+    const token = getAccessToken();
     const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
     return `/api/videos/${videoId}/tts/segments/${segmentId}/audio${tokenParam}`;
   },
 
   getAudioStreamUrl(videoId: number, kind: "dubbed" | "vocals" | "bgm" | "original" = "dubbed"): string {
-    const token = localStorage.getItem("access_token");
+    const token = getAccessToken();
     const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
     return `/api/videos/${videoId}/audio/stream?kind=${kind}${tokenParam}`;
   },
@@ -177,7 +178,8 @@ export const videoService = {
   },
 
   getOverlayLogoUrl(videoId: number): string {
-    return `/api/videos/${videoId}/overlay/logo`;
+    const token = typeof window !== 'undefined' ? (localStorage.getItem("access_token") || sessionStorage.getItem("access_token")) : null;
+    return token ? `/api/videos/${videoId}/overlay/logo?token=${encodeURIComponent(token)}` : `/api/videos/${videoId}/overlay/logo`;
   },
 
 
@@ -399,7 +401,10 @@ export const videoService = {
     return response.data;
   },
 
-  async updateTranscript(videoId: number, updates: { segment_id: number; text: string }) {
+  async updateTranscript(
+    videoId: number,
+    updates: { segment_id?: number; text?: string; start?: number; end?: number; speaker?: string; segments?: any[] }
+  ) {
     const response = await api.put(`/api/videos/${videoId}/transcription`, updates);
     return response.data;
   },
@@ -428,7 +433,11 @@ export const videoService = {
     return response.data;
   },
 
-  async updateTranslation(videoId: number, language: string, updates: { segment_id: number; translated_text: string }) {
+  async updateTranslation(
+    videoId: number,
+    language: string,
+    updates: { segment_id?: number; translated_text?: string; segments?: any[] }
+  ) {
     const response = await api.put(`/api/videos/${videoId}/translations/${language}`, updates);
     return response.data;
   },
@@ -458,6 +467,7 @@ export const videoService = {
       alignment?: string;
       positionY?: number;
       lineSpacing?: number;
+      bilingual?: boolean;
     }
   ) {
     const params = new URLSearchParams({
@@ -475,6 +485,7 @@ export const videoService = {
     if (options?.alignment) params.append("alignment", options.alignment);
     if (options?.positionY !== undefined) params.append("position_y", String(options.positionY));
     if (options?.lineSpacing !== undefined) params.append("line_spacing", String(options.lineSpacing));
+    if (options?.bilingual !== undefined) params.append("bilingual", String(options.bilingual));
 
     const bodyData: Record<string, any> = {};
     if (options?.segments && options.segments.length > 0) bodyData.segments = options.segments;
@@ -510,6 +521,9 @@ export const videoService = {
     if (options?.lineSpacing !== undefined) {
       bodyData.line_spacing = options.lineSpacing;
       bodyData.lineSpacing = options.lineSpacing;
+    }
+    if (options?.bilingual !== undefined) {
+      bodyData.bilingual = options.bilingual;
     }
 
     const response = await api.post(`/api/videos/${videoId}/subtitles?${params.toString()}`, bodyData, {
@@ -554,9 +568,31 @@ export const videoService = {
     return response.data;
   },
 
-  async generateTTS(videoId: number, language: string, speakerId: number, style: string, speed: number, sync: boolean = false) {
+  async generateTTS(
+    videoId: number,
+    language: string,
+    speakerId: number,
+    style: string,
+    speed: number,
+    sync: boolean = false,
+    voiceId?: string,
+    model?: string
+  ) {
+    const params = new URLSearchParams({
+      language,
+      speaker_id: String(speakerId),
+      style,
+      speed: String(speed),
+      sync: String(sync),
+    });
+    if (voiceId) {
+      params.append("voice_id", voiceId);
+    }
+    if (model) {
+      params.append("model", model);
+    }
     const response = await api.post(
-      `/api/videos/${videoId}/tts?language=${language}&speaker_id=${speakerId}&style=${style}&speed=${speed}&sync=${sync}`,
+      `/api/videos/${videoId}/tts?${params.toString()}`,
       {},
       { timeout: sync ? 300000 : 30000 }
     );
@@ -593,6 +629,44 @@ export const videoService = {
     return response.data;
   },
 
+  async listElevenLabsVoices(): Promise<Array<{ id: string; name: string; sample_url: string }>> {
+    const response = await api.get("/api/videos/elevenlabs/voices");
+    return response.data?.voices || [];
+  },
+
+  getElevenLabsVoiceSampleUrl(voiceId: string): string {
+    const token = getAccessToken();
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
+    return `/api/videos/elevenlabs/voices/${encodeURIComponent(voiceId)}/sample${tokenParam}`;
+  },
+
+  async listEdgeVoices(language?: string): Promise<Array<{ id: string; name: string; lang: string }>> {
+    const query = language ? `?language=${encodeURIComponent(language)}` : "";
+    const response = await api.get(`/api/videos/edge/voices${query}`);
+    return response.data?.voices || [];
+  },
+
+  getEdgeVoiceSampleUrl(voiceId: string): string {
+    const token = getAccessToken();
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
+    return `/api/videos/edge/voices/${encodeURIComponent(voiceId)}/sample${tokenParam}`;
+  },
+
+  async resynthesizeTTSSegment(
+    videoId: number,
+    segmentId: number,
+    data: { text: string; language?: string; speed?: number; voice_id?: string; model?: string }
+  ) {
+    const response = await api.post(`/api/videos/${videoId}/tts/segment/${segmentId}`, data);
+    return response.data;
+  },
+
+  getTTSSegmentAudioUrl(videoId: number, segmentId: number, language: string = "vi"): string {
+    const token = getAccessToken();
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
+    return `/api/videos/${videoId}/tts/segments/${segmentId}/audio?language=${encodeURIComponent(language)}${tokenParam}`;
+  },
+
   // Dubbing
   async generateDubbedVideo(
     videoId: number,
@@ -601,14 +675,36 @@ export const videoService = {
     quality: string,
     burnSubtitles: boolean = true,
     aspectRatio?: string,
-    sync: boolean = false
+    sync: boolean = false,
+    mixerVolumes?: { vocalVolume?: number; bgmVolume?: number; dubVolume?: number }
   ) {
     let url = `/api/videos/${videoId}/dub?language=${language}&video_format=${format}&quality=${quality}&burn_subtitles=${burnSubtitles}&sync=${sync}`;
     if (aspectRatio) {
       url += `&aspect_ratio=${encodeURIComponent(aspectRatio)}`;
     }
+    if (mixerVolumes?.vocalVolume !== undefined) {
+      url += `&vocal_volume=${mixerVolumes.vocalVolume}`;
+    }
+    if (mixerVolumes?.bgmVolume !== undefined) {
+      url += `&bgm_volume=${mixerVolumes.bgmVolume}`;
+    }
+    if (mixerVolumes?.dubVolume !== undefined) {
+      url += `&dub_volume=${mixerVolumes.dubVolume}`;
+    }
     const response = await api.post(url, {}, { timeout: sync ? 600000 : 30000 });
     return response.data;
+  },
+
+  getVocalTrackUrl(videoId: number): string {
+    const token = getAccessToken();
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
+    return `/api/videos/${videoId}/audio/vocal${tokenParam}`;
+  },
+
+  getBgmTrackUrl(videoId: number): string {
+    const token = getAccessToken();
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
+    return `/api/videos/${videoId}/audio/bgm${tokenParam}`;
   },
 
   async getSubtitleBlob(videoId: number, language: string, format: string = "vtt"): Promise<Blob> {
@@ -750,8 +846,23 @@ export const videoService = {
     return blobRes.data;
   },
 
-  async downloadAllAssetsZip(videoId: number): Promise<Blob> {
-    const response = await api.get<Blob>(`/api/videos/${videoId}/export-zip`, {
+  async downloadAllAssetsZip(
+    videoId: number,
+    options?: {
+      include_video?: boolean;
+      include_subtitles?: boolean;
+      include_audio?: boolean;
+      include_original?: boolean;
+    }
+  ): Promise<Blob> {
+    const params = new URLSearchParams();
+    if (options?.include_video !== undefined) params.append("include_video", String(options.include_video));
+    if (options?.include_subtitles !== undefined) params.append("include_subtitles", String(options.include_subtitles));
+    if (options?.include_audio !== undefined) params.append("include_audio", String(options.include_audio));
+    if (options?.include_original !== undefined) params.append("include_original", String(options.include_original));
+
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const response = await api.get<Blob>(`/api/videos/${videoId}/export-zip${query}`, {
       responseType: "blob",
       timeout: 600000,
     });
@@ -775,7 +886,7 @@ export const videoService = {
   },
 
   getVideoStreamUrl(videoId: number, kind: "output" | "original" = "output"): string {
-    const token = localStorage.getItem("access_token");
+    const token = getAccessToken();
     const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
     return `/api/videos/${videoId}/stream?kind=${kind}${tokenParam}`;
   },

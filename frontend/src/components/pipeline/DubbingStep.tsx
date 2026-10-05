@@ -62,12 +62,27 @@ export default function DubbingStep() {
   const [ttsEngine, setTtsEngine] = useState<string>(
     state.pipelineConfig?.tts_dubbing?.engine || "coqui_xtts_v2"
   );
-  const [selectedSpeaker, setSelectedSpeaker] = useState<number>(1);
-  const [speakers, setSpeakers] = useState<any[]>([]);
-  const [ttsStyle, setTtsStyle] = useState("neutral");
+  const [selectedSpeaker] = useState<number>(1);
+  const ttsStyle = "neutral";
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
+  const [elevenVoices, setElevenVoices] = useState<Array<{ id: string; name: string; sample_url: string }>>([
+    { id: "ErXwobaYiN019PkySvjV", name: "Antoni (Nam Chuẩn)", sample_url: "/api/videos/elevenlabs/voices/ErXwobaYiN019PkySvjV/sample" },
+    { id: "pNInz6obpgDQGcFmaJgB", name: "Adam (Nam Trầm)", sample_url: "/api/videos/elevenlabs/voices/pNInz6obpgDQGcFmaJgB/sample" },
+    { id: "JBFqnCBsd6RMkjVDRZzb", name: "George (Nam Ấm)", sample_url: "/api/videos/elevenlabs/voices/JBFqnCBsd6RMkjVDRZzb/sample" },
+    { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah (Nữ Trẻ)", sample_url: "/api/videos/elevenlabs/voices/EXAVITQu4vr4xnSDxMaL/sample" },
+    { id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice (Nữ Dịu Dàng)", sample_url: "/api/videos/elevenlabs/voices/Xb7hH8MSUJpSbSDYk0k2/sample" },
+  ]);
+  const [selectedVoiceId, setSelectedVoiceId] = useState<string>("ErXwobaYiN019PkySvjV");
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const voiceAudioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
-  // 3-Track Virtual Mixer State
+  // Microsoft Edge-TTS Neural Voices
+  const [edgeVoices, setEdgeVoices] = useState<Array<{ id: string; name: string; lang: string }>>([]);
+  const [selectedEdgeVoiceId, setSelectedEdgeVoiceId] = useState<string>("vi-VN-HoaiMyNeural");
+  const [playingEdgeVoiceId, setPlayingEdgeVoiceId] = useState<string | null>(null);
+  const edgeAudioPlayerRef = useRef<HTMLAudioElement | null>(null);
+
+  // 3-Track Virtual Mixer State & Constraint Memory
   const [vocalVolume, setVocalVolume] = useState<number>(
     state.pipelineConfig?.audio_separation?.vocal_volume ?? 100
   );
@@ -75,16 +90,14 @@ export default function DubbingStep() {
     Math.round((state.pipelineConfig?.audio_separation?.bgm_volume ?? 0.7) * 100)
   );
   const [dubVolume, setDubVolume] = useState<number>(100);
+  const [prevVocalVolume, setPrevVocalVolume] = useState<number>(100);
+  const [prevBgmVolume, setPrevBgmVolume] = useState<number>(70);
+  const [prevDubVolume, setPrevDubVolume] = useState<number>(100);
   const [isVocalMuted, setIsVocalMuted] = useState(false);
   const [isBgmMuted, setIsBgmMuted] = useState(false);
   const [isDubMuted, setIsDubMuted] = useState(false);
   const [regeneratingSegmentIdx, setRegeneratingSegmentIdx] = useState<number | null>(null);
-  
-  // Speaker Clone Voice Sample State
-  const activeSpeakerAudio = useRef<HTMLAudioElement | null>(null);
-  const [speakerAudioUrl, setSpeakerAudioUrl] = useState<string | null>(null);
-  const [isPlayingSpeaker, setIsPlayingSpeaker] = useState(false);
-  const [isLoadingSpeakerAudio, setIsLoadingSpeakerAudio] = useState(false);
+
 
   // Background Task & Polling States
   const [ttsProgress, setTtsProgress] = useState<number>(0);
@@ -172,7 +185,7 @@ export default function DubbingStep() {
   
   // Right sidebar tab state
   const [isPanelOpen, setIsPanelOpen] = useState(true);
-  const [activeRightTab, setActiveRightTab] = useState<"tts" | "render" | "mvoice">("tts");
+  const [activeRightTab, setActiveRightTab] = useState<"dubbing" | "mvoice">("dubbing");
 
   // mVoice Studio & Segment Audio States
   const [segmentSearch, setSegmentSearch] = useState<string>("");
@@ -253,9 +266,30 @@ export default function DubbingStep() {
     loadDubbingStatus();
   }, [state.video?.videoId, selectedLanguage]);
 
+
+
   useEffect(() => {
-    loadSpeakers();
-  }, [state.video?.videoId]);
+    if (ttsEngine === "elevenlabs") {
+      videoService.listElevenLabsVoices()
+        .then((voices) => {
+          if (voices && voices.length > 0) {
+            setElevenVoices(voices);
+          }
+        })
+        .catch(() => {});
+    } else if (ttsEngine === "edge_tts") {
+      videoService.listEdgeVoices(selectedLanguage)
+        .then((voices) => {
+          if (voices && voices.length > 0) {
+            setEdgeVoices(voices);
+            if (!voices.some((v) => v.id === selectedEdgeVoiceId)) {
+              setSelectedEdgeVoiceId(voices[0].id);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [ttsEngine, selectedLanguage]);
 
   useEffect(() => {
     if (state.targetLanguage) {
@@ -466,37 +500,21 @@ export default function DubbingStep() {
     return () => {
       stopTtsPolling();
       stopDubPolling();
-      if (activeSpeakerAudio.current) {
-        activeSpeakerAudio.current.pause();
-        activeSpeakerAudio.current = null;
-      }
       if (ttsAudioUrl && ttsAudioUrl.startsWith("blob:")) {
         URL.revokeObjectURL(ttsAudioUrl);
       }
       if (videoUrl && videoUrl.startsWith("blob:")) {
         URL.revokeObjectURL(videoUrl);
       }
-      if (speakerAudioUrl && speakerAudioUrl.startsWith("blob:")) {
-        URL.revokeObjectURL(speakerAudioUrl);
-      }
     };
-  }, [ttsAudioUrl, videoUrl, speakerAudioUrl]);
+  }, [ttsAudioUrl, videoUrl]);
 
   // Sidebar Toggles
-  const handleToggleTtsTab = () => {
-    if (isPanelOpen && activeRightTab === "tts") {
+  const handleToggleDubbingTab = () => {
+    if (isPanelOpen && activeRightTab === "dubbing") {
       setIsPanelOpen(false);
     } else {
-      setActiveRightTab("tts");
-      setIsPanelOpen(true);
-    }
-  };
-
-  const handleToggleRenderTab = () => {
-    if (isPanelOpen && activeRightTab === "render") {
-      setIsPanelOpen(false);
-    } else {
-      setActiveRightTab("render");
+      setActiveRightTab("dubbing");
       setIsPanelOpen(true);
     }
   };
@@ -510,75 +528,63 @@ export default function DubbingStep() {
     }
   };
 
-  const playSpeakerSample = async (speakerId: number) => {
-    if (!state.video?.videoId) return;
-    
-    if (activeSpeakerAudio.current && !activeSpeakerAudio.current.paused) {
-      activeSpeakerAudio.current.pause();
-      setIsPlayingSpeaker(false);
+
+
+  const playElevenLabsSample = async (voiceId: string) => {
+    if (playingVoiceId === voiceId && voiceAudioPlayerRef.current) {
+      voiceAudioPlayerRef.current.pause();
+      setPlayingVoiceId(null);
       return;
     }
 
-    if (activeSpeakerAudio.current && speakerAudioUrl) {
-      try {
-        await activeSpeakerAudio.current.play();
-        setIsPlayingSpeaker(true);
-        return;
-      } catch (e) {
-        console.warn("Retrying speaker audio playback...", e);
-      }
-    }
-
-    setIsLoadingSpeakerAudio(true);
     try {
-      const blob = await videoService.getSpeakerSampleBlob(state.video.videoId, speakerId);
-      const url = URL.createObjectURL(blob);
-      setSpeakerAudioUrl((prev) => {
-        if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
-        return url;
-      });
-
-      const audio = new Audio(url);
-      activeSpeakerAudio.current = audio;
-
-      audio.onplay = () => setIsPlayingSpeaker(true);
-      audio.onpause = () => setIsPlayingSpeaker(false);
-      audio.onended = () => {
-        setIsPlayingSpeaker(false);
-        activeSpeakerAudio.current = null;
-      };
-      audio.onerror = (e) => {
-        console.warn("Speaker audio error:", e);
-        setIsPlayingSpeaker(false);
-      };
-
-      try {
-        await audio.play();
-        setIsPlayingSpeaker(true);
-      } catch (playErr) {
-        console.warn("Autoplay or audio play interrupted:", playErr);
-        setIsPlayingSpeaker(false);
+      if (voiceAudioPlayerRef.current) {
+        voiceAudioPlayerRef.current.pause();
+        voiceAudioPlayerRef.current = null;
       }
-    } catch (err: any) {
-      console.warn("Could not load voice sample:", err);
-      setIsPlayingSpeaker(false);
-    } finally {
-      setIsLoadingSpeakerAudio(false);
+
+      const sampleUrl = videoService.getElevenLabsVoiceSampleUrl(voiceId);
+      const audio = new Audio(sampleUrl);
+      voiceAudioPlayerRef.current = audio;
+      setPlayingVoiceId(voiceId);
+
+      audio.onended = () => setPlayingVoiceId(null);
+      audio.onerror = () => setPlayingVoiceId(null);
+      await audio.play();
+    } catch (e) {
+      console.warn("Could not play ElevenLabs sample:", e);
+      setPlayingVoiceId(null);
     }
   };
 
-  const handleSpeakerChange = (id: number) => {
-    setSelectedSpeaker(id);
-    if (activeSpeakerAudio.current) {
-      activeSpeakerAudio.current.pause();
-      activeSpeakerAudio.current = null;
+  const playEdgeVoiceSample = async (voiceId: string) => {
+    if (playingEdgeVoiceId === voiceId && edgeAudioPlayerRef.current) {
+      edgeAudioPlayerRef.current.pause();
+      setPlayingEdgeVoiceId(null);
+      return;
     }
-    if (speakerAudioUrl && speakerAudioUrl.startsWith("blob:")) {
-      URL.revokeObjectURL(speakerAudioUrl);
-      setSpeakerAudioUrl(null);
+
+    try {
+      if (edgeAudioPlayerRef.current) {
+        edgeAudioPlayerRef.current.pause();
+        edgeAudioPlayerRef.current = null;
+      }
+
+      const sampleUrl = videoService.getEdgeVoiceSampleUrl(voiceId);
+      const audio = new Audio(sampleUrl);
+      edgeAudioPlayerRef.current = audio;
+      setPlayingEdgeVoiceId(voiceId);
+
+      audio.onended = () => setPlayingEdgeVoiceId(null);
+      audio.onerror = () => setPlayingEdgeVoiceId(null);
+      await audio.play();
+    } catch (e) {
+      console.warn("Could not play Edge-TTS sample:", e);
+      setPlayingEdgeVoiceId(null);
     }
-    setIsPlayingSpeaker(false);
   };
+
+
 
   const pollTTSStatus = (vidId: number, lang: string) => {
     stopTtsPolling();
@@ -904,20 +910,7 @@ export default function DubbingStep() {
     }
   };
 
-  const loadSpeakers = async () => {
-    if (!state.video?.videoId) return;
-    try {
-      const data = await videoService.listVoices(state.video.videoId);
-      if (data && data.speakers && data.speakers.length > 0) {
-        setSpeakers(data.speakers);
-        setSelectedSpeaker(data.speakers[0].id);
-      }
-    } catch (error) {
-      setSpeakers([
-        { id: 1, label: "SPEAKER_01", language: "vi", gender: "neutral" }
-      ]);
-    }
-  };
+
 
   const generateTTS = async () => {
     if (!state.video?.videoId) return;
@@ -929,12 +922,21 @@ export default function DubbingStep() {
     setTtsMessage("Đang khởi tạo tiến trình tổng hợp giọng nói AI...");
 
     try {
+      const activeVoiceId =
+        ttsEngine === "elevenlabs"
+          ? selectedVoiceId
+          : ttsEngine === "edge_tts"
+          ? selectedEdgeVoiceId
+          : `speaker_${selectedSpeaker}`;
       const result = await videoService.generateTTS(
         state.video.videoId,
         selectedLanguage,
         selectedSpeaker,
         ttsStyle,
-        ttsSpeed
+        ttsSpeed,
+        false,
+        activeVoiceId,
+        ttsEngine
       );
 
       if (result?.status === "processing" || result?.job_id) {
@@ -993,13 +995,23 @@ export default function DubbingStep() {
     setDubMessage("Đang chuẩn bị render và hòa âm video...");
 
     try {
+      const effectiveVocal = isVocalMuted ? 0 : vocalVolume;
+      const effectiveBgm = isBgmMuted ? 0 : bgmVolume;
+      const effectiveDub = isDubMuted ? 0 : dubVolume;
+
       const result = await videoService.generateDubbedVideo(
         state.video.videoId,
         selectedLanguage,
         selectedFormat,
         selectedQuality,
         burnSubtitles,
-        aspectRatio
+        aspectRatio,
+        false,
+        {
+          vocalVolume: effectiveVocal,
+          bgmVolume: effectiveBgm,
+          dubVolume: effectiveDub,
+        }
       );
 
       if (result?.status === "processing" || result?.job_id) {
@@ -1154,6 +1166,21 @@ export default function DubbingStep() {
     }
   };
 
+  // Sync client-side video element volume with mixer volume
+  useEffect(() => {
+    if (videoRef.current) {
+      if (isMuted) {
+        videoRef.current.muted = true;
+      } else {
+        const effectiveVol = isDubbed
+          ? (isDubMuted ? 0 : dubVolume) / 100
+          : (isVocalMuted ? 0 : vocalVolume) / 100;
+        videoRef.current.volume = Math.max(0, Math.min(1, effectiveVol));
+        videoRef.current.muted = effectiveVol === 0;
+      }
+    }
+  }, [isMuted, isDubbed, isDubMuted, dubVolume, isVocalMuted, vocalVolume]);
+
   // Standalone TTS audio player controls
   const togglePlayTTSOnly = async () => {
     if (audioRef.current) {
@@ -1162,11 +1189,23 @@ export default function DubbingStep() {
           audioRef.current.pause();
           setIsPlayingTTSOnly(false);
         } else {
+          if (!audioRef.current.src || audioRef.current.src === "" || audioRef.current.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) {
+            if (ttsAudioUrl) {
+              audioRef.current.src = ttsAudioUrl;
+              audioRef.current.load();
+            } else {
+              toast.error("Chưa có nguồn âm thanh để phát.");
+              return;
+            }
+          }
           await audioRef.current.play();
           setIsPlayingTTSOnly(true);
         }
-      } catch (err) {
-        console.error("Audio playback error:", err);
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          console.warn("Audio playback interrupted or failed:", err);
+          toast.error("Không thể phát file âm thanh. Vui lòng thử lại.");
+        }
         setIsPlayingTTSOnly(false);
       }
     }
@@ -1262,47 +1301,27 @@ export default function DubbingStep() {
       panelWidth={activeRightTab === "mvoice" ? "w-full lg:w-[440px] xl:w-[500px]" : "w-full lg:w-[360px] xl:w-[410px]"}
       headerActions={
         <div className="flex items-center gap-2">
-          {/* Tab 1: Giọng đọc AI */}
+          {/* Unified Tab 1: Lồng Tiếng & Hòa Âm (TTS & Render) */}
           <button
             type="button"
-            onClick={handleToggleTtsTab}
+            onClick={handleToggleDubbingTab}
             title={
-              isPanelOpen && activeRightTab === "tts"
-                ? "Ẩn bảng giọng đọc AI"
-                : "Mở bảng tùy chọn giọng đọc AI (TTS)"
+              isPanelOpen && activeRightTab === "dubbing"
+                ? "Ẩn bảng lồng tiếng & hòa âm"
+                : "Mở bảng tùy chọn giọng đọc AI & lồng tiếng video"
             }
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-2xs active:scale-95 ${
-              isPanelOpen && activeRightTab === "tts"
+              isPanelOpen && activeRightTab === "dubbing"
                 ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white shadow-xs"
                 : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/50 hover:bg-[var(--color-surface-muted)]"
             }`}
           >
             <Mic size={13} />
-            <span>Giọng đọc AI (TTS)</span>
-            {isTTSReady && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 ml-0.5" />}
+            <span>Lồng Tiếng & Hòa Âm</span>
+            {(isTTSReady || isDubReady) && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 ml-0.5" />}
           </button>
 
-          {/* Tab 2: Lồng tiếng & Render */}
-          <button
-            type="button"
-            onClick={handleToggleRenderTab}
-            title={
-              isPanelOpen && activeRightTab === "render"
-                ? "Ẩn bảng lồng tiếng & render"
-                : "Mở bảng hòa âm & render video"
-            }
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition shadow-2xs active:scale-95 ${
-              isPanelOpen && activeRightTab === "render"
-                ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white shadow-xs"
-                : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/50 hover:bg-[var(--color-surface-muted)]"
-            }`}
-          >
-            <Film size={13} />
-            <span>Lồng tiếng & Render</span>
-            {isDubReady && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 ml-0.5" />}
-          </button>
-
-          {/* Tab 3: mVoice Studio */}
+          {/* Unified Tab 2: mVoice Studio */}
           <button
             type="button"
             onClick={handleToggleMVoiceTab}
@@ -1336,23 +1355,19 @@ export default function DubbingStep() {
         </div>
       }
       toolPanelTitle={
-        activeRightTab === "tts"
-          ? "Thiết lập Giọng Đọc AI (TTS)"
-          : activeRightTab === "render"
-          ? "Hòa Âm & Render Video Lồng Tiếng"
+        activeRightTab === "dubbing"
+          ? "Lồng Tiếng & Hòa Âm Video"
           : `mVoice Studio (${segments.length} câu thoại)`
       }
       toolPanelIcon={
-        activeRightTab === "tts" ? (
+        activeRightTab === "dubbing" ? (
           <Mic size={16} className="text-[var(--color-primary)]" />
-        ) : activeRightTab === "render" ? (
-          <Film size={16} className="text-[var(--color-primary)]" />
         ) : (
           <Sparkles size={16} className="text-[var(--color-primary)]" />
         )
       }
       toolPanel={
-        activeRightTab === "tts" ? (
+        activeRightTab === "dubbing" ? (
           /* ========================================================= */
           /* TAB 1: TTS AUDIO GENERATION CONTROLS                      */
           /* ========================================================= */
@@ -1380,6 +1395,28 @@ export default function DubbingStep() {
                 </span>
               </div>
 
+              {/* STATS CARD: TỔNG SỐ CÂU & CẶP NGÔN NGỮ (Matching user design) */}
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] block">
+                      TỔNG SỐ CÂU:
+                    </span>
+                    <span className="text-sm font-black font-mono text-[var(--color-text-primary)]">
+                      {segments.length} câu
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] block">
+                      CẶP NGÔN NGỮ:
+                    </span>
+                    <span className="text-sm font-black font-mono text-[var(--color-text-primary)] uppercase">
+                      {((state.video as any)?.sourceLanguage || (state.video as any)?.source_language || state.translation?.source_language || "AUTO").toUpperCase()} → {selectedLanguage.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               {/* TTS Engine Selector */}
               <div>
                 <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
@@ -1387,72 +1424,112 @@ export default function DubbingStep() {
                 </label>
                 <select
                   value={ttsEngine}
-                  onChange={(e) => setTtsEngine(e.target.value)}
+                  onChange={(e) => {
+                    const newEngine = e.target.value;
+                    setTtsEngine(newEngine);
+                    if (
+                      newEngine === "coqui_xtts_v2" &&
+                      !["en", "es", "fr", "de", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh", "ja", "hu", "ko", "hi"].includes(selectedLanguage.toLowerCase())
+                    ) {
+                      toast.warning(
+                        `Coqui XTTS-v2 không hỗ trợ tiếng ${selectedLanguage.toUpperCase()}`,
+                        "Mô hình XTTS-v2 chỉ hỗ trợ 17 ngôn ngữ. Với tiếng Việt, vui lòng chọn Edge-TTS hoặc ElevenLabs."
+                      );
+                    }
+                  }}
                   className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-semibold text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
                 >
-                  <option value="edge_tts">Microsoft Edge-TTS Neural (Free Cloud API - Miễn phí)</option>
-                  <option value="bark">Suno Bark Expressive (Local - Miễn phí)</option>
-                  <option value="coqui_xtts_v2">Coqui XTTS-v2 Voice Cloning (Local Deep - Gói Pro)</option>
+                  <option value="edge_tts">Microsoft Edge-TTS Neural (Free Cloud)</option>
+                  <option value="coqui_xtts_v2">Coqui XTTS-v2 Voice Cloning (Pro)</option>
+                  <option value="elevenlabs">ElevenLabs Multilingual v2 (Pro API)</option>
                 </select>
               </div>
 
-              {/* Speaker selection with voice sample preview */}
-              <div>
-                <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                  Nhân vật / Giọng mẫu AI:
-                </label>
-                <div className="flex items-center gap-1.5">
-                  <select
-                    value={selectedSpeaker}
-                    onChange={(e) => handleSpeakerChange(parseInt(e.target.value, 10))}
-                    className="flex-1 h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-semibold text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
-                  >
-                    {speakers.map((spk) => (
-                      <option key={spk.id} value={spk.id}>
-                        {spk.label || `Speaker ${spk.id}`} ({spk.language || "Đa ngữ"})
-                      </option>
-                    ))}
-                  </select>
+              {/* Voice Selector depending on TTS Engine */}
+              {ttsEngine === "elevenlabs" ? (
+                <div>
+                  <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
+                    Giọng đọc ElevenLabs Pro:
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={selectedVoiceId}
+                      onChange={(e) => setSelectedVoiceId(e.target.value)}
+                      className="flex-1 h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-semibold text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
+                    >
+                      {elevenVoices.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
+                    </select>
 
-                  <button
-                    type="button"
-                    onClick={() => playSpeakerSample(selectedSpeaker)}
-                    disabled={isLoadingSpeakerAudio}
-                    className={`h-8 px-2.5 rounded-lg border text-xs font-semibold transition flex items-center gap-1 shrink-0 ${
-                      isPlayingSpeaker
-                        ? "border-amber-500 bg-amber-500/20 text-amber-300"
-                        : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]"
-                    }`}
-                    title="Nghe thử giọng mẫu nhân vật này"
-                  >
-                    {isLoadingSpeakerAudio ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : isPlayingSpeaker ? (
-                      <Pause size={12} />
-                    ) : (
-                      <Volume2 size={12} />
-                    )}
-                    <span>{isPlayingSpeaker ? "Dừng" : "Thử"}</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => playElevenLabsSample(selectedVoiceId)}
+                      className={`h-8 px-2.5 rounded-lg border text-xs font-semibold transition flex items-center gap-1 shrink-0 ${
+                        playingVoiceId === selectedVoiceId
+                          ? "border-amber-500 bg-amber-500/20 text-amber-300"
+                          : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]"
+                      }`}
+                      title="Nghe thử giọng đọc ElevenLabs này"
+                    >
+                      {playingVoiceId === selectedVoiceId ? (
+                        <Pause size={12} />
+                      ) : (
+                        <Volume2 size={12} />
+                      )}
+                      <span>{playingVoiceId === selectedVoiceId ? "Dừng" : "Thử"}</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : ttsEngine === "edge_tts" ? (
+                <div>
+                  <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
+                    Giọng đọc Microsoft Edge-TTS Neural:
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={selectedEdgeVoiceId}
+                      onChange={(e) => setSelectedEdgeVoiceId(e.target.value)}
+                      className="flex-1 h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-semibold text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
+                    >
+                      {edgeVoices.length > 0 ? (
+                        edgeVoices.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name} ({v.lang})
+                          </option>
+                        ))
+                      ) : (
+                        <>
+                          <option value="vi-VN-HoaiMyNeural">Hoài My (Nữ - Tiếng Việt)</option>
+                          <option value="vi-VN-NamMinhNeural">Nam Minh (Nam - Tiếng Việt)</option>
+                          <option value="en-US-JennyNeural">Jenny (Nữ - US)</option>
+                          <option value="en-US-GuyNeural">Guy (Nam - US)</option>
+                        </>
+                      )}
+                    </select>
 
-              {/* TONE STYLE DROPDOWN */}
-              <div>
-                <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                  Phong cách biểu cảm:
-                </label>
-                <select
-                  value={ttsStyle}
-                  onChange={(e) => setTtsStyle(e.target.value)}
-                  className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-medium text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
-                >
-                  <option value="neutral">Tự nhiên (Neutral)</option>
-                  <option value="warm">Ấm áp, truyền cảm (Warm)</option>
-                  <option value="enthusiastic">Hào hứng, sôi nổi (Enthusiastic)</option>
-                  <option value="professional">Chuyên nghiệp, tin tức (Professional)</option>
-                </select>
-              </div>
+                    <button
+                      type="button"
+                      onClick={() => playEdgeVoiceSample(selectedEdgeVoiceId)}
+                      className={`h-8 px-2.5 rounded-lg border text-xs font-semibold transition flex items-center gap-1 shrink-0 ${
+                        playingEdgeVoiceId === selectedEdgeVoiceId
+                          ? "border-amber-500 bg-amber-500/20 text-amber-300"
+                          : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]"
+                      }`}
+                      title="Nghe thử giọng đọc Edge-TTS Neural này"
+                    >
+                      {playingEdgeVoiceId === selectedEdgeVoiceId ? (
+                        <Pause size={12} />
+                      ) : (
+                        <Volume2 size={12} />
+                      )}
+                      <span>{playingEdgeVoiceId === selectedEdgeVoiceId ? "Dừng" : "Thử"}</span>
+                    </button>
+                  </div>
+                </div>
+              ) : null}
 
               {/* SPEED SLIDER */}
               <div>
@@ -1475,8 +1552,12 @@ export default function DubbingStep() {
               <button
                 type="button"
                 onClick={generateTTS}
-                disabled={isGeneratingTTS || isGlobalTaskRunning}
-                className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary-soft)] px-3 py-2.5 text-xs font-bold text-[var(--color-primary)] transition hover:bg-[var(--color-primary)] hover:text-white disabled:opacity-50 active:scale-98 shadow-xs"
+                disabled={
+                  isGeneratingTTS ||
+                  isGlobalTaskRunning ||
+                  (ttsEngine === "coqui_xtts_v2" && !["en", "es", "fr", "de", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh", "ja", "hu", "ko", "hi"].includes(selectedLanguage.toLowerCase()))
+                }
+                className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary-soft)] px-3 py-2.5 text-xs font-bold text-[var(--color-primary)] transition hover:bg-[var(--color-primary)] hover:text-white disabled:opacity-50 disabled:cursor-not-allowed active:scale-98 shadow-xs"
               >
                 {isGeneratingTTS ? <Loader2 size={13} className="animate-spin" /> : <Mic size={13} />}
                 <span>
@@ -1484,6 +1565,8 @@ export default function DubbingStep() {
                     ? `Đang tạo giọng AI...${ttsProgress > 0 ? ` (${ttsProgress}%)` : ""}`
                     : isGlobalTaskRunning
                     ? "Tác vụ ngầm đang chạy (Đã khóa)"
+                    : ttsEngine === "coqui_xtts_v2" && !["en", "es", "fr", "de", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh", "ja", "hu", "ko", "hi"].includes(selectedLanguage.toLowerCase())
+                    ? `Coqui XTTS không hỗ trợ tiếng ${selectedLanguage.toUpperCase()}`
                     : isTTSReady
                     ? "Tạo lại giọng đọc AI"
                     : "Tạo giọng đọc AI (TTS)"}
@@ -1544,9 +1627,14 @@ export default function DubbingStep() {
                     <audio
                       ref={audioRef}
                       src={ttsAudioUrl}
+                      preload="metadata"
                       onTimeUpdate={handleAudioTimeUpdate}
                       onLoadedMetadata={handleAudioLoaded}
                       onEnded={handleAudioEnded}
+                      onError={(e) => {
+                        console.warn("TTS Audio Element Error:", e);
+                        setIsPlayingTTSOnly(false);
+                      }}
                     />
 
                     <div className="flex items-center gap-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2">
@@ -1591,7 +1679,7 @@ export default function DubbingStep() {
               </div>
 
               {/* 3-Track Virtual Mixer (Web Audio Real-Time Mixing) */}
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3 space-y-2.5 shadow-2xs">
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3 space-y-3 shadow-2xs">
                 <div className="flex items-center justify-between pb-1.5 border-b border-[var(--color-border)]">
                   <div className="flex items-center gap-1.5">
                     <Sliders size={13} className="text-[var(--color-primary)]" />
@@ -1604,6 +1692,71 @@ export default function DubbingStep() {
                   </span>
                 </div>
 
+                {/* 1-Click Audio Presets */}
+                <div className="space-y-1">
+                  <span className="text-[10px] font-semibold text-[var(--color-text-muted)] block">
+                    Bộ Preset Hòa Âm 1-Click:
+                  </span>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsVocalMuted(true);
+                        setVocalVolume(0);
+                        setIsBgmMuted(false);
+                        setBgmVolume(70);
+                        setPrevBgmVolume(70);
+                        setIsDubMuted(false);
+                        setDubVolume(100);
+                        setPrevDubVolume(100);
+                      }}
+                      className="px-2 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-primary)] text-[10px] font-medium text-[var(--color-text-primary)] flex flex-col items-center gap-0.5 text-center transition"
+                      title="Vocal Gốc 0% (Tắt) + BGM 70% (Bật) + Giọng AI 100%"
+                    >
+                      <span>🎙️ Giọng AI</span>
+                      <span className="text-[9px] text-[var(--color-text-muted)]">Pure Dub</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsVocalMuted(false);
+                        setVocalVolume(30);
+                        setPrevVocalVolume(30);
+                        setIsBgmMuted(false);
+                        setBgmVolume(50);
+                        setPrevBgmVolume(50);
+                        setIsDubMuted(false);
+                        setDubVolume(70);
+                        setPrevDubVolume(70);
+                      }}
+                      className="px-2 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-primary)] text-[10px] font-medium text-[var(--color-text-primary)] flex flex-col items-center gap-0.5 text-center transition"
+                      title="Vocal Gốc 30% (Bật) + BGM 50% (Bật) + Giọng AI 70%"
+                    >
+                      <span>📻 Truyền hình</span>
+                      <span className="text-[9px] text-[var(--color-text-muted)]">70/30 Mux</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsVocalMuted(true);
+                        setVocalVolume(0);
+                        setIsBgmMuted(true);
+                        setBgmVolume(0);
+                        setIsDubMuted(false);
+                        setDubVolume(100);
+                        setPrevDubVolume(100);
+                      }}
+                      className="px-2 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-primary)] text-[10px] font-medium text-[var(--color-text-primary)] flex flex-col items-center gap-0.5 text-center transition"
+                      title="Vocal Gốc 0% (Tắt) + BGM 0% (Tắt) + Giọng AI 100%"
+                    >
+                      <span>🗣️ Chỉ lời nói</span>
+                      <span className="text-[9px] text-[var(--color-text-muted)]">Clean Speech</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Track 1: Original Vocal */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[10px]">
@@ -1614,7 +1767,16 @@ export default function DubbingStep() {
                     <div className="flex items-center gap-1.5 font-mono">
                       <button
                         type="button"
-                        onClick={() => setIsVocalMuted(!isVocalMuted)}
+                        onClick={() => {
+                          if (isVocalMuted) {
+                            setIsVocalMuted(false);
+                            setVocalVolume(prevVocalVolume || 100);
+                          } else {
+                            setPrevVocalVolume(vocalVolume || 100);
+                            setIsVocalMuted(true);
+                            setVocalVolume(0);
+                          }
+                        }}
                         className={`text-[9px] px-1 py-0.2 rounded font-bold transition ${
                           isVocalMuted ? "bg-red-500/20 text-red-400" : "bg-zinc-800 text-zinc-400"
                         }`}
@@ -1630,8 +1792,14 @@ export default function DubbingStep() {
                     max="150"
                     disabled={isVocalMuted}
                     value={isVocalMuted ? 0 : vocalVolume}
-                    onChange={(e) => setVocalVolume(parseInt(e.target.value))}
-                    className="w-full h-1.5 bg-[var(--color-border)] rounded accent-[var(--color-primary)] cursor-pointer"
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      setVocalVolume(val);
+                      if (val > 0) setPrevVocalVolume(val);
+                    }}
+                    className={`w-full h-1.5 bg-[var(--color-border)] rounded accent-[var(--color-primary)] transition ${
+                      isVocalMuted ? "opacity-30 cursor-not-allowed" : "cursor-pointer"
+                    }`}
                   />
                 </div>
 
@@ -1645,7 +1813,16 @@ export default function DubbingStep() {
                     <div className="flex items-center gap-1.5 font-mono">
                       <button
                         type="button"
-                        onClick={() => setIsBgmMuted(!isBgmMuted)}
+                        onClick={() => {
+                          if (isBgmMuted) {
+                            setIsBgmMuted(false);
+                            setBgmVolume(prevBgmVolume || 70);
+                          } else {
+                            setPrevBgmVolume(bgmVolume || 70);
+                            setIsBgmMuted(true);
+                            setBgmVolume(0);
+                          }
+                        }}
                         className={`text-[9px] px-1 py-0.2 rounded font-bold transition ${
                           isBgmMuted ? "bg-red-500/20 text-red-400" : "bg-zinc-800 text-zinc-400"
                         }`}
@@ -1661,8 +1838,14 @@ export default function DubbingStep() {
                     max="150"
                     disabled={isBgmMuted}
                     value={isBgmMuted ? 0 : bgmVolume}
-                    onChange={(e) => setBgmVolume(parseInt(e.target.value))}
-                    className="w-full h-1.5 bg-[var(--color-border)] rounded accent-indigo-500 cursor-pointer"
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      setBgmVolume(val);
+                      if (val > 0) setPrevBgmVolume(val);
+                    }}
+                    className={`w-full h-1.5 bg-[var(--color-border)] rounded accent-indigo-500 transition ${
+                      isBgmMuted ? "opacity-30 cursor-not-allowed" : "cursor-pointer"
+                    }`}
                   />
                 </div>
 
@@ -1676,7 +1859,16 @@ export default function DubbingStep() {
                     <div className="flex items-center gap-1.5 font-mono">
                       <button
                         type="button"
-                        onClick={() => setIsDubMuted(!isDubMuted)}
+                        onClick={() => {
+                          if (isDubMuted) {
+                            setIsDubMuted(false);
+                            setDubVolume(prevDubVolume || 100);
+                          } else {
+                            setPrevDubVolume(dubVolume || 100);
+                            setIsDubMuted(true);
+                            setDubVolume(0);
+                          }
+                        }}
                         className={`text-[9px] px-1 py-0.2 rounded font-bold transition ${
                           isDubMuted ? "bg-red-500/20 text-red-400" : "bg-zinc-800 text-zinc-400"
                         }`}
@@ -1692,44 +1884,26 @@ export default function DubbingStep() {
                     max="150"
                     disabled={isDubMuted}
                     value={isDubMuted ? 0 : dubVolume}
-                    onChange={(e) => setDubVolume(parseInt(e.target.value))}
-                    className="w-full h-1.5 bg-[var(--color-border)] rounded accent-emerald-500 cursor-pointer"
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      setDubVolume(val);
+                      if (val > 0) setPrevDubVolume(val);
+                    }}
+                    className={`w-full h-1.5 bg-[var(--color-border)] rounded accent-emerald-500 transition ${
+                      isDubMuted ? "opacity-30 cursor-not-allowed" : "cursor-pointer"
+                    }`}
                   />
                 </div>
               </div>
             </div>
 
-            {/* QUICK LINK TO PHASE 2 */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveRightTab("render");
-                setIsPanelOpen(true);
-              }}
-              className="w-full flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs font-bold text-[var(--color-text-primary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition group shadow-xs"
-            >
-              <div className="flex items-center gap-2">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/15 text-[10px] font-bold text-emerald-400">
-                  2
-                </span>
-                <span>Chuyển sang Lồng Tiếng & Render</span>
-              </div>
-              <ChevronRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
-            </button>
-          </div>
-        ) : activeRightTab === "render" ? (
-          /* ========================================================= */
-          /* TAB 2: VIDEO MUXING & RENDERING CONTROLS                  */
-          /* ========================================================= */
-          <div className="space-y-4">
+            {/* Video Dubbing / Muxing Controls Section */}
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 space-y-3.5">
               <div className="flex items-center justify-between pb-2 border-b border-[var(--color-border)]">
                 <div className="flex items-center gap-1.5">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[10px] font-bold text-[var(--color-primary)]">
-                    2
-                  </span>
+                  <Film size={14} className="text-[var(--color-primary)]" />
                   <span className="text-xs font-bold text-[var(--color-text-primary)]">
-                    Hòa Âm & Render Video
+                    Kết Xuất Video Lồng Tiếng
                   </span>
                 </div>
                 <span
@@ -1747,22 +1921,9 @@ export default function DubbingStep() {
 
               {/* Dependency Warning if TTS not ready */}
               {!isTTSReady && (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-300 space-y-2">
-                  <div className="flex items-start gap-2">
-                    <Lock size={14} className="shrink-0 mt-0.5" />
-                    <span>Cần tạo giọng đọc AI (TTS) trước khi kết xuất video hoàn chỉnh.</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveRightTab("tts");
-                      setIsPanelOpen(true);
-                    }}
-                    className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-500 text-black font-bold text-[11px] hover:bg-amber-400 transition"
-                  >
-                    <Mic size={12} />
-                    <span>← Thiết lập Giọng Đọc AI ngay</span>
-                  </button>
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-300 flex items-start gap-2">
+                  <Lock size={14} className="shrink-0 mt-0.5" />
+                  <span>Cần tạo giọng đọc AI (TTS) trước khi kết xuất video hoàn chỉnh.</span>
                 </div>
               )}
 
@@ -1793,67 +1954,6 @@ export default function DubbingStep() {
                     ? "✓ Bật: Cắt khung hình & nung phụ đề đúng kiểu dáng đã chọn ở Bước 4"
                     : "✗ Tắt: Giữ video sạch không chữ (Clean export)"}
                 </p>
-              </div>
-
-              {/* ASPECT RATIO EXPORT SELECTION */}
-              <div>
-                <div className="flex items-center justify-between text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">
-                  <span>Khung hình xuất (Aspect Ratio):</span>
-                  <span className="font-mono text-[10px] text-[var(--color-primary)] font-bold">
-                    {aspectRatio === "9:16" ? "9:16 (Dọc TikTok)" : aspectRatio === "1:1" ? "1:1 (Vuông)" : aspectRatio === "4:3" ? "4:3" : "16:9 (Ngang)"}
-                  </span>
-                </div>
-                <div className="grid grid-cols-4 gap-1 bg-[var(--color-input-background)] p-1 rounded-lg border border-[var(--color-border)]">
-                  {(["16:9", "9:16", "1:1", "4:3"] as const).map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => setAspectRatio(r)}
-                      className={`py-1 text-[10px] font-semibold rounded transition ${
-                        aspectRatio === r
-                          ? "bg-[var(--color-primary)] text-white shadow-xs"
-                          : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
-                      }`}
-                    >
-                      {r}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* VIDEO QUALITY & FORMAT DROPDOWNS (2 COLS) */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                    Độ phân giải:
-                  </label>
-                  <select
-                    value={selectedQuality}
-                    onChange={(e) => setSelectedQuality(e.target.value)}
-                    disabled={!isTTSReady}
-                    className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-xs font-medium text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] disabled:opacity-50"
-                  >
-                    <option value="1080p">1080p Full HD</option>
-                    <option value="720p">720p HD</option>
-                    <option value="4k">4K Ultra HD</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                    Định dạng tệp:
-                  </label>
-                  <select
-                    value={selectedFormat}
-                    onChange={(e) => setSelectedFormat(e.target.value)}
-                    disabled={!isTTSReady}
-                    className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-xs font-medium text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] uppercase font-mono disabled:opacity-50"
-                  >
-                    <option value="mp4">.MP4</option>
-                    <option value="mkv">.MKV</option>
-                    <option value="webm">.WEBM</option>
-                  </select>
-                </div>
               </div>
 
               {/* GENERATE DUBBED VIDEO BUTTON */}
@@ -1899,21 +1999,6 @@ export default function DubbingStep() {
                 </div>
               )}
             </div>
-
-            {/* QUICK LINK BACK TO PHASE 1 */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveRightTab("tts");
-                setIsPanelOpen(true);
-              }}
-              className="w-full flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5 text-xs font-medium text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition group shadow-xs"
-            >
-              <div className="flex items-center gap-1.5">
-                <Mic size={13} />
-                <span>← Tùy chỉnh lại Giọng đọc AI</span>
-              </div>
-            </button>
 
             {/* PROCEED TO REVIEW (STEP 6) */}
             <button

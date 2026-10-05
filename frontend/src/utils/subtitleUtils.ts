@@ -29,6 +29,11 @@ export function formatSubtitleLines(
       .map((l) => l.trim())
       .filter(Boolean);
 
+    // If text has explicit line breaks (such as bilingual dual-line text: original \n translation)
+    // we should NOT collapse lines with spaces when bilingual or multi-line separation is intended
+    if (rawLines.length === 2) {
+      return rawLines.join("\n");
+    }
     if (maxLines === 1) {
       return rawLines.join(" ");
     }
@@ -179,4 +184,54 @@ export function autoSplitLongSegments<T extends SubtitleSegmentLike>(
     }
   }
   return result;
+}
+
+function formatSRTTime(seconds: number): string {
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 1000);
+  return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+}
+
+function formatVTTTime(seconds: number): string {
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 1000);
+  return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+}
+
+export function exportToSRT<T extends SubtitleSegmentLike>(segments: T[], textField: "translated_text" | "text" = "text"): string {
+  return segments
+    .map((seg, i) => {
+      const text = (textField === "translated_text" ? seg.translated_text || seg.text : seg.text || seg.translated_text) || "";
+      return `${i + 1}\n${formatSRTTime(seg.start)} --> ${formatSRTTime(seg.end)}\n${text.trim()}\n`;
+    })
+    .join("\n");
+}
+
+export function exportToVTT<T extends SubtitleSegmentLike>(segments: T[], textField: "translated_text" | "text" = "text"): string {
+  const body = segments
+    .map((seg, i) => {
+      const text = (textField === "translated_text" ? seg.translated_text || seg.text : seg.text || seg.translated_text) || "";
+      return `${i + 1}\n${formatVTTTime(seg.start)} --> ${formatVTTTime(seg.end)}\n${text.trim()}\n`;
+    })
+    .join("\n");
+  return `WEBVTT\n\n${body}`;
+}
+
+export function exportToJSON<T extends SubtitleSegmentLike>(segments: T[]): string {
+  return JSON.stringify({ segments }, null, 2);
+}
+
+export function exportToCSV<T extends SubtitleSegmentLike>(segments: T[]): string {
+  const header = "Index,Start,End,Speaker,Original_Text,Translated_Text\n";
+  const rows = segments.map((seg, i) => {
+    const orig = `"${(seg.text || "").replace(/"/g, '""')}"`;
+    const trans = `"${(seg.translated_text || "").replace(/"/g, '""')}"`;
+    const spk = `"${(seg.speaker || "Speaker").replace(/"/g, '""')}"`;
+    return `${i + 1},${seg.start.toFixed(2)},${seg.end.toFixed(2)},${spk},${orig},${trans}`;
+  });
+  return header + rows.join("\n");
 }
