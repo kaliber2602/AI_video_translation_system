@@ -208,10 +208,35 @@ export const videoService = {
   },
 
   async getDubbedVideoBlob(videoId: number, language: string, format = "mp4", quality = "1080p"): Promise<Blob> {
-    const response = await api.get<Blob>(`/api/videos/${videoId}/dub/${language}/download?format=${format}&quality=${encodeURIComponent(quality)}`, {
-      responseType: "blob",
-    });
-    return response.data;
+    const response = await api.get(`/api/videos/${videoId}/dub/${language}/download?format=${format}&quality=${encodeURIComponent(quality)}`);
+    const data = response.data;
+
+    if (data && data.url) {
+      const fileResponse = await fetch(data.url, {
+        mode: "cors",
+        credentials: "omit",
+      });
+
+      if (!fileResponse.ok) {
+        throw new Error(`Tải tệp từ lưu trữ thất bại: mã lỗi ${fileResponse.status}`);
+      }
+
+      const blob = await fileResponse.blob();
+      if (blob.size === 0) {
+        throw new Error("Tệp video tải về rỗng (0 bytes)");
+      }
+      return blob;
+    }
+
+    if (data instanceof Blob) {
+      return data;
+    }
+
+    const blobResponse = await api.get<Blob>(
+      `/api/videos/${videoId}/dub/${language}/download?format=${format}&quality=${encodeURIComponent(quality)}`,
+      { responseType: "blob" }
+    );
+    return blobResponse.data;
   },
 
   // List videos with filtering

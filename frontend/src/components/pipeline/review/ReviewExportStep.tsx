@@ -244,10 +244,16 @@ export default function ReviewExportStep() {
     setIsSwitchingQuality(true);
     setExportError(null);
 
+    const targetLang =
+      state.targetLanguage ||
+      (state.video as any)?.targetLanguage ||
+      (state.video as any)?.target_language ||
+      "vi";
+
     try {
       const newUrl = await videoService.getDubbedVideoPreview(
         state.video.videoId,
-        state.targetLanguage || "vi",
+        targetLang,
         newQuality
       );
       setVideoUrl((prev) => {
@@ -273,10 +279,16 @@ export default function ReviewExportStep() {
     setIsExporting(true);
     setExportError(null);
 
+    const targetLang =
+      state.targetLanguage ||
+      (state.video as any)?.targetLanguage ||
+      (state.video as any)?.target_language ||
+      "vi";
+
     try {
       const blob = await videoService.getDubbedVideoBlob(
         state.video.videoId,
-        state.targetLanguage || "vi",
+        targetLang,
         selectedFormat,
         selectedQuality
       );
