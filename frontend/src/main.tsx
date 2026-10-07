@@ -10,6 +10,21 @@ import "./index.css";
 
 initVeloxi();
 
+// Initialize saved system typography
+const savedFont = localStorage.getItem("vidnova_system_font");
+if (savedFont) {
+  const fontStacks: Record<string, string> = {
+    "Inter": '"Inter", ui-sans-serif, system-ui, sans-serif',
+    "Be Vietnam Pro": '"Be Vietnam Pro", sans-serif',
+    "Roboto": '"Roboto", sans-serif',
+    "Open Sans": '"Open Sans", sans-serif',
+    "Lexend": '"Lexend", sans-serif',
+  };
+  if (fontStacks[savedFont]) {
+    document.documentElement.style.setProperty("--system-font-family", fontStacks[savedFont]);
+  }
+}
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ThemeProvider>

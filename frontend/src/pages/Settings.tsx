@@ -22,14 +22,9 @@ import type { SettingsSection } from "../types/settings";
 import SettingsLayout from "../layouts/SettingsLayout";
 
 const VALID_SECTIONS: SettingsSection[] = [
-  "account",
   "general",
-  "workspace",
-  "ai",
-  "translation",
   "billing",
   "notifications",
-  "integrations",
   "security",
   "privacy",
 ];
@@ -61,7 +56,7 @@ export default function Setting() {
     if (tab && VALID_SECTIONS.includes(tab as SettingsSection)) {
       return tab as SettingsSection;
     }
-    return "account";
+    return "general";
   };
 
   const [activeSection, setActiveSection] =

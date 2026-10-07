@@ -1,5 +1,5 @@
 import { useState, useEffect, type ChangeEvent } from "react";
-import { User, Sparkles, Globe, Sliders } from "lucide-react";
+import { User, Globe, Type } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../app/providers/ThemeContext";
 import { useLanguage } from "../../../app/providers/LanguageContext";
@@ -15,14 +15,41 @@ import ThemeSelector from "../ThemeSelector";
 import SelectBox from "../SelectBox";
 import SettingsSectionHeader from "../common/SettingsSectionHeader";
 import SettingsInput from "../common/SettingsInput";
-import SettingsRow from "../common/SettingsRow";
-import Toggle from "../Toggle";
 import { INITIAL_MOCK_SETTINGS } from "../mock/settingsMockData";
 
 export interface GeneralSectionProps {
   user: UserResponse | null;
   isUploadingAvatar?: boolean;
   onAvatarChange?: (e: ChangeEvent<HTMLInputElement>) => void;
+}
+
+export const SYSTEM_FONT_OPTIONS = [
+  { value: "Inter", label: "Inter", stack: '"Inter", ui-sans-serif, system-ui, sans-serif' },
+  { value: "Be Vietnam Pro", label: "Be Vietnam Pro (Tối ưu Tiếng Việt)", stack: '"Be Vietnam Pro", sans-serif' },
+  { value: "Roboto", label: "Roboto", stack: '"Roboto", sans-serif' },
+  { value: "Open Sans", label: "Open Sans", stack: '"Open Sans", sans-serif' },
+  { value: "Lexend", label: "Lexend (Dễ đọc & Công thái học)", stack: '"Lexend", sans-serif' },
+];
+
+export function applySystemFont(fontFamilyName: string) {
+  const fontObj = SYSTEM_FONT_OPTIONS.find((f) => f.value === fontFamilyName) || SYSTEM_FONT_OPTIONS[0];
+  document.documentElement.style.setProperty("--system-font-family", fontObj.stack);
+  localStorage.setItem("vidnova_system_font", fontObj.value);
+}
+
+export function getDetectedClientTimezone(): string {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const now = new Date();
+    const offsetMinutes = -now.getTimezoneOffset();
+    const sign = offsetMinutes >= 0 ? "+" : "-";
+    const hours = String(Math.floor(Math.abs(offsetMinutes) / 60)).padStart(2, "0");
+    const mins = String(Math.abs(offsetMinutes) % 60);
+    const gmtStr = mins === "0" ? `GMT${sign}${parseInt(hours, 10)}` : `GMT${sign}${hours}:${mins.padStart(2, "0")}`;
+    return `${tz} (${gmtStr})`;
+  } catch {
+    return "Asia/Ho_Chi_Minh (GMT+7)";
+  }
 }
 
 export default function GeneralSection({
@@ -38,10 +65,11 @@ export default function GeneralSection({
   const [fullName, setFullName] = useState(user?.full_name || "Alex Morgan");
   const [email, setEmail] = useState(user?.email || "alex.morgan@vidnova.ai");
   const [bio, setBio] = useState(INITIAL_MOCK_SETTINGS.general.bio);
-  const [timezone, setTimezone] = useState(INITIAL_MOCK_SETTINGS.general.timezone);
+  const [timezone] = useState<string>(() => getDetectedClientTimezone());
   const [dateFormat, setDateFormat] = useState(INITIAL_MOCK_SETTINGS.general.dateFormat);
-  const [density, setDensity] = useState(INITIAL_MOCK_SETTINGS.general.interfaceDensity);
-  const [reducedMotion, setReducedMotion] = useState(INITIAL_MOCK_SETTINGS.general.reducedMotion);
+  const [fontFamily, setFontFamily] = useState<string>(() => {
+    return localStorage.getItem("vidnova_system_font") || "Inter";
+  });
   const [isSaved, setIsSaved] = useState(true);
 
   // Sync user prop if loaded later
@@ -50,7 +78,7 @@ export default function GeneralSection({
     if (user?.email) setEmail(user.email);
   }, [user]);
 
-  // Load preferences from backend
+  // Load preferences from backend and apply saved font
   useEffect(() => {
     const fetchGeneralSettings = async () => {
       try {
@@ -58,10 +86,17 @@ export default function GeneralSection({
         if (data?.preferences?.general) {
           const g = data.preferences.general;
           if (g.bio !== undefined) setBio(g.bio);
-          if (g.timezone !== undefined) setTimezone(g.timezone);
           if (g.dateFormat !== undefined) setDateFormat(g.dateFormat);
-          if (g.interfaceDensity !== undefined) setDensity(g.interfaceDensity);
-          if (g.reducedMotion !== undefined) setReducedMotion(g.reducedMotion);
+          if (g.fontFamily !== undefined) {
+            setFontFamily(g.fontFamily);
+            applySystemFont(g.fontFamily);
+          } else {
+            const savedLocalFont = localStorage.getItem("vidnova_system_font") || "Inter";
+            applySystemFont(savedLocalFont);
+          }
+        } else {
+          const savedLocalFont = localStorage.getItem("vidnova_system_font") || "Inter";
+          applySystemFont(savedLocalFont);
         }
       } catch (err) {
         console.error("[GeneralSection] Failed to load general preferences:", err);
@@ -76,6 +111,13 @@ export default function GeneralSection({
     setIsSaved(false);
   };
 
+  const handleFontChange = (selectedFont: string) => {
+    setFontFamily(selectedFont);
+    applySystemFont(selectedFont);
+    handleFieldChange();
+    toast.info("Typography Updated", `System font set to ${selectedFont}`);
+  };
+
   const handleSave = async () => {
     try {
       await Promise.all([
@@ -86,12 +128,12 @@ export default function GeneralSection({
               bio,
               timezone,
               dateFormat,
-              interfaceDensity: density,
-              reducedMotion,
+              fontFamily,
             },
           },
         }),
       ]);
+      applySystemFont(fontFamily);
       setIsSaved(true);
       toast.success(
         t("settings:toast.settingsSaved", "Settings saved"),
@@ -108,19 +150,17 @@ export default function GeneralSection({
 
   const handleReset = async () => {
     setBio(INITIAL_MOCK_SETTINGS.general.bio);
-    setTimezone(INITIAL_MOCK_SETTINGS.general.timezone);
     setDateFormat(INITIAL_MOCK_SETTINGS.general.dateFormat);
-    setDensity(INITIAL_MOCK_SETTINGS.general.interfaceDensity);
-    setReducedMotion(INITIAL_MOCK_SETTINGS.general.reducedMotion);
+    setFontFamily("Inter");
+    applySystemFont("Inter");
     try {
       await patchUserSettings({
         preferences: {
           general: {
             bio: INITIAL_MOCK_SETTINGS.general.bio,
-            timezone: INITIAL_MOCK_SETTINGS.general.timezone,
+            timezone,
             dateFormat: INITIAL_MOCK_SETTINGS.general.dateFormat,
-            interfaceDensity: INITIAL_MOCK_SETTINGS.general.interfaceDensity,
-            reducedMotion: INITIAL_MOCK_SETTINGS.general.reducedMotion,
+            fontFamily: "Inter",
           },
         },
       });
@@ -137,7 +177,7 @@ export default function GeneralSection({
         title={t("settings:general.title", "General Settings")}
         subtitle={t(
           "settings:general.subtitle",
-          "Manage your profile, visual appearance, language, and regional preferences."
+          "Manage your profile, visual appearance, system typography, and regional preferences."
         )}
         isSaved={isSaved}
         onSave={handleSave}
@@ -209,18 +249,13 @@ export default function GeneralSection({
                 handleFieldChange();
               }}
             />
-
-
           </div>
         </SettingCard>
 
-        {/* CARD 2: APPEARANCE & THEME */}
+        {/* CARD 2: APPEARANCE, THEME & SYSTEM TYPOGRAPHY */}
         <SettingCard
-          title={t("settings:languageTheme.title", "Appearance & Theme")}
-          description={t(
-            "settings:general.appearanceDesc",
-            "Personalize visual palette, dark mode contrast, and interface density."
-          )}
+          title={t("settings:languageTheme.title", "Appearance & System Typography")}
+          description="Personalize visual palette, dark mode contrast, and application-wide font."
         >
           <div className="space-y-4">
             <div>
@@ -256,40 +291,24 @@ export default function GeneralSection({
               </SelectBox>
             </div>
 
-            <div className="divide-y divide-[var(--color-border)]/60 pt-1">
-              <SettingsRow
-                icon={<Sliders size={16} />}
-                title={t("settings:general.compactMode", "Compact Interface Density")}
-                description={t(
-                  "settings:general.compactModeDesc",
-                  "Use condensed paddings and smaller typography."
-                )}
+            <div>
+              <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-[var(--color-text-secondary)]">
+                <Type size={14} className="text-[var(--color-primary)]" />
+                <span>System Typography (Application Font)</span>
+              </label>
+              <SelectBox
+                value={fontFamily}
+                onChange={(val) => handleFontChange(val)}
               >
-                <Toggle
-                  checked={density === "compact"}
-                  onChange={(checked) => {
-                    setDensity(checked ? "compact" : "comfortable");
-                    handleFieldChange();
-                  }}
-                />
-              </SettingsRow>
-
-              <SettingsRow
-                icon={<Sparkles size={16} />}
-                title={t("settings:general.reducedMotion", "Reduced Motion")}
-                description={t(
-                  "settings:general.reducedMotionDesc",
-                  "Minimize spring animations and transition effects."
-                )}
-              >
-                <Toggle
-                  checked={reducedMotion}
-                  onChange={(checked) => {
-                    setReducedMotion(checked);
-                    handleFieldChange();
-                  }}
-                />
-              </SettingsRow>
+                {SYSTEM_FONT_OPTIONS.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.label}
+                  </option>
+                ))}
+              </SelectBox>
+              <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">
+                Active font renders automatically across workspace headers, editors, and dialogs.
+              </p>
             </div>
           </div>
         </SettingCard>
@@ -300,7 +319,7 @@ export default function GeneralSection({
             title={t("settings:general.regionalTitle", "Language & Regional Preferences")}
             description={t(
               "settings:general.regionalDesc",
-              "Configure default interface language, timezone, and calendar formats."
+              "Configure default interface language, client timezone, and calendar formats."
             )}
           >
             <div className="grid gap-5 md:grid-cols-3">
@@ -326,37 +345,17 @@ export default function GeneralSection({
                 </SelectBox>
               </div>
 
-              {/* Timezone */}
+              {/* Timezone (Auto-detected Client Timezone) */}
               <div>
                 <label className="mb-1.5 block text-xs font-semibold text-[var(--color-text-secondary)]">
-                  {t("settings:general.timezoneLabel", "Timezone")}
+                  {t("settings:general.timezoneLabel", "Timezone (Client Detected)")}
                 </label>
-                <SelectBox
-                  value={timezone}
-                  onChange={(val) => {
-                    setTimezone(val);
-                    handleFieldChange();
-                  }}
-                >
-                  <option value="UTC+07:00 (Indochina Time - Bangkok, Hanoi, Jakarta)">
-                    UTC+07:00 (Indochina Time - Hanoi, BKK)
-                  </option>
-                  <option value="UTC+08:00 (Singapore, Beijing, Hong Kong)">
-                    UTC+08:00 (Singapore, Beijing)
-                  </option>
-                  <option value="UTC+09:00 (Tokyo, Seoul)">
-                    UTC+09:00 (Tokyo, Seoul)
-                  </option>
-                  <option value="UTC+00:00 (London, GMT)">
-                    UTC+00:00 (London, GMT)
-                  </option>
-                  <option value="UTC-05:00 (New York, EST)">
-                    UTC-05:00 (New York, EST)
-                  </option>
-                  <option value="UTC-08:00 (San Francisco, PST)">
-                    UTC-08:00 (San Francisco, PST)
-                  </option>
-                </SelectBox>
+                <div className="flex h-10 w-full items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/50 px-3 text-xs font-semibold text-[var(--color-text-primary)]">
+                  <span>{timezone}</span>
+                </div>
+                <p className="mt-1 text-[10px] text-[var(--color-text-muted)]">
+                  Automatically synchronized from client system environment.
+                </p>
               </div>
 
               {/* Date Format */}

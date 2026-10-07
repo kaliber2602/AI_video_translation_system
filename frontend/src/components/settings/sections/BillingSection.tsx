@@ -158,9 +158,21 @@ export default function BillingSection() {
                     {sub?.status ? sub.status.toUpperCase() : "ACTIVE"}
                   </SettingsBadge>
                 </div>
-                <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                  Renews on <b>{renewsDateFormatted}</b> • {sub?.billing_cycle?.toUpperCase() || "MONTHLY"}
-                </p>
+                <div className="mt-1.5 space-y-0.5 text-xs text-[var(--color-text-muted)]">
+                  <p>
+                    Kích hoạt (Subscribed at):{" "}
+                    <b className="text-[var(--color-text-primary)]">
+                      {sub?.started_at ? new Date(sub.started_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "N/A"}
+                    </b>
+                  </p>
+                  <p>
+                    Hết hạn (Expires at):{" "}
+                    <b className="text-[var(--color-text-primary)]">
+                      {renewsDateFormatted}
+                    </b>{" "}
+                    • {sub?.billing_cycle?.toUpperCase() || "MONTHLY"}
+                  </p>
+                </div>
               </div>
 
               <div className="text-right sm:self-center">
@@ -450,7 +462,15 @@ export default function BillingSection() {
         maxWidth="lg"
       >
         <div className="grid gap-4 md:grid-cols-3">
-          {plans.map((p) => {
+          {plans
+            .filter((p) => {
+              // If currently on Pro, do not display Free tier downgrade option
+              if (currentPlanCode === "pro" && p.code === "free") {
+                return false;
+              }
+              return true;
+            })
+            .map((p) => {
             const isSelected = p.code === currentPlanCode;
             const price = billingCycle === "monthly" ? p.price_monthly : p.price_yearly;
 

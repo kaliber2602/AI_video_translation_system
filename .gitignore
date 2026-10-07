@@ -12,3 +12,4 @@ dist/
 .env
 tts-model-cache
 backend/tmp/
+SETTINGS_AUDIT_REPORT_VI.md

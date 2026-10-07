@@ -1,7 +1,6 @@
 export type NotificationType =
   | "pipeline"
   | "quota"
-  | "collaboration"
   | "billing"
   | "security"
   | "system";
@@ -44,15 +43,15 @@ export interface NotificationPreferences {
   email_on_pipeline_success: boolean;
   email_on_pipeline_failed: boolean;
   email_on_quota_warning: boolean;
-  email_on_project_invitation: boolean;
-  email_on_comment_mention: boolean;
+  email_on_project_invitation?: boolean;
+  email_on_comment_mention?: boolean;
 
   // In-App Channels
   inapp_on_pipeline_success: boolean;
   inapp_on_pipeline_failed: boolean;
   inapp_on_quota_warning: boolean;
-  inapp_on_project_invitation: boolean;
-  inapp_on_comment_mention: boolean;
+  inapp_on_project_invitation?: boolean;
+  inapp_on_comment_mention?: boolean;
 }
 
 export type NotificationPreferencesPatch = Partial<NotificationPreferences>;

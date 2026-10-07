@@ -4,11 +4,11 @@ import {
   HardDrive,
   Send,
   ShieldAlert,
+  Check,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "../../../lib/toast";
 import SettingCard from "../SettingCard";
-import SettingsSectionHeader from "../common/SettingsSectionHeader";
 import Toggle from "../Toggle";
 import {
   createTestAlert,
@@ -24,13 +24,9 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   email_on_pipeline_success: true,
   email_on_pipeline_failed: true,
   email_on_quota_warning: true,
-  email_on_project_invitation: true,
-  email_on_comment_mention: true,
   inapp_on_pipeline_success: true,
   inapp_on_pipeline_failed: true,
   inapp_on_quota_warning: true,
-  inapp_on_project_invitation: true,
-  inapp_on_comment_mention: true,
 };
 
 export default function NotificationsSection() {
@@ -42,9 +38,8 @@ export default function NotificationsSection() {
     useState<NotificationPreferences>(DEFAULT_PREFERENCES);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isSendingTest, setIsSendingTest] = useState<boolean>(false);
-  const [isSaved, setIsSaved] = useState<boolean>(true);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   // 1. Fetch preferences from backend on mount
   const loadPreferences = useCallback(async () => {
@@ -53,7 +48,6 @@ export default function NotificationsSection() {
       const data = await getPreferences();
       setPreferences(data);
       setInitialPreferences(data);
-      setIsSaved(true);
     } catch (err: any) {
       console.error("[NotificationsSection] Failed to load preferences:", err);
       toast.error(
@@ -69,24 +63,32 @@ export default function NotificationsSection() {
     loadPreferences();
   }, [loadPreferences]);
 
-  // 2. Handle partial toggle updates
+  // 2. Handle instant auto-save toggle updates
   const handleToggle = async (
     key: keyof NotificationPreferences,
     value: boolean
   ) => {
     const updated = { ...preferences, [key]: value };
     setPreferences(updated);
-    setIsSaved(false);
+    setSaveStatus("saving");
 
-    // Persist change through real backend PATCH endpoint
+    // Persist change immediately through backend PATCH endpoint
     try {
       const patch: NotificationPreferencesPatch = { [key]: value };
       const res = await updatePreferences(patch);
       setPreferences(res);
       setInitialPreferences(res);
-      setIsSaved(true);
+      setSaveStatus("saved");
+      toast.info(
+        "Auto-saved",
+        "Notification preference synchronized."
+      );
+      setTimeout(() => {
+        setSaveStatus("idle");
+      }, 2000);
     } catch (err: any) {
-      console.error("[NotificationsSection] Failed to update preference:", err);
+      console.error("[NotificationsSection] Failed to auto-save preference:", err);
+      setSaveStatus("idle");
       toast.error(
         t("common:error", "Error"),
         t("notifications:preferences.saveError", "Failed to update preference.")
@@ -96,42 +98,7 @@ export default function NotificationsSection() {
     }
   };
 
-  // 3. Handle explicit Save
-  const handleSaveAll = async () => {
-    if (isSaving || isSaved) return;
-
-    try {
-      setIsSaving(true);
-      const res = await updatePreferences(preferences);
-      setPreferences(res);
-      setInitialPreferences(res);
-      setIsSaved(true);
-      toast.success(
-        t("settings:toast.settingsSaved", "Settings saved"),
-        t(
-          "notifications:preferences.saveSuccess",
-          "Notification preferences updated successfully."
-        )
-      );
-    } catch (err: any) {
-      console.error("[NotificationsSection] Failed to save preferences:", err);
-      toast.error(
-        t("common:error", "Error"),
-        t("notifications:preferences.saveError", "Failed to update notification preferences.")
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // 4. Handle Reset
-  const handleReset = () => {
-    setPreferences(initialPreferences);
-    setIsSaved(true);
-    toast.info(t("common:info", "Info"), t("settings:toast.resetDesc", "Preferences reset."));
-  };
-
-  // 5. Handle Test Alert (triggers real POST /api/notifications/test-alert)
+  // 3. Handle Test Alert (triggers real POST /api/notifications/test-alert)
   const handleTestAlert = async () => {
     if (isSendingTest) return;
 
@@ -175,21 +142,38 @@ export default function NotificationsSection() {
 
   return (
     <div className="space-y-6">
-      <SettingsSectionHeader
-        title={t("notifications:preferences.title", "Notification Channels & Preferences")}
-        subtitle={t(
-          "notifications:preferences.subtitle",
-          "Choose which alerts reach your email inbox and which appear as in-app badges."
-        )}
-        isSaved={isSaved}
-        onSave={handleSaveAll}
-        onReset={handleReset}
-        actions={
+      {/* Header with instant auto-save status and Send Test Alert */}
+      <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-2xl">
+              {t("notifications:preferences.title", "Notification Channels & Preferences")}
+            </h2>
+            {saveStatus === "saving" && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-soft)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--color-primary)] animate-pulse">
+                Auto-saving...
+              </span>
+            )}
+            {saveStatus === "saved" && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                <Check size={12} /> Auto-saved
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-[var(--color-text-muted)] sm:text-sm">
+            {t(
+              "notifications:preferences.subtitle",
+              "Choose which alerts reach your email inbox and which appear as in-app badges. Changes save automatically."
+            )}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
             type="button"
             onClick={handleTestAlert}
             disabled={isSendingTest}
-            className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-surface-muted)] active:scale-95 shadow-xs disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-surface-muted)] active:scale-95 shadow-xs disabled:opacity-50 cursor-pointer"
           >
             <Send
               size={13}
@@ -201,10 +185,10 @@ export default function NotificationsSection() {
                 : t("notifications:preferences.sendTestAlert", "Send Test Alert")}
             </span>
           </button>
-        }
-      />
+        </div>
+      </div>
 
-      {/* Grid of Logical Groups: Pipeline, Quota, Collaboration */}
+      {/* Grid of Logical Groups: Pipeline, Quota */}
       <div className="grid gap-6">
         {/* =====================================================
             1. VIDEO PIPELINE PROCESSING
@@ -345,7 +329,6 @@ export default function NotificationsSection() {
             </div>
           </div>
         </SettingCard>
-
       </div>
     </div>
   );

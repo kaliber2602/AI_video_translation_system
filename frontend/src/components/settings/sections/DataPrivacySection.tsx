@@ -1,14 +1,9 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import {
-  Shield,
   Download,
   Trash2,
-  Database,
   Sparkles,
-  Clock,
   AlertTriangle,
-  CheckCircle2,
-  Lock,
   Search,
   Video,
   FileText,
@@ -17,23 +12,19 @@ import {
   FolderGit2,
   RefreshCw,
   Loader2,
-  ArrowUpRight,
   Activity,
+  Archive,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 import { toast } from "../../../lib/toast";
 import SettingCard from "../SettingCard";
 import SelectBox from "../SelectBox";
 import SettingsSectionHeader from "../common/SettingsSectionHeader";
-import SettingsRow from "../common/SettingsRow";
 import SettingsBadge from "../common/SettingsBadge";
 import SettingsDangerZone from "../common/SettingsDangerZone";
 import SettingsModal from "../common/SettingsModal";
 import SettingsInput from "../common/SettingsInput";
-import Toggle from "../Toggle";
 import {
-  INITIAL_MOCK_SETTINGS,
   type StorageFileItem,
 } from "../mock/settingsMockData";
 import {
@@ -44,17 +35,19 @@ import {
   deleteStorageFile,
   exportUserDataArchive,
 } from "../../../services/subscription.service";
-import { deleteAccount } from "../../../services/auth.service";
-import { getUserSettings, patchUserSettings } from "../../../services/settings.service";
+import { deleteAccount, getMe } from "../../../services/auth.service";
 import type {
   StorageBreakdownResponse,
   EffectiveQuota,
   CreditAuditLog,
 } from "../../../types/subscription";
+import type { UserResponse } from "../../../types/auth";
 
 export default function DataPrivacySection() {
   const { t } = useTranslation(["settings", "common"]);
-  const navigate = useNavigate();
+
+  // Current user state for real account deletion
+  const [currentUser, setCurrentUser] = useState<UserResponse | null>(null);
 
   // Live Storage Breakdown State
   const [breakdown, setBreakdown] = useState<StorageBreakdownResponse | null>(null);
@@ -76,13 +69,22 @@ export default function DataPrivacySection() {
   // File to delete state (for delete confirmation modal)
   const [fileToDelete, setFileToDelete] = useState<StorageFileItem | null>(null);
 
-  // Load live breakdown, quota, and audit logs from backend API
+  // Real Export state & modal
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Danger zone delete account modal
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
+  // Load live breakdown, quota, audit logs, and current user
   const loadStorageData = useCallback(async () => {
     try {
       setIsLoadingBreakdown(true);
       setIsLoadingQuota(true);
 
-      const [storageData, quotaData, logsData] = await Promise.all([
+      const [storageData, quotaData, logsData, userData] = await Promise.all([
         getStorageBreakdown().catch((err) => {
           console.error("[DataPrivacySection] Storage breakdown error:", err);
           return null;
@@ -91,11 +93,16 @@ export default function DataPrivacySection() {
           console.error("[DataPrivacySection] Quota fetch error:", err);
           return null;
         }),
-        getMyCreditAuditLogs(6).catch((err) => {
+        getMyCreditAuditLogs(100).catch((err) => {
           console.error("[DataPrivacySection] Credit logs fetch error:", err);
           return { logs: [], total: 0 };
         }),
+        getMe().catch(() => null),
       ]);
+
+      if (userData) {
+        setCurrentUser(userData);
+      }
 
       if (storageData) {
         setBreakdown(storageData);
@@ -128,7 +135,7 @@ export default function DataPrivacySection() {
       }
     } catch (err) {
       console.error("[DataPrivacySection] Failed to load privacy & quota data:", err);
-      setFiles(INITIAL_MOCK_SETTINGS.privacy.storageFiles);
+      setFiles([]);
     } finally {
       setIsLoadingBreakdown(false);
       setIsLoadingQuota(false);
@@ -147,64 +154,6 @@ export default function DataPrivacySection() {
       window.removeEventListener("subscription-updated", handleSync);
     };
   }, [loadStorageData]);
-
-  // Privacy toggles
-  const [aiTraining, setAiTraining] = useState(
-    INITIAL_MOCK_SETTINGS.privacy.aiModelTrainingConsent
-  );
-  const [telemetry, setTelemetry] = useState(
-    INITIAL_MOCK_SETTINGS.privacy.telemetryAnalytics
-  );
-  const [personalized, setPersonalized] = useState(
-    INITIAL_MOCK_SETTINGS.privacy.personalizedRecommendations
-  );
-  const [trashDays, setTrashDays] = useState(
-    INITIAL_MOCK_SETTINGS.privacy.trashRetentionDays
-  );
-  const [autoCleanCache, setAutoCleanCache] = useState(
-    INITIAL_MOCK_SETTINGS.privacy.autoCleanCache
-  );
-
-  // Load privacy preferences on mount
-  useEffect(() => {
-    const fetchPrivacySettings = async () => {
-      try {
-        const data = await getUserSettings();
-        if (data?.preferences?.privacy) {
-          const p = data.preferences.privacy;
-          if (p.aiModelTrainingConsent !== undefined) setAiTraining(p.aiModelTrainingConsent);
-          if (p.telemetryAnalytics !== undefined) setTelemetry(p.telemetryAnalytics);
-          if (p.personalizedRecommendations !== undefined) setPersonalized(p.personalizedRecommendations);
-          if (p.trashRetentionDays !== undefined) setTrashDays(p.trashRetentionDays);
-          if (p.autoCleanCache !== undefined) setAutoCleanCache(p.autoCleanCache);
-        }
-      } catch (err) {
-        console.error("[DataPrivacySection] Failed to load preferences:", err);
-      }
-    };
-    fetchPrivacySettings();
-  }, []);
-
-  // Data Export Modal & Selected Entities
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [exportEntities, setExportEntities] = useState({
-    projectsMetadata: true,
-    transcripts: true,
-    subtitles: true,
-    glossaries: true,
-    dubbedAudio: false,
-    invoices: false,
-  });
-  const [exportState, setExportState] = useState<"idle" | "generating" | "ready">("idle");
-
-  // Danger zone delete account modal
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
-  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
-
-  const [isSaved, setIsSaved] = useState(true);
-
-  const markDirty = () => setIsSaved(false);
 
   // Filter & Sort Logic for File Management Table
   const filteredAndSortedFiles = useMemo(() => {
@@ -238,7 +187,6 @@ export default function DataPrivacySection() {
       const res = await deleteStorageFile(fileToDelete.resourceType, fileToDelete.id);
       toast.success("Resource Deleted", res.message);
       setFileToDelete(null);
-      // Dispatch quota update for Sidebar & Topbar
       window.dispatchEvent(new CustomEvent("subscription-updated"));
       await loadStorageData();
     } catch (err: any) {
@@ -274,32 +222,28 @@ export default function DataPrivacySection() {
     }
   };
 
-  // Handle Request Export (Real ZIP generator)
+  // Direct ZIP Export Archive execution
   const handleStartExport = async () => {
     try {
-      setExportState("generating");
+      setIsExporting(true);
       toast.info(
-        "Generating Archive",
-        "Packaging selected database entities, manifests, transcripts, and subtitles..."
+        "Packaging Archive",
+        "Compiling database manifests, project data, transcripts, and subtitles into ZIP..."
       );
 
       await exportUserDataArchive();
-      setExportState("ready");
 
       toast.success(
         "Archive Downloaded",
-        "Your project archive package (vidnova_user_archive.zip) has been compiled and downloaded."
+        "Your project archive (vidnova_user_archive.zip) has been compiled and downloaded."
       );
       setIsExportModalOpen(false);
     } catch (err: any) {
-      setExportState("idle");
       console.error("[DataPrivacySection] Export archive failed:", err);
       toast.error("Export Failed", err?.response?.data?.detail || "Could not generate user data archive.");
+    } finally {
+      setIsExporting(false);
     }
-  };
-
-  const handleDownloadArchive = () => {
-    setIsExportModalOpen(false);
   };
 
   // Handle Real Permanent Account Deletion
@@ -323,56 +267,6 @@ export default function DataPrivacySection() {
       toast.error("Account Deletion Failed", err?.response?.data?.detail || "Could not delete account.");
     } finally {
       setIsDeletingAccount(false);
-    }
-  };
-
-  const handleSave = async () => {
-    try {
-      await patchUserSettings({
-        preferences: {
-          privacy: {
-            aiModelTrainingConsent: aiTraining,
-            telemetryAnalytics: telemetry,
-            personalizedRecommendations: personalized,
-            trashRetentionDays: trashDays,
-            autoCleanCache,
-          },
-        },
-      });
-      setIsSaved(true);
-      toast.success(
-        t("settings:toast.settingsSaved", "Settings saved"),
-        t("settings:toast.privacySavedDesc", "Data retention policies and privacy consents updated.")
-      );
-    } catch (err: any) {
-      console.error("[DataPrivacySection] Failed to save preferences:", err);
-      toast.error("Save Failed", err?.response?.data?.detail || "Could not save privacy preferences.");
-    }
-  };
-
-  const handleReset = async () => {
-    setAiTraining(false);
-    setTelemetry(true);
-    setPersonalized(true);
-    setTrashDays(30);
-    setAutoCleanCache(true);
-
-    try {
-      await patchUserSettings({
-        preferences: {
-          privacy: {
-            aiModelTrainingConsent: false,
-            telemetryAnalytics: true,
-            personalizedRecommendations: true,
-            trashRetentionDays: 30,
-            autoCleanCache: true,
-          },
-        },
-      });
-      setIsSaved(true);
-      toast.info("Reset to defaults", "Privacy preferences restored.");
-    } catch (err: any) {
-      console.error("[DataPrivacySection] Failed to reset preferences:", err);
     }
   };
 
@@ -418,35 +312,26 @@ export default function DataPrivacySection() {
         title={t("settings:privacy.title", "Data & Privacy Controls")}
         subtitle={t(
           "settings:privacy.subtitle",
-          "Manage storage footprint, large video assets, retention policies, selective data exports, and AI privacy."
+          "Manage storage quota, track AI deductions, review large video assets, download complete ZIP backup, and account termination."
         )}
-        isSaved={isSaved}
-        onSave={handleSave}
-        onReset={handleReset}
         actions={
           <button
             type="button"
-            onClick={() => {
-              setExportState("idle");
-              setIsExportModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 rounded-xl border border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)] px-3 py-2 text-xs font-bold text-[var(--color-primary)] transition hover:bg-[var(--color-primary)] hover:text-white active:scale-95"
+            onClick={() => setIsExportModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)] px-3 py-2 text-xs font-bold text-[var(--color-primary)] transition hover:bg-[var(--color-primary)] hover:text-white active:scale-95 cursor-pointer"
           >
             <Download size={13} />
-            <span>Export Data Archive</span>
+            <span>Tải bản sao lưu ZIP</span>
           </button>
         }
       />
 
-      {/* ========================================================= */}
-      {/* 1. RESOURCE ALLOCATION & LIVE QUOTA DASHBOARD             */}
-      {/* ========================================================= */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* CARD 0: AI PROCESSING WORDS & LIVE QUOTA DASHBOARD (Full width on lg) */}
         <div className="lg:col-span-2">
           <SettingCard
-            title={t("settings:privacy.creditsTitle", "AI Word Quota & Remaining Balance")}
-            description="Live tracking of AI compute allowance. Speech processing automatically deducts quota based on exact tokenized words. Subtitle editing in Video Editor is 100% free (0 quota)."
+            title={t("settings:privacy.creditsTitle", "AI Word Quota & Deductions")}
+            description="Authoritative tracking of speech recognition and translation tokenized words. Subtitle editor in workspace is 100% free."
             action={
               <button
                 type="button"
@@ -460,42 +345,31 @@ export default function DataPrivacySection() {
             }
           >
             <div className="grid gap-6 lg:grid-cols-2">
-              {/* Left Column: Word Balance, Progress, Rates */}
+              {/* Left Column: Remaining Words Gauge */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-2xl font-black text-[var(--color-text-primary)]">
-                        {quota?.words ? quota.words.remaining_words.toLocaleString() : (quota?.credits ? (quota.credits.remaining_credits * 10).toLocaleString() : "5,000")}
-                      </span>
+                    <span className="text-2xl font-black text-[var(--color-text-primary)]">
+                      {(quota?.words?.remaining_words ?? (quota?.credits?.remaining_credits ? quota.credits.remaining_credits * 10 : 5000)).toLocaleString()}{" "}
                       <span className="text-xs font-normal text-[var(--color-text-muted)]">
-                        / {quota?.words ? quota.words.total_words.toLocaleString() : (quota?.credits ? (quota.credits.total_credits * 10).toLocaleString() : "5,000")} Từ (Words)
+                        / {(quota?.words?.total_words ?? (quota?.credits?.total_credits ? quota.credits.total_credits * 10 : 5000)).toLocaleString()} words
                       </span>
-                    </div>
-                    <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
-                      {(quota?.words?.used_words ?? ((quota?.credits?.used_credits ?? 0) * 10)).toLocaleString()} từ đã dùng •{" "}
-                      <b>~{Math.round((quota?.words?.remaining_words ?? ((quota?.credits?.remaining_credits ?? 500) * 10)) / 150).toLocaleString()} mins</b> thời lượng âm thanh ước tính
+                    </span>
+                    <p className="text-xs text-[var(--color-text-muted)]">
+                      Monthly AI Word Allowance • Reset every cycle
                     </p>
                   </div>
-
-                  <SettingsBadge
-                    variant={
-                      quota && quota.credits.total_credits > 0 && (quota.credits.remaining_credits / quota.credits.total_credits) < 0.2
-                        ? "danger"
-                        : "primary"
-                    }
-                    size="md"
-                  >
+                  <SettingsBadge variant="warning" size="md">
                     {quota?.words
-                      ? `${Math.round((quota.words.remaining_words / Math.max(1, quota.words.total_words)) * 100)}% Available`
-                      : quota && quota.credits.total_credits > 0
-                      ? `${Math.round((quota.credits.remaining_credits / quota.credits.total_credits) * 100)}% Available`
-                      : "100% Available"}
+                      ? `${Math.round(((quota.words.total_words - quota.words.remaining_words) / Math.max(1, quota.words.total_words)) * 100)}% Used`
+                      : quota?.credits
+                      ? `${Math.round(((quota.credits.total_credits - quota.credits.remaining_credits) / Math.max(1, quota.credits.total_credits)) * 100)}% Used`
+                      : "0% Used"}
                   </SettingsBadge>
                 </div>
 
-                {/* Gradient Progress Bar */}
-                <div className="h-3 w-full overflow-hidden rounded-full bg-[var(--color-border)] flex">
+                {/* Single visual progress bar */}
+                <div className="h-3 w-full overflow-hidden rounded-full bg-[var(--color-border)]">
                   <div
                     className="h-full bg-gradient-to-r from-amber-400 via-emerald-400 to-[var(--color-primary)] transition-all duration-500"
                     style={{
@@ -507,54 +381,24 @@ export default function DataPrivacySection() {
                           : 100
                       }%`,
                     }}
-                    title={`${quota?.words?.remaining_words ?? (quota?.credits?.remaining_credits ? quota.credits.remaining_credits * 10 : 5000)} words remaining`}
                   />
-                </div>
-
-                {/* Unit Cost Badges */}
-                <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-4 text-xs">
-                  <div className="rounded-xl border border-[var(--color-border)]/60 bg-[var(--color-surface-muted)]/50 p-2.5 text-center">
-                    <span className="text-[10px] font-semibold text-[var(--color-text-muted)] block">Whisper STT</span>
-                    <span className="text-xs font-bold text-[var(--color-text-primary)]">1 từ / từ gốc</span>
-                    <span className="text-[9px] text-[var(--color-text-muted)] block truncate">WhisperX / Turbo</span>
-                  </div>
-                  <div className="rounded-xl border border-[var(--color-border)]/60 bg-[var(--color-surface-muted)]/50 p-2.5 text-center">
-                    <span className="text-[10px] font-semibold text-[var(--color-text-muted)] block">Translation</span>
-                    <span className="text-xs font-bold text-[var(--color-text-primary)]">1 - 2 từ / từ</span>
-                    <span className="text-[9px] text-[var(--color-text-muted)] block truncate">NLLB (1x) / GPT-4o (2x)</span>
-                  </div>
-                  <div className="rounded-xl border border-[var(--color-border)]/60 bg-[var(--color-surface-muted)]/50 p-2.5 text-center">
-                    <span className="text-[10px] font-semibold text-[var(--color-text-muted)] block">Voice TTS</span>
-                    <span className="text-xs font-bold text-[var(--color-text-primary)]">1 - 3 từ / từ</span>
-                    <span className="text-[9px] text-[var(--color-text-muted)] block truncate">XTTS (1x) / 11Labs (3x)</span>
-                  </div>
-                  <div className="rounded-xl border border-[var(--color-border)]/60 bg-[var(--color-surface-muted)]/50 p-2.5 text-center">
-                    <span className="text-[10px] font-semibold text-[var(--color-text-muted)] block">Subtitle Editor</span>
-                    <span className="text-xs font-bold text-emerald-600">0 Quota Miễn phí</span>
-                    <span className="text-[9px] text-[var(--color-text-muted)] block truncate">Chỉnh sửa tự do</span>
-                  </div>
                 </div>
               </div>
 
-              {/* Right Column: Live Deduction Audit Logs */}
+              {/* Right Column: Live Deduction Audit Logs (All items loaded) */}
               <div className="space-y-2.5 border-t border-[var(--color-border)]/60 pt-3 lg:border-t-0 lg:border-l lg:pl-6 lg:pt-0">
                 <div className="flex items-center justify-between text-xs font-bold text-[var(--color-text-primary)]">
                   <span className="flex items-center gap-1.5">
                     <Activity size={13} className="text-amber-500" />
                     Recent AI Word Deductions
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/settings?tab=billing")}
-                    className="text-[11px] font-semibold text-[var(--color-primary)] hover:underline flex items-center gap-0.5 cursor-pointer"
-                  >
-                    <span>Manage Plan</span>
-                    <ArrowUpRight size={12} />
-                  </button>
+                  <span className="text-[11px] text-[var(--color-text-muted)]">
+                    {creditLogs.length} events
+                  </span>
                 </div>
 
                 {creditLogs && creditLogs.length > 0 ? (
-                  <div className="space-y-1.5 max-h-[175px] overflow-y-auto pr-1">
+                  <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
                     {creditLogs.map((log) => (
                       <div
                         key={log.id}
@@ -592,7 +436,7 @@ export default function DataPrivacySection() {
                     <Sparkles size={16} className="text-amber-500/80 mb-1" />
                     <p className="font-semibold text-[var(--color-text-secondary)]">No words deducted yet</p>
                     <p className="text-[11px]">
-                      Word quota is automatically deducted when running STT, Translation, or TTS. Subtitle editor is 0 quota.
+                      Word quota is automatically deducted when running STT, Translation, or TTS.
                     </p>
                   </div>
                 )}
@@ -601,16 +445,16 @@ export default function DataPrivacySection() {
           </SettingCard>
         </div>
 
-        {/* CARD 1: OVERVIEW PROGRESS & MULTI-CATEGORY BAR */}
+        {/* CARD 1: OVERVIEW PROGRESS & USER-FRIENDLY CATEGORIES */}
         <SettingCard
           title={t("settings:storage.title", "Storage & Data Usage")}
-          description="Live allocation of video footage, rendered dubs, extracted vocal stems, and cache."
+          description="Authoritative allocation of video footage, rendered dubs, extracted vocal stems, and cache."
           action={
             <button
               type="button"
               onClick={loadStorageData}
               disabled={isLoadingBreakdown}
-              className="text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition disabled:opacity-50 p-1"
+              className="text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition disabled:opacity-50 p-1 cursor-pointer"
               title="Refresh Storage"
             >
               <RefreshCw size={14} className={isLoadingBreakdown ? "animate-spin text-[var(--color-primary)]" : ""} />
@@ -660,7 +504,7 @@ export default function DataPrivacySection() {
               )}
             </div>
 
-            {/* Real Resource Categories */}
+            {/* Friendly Resource Categories (No technical DB column names) */}
             <div className="space-y-2 pt-2 text-xs">
               {(breakdown?.storage_by_type || []).map((item) => (
                 <div
@@ -676,9 +520,6 @@ export default function DataPrivacySection() {
                     />
                     <span className="font-semibold text-[var(--color-text-primary)]">
                       {item.label}
-                    </span>
-                    <span className="hidden font-mono text-[10px] text-[var(--color-text-muted)] sm:inline">
-                      ({item.db_field})
                     </span>
                   </div>
                   <div className="text-right">
@@ -754,64 +595,59 @@ export default function DataPrivacySection() {
           </div>
         </SettingCard>
 
-        {/* CARD 3: TOP 5 LARGEST FILES QUICK INSIGHT (Full width on lg) */}
+        {/* CARD 3: TOP 5 LARGEST FILES (Ergonomic Flat List) */}
         <div className="lg:col-span-2">
           <SettingCard
             title="Largest Files"
-            description="Top storage consumers across all projects. Quick actions to review or reclaim space."
+            description="Top storage consumers across all projects. Quick actions to download or reclaim space."
           >
             {topLargestFiles.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="divide-y divide-[var(--color-border)]/60 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
                 {topLargestFiles.map((file, idx) => {
                   const meta = getResourceMeta(file.resourceType);
                   return (
                     <div
                       key={file.id}
-                      className="flex flex-col justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 shadow-sm transition hover:border-[var(--color-primary)]/40"
+                      className="flex items-center justify-between p-3.5 text-xs hover:bg-[var(--color-surface-muted)]/40 transition"
                     >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-bold text-[var(--color-primary)]">
-                            #{idx + 1} Largest
-                          </span>
-                          <SettingsBadge variant={meta.badgeVariant} size="sm">
-                            {meta.label}
-                          </SettingsBadge>
-                        </div>
-
-                        <h5 className="text-xs font-bold text-[var(--color-text-primary)] line-clamp-1" title={file.filename}>
-                          {file.filename}
-                        </h5>
-
-                        <p className="text-[11px] text-[var(--color-text-muted)] line-clamp-1">
-                          Project: <b>{file.projectName}</b>
-                        </p>
-
-                        <div className="flex items-center justify-between text-[11px] text-[var(--color-text-muted)]">
-                          <span>{file.specs}</span>
-                          <span className="font-bold text-[var(--color-text-primary)]">
-                            {file.sizeFormatted}
-                          </span>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface-muted)] font-mono text-[11px] font-bold text-[var(--color-text-muted)]">
+                          #{idx + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-[var(--color-text-primary)] truncate max-w-[280px]" title={file.filename}>
+                              {file.filename}
+                            </span>
+                            <SettingsBadge variant={meta.badgeVariant} size="sm">
+                              {meta.label}
+                            </SettingsBadge>
+                          </div>
+                          <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
+                            Dự án: <b>{file.projectName}</b> • {file.specs}
+                          </p>
                         </div>
                       </div>
 
-                      <div className="mt-3 flex items-center justify-end gap-2 border-t border-[var(--color-border)]/40 pt-2">
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="font-bold text-sm text-[var(--color-text-primary)]">
+                          {file.sizeFormatted}
+                        </span>
                         <button
                           type="button"
                           onClick={() => handleDownloadFile(file)}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:border-[var(--color-primary)] transition cursor-pointer"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:border-[var(--color-primary)] transition cursor-pointer"
                           title="Download"
                         >
-                          <Download size={13} />
+                          <Download size={14} />
                         </button>
-
                         <button
                           type="button"
                           onClick={() => setFileToDelete(file)}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-rose-600 hover:border-rose-500/30 hover:bg-rose-500/10 transition cursor-pointer"
-                          title="Delete Resource"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-rose-600 hover:border-rose-500/30 hover:bg-rose-500/10 transition cursor-pointer"
+                          title="Delete"
                         >
-                          <Trash2 size={13} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </div>
@@ -821,22 +657,21 @@ export default function DataPrivacySection() {
             ) : (
               <div className="rounded-xl border border-dashed border-[var(--color-border)] p-8 text-center text-xs text-[var(--color-text-muted)]">
                 <Video size={24} className="mx-auto mb-2 text-[var(--color-text-muted)] opacity-50" />
-                No files found in storage yet. Upload your first video to see asset ranking.
+                No files found in storage yet.
               </div>
             )}
           </SettingCard>
         </div>
 
-        {/* CARD 4: INTERACTIVE FULL FILE MANAGEMENT DATA TABLE (Full width on lg) */}
+        {/* CARD 4: ALL STORED ASSETS TABLE */}
         <div className="lg:col-span-2">
           <SettingCard
             title="All Stored Video Assets & Pipeline Files"
-            description="Search, filter by real database resource types, and safely manage project media."
+            description="Search, filter by resource types, and manage project media."
           >
             <div className="space-y-4">
-              {/* Toolbar: Search, Filter, Sort */}
+              {/* Toolbar */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                {/* Search */}
                 <div className="relative flex-1 min-w-[240px]">
                   <Search
                     size={15}
@@ -851,7 +686,6 @@ export default function DataPrivacySection() {
                   />
                 </div>
 
-                {/* Filter & Sort Controls */}
                 <div className="flex flex-wrap items-center gap-2.5">
                   <div className="w-[170px]">
                     <SelectBox
@@ -881,7 +715,7 @@ export default function DataPrivacySection() {
                 </div>
               </div>
 
-              {/* Table Container (Desktop) */}
+              {/* Table Container */}
               <div className="hidden md:block overflow-x-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
                 <table className="w-full text-left text-xs">
                   <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-muted)]/70 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
@@ -939,10 +773,8 @@ export default function DataPrivacySection() {
                               <div className="flex items-center justify-end gap-1.5">
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    toast.info("Downloading File", `Initiating download for ${file.filename}`)
-                                  }
-                                  className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-text-primary)] transition"
+                                  onClick={() => handleDownloadFile(file)}
+                                  className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-text-primary)] transition cursor-pointer"
                                   title="Download"
                                 >
                                   <Download size={13} />
@@ -950,7 +782,7 @@ export default function DataPrivacySection() {
                                 <button
                                   type="button"
                                   onClick={() => setFileToDelete(file)}
-                                  className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--color-text-muted)] hover:bg-rose-500/10 hover:text-rose-600 transition"
+                                  className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--color-text-muted)] hover:bg-rose-500/10 hover:text-rose-600 transition cursor-pointer"
                                   title="Delete"
                                 >
                                   <Trash2 size={13} />
@@ -965,7 +797,7 @@ export default function DataPrivacySection() {
                 </table>
               </div>
 
-              {/* Mobile Card List (< 768px) */}
+              {/* Mobile Card List */}
               <div className="block md:hidden space-y-3">
                 {filteredAndSortedFiles.map((file) => {
                   const meta = getResourceMeta(file.resourceType);
@@ -1004,7 +836,7 @@ export default function DataPrivacySection() {
                           <button
                             type="button"
                             onClick={() => setFileToDelete(file)}
-                            className="text-rose-600 font-semibold"
+                            className="text-rose-600 font-semibold cursor-pointer"
                           >
                             Delete
                           </button>
@@ -1018,123 +850,12 @@ export default function DataPrivacySection() {
           </SettingCard>
         </div>
 
-        {/* CARD 5: AI PRIVACY & MODEL TRAINING */}
-        <SettingCard
-          title={t("settings:privacy.aiPrivacyTitle", "AI Model Privacy & Training")}
-          description={t(
-            "settings:privacy.aiPrivacyDesc",
-            "Control whether your audio recordings and transcriptions are used for AI training."
-          )}
-        >
-          <div className="divide-y divide-[var(--color-border)]/60">
-            <SettingsRow
-              icon={<Lock size={16} />}
-              title={t("settings:privacy.aiTraining", "AI Training Opt-Out")}
-              description={t(
-                "settings:privacy.aiTrainingDesc",
-                "Strictly prohibit VidNova or sub-processors from training foundation models on your content."
-              )}
-              badge={<SettingsBadge variant="success" size="sm">Protected</SettingsBadge>}
-            >
-              <Toggle
-                checked={!aiTraining}
-                onChange={(val) => {
-                  setAiTraining(!val);
-                  markDirty();
-                }}
-              />
-            </SettingsRow>
-
-            <SettingsRow
-              icon={<Shield size={16} />}
-              title={t("settings:privacy.telemetry", "Anonymous Telemetry & Diagnostics")}
-              description={t(
-                "settings:privacy.telemetryDesc",
-                "Share anonymous app crash reports and latency metrics to help improve video translation speed."
-              )}
-            >
-              <Toggle
-                checked={telemetry}
-                onChange={(val) => {
-                  setTelemetry(val);
-                  markDirty();
-                }}
-              />
-            </SettingsRow>
-
-            <SettingsRow
-              icon={<Sparkles size={16} />}
-              title={t("settings:privacy.personalized", "Personalized AI Recommendations")}
-              description={t(
-                "settings:privacy.personalizedDesc",
-                "Allow AI assistant to tailor voice and subtitle style suggestions based on editing habits."
-              )}
-            >
-              <Toggle
-                checked={personalized}
-                onChange={(val) => {
-                  setPersonalized(val);
-                  markDirty();
-                }}
-              />
-            </SettingsRow>
-          </div>
-        </SettingCard>
-
-        {/* CARD 6: RETENTION & CACHE */}
-        <SettingCard
-          title={t("settings:privacy.retentionTitle", "Data Retention & Storage Lifecycle")}
-          description={t(
-            "settings:privacy.retentionDesc",
-            "Automate cleanup schedules for discarded projects, trash, and temporary audio waveforms."
-          )}
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-[var(--color-text-secondary)]">
-                <Clock size={14} className="text-[var(--color-primary)]" />
-                {t("settings:privacy.trashRetention", "Trash Auto-Purge Period")}
-              </label>
-              <SelectBox
-                value={String(trashDays)}
-                onChange={(val) => {
-                  setTrashDays(Number(val) as any);
-                  markDirty();
-                }}
-              >
-                <option value="30">30 Days (Standard retention)</option>
-                <option value="60">60 Days (Extended buffer)</option>
-                <option value="90">90 Days (Enterprise archive)</option>
-              </SelectBox>
-            </div>
-
-            <div className="divide-y divide-[var(--color-border)]/60 pt-1">
-              <SettingsRow
-                icon={<Database size={16} />}
-                title={t("settings:privacy.autoCleanCache", "Auto-Clear Render Cache")}
-                description={t(
-                  "settings:privacy.autoCleanCacheDesc",
-                  "Automatically flush temporary audio chunk files older than 7 days (saves ~2.5 GB)."
-                )}
-              >
-                <Toggle
-                  checked={autoCleanCache}
-                  onChange={(val) => {
-                    setAutoCleanCache(val);
-                    markDirty();
-                  }}
-                />
-              </SettingsRow>
-            </div>
-          </div>
-        </SettingCard>
-
         {/* DANGER ZONE (Full width on lg) */}
         <div className="lg:col-span-2">
           <SettingsDangerZone
             title="Delete Account & Workspace Data"
-            description="Permanently delete your user profile, all 28 video projects, generated voice dubbings, and cancel active subscriptions immediately."
-            warningNote="This action is completely irreversible. All video files and cloud transcripts will be immediately wiped."
+            description="Permanently delete your user profile, video projects, generated voice dubbings, and active subscriptions."
+            warningNote="This action is completely irreversible. All stored video footage and cloud transcripts will be immediately wiped."
             actionText="Delete My Account"
             onAction={() => {
               setDeleteConfirmationText("");
@@ -1144,9 +865,7 @@ export default function DataPrivacySection() {
         </div>
       </div>
 
-      {/* ========================================================= */}
-      {/* MODAL: DELETE FILE CONFIRMATION                           */}
-      {/* ========================================================= */}
+      {/* MODAL: DELETE FILE CONFIRMATION */}
       <SettingsModal
         isOpen={Boolean(fileToDelete)}
         onClose={() => setFileToDelete(null)}
@@ -1197,123 +916,70 @@ export default function DataPrivacySection() {
         )}
       </SettingsModal>
 
-      {/* ========================================================= */}
-      {/* MODAL: SELECTIVE DATA EXPORT                              */}
-      {/* ========================================================= */}
+      {/* MODAL: DIRECT ZIP EXPORT */}
       <SettingsModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
-        title="Export Project & Account Data"
-        subtitle="Select specific database entities to include in your ZIP archive"
-        icon={<Download size={20} />}
+        title="Tải toàn bộ bản sao lưu ZIP"
+        subtitle="Xuất gói sao lưu lưu trữ hoàn chỉnh gồm dữ liệu dự án, transcript và phụ đề"
+        icon={<Archive size={20} />}
         maxWidth="md"
         footer={
-          exportState === "ready" ? (
+          <div className="flex gap-2">
             <button
               type="button"
-              onClick={handleDownloadArchive}
-              className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-700 flex items-center gap-1.5"
+              onClick={() => setIsExportModalOpen(false)}
+              disabled={isExporting}
+              className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)] cursor-pointer"
             >
-              <CheckCircle2 size={14} />
-              Archive Downloaded
+              Đóng
             </button>
-          ) : (
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setIsExportModalOpen(false)}
-                className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleStartExport}
-                disabled={exportState === "generating"}
-                className="rounded-xl bg-[var(--color-primary)] px-5 py-2 text-xs font-bold text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
-              >
-                {exportState === "generating" ? "Packaging Archive..." : "Generate Archive (ZIP)"}
-              </button>
-            </div>
-          )
+            <button
+              type="button"
+              onClick={handleStartExport}
+              disabled={isExporting}
+              className="rounded-xl bg-[var(--color-primary)] px-5 py-2 text-xs font-bold text-white hover:bg-[var(--color-primary-hover)] flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              {isExporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+              <span>{isExporting ? "Đang đóng gói ZIP..." : "Tải toàn bộ bản sao lưu ZIP"}</span>
+            </button>
+          </div>
         }
       >
-        <div className="space-y-3 text-xs">
-          <p className="text-[var(--color-text-muted)]">
-            Choose the specific data entities you wish to bundle into your export:
-          </p>
-
-          <div className="divide-y divide-[var(--color-border)]/60 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/30 px-3.5 py-1">
-            {[
-              {
-                key: "projectsMetadata",
-                title: "Projects & Workspace Metadata",
-                desc: "Project titles, video lists, tags, and member roles (JSON)",
-              },
-              {
-                key: "transcripts",
-                title: "Speech-to-Text Transcripts",
-                desc: "Timestamped Whisper speech segments with speaker IDs",
-              },
-              {
-                key: "subtitles",
-                title: "Generated Subtitles (.SRT, .VTT)",
-                desc: "Final closed-caption subtitle tracks for all languages",
-              },
-              {
-                key: "glossaries",
-                title: "Project Terminology Glossaries",
-                desc: "Custom industry glossaries and translation dictionaries",
-              },
-              {
-                key: "dubbedAudio",
-                title: "Synthesized Dubbed Audio (.WAV)",
-                desc: "Multi-language vocal dub tracks (increases archive size)",
-              },
-              {
-                key: "invoices",
-                title: "Payment Transactions & Invoices",
-                desc: "Billing receipts and credit audit consumption history",
-              },
-            ].map((item) => {
-              const isChecked = (exportEntities as any)[item.key];
-              return (
-                <div
-                  key={item.key}
-                  className="flex items-center justify-between py-2.5"
-                >
-                  <div>
-                    <span className="font-semibold text-[var(--color-text-primary)]">
-                      {item.title}
-                    </span>
-                    <p className="text-[11px] text-[var(--color-text-muted)]">
-                      {item.desc}
-                    </p>
-                  </div>
-                  <Toggle
-                    checked={isChecked}
-                    onChange={(val) =>
-                      setExportEntities({
-                        ...exportEntities,
-                        [item.key]: val,
-                      })
-                    }
-                  />
-                </div>
-              );
-            })}
+        <div className="space-y-4 text-xs">
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/40 p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[var(--color-text-muted)]">Dung lượng lưu trữ:</span>
+              <span className="font-bold text-[var(--color-text-primary)]">
+                {breakdown ? `${breakdown.plan.used_gb} GB` : "0 GB"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[var(--color-text-muted)]">Tổng số dự án:</span>
+              <span className="font-bold text-[var(--color-text-primary)]">
+                {breakdown?.storage_by_project?.length ?? 0} dự án
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[var(--color-text-muted)]">Định dạng nén xuất:</span>
+              <span className="font-mono font-bold text-[var(--color-primary)]">
+                vidnova_user_archive.zip
+              </span>
+            </div>
           </div>
+
+          <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
+            Hệ thống sẽ nén trực tiếp toàn bộ dữ liệu tài khoản bao gồm danh sách dự án, phụ đề SRT/VTT, tệp âm thanh lồng tiếng và bản ghi lịch sử vào một tệp ZIP duy nhất.
+          </p>
         </div>
       </SettingsModal>
 
-      {/* ========================================================= */}
-      {/* MODAL: 2-STEP ACCOUNT DELETION                            */}
-      {/* ========================================================= */}
+      {/* MODAL: ACCOUNT DELETION */}
       <SettingsModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        title="Confirm Permanent Account Deletion"
-        subtitle="Please read carefully before proceeding"
+        title="Xác nhận xóa tài khoản vĩnh viễn"
+        subtitle="Hành động này không thể hoàn tác"
         icon={<AlertTriangle size={20} className="text-rose-600" />}
         maxWidth="md"
         footer={
@@ -1321,32 +987,32 @@ export default function DataPrivacySection() {
             <button
               type="button"
               onClick={() => setIsDeleteModalOpen(false)}
-              className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)]"
+              className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)] cursor-pointer"
             >
-              Cancel
+              Hủy
             </button>
             <button
               type="button"
               onClick={handleDeleteAccount}
               disabled={deleteConfirmationText.trim() !== "DELETE" || isDeletingAccount}
-              className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
-              {isDeletingAccount ? "Deleting..." : "Permanently Delete"}
+              {isDeletingAccount ? "Đang xóa..." : "Xác nhận xóa tài khoản"}
             </button>
           </div>
         }
       >
         <div className="space-y-4">
           <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3.5 text-xs text-rose-700 dark:text-rose-300 leading-relaxed">
-            ⚠️ <b>Warning:</b> You are about to permanently delete account <b>alex.morgan@vidnova.ai</b>. All active render pipelines will be terminated.
+            ⚠️ <b>Cảnh báo:</b> Bạn sắp xóa vĩnh viễn tài khoản <b>{currentUser?.email || "người dùng"}</b>. Tất cả dữ liệu dự án, video và cấu hình sẽ bị xóa ngay lập tức.
           </div>
 
           <div>
             <p className="text-xs text-[var(--color-text-secondary)] font-medium mb-1.5">
-              Type <span className="font-bold text-rose-600">DELETE</span> below to confirm:
+              Nhập chữ <span className="font-bold text-rose-600">DELETE</span> vào ô bên dưới để xác nhận:
             </p>
             <SettingsInput
-              placeholder="Type DELETE"
+              placeholder="Nhập DELETE"
               value={deleteConfirmationText}
               onChange={setDeleteConfirmationText}
             />

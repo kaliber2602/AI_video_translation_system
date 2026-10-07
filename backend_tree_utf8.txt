@@ -1,0 +1,1855 @@
+﻿Folder PATH listing
+Volume serial number is C80D-FCAF
+C:\USERS\ADMIN\ONEDRIVE\DESKTOP\PROJECT\AI_VIDEO_TRANSLATION_SYSTEM\BACKEND
+ª   .dockerignore
+ª   api_inventory.json
+ª   celerybeat-schedule
+ª   Dockerfile
+ª   Dockerfile.gpu
+ª   pytest.ini
+ª   requirements-gpu.txt
+ª   requirements.txt
+ª   test_docker.mp3
+ª   test_docker_verification.py
+ª   test_storage_sync_verification.py
+ª   
++---.pytest_cache
+ª   ª   .gitignore
+ª   ª   CACHEDIR.TAG
+ª   ª   README.md
+ª   ª   
+ª   +---v
+ª       +---cache
+ª               lastfailed
+ª               nodeids
+ª               stepwise
+ª               
++---app
+ª   ª   main.py
+ª   ª   __init__.py
+ª   ª   
+ª   +---api
+ª   ª   ª   admin_routes.py
+ª   ª   ª   auth_routes.py
+ª   ª   ª   batch_routes.py
+ª   ª   ª   contact_routes.py
+ª   ª   ª   integration_routes.py
+ª   ª   ª   notification_routes.py
+ª   ª   ª   payment_routes.py
+ª   ª   ª   preset_routes.py
+ª   ª   ª   project_routes.py
+ª   ª   ª   routes.py
+ª   ª   ª   subscription_routes.py
+ª   ª   ª   tag_routes.py
+ª   ª   ª   user_settings_routes.py
+ª   ª   ª   video_routes.py
+ª   ª   ª   video_ws_routes.py
+ª   ª   ª   __init__.py
+ª   ª   ª   
+ª   ª   +---__pycache__
+ª   ª           admin_routes.cpython-312.pyc
+ª   ª           auth_routes.cpython-312.pyc
+ª   ª           batch_routes.cpython-312.pyc
+ª   ª           contact_routes.cpython-312.pyc
+ª   ª           integration_routes.cpython-312.pyc
+ª   ª           notification_routes.cpython-312.pyc
+ª   ª           payment_routes.cpython-312.pyc
+ª   ª           preset_routes.cpython-312.pyc
+ª   ª           project_routes.cpython-312.pyc
+ª   ª           routes.cpython-312.pyc
+ª   ª           subscription_routes.cpython-312.pyc
+ª   ª           tag_routes.cpython-312.pyc
+ª   ª           user_settings_routes.cpython-312.pyc
+ª   ª           video_routes.cpython-312.pyc
+ª   ª           video_ws_routes.cpython-312.pyc
+ª   ª           __init__.cpython-312.pyc
+ª   ª           
+ª   +---core
+ª   ª   ª   admin_guard.py
+ª   ª   ª   config.py
+ª   ª   ª   database.py
+ª   ª   ª   languages.py
+ª   ª   ª   security.py
+ª   ª   ª   tokenizer.py
+ª   ª   ª   
+ª   ª   +---__pycache__
+ª   ª           admin_guard.cpython-312.pyc
+ª   ª           config.cpython-312.pyc
+ª   ª           database.cpython-312.pyc
+ª   ª           languages.cpython-312.pyc
+ª   ª           security.cpython-312.pyc
+ª   ª           tokenizer.cpython-312.pyc
+ª   ª           
+ª   +---models
+ª   ª   ª   enums.py
+ª   ª   ª   __init__.py
+ª   ª   ª   
+ª   ª   +---__pycache__
+ª   ª           enums.cpython-312.pyc
+ª   ª           __init__.cpython-312.pyc
+ª   ª           
+ª   +---pipeline
+ª   ª   ª   orchestrator.py
+ª   ª   ª   video_translation.py
+ª   ª   ª   __init__.py
+ª   ª   ª   
+ª   ª   +---__pycache__
+ª   ª           orchestrator.cpython-312.pyc
+ª   ª           video_translation.cpython-312.pyc
+ª   ª           __init__.cpython-312.pyc
+ª   ª           
+ª   +---schemas
+ª   ª   ª   admin.py
+ª   ª   ª   asset.py
+ª   ª   ª   auth.py
+ª   ª   ª   batch_schemas.py
+ª   ª   ª   contact.py
+ª   ª   ª   folder.py
+ª   ª   ª   integration.py
+ª   ª   ª   notification.py
+ª   ª   ª   payment.py
+ª   ª   ª   preset_schemas.py
+ª   ª   ª   project.py
+ª   ª   ª   subscription.py
+ª   ª   ª   tag.py
+ª   ª   ª   user_settings.py
+ª   ª   ª   video.py
+ª   ª   ª   __init__.py
+ª   ª   ª   
+ª   ª   +---__pycache__
+ª   ª           admin.cpython-312.pyc
+ª   ª           asset.cpython-312.pyc
+ª   ª           auth.cpython-312.pyc
+ª   ª           batch_schemas.cpython-312.pyc
+ª   ª           contact.cpython-312.pyc
+ª   ª           folder.cpython-312.pyc
+ª   ª           integration.cpython-312.pyc
+ª   ª           notification.cpython-312.pyc
+ª   ª           payment.cpython-312.pyc
+ª   ª           preset_schemas.cpython-312.pyc
+ª   ª           project.cpython-312.pyc
+ª   ª           subscription.cpython-312.pyc
+ª   ª           tag.cpython-312.pyc
+ª   ª           user_settings.cpython-312.pyc
+ª   ª           video.cpython-312.pyc
+ª   ª           __init__.cpython-312.pyc
+ª   ª           
+ª   +---services
+ª   ª   ª   admin_service.py
+ª   ª   ª   audio_service.py
+ª   ª   ª   auth_service.py
+ª   ª   ª   batch_service.py
+ª   ª   ª   contact_service.py
+ª   ª   ª   diarization_service.py
+ª   ª   ª   email_service.py
+ª   ª   ª   export_service.py
+ª   ª   ª   faiss_vector_service.py
+ª   ª   ª   folder_service.py
+ª   ª   ª   hls_service.py
+ª   ª   ª   integration_service.py
+ª   ª   ª   job_service.py
+ª   ª   ª   llm_service.py
+ª   ª   ª   notification_service.py
+ª   ª   ª   payment_service.py
+ª   ª   ª   pipeline_steps.py
+ª   ª   ª   preset_service.py
+ª   ª   ª   progress_broadcaster.py
+ª   ª   ª   project_asset_service.py
+ª   ª   ª   project_service.py
+ª   ª   ª   s3_service.py
+ª   ª   ª   stt_service.py
+ª   ª   ª   subscription_service.py
+ª   ª   ª   subtitle_service.py
+ª   ª   ª   tag_service.py
+ª   ª   ª   translation_service.py
+ª   ª   ª   tts_aligner_service.py
+ª   ª   ª   user_settings_service.py
+ª   ª   ª   video_service.py
+ª   ª   ª   video_understanding_service.py
+ª   ª   ª   __init__.py
+ª   ª   ª   
+ª   ª   +---__pycache__
+ª   ª           admin_service.cpython-312.pyc
+ª   ª           audio_service.cpython-312.pyc
+ª   ª           auth_service.cpython-312.pyc
+ª   ª           batch_service.cpython-312.pyc
+ª   ª           contact_service.cpython-312.pyc
+ª   ª           diarization_service.cpython-312.pyc
+ª   ª           email_service.cpython-312.pyc
+ª   ª           export_service.cpython-312.pyc
+ª   ª           faiss_vector_service.cpython-312.pyc
+ª   ª           folder_service.cpython-312.pyc
+ª   ª           hls_service.cpython-312.pyc
+ª   ª           integration_service.cpython-312.pyc
+ª   ª           job_service.cpython-312.pyc
+ª   ª           llm_service.cpython-312.pyc
+ª   ª           notification_service.cpython-312.pyc
+ª   ª           payment_service.cpython-312.pyc
+ª   ª           pipeline_steps.cpython-312.pyc
+ª   ª           preset_service.cpython-312.pyc
+ª   ª           progress_broadcaster.cpython-312.pyc
+ª   ª           project_asset_service.cpython-312.pyc
+ª   ª           project_service.cpython-312.pyc
+ª   ª           s3_service.cpython-312.pyc
+ª   ª           stt_service.cpython-312.pyc
+ª   ª           subscription_service.cpython-312.pyc
+ª   ª           subtitle_service.cpython-312.pyc
+ª   ª           tag_service.cpython-312.pyc
+ª   ª           translation_service.cpython-312.pyc
+ª   ª           tts_aligner_service.cpython-312.pyc
+ª   ª           user_settings_service.cpython-312.pyc
+ª   ª           video_service.cpython-312.pyc
+ª   ª           video_understanding_service.cpython-312.pyc
+ª   ª           __init__.cpython-312.pyc
+ª   ª           
+ª   +---tasks
+ª   ª   ª   audio_tasks.py
+ª   ª   ª   celery_app.py
+ª   ª   ª   translation_tasks.py
+ª   ª   ª   video_tasks.py
+ª   ª   ª   __init__.py
+ª   ª   ª   
+ª   ª   +---__pycache__
+ª   ª           audio_tasks.cpython-312.pyc
+ª   ª           celery_app.cpython-312.pyc
+ª   ª           translation_tasks.cpython-312.pyc
+ª   ª           video_tasks.cpython-312.pyc
+ª   ª           __init__.cpython-312.pyc
+ª   ª           
+ª   +---__pycache__
+ª           main.cpython-312.pyc
+ª           __init__.cpython-312.pyc
+ª           
++---outputs
+ª   ª   dubbed_debug_batch_v1.mp4_vi_13f649b2.mp4
+ª   ª   dubbed_debug_batch_v2.mp4_vi_273b4ad0.mp4
+ª   ª   dubbed_en_1080p_20260911_081109_e89489b9.mp4
+ª   ª   dubbed_ja_1080p_20260911_085544_2a2ea928.mp4
+ª   ª   dubbed_ja_1080p_20260911_152141_fdf5178f.mp4
+ª   ª   dubbed_ja_1080p_20260911_152328_5be681e5.mp4
+ª   ª   dubbed_ja_1080p_20261005_171839_b07924fe.mp4
+ª   ª   dubbed_ko_1080p_20261006_040848_016de0bf.mp4
+ª   ª   dubbed_ru_1080p_20260929_163923_d5106aaa.mp4
+ª   ª   dubbed_sample.mp4
+ª   ª   dubbed_SaveDouyin_Douyin_Media_7671945142266050515_001_57_vi_0e10ddbc.mp4
+ª   ª   dubbed_snaptik.vn_7531969162319629582.mp4_vi_35e807fe.mp4
+ª   ª   dubbed_snaptik.vn_7531969162319629582.mp4_vi_5071b3f6.mp4
+ª   ª   dubbed_snaptik.vn_7531969162319629582.mp4_vi_bd6d76c0.mp4
+ª   ª   dubbed_snaptik.vn_7605981992932445470.mp4_vi_32b9ee8d.mp4
+ª   ª   dubbed_vi_1080p_20260910_074543_f060b03e.mp4
+ª   ª   dubbed_vi_1080p_20260910_074727_8c1ddd6e.mp4
+ª   ª   dubbed_vi_1080p_20260910_075814_a956b2f2.mp4
+ª   ª   dubbed_vi_1080p_20260910_093153_bdda267d.mp4
+ª   ª   dubbed_vi_1080p_20260910_141205_6d0264c7.mp4
+ª   ª   dubbed_vi_1080p_20260910_145123_3a5e4096.mp4
+ª   ª   dubbed_vi_1080p_20260910_184628_63f86810.mp4
+ª   ª   dubbed_vi_1080p_20260910_192056_05d148df.mp4
+ª   ª   dubbed_vi_1080p_20260910_201606_7153275c.mp4
+ª   ª   dubbed_vi_1080p_20260910_202930_02c3d528.mp4
+ª   ª   dubbed_vi_1080p_20260910_204048_e7e34fde.mp4
+ª   ª   dubbed_vi_1080p_20260911_064456_b2386de3.mp4
+ª   ª   dubbed_vi_1080p_20260911_073936_2ffc3f8d.mp4
+ª   ª   dubbed_vi_1080p_20260912_104309_cae7c797.mp4
+ª   ª   dubbed_vi_1080p_20260912_112850_65cd9762.mp4
+ª   ª   dubbed_vi_1080p_20260912_112918_b8443ea8.mp4
+ª   ª   dubbed_vi_1080p_20260912_113717_7b35367c.mp4
+ª   ª   dubbed_vi_1080p_20260912_122836_62a1e11b.mp4
+ª   ª   dubbed_vi_1080p_20260912_122859_deefdbdc.mp4
+ª   ª   dubbed_vi_1080p_20260912_163022_062b1b35.mp4
+ª   ª   dubbed_vi_1080p_20260912_163058_b6360375.mp4
+ª   ª   dubbed_vi_1080p_20260912_164837_c688fc3b.mp4
+ª   ª   dubbed_vi_1080p_20260912_164912_fcac14bf.mp4
+ª   ª   dubbed_vi_1080p_20260912_173430_54e10fbb.mp4
+ª   ª   dubbed_vi_1080p_20260912_214421_46707223.mp4
+ª   ª   dubbed_vi_1080p_20260912_214709_e2eff266.mp4
+ª   ª   dubbed_vi_1080p_20260912_214926_02959e57.mp4
+ª   ª   dubbed_vi_1080p_20260913_075839_f85a622b.mp4
+ª   ª   dubbed_vi_1080p_20260913_080558_1695e9b2.mp4
+ª   ª   dubbed_vi_1080p_20260913_080714_604041dc.mp4
+ª   ª   dubbed_vi_1080p_20260914_152255_f16af6a4.mp4
+ª   ª   dubbed_vi_1080p_20260914_152330_b709c2fa.mp4
+ª   ª   dubbed_vi_1080p_20260915_131924_3a84ee1c.mp4
+ª   ª   dubbed_vi_1080p_20260915_145645_4f3b32da.mp4
+ª   ª   dubbed_vi_1080p_20260915_151321_896d2f96.mp4
+ª   ª   dubbed_vi_1080p_20260921_144036_9e938871.mp4
+ª   ª   dubbed_vi_1080p_20260924_090520_74817747.mp4
+ª   ª   dubbed_vi_1080p_20260924_102351_f20fcb84.mp4
+ª   ª   dubbed_vi_1080p_20260929_032640_143efce0.mp4
+ª   ª   dubbed_vi_1080p_20260929_061759_c7ba5f20.mp4
+ª   ª   dubbed_vi_1080p_20261002_204117_2b52493e.mp4
+ª   ª   dubbed_vi_1080p_20261004_074006_e11cedb0.mp4
+ª   ª   dubbed_vi_1080p_20261004_075110_13eabe7e.mp4
+ª   ª   dubbed_vi_1080p_20261004_075636_a17b6676.mp4
+ª   ª   dubbed_vi_1080p_20261004_133812_c16edac5.mp4
+ª   ª   dubbed_vi_1080p_20261004_140730_d4046ab7.mp4
+ª   ª   dubbed_vi_1080p_20261004_210337_1f95a44c.mp4
+ª   ª   dubbed_vi_1080p_20261006_052614_a62ba839.mp4
+ª   ª   dubbed_vi_720p_20260929_060842_3fa19750.mp4
+ª   ª   dubbed_zh_1080p_20260924_115823_7a06787b.mp4
+ª   ª   dubbed_zh_1080p_20261005_151342_1ad1e5c1.mp4
+ª   ª   dubbed_zh_1080p_20261005_151413_266db854.mp4
+ª   ª   dubbed_zh_1080p_20261005_152549_05acaec1.mp4
+ª   ª   
+ª   +---2
+ª   ª   +---snippets
+ª   ª           seg_0.wav
+ª   ª           
+ª   +---26
+ª   ª   +---snippets
+ª   ª           seg_0.wav
+ª   ª           seg_5.wav
+ª   ª           
+ª   +---99999
+ª   ª   +---snippets
+ª   ª           seg_1.wav
+ª   ª           
+ª   +---audio_10
+ª   ª   ª   audio.wav
+ª   ª   ª   
+ª   ª   +---htdemucs
+ª   ª       +---audio
+ª   ª               no_vocals.wav
+ª   ª               vocals.wav
+ª   ª               
+ª   +---audio_11
+ª   ª   ª   audio.wav
+ª   ª   ª   
+ª   ª   +---htdemucs
+ª   ª       +---audio
+ª   ª               no_vocals.wav
+ª   ª               vocals.wav
+ª   ª               
+ª   +---audio_12
+ª   ª   ª   audio.wav
+ª   ª   ª   
+ª   ª   +---htdemucs
+ª   ª       +---audio
+ª   ª               no_vocals.wav
+ª   ª               vocals.wav
+ª   ª               
+ª   +---audio_18
+ª   ª   ª   audio.wav
+ª   ª   ª   
+ª   ª   +---htdemucs
+ª   ª       +---audio
+ª   ª               no_vocals.wav
+ª   ª               vocals.wav
+ª   ª               
+ª   +---audio_25
+ª   ª       audio.wav
+ª   ª       
+ª   +---audio_26
+ª   ª       audio.wav
+ª   ª       
+ª   +---audio_27
+ª   ª       audio.wav
+ª   ª       
+ª   +---audio_28
+ª   ª       audio.wav
+ª   ª       
+ª   +---audio_29
+ª   ª   ª   audio.wav
+ª   ª   ª   
+ª   ª   +---htdemucs
+ª   +---audio_30
+ª   ª   ª   audio.wav
+ª   ª   ª   
+ª   ª   +---htdemucs
+ª   ª       +---audio
+ª   ª               no_vocals.wav
+ª   ª               vocals.wav
+ª   ª               
+ª   +---audio_7
+ª   ª   ª   audio.wav
+ª   ª   ª   speaker_13_sample.wav
+ª   ª   ª   
+ª   ª   +---htdemucs
+ª   ª       +---audio
+ª   ª               no_vocals.wav
+ª   ª               vocals.wav
+ª   ª               
+ª   +---audio_8
+ª   ª   ª   audio.wav
+ª   ª   ª   
+ª   ª   +---htdemucs
+ª   ª       +---audio
+ª   ª               no_vocals.wav
+ª   ª               vocals.wav
+ª   ª               
+ª   +---audio_9
+ª   ª   ª   audio.wav
+ª   ª   ª   
+ª   ª   +---htdemucs
+ª   ª       +---audio
+ª   ª               no_vocals.wav
+ª   ª               vocals.wav
+ª   ª               
+ª   +---elevenlabs_samples
+ª   ª       21m00Tcm4TlvDq8ikWAM.mp3
+ª   ª       AZnzlk1XvdvUeBnXmlld.mp3
+ª   ª       CwhRBWXzGAHq8TQ4Fs17.mp3
+ª   ª       ErXwobaYiN019PkySvjV.mp3
+ª   ª       EXAVITQu4vr4xnSDxMaL.mp3
+ª   ª       JBFqnCBsd6RMkjVDRZzb.mp3
+ª   ª       N2lVS1w4EtoT3dr4eOWO.mp3
+ª   ª       pNInz6obpgDQGcFmaJgB.mp3
+ª   ª       
+ª   +---exports
+ª   ª       audio_20260910_141337.mp3
+ª   ª       audio_20260911_090239.mp3
+ª   ª       transcript_20260910_141332.json
+ª   ª       transcript_20260911_090249.json
+ª   ª       transcript_20260911_152912.json
+ª   ª       transcript_20260912_081416.txt
+ª   ª       transcript_20260912_133624.txt
+ª   ª       transcript_20260913_075433.txt
+ª   ª       transcript_20260929_093708.txt
+ª   ª       translation_20260910_141326.json
+ª   ª       translation_20260911_152936.json
+ª   ª       
+ª   +---indexes
+ª   ª       project_1.faiss
+ª   ª       project_1_meta.json
+ª   ª       project_20.faiss
+ª   ª       project_20_meta.json
+ª   ª       project_21.faiss
+ª   ª       project_21_meta.json
+ª   ª       project_22.faiss
+ª   ª       project_22_meta.json
+ª   ª       project_345.faiss
+ª   ª       project_345_meta.json
+ª   ª       project_49.faiss
+ª   ª       project_49_meta.json
+ª   ª       project_74.faiss
+ª   ª       project_74_meta.json
+ª   ª       
+ª   +---overlays_26
+ª   ª       logo.png
+ª   ª       
+ª   +---overlays_7
+ª   ª       logo.png
+ª   ª       
+ª   +---renders
+ª   ª   +---1
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_vi_1080p_be973cf2.mp4
+ª   ª   ª               
+ª   ª   +---10
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_vi_1080p_666a607b.mp4
+ª   ª   ª               
+ª   ª   +---11
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_vi_1080p_2b65ea13.mp4
+ª   ª   ª               dubbed_vi_1080p_4788aa6a.mp4
+ª   ª   ª               dubbed_vi_1080p_53de39b9.mp4
+ª   ª   ª               dubbed_vi_1080p_c351a39a.mp4
+ª   ª   ª               
+ª   ª   +---13
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_vi_1080p_f3820276.mp4
+ª   ª   ª               
+ª   ª   +---14
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª       ª       dubbed_vi_1080p_d5430a72.mp4
+ª   ª   ª       ª       
+ª   ª   ª       +---2k
+ª   ª   ª       ª       dubbed_vi_2k_1f82e9cf.mp4
+ª   ª   ª       ª       
+ª   ª   ª       +---360p
+ª   ª   ª       ª       dubbed_vi_360p_17d71968.mp4
+ª   ª   ª       ª       
+ª   ª   ª       +---4k
+ª   ª   ª       ª       dubbed_vi_4k_bd9651e8.mp4
+ª   ª   ª       ª       
+ª   ª   ª       +---720p
+ª   ª   ª               dubbed_vi_720p_c2c27417.mp4
+ª   ª   ª               
+ª   ª   +---15
+ª   ª   ª   +---fr
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_fr_1080p_1a0e7ba2.mp4
+ª   ª   ª               dubbed_fr_1080p_42c19269.mp4
+ª   ª   ª               dubbed_fr_1080p_86a1ac7f.mp4
+ª   ª   ª               dubbed_fr_1080p_9d43f143.mp4
+ª   ª   ª               dubbed_fr_1080p_bb38b94a.mp4
+ª   ª   ª               dubbed_fr_1080p_e35d6a12.mp4
+ª   ª   ª               dubbed_fr_1080p_ee85391e.mp4
+ª   ª   ª               
+ª   ª   +---19
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_vi_1080p_8a20bc88.mp4
+ª   ª   ª               
+ª   ª   +---2
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª       ª       dubbed_vi_1080p_13cb6aa7.mp4
+ª   ª   ª       ª       dubbed_vi_1080p_59dbc900.mp4
+ª   ª   ª       ª       dubbed_vi_1080p_cf59db52.mp4
+ª   ª   ª       ª       
+ª   ª   ª       +---360p
+ª   ª   ª       ª       dubbed_vi_360p_d1986ba5.mp4
+ª   ª   ª       ª       
+ª   ª   ª       +---4k
+ª   ª   ª       ª       dubbed_vi_4k_3d532073.mp4
+ª   ª   ª       ª       
+ª   ª   ª       +---720p
+ª   ª   ª               dubbed_vi_720p_1915fd96.mp4
+ª   ª   ª               
+ª   ª   +---20
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_vi_1080p_aed95319.mp4
+ª   ª   ª               
+ª   ª   +---21
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_vi_1080p_715f2a6b.mp4
+ª   ª   ª               
+ª   ª   +---22
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_vi_1080p_686d9641.mp4
+ª   ª   ª               dubbed_vi_1080p_7ca997d9.mp4
+ª   ª   ª               
+ª   ª   +---25
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_vi_1080p_2259b5b6.mp4
+ª   ª   ª               dubbed_vi_1080p_310f3518.mp4
+ª   ª   ª               dubbed_vi_1080p_5c723c07.mp4
+ª   ª   ª               dubbed_vi_1080p_76b38611.mp4
+ª   ª   ª               dubbed_vi_1080p_87ea90f7.mp4
+ª   ª   ª               dubbed_vi_1080p_8d01cb94.mp4
+ª   ª   ª               dubbed_vi_1080p_9eccd889.mp4
+ª   ª   ª               dubbed_vi_1080p_a0eb8165.mp4
+ª   ª   ª               dubbed_vi_1080p_b1f3bed3.mp4
+ª   ª   ª               dubbed_vi_1080p_d2a72559.mp4
+ª   ª   ª               dubbed_vi_1080p_d8d4b08c.mp4
+ª   ª   ª               dubbed_vi_1080p_e3035f52.mp4
+ª   ª   ª               dubbed_vi_1080p_f22f6562.mp4
+ª   ª   ª               dubbed_vi_1080p_f610602a.mp4
+ª   ª   ª               
+ª   ª   +---26
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_vi_1080p_ec4ab5d2.mp4
+ª   ª   ª               dubbed_vi_1080p_f6ff0f6b.mp4
+ª   ª   ª               
+ª   ª   +---27
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_vi_1080p_000a821c.mp4
+ª   ª   ª               dubbed_vi_1080p_00cc329d.mp4
+ª   ª   ª               dubbed_vi_1080p_035f298f.mp4
+ª   ª   ª               dubbed_vi_1080p_23764c28.mp4
+ª   ª   ª               dubbed_vi_1080p_2671b2ad.mp4
+ª   ª   ª               dubbed_vi_1080p_2846db81.mp4
+ª   ª   ª               dubbed_vi_1080p_2a0bcce1.mp4
+ª   ª   ª               dubbed_vi_1080p_2c20d8e4.mp4
+ª   ª   ª               dubbed_vi_1080p_2f3c547f.mp4
+ª   ª   ª               dubbed_vi_1080p_317fc87f.mp4
+ª   ª   ª               dubbed_vi_1080p_35e4dc48.mp4
+ª   ª   ª               dubbed_vi_1080p_3a8f9fa7.mp4
+ª   ª   ª               dubbed_vi_1080p_3b17ea59.mp4
+ª   ª   ª               dubbed_vi_1080p_42461a08.mp4
+ª   ª   ª               dubbed_vi_1080p_4898d0ae.mp4
+ª   ª   ª               dubbed_vi_1080p_4e080605.mp4
+ª   ª   ª               dubbed_vi_1080p_531ce071.mp4
+ª   ª   ª               dubbed_vi_1080p_5333dfe5.mp4
+ª   ª   ª               dubbed_vi_1080p_580fa392.mp4
+ª   ª   ª               dubbed_vi_1080p_59a7898a.mp4
+ª   ª   ª               dubbed_vi_1080p_6271c955.mp4
+ª   ª   ª               dubbed_vi_1080p_67cf8c03.mp4
+ª   ª   ª               dubbed_vi_1080p_838a4c5b.mp4
+ª   ª   ª               dubbed_vi_1080p_980f476e.mp4
+ª   ª   ª               dubbed_vi_1080p_99231802.mp4
+ª   ª   ª               dubbed_vi_1080p_9e262330.mp4
+ª   ª   ª               dubbed_vi_1080p_a43777c9.mp4
+ª   ª   ª               dubbed_vi_1080p_a70e4e9e.mp4
+ª   ª   ª               dubbed_vi_1080p_a85ef36c.mp4
+ª   ª   ª               dubbed_vi_1080p_ad0dbbf9.mp4
+ª   ª   ª               dubbed_vi_1080p_b1f352e2.mp4
+ª   ª   ª               dubbed_vi_1080p_b8693cba.mp4
+ª   ª   ª               dubbed_vi_1080p_bb73582b.mp4
+ª   ª   ª               dubbed_vi_1080p_bcde3d42.mp4
+ª   ª   ª               dubbed_vi_1080p_c020350f.mp4
+ª   ª   ª               dubbed_vi_1080p_c5039084.mp4
+ª   ª   ª               dubbed_vi_1080p_c782071a.mp4
+ª   ª   ª               dubbed_vi_1080p_cbce132b.mp4
+ª   ª   ª               dubbed_vi_1080p_cff33a1b.mp4
+ª   ª   ª               dubbed_vi_1080p_d28c8471.mp4
+ª   ª   ª               dubbed_vi_1080p_d3fefee7.mp4
+ª   ª   ª               dubbed_vi_1080p_d669cf84.mp4
+ª   ª   ª               dubbed_vi_1080p_e6e4a362.mp4
+ª   ª   ª               dubbed_vi_1080p_f478a805.mp4
+ª   ª   ª               dubbed_vi_1080p_fdcbbc2a.mp4
+ª   ª   ª               
+ª   ª   +---28
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_vi_1080p_03f2973f.mp4
+ª   ª   ª               dubbed_vi_1080p_05276751.mp4
+ª   ª   ª               dubbed_vi_1080p_0a67e0c7.mp4
+ª   ª   ª               dubbed_vi_1080p_0d1eeb98.mp4
+ª   ª   ª               dubbed_vi_1080p_3dde4320.mp4
+ª   ª   ª               dubbed_vi_1080p_599ec816.mp4
+ª   ª   ª               dubbed_vi_1080p_5c9943cb.mp4
+ª   ª   ª               dubbed_vi_1080p_5db93717.mp4
+ª   ª   ª               dubbed_vi_1080p_6f600c11.mp4
+ª   ª   ª               dubbed_vi_1080p_82a1dccf.mp4
+ª   ª   ª               dubbed_vi_1080p_8d899642.mp4
+ª   ª   ª               dubbed_vi_1080p_9c286059.mp4
+ª   ª   ª               dubbed_vi_1080p_9de5b129.mp4
+ª   ª   ª               dubbed_vi_1080p_9fb71ec9.mp4
+ª   ª   ª               dubbed_vi_1080p_a240a349.mp4
+ª   ª   ª               dubbed_vi_1080p_ab41318c.mp4
+ª   ª   ª               dubbed_vi_1080p_b4876750.mp4
+ª   ª   ª               dubbed_vi_1080p_bf43107e.mp4
+ª   ª   ª               dubbed_vi_1080p_decac1be.mp4
+ª   ª   ª               dubbed_vi_1080p_f5b007d7.mp4
+ª   ª   ª               
+ª   ª   +---30
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_vi_1080p_06ed7139.mp4
+ª   ª   ª               dubbed_vi_1080p_0cd8bc10.mp4
+ª   ª   ª               dubbed_vi_1080p_153b26ed.mp4
+ª   ª   ª               dubbed_vi_1080p_306e9466.mp4
+ª   ª   ª               dubbed_vi_1080p_34e903ff.mp4
+ª   ª   ª               dubbed_vi_1080p_36218290.mp4
+ª   ª   ª               dubbed_vi_1080p_3c01d9ee.mp4
+ª   ª   ª               dubbed_vi_1080p_3dcb287d.mp4
+ª   ª   ª               dubbed_vi_1080p_4268d8ca.mp4
+ª   ª   ª               dubbed_vi_1080p_42f73c8c.mp4
+ª   ª   ª               dubbed_vi_1080p_52806fa3.mp4
+ª   ª   ª               dubbed_vi_1080p_5dbd88a8.mp4
+ª   ª   ª               dubbed_vi_1080p_5ed8101f.mp4
+ª   ª   ª               dubbed_vi_1080p_60c8d815.mp4
+ª   ª   ª               dubbed_vi_1080p_711b7d42.mp4
+ª   ª   ª               dubbed_vi_1080p_7d90399b.mp4
+ª   ª   ª               dubbed_vi_1080p_867b4452.mp4
+ª   ª   ª               dubbed_vi_1080p_8a4d1b8d.mp4
+ª   ª   ª               dubbed_vi_1080p_8ea675f4.mp4
+ª   ª   ª               dubbed_vi_1080p_9b392204.mp4
+ª   ª   ª               dubbed_vi_1080p_a162d6dd.mp4
+ª   ª   ª               dubbed_vi_1080p_a3a35e42.mp4
+ª   ª   ª               dubbed_vi_1080p_aff26292.mp4
+ª   ª   ª               dubbed_vi_1080p_b03defcc.mp4
+ª   ª   ª               dubbed_vi_1080p_bc036f9b.mp4
+ª   ª   ª               dubbed_vi_1080p_ca9e9a18.mp4
+ª   ª   ª               dubbed_vi_1080p_ce8fbb07.mp4
+ª   ª   ª               dubbed_vi_1080p_ceb8c317.mp4
+ª   ª   ª               dubbed_vi_1080p_d861c091.mp4
+ª   ª   ª               dubbed_vi_1080p_dab3f0b1.mp4
+ª   ª   ª               dubbed_vi_1080p_e28df68c.mp4
+ª   ª   ª               dubbed_vi_1080p_e535f4fa.mp4
+ª   ª   ª               dubbed_vi_1080p_ea3cd89c.mp4
+ª   ª   ª               dubbed_vi_1080p_ed0aba61.mp4
+ª   ª   ª               dubbed_vi_1080p_eeef43d4.mp4
+ª   ª   ª               dubbed_vi_1080p_f56650b5.mp4
+ª   ª   ª               dubbed_vi_1080p_f991c875.mp4
+ª   ª   ª               dubbed_vi_1080p_fc9c01f0.mp4
+ª   ª   ª               
+ª   ª   +---4
+ª   ª   ª   +---ru
+ª   ª   ª   ª   +---1080p
+ª   ª   ª   ª           dubbed_ru_1080p_d6217475.mp4
+ª   ª   ª   ª           
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_vi_1080p_9785131e.mp4
+ª   ª   ª               
+ª   ª   +---5
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª       ª       dubbed_vi_1080p_450873a4.mp4
+ª   ª   ª       ª       dubbed_vi_1080p_ffce0ac4.mp4
+ª   ª   ª       ª       
+ª   ª   ª       +---2k
+ª   ª   ª       ª       dubbed_vi_2k_11478de7.mp4
+ª   ª   ª       ª       
+ª   ª   ª       +---360p
+ª   ª   ª       ª       dubbed_vi_360p_c78abe49.mp4
+ª   ª   ª       ª       
+ª   ª   ª       +---4k
+ª   ª   ª       ª       dubbed_vi_4k_f82df58c.mp4
+ª   ª   ª       ª       
+ª   ª   ª       +---720p
+ª   ª   ª               dubbed_vi_720p_a16ceec0.mp4
+ª   ª   ª               
+ª   ª   +---6
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª       ª       dubbed_vi_1080p_0634ab66.mp4
+ª   ª   ª       ª       dubbed_vi_1080p_34033002.mp4
+ª   ª   ª       ª       dubbed_vi_1080p_8337e36e.mp4
+ª   ª   ª       ª       dubbed_vi_1080p_dc805c56.mp4
+ª   ª   ª       ª       
+ª   ª   ª       +---2k
+ª   ª   ª       ª       dubbed_vi_2k_979d3c2a.mp4
+ª   ª   ª       ª       
+ª   ª   ª       +---720p
+ª   ª   ª               dubbed_vi_720p_2a02b4e4.mp4
+ª   ª   ª               dubbed_vi_720p_a7448aae.mp4
+ª   ª   ª               
+ª   ª   +---7
+ª   ª   ª   +---vi
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_vi_1080p_7b70a17c.mp4
+ª   ª   ª               dubbed_vi_1080p_a9b5644f.mp4
+ª   ª   ª               
+ª   ª   +---8
+ª   ª   ª   +---en
+ª   ª   ª       +---1080p
+ª   ª   ª               dubbed_en_1080p_8c51ede1.mp4
+ª   ª   ª               
+ª   ª   +---9
+ª   ª       +---ja
+ª   ª       ª   +---1080p
+ª   ª       ª   ª       dubbed_ja_1080p_b6a640d5.mp4
+ª   ª       ª   ª       
+ª   ª       ª   +---2k
+ª   ª       ª           dubbed_ja_2k_ec86664a.mp4
+ª   ª       ª           
+ª   ª       +---vi
+ª   ª           +---1080p
+ª   ª                   dubbed_vi_1080p_c4bb40f4.mp4
+ª   ª                   
+ª   +---transcript_10
+ª   ª       subtitles_ko.ass
+ª   ª       subtitles_ko.srt
+ª   ª       subtitles_ko.vtt
+ª   ª       subtitle_config_ko.json
+ª   ª       transcript.json
+ª   ª       translation_ko.json
+ª   ª       
+ª   +---transcript_11
+ª   ª       subtitles_vi.ass
+ª   ª       subtitles_vi.srt
+ª   ª       subtitles_vi.vtt
+ª   ª       subtitle_config_vi.json
+ª   ª       transcript.json
+ª   ª       translation_vi.json
+ª   ª       
+ª   +---transcript_12
+ª   ª       subtitles_ja.ass
+ª   ª       subtitles_ja.srt
+ª   ª       subtitles_ja.vtt
+ª   ª       subtitle_config_ja.json
+ª   ª       transcript.json
+ª   ª       translation_ja.json
+ª   ª       
+ª   +---transcript_13
+ª   ª       subtitles_vi.ass
+ª   ª       subtitles_vi.srt
+ª   ª       subtitles_vi.vtt
+ª   ª       subtitle_config_vi.json
+ª   ª       transcript.json
+ª   ª       translation_vi.json
+ª   ª       
+ª   +---transcript_14
+ª   ª       subtitles_vi.ass
+ª   ª       subtitles_vi.srt
+ª   ª       subtitles_vi.vtt
+ª   ª       subtitle_config_vi.json
+ª   ª       transcript.json
+ª   ª       translation_vi.json
+ª   ª       
+ª   +---transcript_15
+ª   ª       subtitles_vi.ass
+ª   ª       subtitles_vi.srt
+ª   ª       subtitles_vi.vtt
+ª   ª       transcript.json
+ª   ª       translation_vi.json
+ª   ª       
+ª   +---transcript_16
+ª   ª       subtitles_vi.ass
+ª   ª       subtitles_vi.srt
+ª   ª       subtitles_vi.vtt
+ª   ª       transcript.json
+ª   ª       translation_vi.json
+ª   ª       
+ª   +---transcript_18
+ª   ª       subtitles_vi.ass
+ª   ª       subtitles_vi.srt
+ª   ª       subtitles_vi.vtt
+ª   ª       subtitle_config_vi.json
+ª   ª       transcript.json
+ª   ª       translation_vi.json
+ª   ª       
+ª   +---transcript_23
+ª   ª       subtitles_vi.ass
+ª   ª       subtitles_vi.srt
+ª   ª       subtitles_vi.vtt
+ª   ª       translation_vi.json
+ª   ª       
+ª   +---transcript_25
+ª   ª       subtitles_vi.ass
+ª   ª       subtitles_vi.srt
+ª   ª       subtitles_vi.vtt
+ª   ª       subtitle_config_vi.json
+ª   ª       transcript.json
+ª   ª       translation_vi.json
+ª   ª       
+ª   +---transcript_26
+ª   ª       subtitles_vi.ass
+ª   ª       subtitles_vi.srt
+ª   ª       subtitles_vi.vtt
+ª   ª       subtitle_config_vi.json
+ª   ª       transcript.json
+ª   ª       translation_vi.json
+ª   ª       
+ª   +---transcript_27
+ª   ª       subtitles_vi.ass
+ª   ª       subtitles_vi.srt
+ª   ª       subtitles_vi.vtt
+ª   ª       subtitle_config_vi.json
+ª   ª       transcript.json
+ª   ª       translation_vi.json
+ª   ª       
+ª   +---transcript_28
+ª   ª       subtitles_vi.ass
+ª   ª       subtitles_vi.srt
+ª   ª       subtitles_vi.vtt
+ª   ª       subtitle_config_vi.json
+ª   ª       transcript.json
+ª   ª       translation_vi.json
+ª   ª       
+ª   +---transcript_30
+ª   ª       subtitles_vi.ass
+ª   ª       subtitles_vi.srt
+ª   ª       subtitles_vi.vtt
+ª   ª       subtitles_zh.ass
+ª   ª       subtitles_zh.srt
+ª   ª       subtitles_zh.vtt
+ª   ª       subtitle_config_vi.json
+ª   ª       subtitle_config_zh.json
+ª   ª       transcript.json
+ª   ª       translation_vi.json
+ª   ª       translation_zh.json
+ª   ª       
+ª   +---transcript_7
+ª   ª       subtitles_vi.ass
+ª   ª       subtitles_vi.srt
+ª   ª       subtitles_vi.vtt
+ª   ª       subtitles_zh.ass
+ª   ª       subtitles_zh.srt
+ª   ª       subtitles_zh.vtt
+ª   ª       subtitle_config_vi.json
+ª   ª       subtitle_config_zh.json
+ª   ª       transcript.json
+ª   ª       translation_vi.json
+ª   ª       translation_zh.json
+ª   ª       
+ª   +---transcript_8
+ª   ª       subtitles_ja.ass
+ª   ª       subtitles_ja.srt
+ª   ª       subtitles_ja.vtt
+ª   ª       subtitle_config_ja.json
+ª   ª       transcript.json
+ª   ª       translation_ja.json
+ª   ª       
+ª   +---transcript_9
+ª   ª       subtitles_vi.ass
+ª   ª       subtitles_vi.srt
+ª   ª       subtitles_vi.vtt
+ª   ª       subtitle_config_vi.json
+ª   ª       transcript.json
+ª   ª       translation_vi.json
+ª   ª       
+ª   +---tts_10
+ª   ª   ª   manifest_ko.json
+ª   ª   ª   tts_ko.wav
+ª   ª   ª   
+ª   ª   +---ko
+ª   ª       +---chunks
+ª   ª               manifest.json
+ª   ª               seg_0000.wav
+ª   ª               seg_0001.wav
+ª   ª               seg_0002.wav
+ª   ª               seg_0003.wav
+ª   ª               seg_0004.wav
+ª   ª               seg_0005.wav
+ª   ª               seg_0006.wav
+ª   ª               seg_0007.wav
+ª   ª               seg_0008.wav
+ª   ª               seg_0009.wav
+ª   ª               seg_0010.wav
+ª   ª               seg_0011.wav
+ª   ª               seg_0012.wav
+ª   ª               seg_0013.wav
+ª   ª               seg_0014.wav
+ª   ª               seg_0015.wav
+ª   ª               seg_0016.wav
+ª   ª               seg_0017.wav
+ª   ª               seg_0018.wav
+ª   ª               seg_0019.wav
+ª   ª               
+ª   +---tts_13
+ª   ª   +---vi
+ª   ª       +---chunks
+ª   +---tts_14
+ª   ª   +---vi
+ª   ª       +---chunks
+ª   +---tts_15
+ª   ª   +---vi
+ª   ª       +---chunks
+ª   +---tts_16
+ª   ª   +---vi
+ª   ª       +---chunks
+ª   +---tts_25
+ª   ª       segment_0000.wav
+ª   ª       segment_0001.wav
+ª   ª       segment_0002.wav
+ª   ª       segment_0003.wav
+ª   ª       segment_0004.wav
+ª   ª       segment_0005.wav
+ª   ª       tts_vi.wav
+ª   ª       
+ª   +---tts_26
+ª   ª   ª   manifest_vi.json
+ª   ª   ª   segment_0000.wav
+ª   ª   ª   segment_0001.wav
+ª   ª   ª   segment_0002.wav
+ª   ª   ª   segment_0003.wav
+ª   ª   ª   segment_0004.wav
+ª   ª   ª   segment_0005.wav
+ª   ª   ª   tts_vi.wav
+ª   ª   ª   
+ª   ª   +---chunks
+ª   ª   ª       seg_0000.wav
+ª   ª   ª       seg_0005.wav
+ª   ª   ª       
+ª   ª   +---vi
+ª   ª       +---chunks
+ª   ª               manifest.json
+ª   ª               seg_0000.wav
+ª   ª               seg_0001.wav
+ª   ª               seg_0002.wav
+ª   ª               seg_0003.wav
+ª   ª               seg_0004.wav
+ª   ª               seg_0005.wav
+ª   ª               
+ª   +---tts_27
+ª   ª   ª   manifest_vi.json
+ª   ª   ª   tts_vi.wav
+ª   ª   ª   
+ª   ª   +---vi
+ª   ª       +---chunks
+ª   ª               manifest.json
+ª   ª               seg_0000.wav
+ª   ª               seg_0001.wav
+ª   ª               seg_0002.wav
+ª   ª               seg_0003.wav
+ª   ª               seg_0004.wav
+ª   ª               seg_0005.wav
+ª   ª               seg_0006.wav
+ª   ª               
+ª   +---tts_28
+ª   ª   ª   manifest_vi.json
+ª   ª   ª   tts_vi.wav
+ª   ª   ª   
+ª   ª   +---vi
+ª   ª       +---chunks
+ª   ª               manifest.json
+ª   ª               seg_0000.wav
+ª   ª               seg_0001.wav
+ª   ª               seg_0002.wav
+ª   ª               seg_0003.wav
+ª   ª               seg_0004.wav
+ª   ª               seg_0005.wav
+ª   ª               seg_0006.wav
+ª   ª               seg_0007.wav
+ª   ª               seg_0008.wav
+ª   ª               seg_0009.wav
+ª   ª               seg_0010.wav
+ª   ª               seg_0011.wav
+ª   ª               seg_0012.wav
+ª   ª               seg_0013.wav
+ª   ª               seg_0014.wav
+ª   ª               seg_0015.wav
+ª   ª               seg_0016.wav
+ª   ª               seg_0017.wav
+ª   ª               seg_0018.wav
+ª   ª               seg_0019.wav
+ª   ª               seg_0020.wav
+ª   ª               seg_0021.wav
+ª   ª               seg_0022.wav
+ª   ª               seg_0023.wav
+ª   ª               seg_0024.wav
+ª   ª               seg_0025.wav
+ª   ª               seg_0026.wav
+ª   ª               seg_0027.wav
+ª   ª               seg_0028.wav
+ª   ª               seg_0029.wav
+ª   ª               seg_0030.wav
+ª   ª               seg_0031.wav
+ª   ª               seg_0032.wav
+ª   ª               seg_0033.wav
+ª   ª               seg_0034.wav
+ª   ª               seg_0035.wav
+ª   ª               seg_0036.wav
+ª   ª               seg_0037.wav
+ª   ª               seg_0038.wav
+ª   ª               seg_0039.wav
+ª   ª               seg_0040.wav
+ª   ª               seg_0041.wav
+ª   ª               seg_0042.wav
+ª   ª               seg_0043.wav
+ª   ª               seg_0044.wav
+ª   ª               seg_0045.wav
+ª   ª               seg_0046.wav
+ª   ª               seg_0047.wav
+ª   ª               seg_0048.wav
+ª   ª               seg_0049.wav
+ª   ª               seg_0050.wav
+ª   ª               seg_0051.wav
+ª   ª               seg_0052.wav
+ª   ª               seg_0053.wav
+ª   ª               seg_0054.wav
+ª   ª               seg_0055.wav
+ª   ª               seg_0056.wav
+ª   ª               seg_0057.wav
+ª   ª               seg_0058.wav
+ª   ª               seg_0059.wav
+ª   ª               seg_0060.wav
+ª   ª               seg_0061.wav
+ª   ª               seg_0062.wav
+ª   ª               seg_0063.wav
+ª   ª               seg_0064.wav
+ª   ª               seg_0065.wav
+ª   ª               seg_0066.wav
+ª   ª               seg_0067.wav
+ª   ª               seg_0068.wav
+ª   ª               seg_0069.wav
+ª   ª               seg_0070.wav
+ª   ª               seg_0071.wav
+ª   ª               seg_0072.wav
+ª   ª               seg_0073.wav
+ª   ª               seg_0074.wav
+ª   ª               seg_0075.wav
+ª   ª               seg_0076.wav
+ª   ª               seg_0077.wav
+ª   ª               seg_0078.wav
+ª   ª               seg_0079.wav
+ª   ª               seg_0080.wav
+ª   ª               seg_0081.wav
+ª   ª               seg_0082.wav
+ª   ª               seg_0083.wav
+ª   ª               seg_0084.wav
+ª   ª               seg_0085.wav
+ª   ª               seg_0086.wav
+ª   ª               seg_0087.wav
+ª   ª               seg_0088.wav
+ª   ª               seg_0089.wav
+ª   ª               seg_0090.wav
+ª   ª               seg_0091.wav
+ª   ª               seg_0092.wav
+ª   ª               
+ª   +---tts_30
+ª   ª   ª   manifest_vi.json
+ª   ª   ª   manifest_zh-cn.json
+ª   ª   ª   tts_vi.wav
+ª   ª   ª   tts_zh.wav
+ª   ª   ª   
+ª   ª   +---vi
+ª   ª   ª   +---chunks
+ª   ª   ª           manifest.json
+ª   ª   ª           seg_0000.wav
+ª   ª   ª           seg_0001.wav
+ª   ª   ª           seg_0002.wav
+ª   ª   ª           seg_0003.wav
+ª   ª   ª           seg_0004.wav
+ª   ª   ª           seg_0005.wav
+ª   ª   ª           seg_0006.wav
+ª   ª   ª           seg_0007.wav
+ª   ª   ª           seg_0008.wav
+ª   ª   ª           seg_0009.wav
+ª   ª   ª           seg_0010.wav
+ª   ª   ª           seg_0011.wav
+ª   ª   ª           seg_0012.wav
+ª   ª   ª           seg_0013.wav
+ª   ª   ª           seg_0014.wav
+ª   ª   ª           seg_0015.wav
+ª   ª   ª           seg_0016.wav
+ª   ª   ª           seg_0017.wav
+ª   ª   ª           seg_0018.wav
+ª   ª   ª           seg_0019.wav
+ª   ª   ª           seg_0020.wav
+ª   ª   ª           seg_0021.wav
+ª   ª   ª           seg_0022.wav
+ª   ª   ª           seg_0023.wav
+ª   ª   ª           seg_0024.wav
+ª   ª   ª           seg_0025.wav
+ª   ª   ª           seg_0026.wav
+ª   ª   ª           seg_0027.wav
+ª   ª   ª           seg_0028.wav
+ª   ª   ª           seg_0029.wav
+ª   ª   ª           seg_0030.wav
+ª   ª   ª           seg_0031.wav
+ª   ª   ª           seg_0032.wav
+ª   ª   ª           seg_0033.wav
+ª   ª   ª           seg_0034.wav
+ª   ª   ª           seg_0035.wav
+ª   ª   ª           seg_0036.wav
+ª   ª   ª           seg_0037.wav
+ª   ª   ª           seg_0038.wav
+ª   ª   ª           seg_0039.wav
+ª   ª   ª           seg_0040.wav
+ª   ª   ª           seg_0041.wav
+ª   ª   ª           seg_0042.wav
+ª   ª   ª           seg_0043.wav
+ª   ª   ª           seg_0044.wav
+ª   ª   ª           seg_0045.wav
+ª   ª   ª           seg_0046.wav
+ª   ª   ª           seg_0047.wav
+ª   ª   ª           seg_0048.wav
+ª   ª   ª           seg_0049.wav
+ª   ª   ª           seg_0050.wav
+ª   ª   ª           seg_0051.wav
+ª   ª   ª           seg_0052.wav
+ª   ª   ª           seg_0053.wav
+ª   ª   ª           seg_0054.wav
+ª   ª   ª           seg_0055.wav
+ª   ª   ª           seg_0056.wav
+ª   ª   ª           seg_0057.wav
+ª   ª   ª           seg_0058.wav
+ª   ª   ª           seg_0059.wav
+ª   ª   ª           seg_0060.wav
+ª   ª   ª           seg_0061.wav
+ª   ª   ª           seg_0062.wav
+ª   ª   ª           seg_0063.wav
+ª   ª   ª           seg_0064.wav
+ª   ª   ª           seg_0065.wav
+ª   ª   ª           seg_0066.wav
+ª   ª   ª           seg_0067.wav
+ª   ª   ª           seg_0068.wav
+ª   ª   ª           seg_0069.wav
+ª   ª   ª           seg_0070.wav
+ª   ª   ª           seg_0071.wav
+ª   ª   ª           seg_0072.wav
+ª   ª   ª           seg_0073.wav
+ª   ª   ª           seg_0074.wav
+ª   ª   ª           seg_0075.wav
+ª   ª   ª           seg_0076.wav
+ª   ª   ª           seg_0077.wav
+ª   ª   ª           seg_0078.wav
+ª   ª   ª           seg_0079.wav
+ª   ª   ª           seg_0080.wav
+ª   ª   ª           seg_0081.wav
+ª   ª   ª           seg_0082.wav
+ª   ª   ª           seg_0083.wav
+ª   ª   ª           seg_0084.wav
+ª   ª   ª           seg_0085.wav
+ª   ª   ª           seg_0086.wav
+ª   ª   ª           seg_0087.wav
+ª   ª   ª           seg_0088.wav
+ª   ª   ª           seg_0089.wav
+ª   ª   ª           seg_0090.wav
+ª   ª   ª           seg_0091.wav
+ª   ª   ª           seg_0092.wav
+ª   ª   ª           seg_0093.wav
+ª   ª   ª           seg_0094.wav
+ª   ª   ª           seg_0095.wav
+ª   ª   ª           
+ª   ª   +---zh-cn
+ª   ª       +---chunks
+ª   ª               manifest.json
+ª   ª               seg_0000.wav
+ª   ª               seg_0001.wav
+ª   ª               seg_0002.wav
+ª   ª               seg_0003.wav
+ª   ª               seg_0004.wav
+ª   ª               seg_0005.wav
+ª   ª               seg_0006.wav
+ª   ª               seg_0007.wav
+ª   ª               seg_0008.wav
+ª   ª               seg_0009.wav
+ª   ª               seg_0010.wav
+ª   ª               seg_0011.wav
+ª   ª               seg_0012.wav
+ª   ª               seg_0013.wav
+ª   ª               seg_0014.wav
+ª   ª               seg_0015.wav
+ª   ª               seg_0016.wav
+ª   ª               seg_0017.wav
+ª   ª               seg_0018.wav
+ª   ª               seg_0019.wav
+ª   ª               seg_0020.wav
+ª   ª               seg_0021.wav
+ª   ª               seg_0022.wav
+ª   ª               seg_0023.wav
+ª   ª               seg_0024.wav
+ª   ª               seg_0025.wav
+ª   ª               seg_0026.wav
+ª   ª               seg_0027.wav
+ª   ª               seg_0028.wav
+ª   ª               seg_0029.wav
+ª   ª               seg_0030.wav
+ª   ª               seg_0031.wav
+ª   ª               seg_0032.wav
+ª   ª               seg_0033.wav
+ª   ª               seg_0034.wav
+ª   ª               seg_0035.wav
+ª   ª               seg_0036.wav
+ª   ª               seg_0037.wav
+ª   ª               seg_0038.wav
+ª   ª               seg_0039.wav
+ª   ª               seg_0040.wav
+ª   ª               seg_0041.wav
+ª   ª               seg_0042.wav
+ª   ª               seg_0043.wav
+ª   ª               seg_0044.wav
+ª   ª               seg_0045.wav
+ª   ª               seg_0046.wav
+ª   ª               seg_0047.wav
+ª   ª               seg_0048.wav
+ª   ª               seg_0049.wav
+ª   ª               seg_0050.wav
+ª   ª               seg_0051.wav
+ª   ª               seg_0052.wav
+ª   ª               seg_0053.wav
+ª   ª               seg_0054.wav
+ª   ª               seg_0055.wav
+ª   ª               seg_0056.wav
+ª   ª               seg_0057.wav
+ª   ª               seg_0058.wav
+ª   ª               seg_0059.wav
+ª   ª               seg_0060.wav
+ª   ª               seg_0061.wav
+ª   ª               seg_0062.wav
+ª   ª               seg_0063.wav
+ª   ª               seg_0064.wav
+ª   ª               seg_0065.wav
+ª   ª               seg_0066.wav
+ª   ª               seg_0067.wav
+ª   ª               seg_0068.wav
+ª   ª               seg_0069.wav
+ª   ª               seg_0070.wav
+ª   ª               seg_0071.wav
+ª   ª               seg_0072.wav
+ª   ª               seg_0073.wav
+ª   ª               seg_0074.wav
+ª   ª               seg_0075.wav
+ª   ª               seg_0076.wav
+ª   ª               seg_0077.wav
+ª   ª               seg_0078.wav
+ª   ª               seg_0079.wav
+ª   ª               seg_0080.wav
+ª   ª               seg_0081.wav
+ª   ª               seg_0082.wav
+ª   ª               seg_0083.wav
+ª   ª               seg_0084.wav
+ª   ª               seg_0085.wav
+ª   ª               seg_0086.wav
+ª   ª               seg_0087.wav
+ª   ª               seg_0088.wav
+ª   ª               seg_0089.wav
+ª   ª               seg_0090.wav
+ª   ª               seg_0091.wav
+ª   ª               seg_0092.wav
+ª   ª               seg_0093.wav
+ª   ª               seg_0094.wav
+ª   ª               seg_0095.wav
+ª   ª               
+ª   +---tts_7
+ª   ª   ª   manifest_vi.json
+ª   ª   ª   manifest_zh-cn.json
+ª   ª   ª   tts_vi.wav
+ª   ª   ª   tts_zh.wav
+ª   ª   ª   
+ª   ª   +---vi
+ª   ª   ª   +---chunks
+ª   ª   ª           manifest.json
+ª   ª   ª           seg_0000.wav
+ª   ª   ª           seg_0001.wav
+ª   ª   ª           seg_0002.wav
+ª   ª   ª           seg_0003.wav
+ª   ª   ª           seg_0004.wav
+ª   ª   ª           seg_0005.wav
+ª   ª   ª           seg_0006.wav
+ª   ª   ª           seg_0007.wav
+ª   ª   ª           seg_0008.wav
+ª   ª   ª           seg_0009.wav
+ª   ª   ª           seg_0010.wav
+ª   ª   ª           seg_0011.wav
+ª   ª   ª           seg_0012.wav
+ª   ª   ª           seg_0013.wav
+ª   ª   ª           seg_0014.wav
+ª   ª   ª           seg_0015.wav
+ª   ª   ª           seg_0016.wav
+ª   ª   ª           seg_0017.wav
+ª   ª   ª           seg_0018.wav
+ª   ª   ª           seg_0019.wav
+ª   ª   ª           seg_0020.wav
+ª   ª   ª           seg_0021.wav
+ª   ª   ª           seg_0022.wav
+ª   ª   ª           seg_0023.wav
+ª   ª   ª           seg_0024.wav
+ª   ª   ª           seg_0025.wav
+ª   ª   ª           seg_0026.wav
+ª   ª   ª           seg_0027.wav
+ª   ª   ª           seg_0028.wav
+ª   ª   ª           seg_0029.wav
+ª   ª   ª           seg_0030.wav
+ª   ª   ª           seg_0031.wav
+ª   ª   ª           seg_0032.wav
+ª   ª   ª           seg_0033.wav
+ª   ª   ª           seg_0034.wav
+ª   ª   ª           seg_0035.wav
+ª   ª   ª           seg_0036.wav
+ª   ª   ª           seg_0037.wav
+ª   ª   ª           seg_0038.wav
+ª   ª   ª           seg_0039.wav
+ª   ª   ª           seg_0040.wav
+ª   ª   ª           seg_0041.wav
+ª   ª   ª           seg_0042.wav
+ª   ª   ª           seg_0043.wav
+ª   ª   ª           seg_0044.wav
+ª   ª   ª           seg_0045.wav
+ª   ª   ª           seg_0046.wav
+ª   ª   ª           seg_0047.wav
+ª   ª   ª           seg_0048.wav
+ª   ª   ª           seg_0049.wav
+ª   ª   ª           seg_0050.wav
+ª   ª   ª           seg_0051.wav
+ª   ª   ª           seg_0052.wav
+ª   ª   ª           seg_0053.wav
+ª   ª   ª           seg_0054.wav
+ª   ª   ª           seg_0055.wav
+ª   ª   ª           seg_0056.wav
+ª   ª   ª           seg_0057.wav
+ª   ª   ª           seg_0058.wav
+ª   ª   ª           seg_0059.wav
+ª   ª   ª           
+ª   ª   +---zh-cn
+ª   ª       +---chunks
+ª   ª               manifest.json
+ª   ª               seg_0000.wav
+ª   ª               seg_0001.wav
+ª   ª               seg_0002.wav
+ª   ª               seg_0003.wav
+ª   ª               seg_0004.wav
+ª   ª               seg_0005.wav
+ª   ª               seg_0006.wav
+ª   ª               seg_0007.wav
+ª   ª               seg_0008.wav
+ª   ª               seg_0009.wav
+ª   ª               seg_0010.wav
+ª   ª               seg_0011.wav
+ª   ª               seg_0012.wav
+ª   ª               seg_0013.wav
+ª   ª               seg_0014.wav
+ª   ª               seg_0015.wav
+ª   ª               seg_0016.wav
+ª   ª               seg_0017.wav
+ª   ª               seg_0018.wav
+ª   ª               seg_0019.wav
+ª   ª               seg_0020.wav
+ª   ª               seg_0021.wav
+ª   ª               seg_0022.wav
+ª   ª               seg_0023.wav
+ª   ª               seg_0024.wav
+ª   ª               seg_0025.wav
+ª   ª               seg_0026.wav
+ª   ª               seg_0027.wav
+ª   ª               seg_0028.wav
+ª   ª               seg_0029.wav
+ª   ª               seg_0030.wav
+ª   ª               seg_0031.wav
+ª   ª               seg_0032.wav
+ª   ª               seg_0033.wav
+ª   ª               seg_0034.wav
+ª   ª               seg_0035.wav
+ª   ª               seg_0036.wav
+ª   ª               seg_0037.wav
+ª   ª               seg_0038.wav
+ª   ª               seg_0039.wav
+ª   ª               seg_0040.wav
+ª   ª               seg_0041.wav
+ª   ª               seg_0042.wav
+ª   ª               seg_0043.wav
+ª   ª               seg_0044.wav
+ª   ª               seg_0045.wav
+ª   ª               seg_0046.wav
+ª   ª               seg_0047.wav
+ª   ª               seg_0048.wav
+ª   ª               seg_0049.wav
+ª   ª               seg_0050.wav
+ª   ª               seg_0051.wav
+ª   ª               seg_0052.wav
+ª   ª               seg_0053.wav
+ª   ª               seg_0054.wav
+ª   ª               seg_0055.wav
+ª   ª               seg_0056.wav
+ª   ª               seg_0057.wav
+ª   ª               seg_0058.wav
+ª   ª               seg_0059.wav
+ª   ª               
+ª   +---tts_8
+ª   ª   ª   manifest_ja.json
+ª   ª   ª   tts_ja.wav
+ª   ª   ª   
+ª   ª   +---ja
+ª   ª       +---chunks
+ª   ª               manifest.json
+ª   ª               seg_0000.wav
+ª   ª               seg_0001.wav
+ª   ª               seg_0002.wav
+ª   ª               seg_0003.wav
+ª   ª               seg_0004.wav
+ª   ª               seg_0005.wav
+ª   ª               seg_0006.wav
+ª   ª               seg_0007.wav
+ª   ª               seg_0008.wav
+ª   ª               seg_0009.wav
+ª   ª               seg_0010.wav
+ª   ª               seg_0011.wav
+ª   ª               seg_0012.wav
+ª   ª               seg_0013.wav
+ª   ª               seg_0014.wav
+ª   ª               seg_0015.wav
+ª   ª               seg_0016.wav
+ª   ª               seg_0017.wav
+ª   ª               seg_0018.wav
+ª   ª               seg_0019.wav
+ª   ª               seg_0020.wav
+ª   ª               seg_0021.wav
+ª   ª               seg_0022.wav
+ª   ª               seg_0023.wav
+ª   ª               seg_0024.wav
+ª   ª               seg_0025.wav
+ª   ª               seg_0026.wav
+ª   ª               seg_0027.wav
+ª   ª               seg_0028.wav
+ª   ª               seg_0029.wav
+ª   ª               seg_0030.wav
+ª   ª               seg_0031.wav
+ª   ª               seg_0032.wav
+ª   ª               seg_0033.wav
+ª   ª               seg_0034.wav
+ª   ª               seg_0035.wav
+ª   ª               seg_0036.wav
+ª   ª               seg_0037.wav
+ª   ª               seg_0038.wav
+ª   ª               seg_0039.wav
+ª   ª               seg_0040.wav
+ª   ª               seg_0041.wav
+ª   ª               seg_0042.wav
+ª   ª               seg_0043.wav
+ª   ª               seg_0044.wav
+ª   ª               seg_0045.wav
+ª   ª               seg_0046.wav
+ª   ª               seg_0047.wav
+ª   ª               seg_0048.wav
+ª   ª               seg_0049.wav
+ª   ª               seg_0050.wav
+ª   ª               seg_0051.wav
+ª   ª               seg_0052.wav
+ª   ª               seg_0053.wav
+ª   ª               seg_0054.wav
+ª   ª               seg_0055.wav
+ª   ª               seg_0056.wav
+ª   ª               seg_0057.wav
+ª   ª               seg_0058.wav
+ª   ª               seg_0059.wav
+ª   ª               seg_0060.wav
+ª   ª               seg_0061.wav
+ª   ª               seg_0062.wav
+ª   ª               seg_0063.wav
+ª   ª               seg_0064.wav
+ª   ª               seg_0065.wav
+ª   ª               seg_0066.wav
+ª   ª               seg_0067.wav
+ª   ª               
+ª   +---tts_9
+ª       ª   manifest_vi.json
+ª       ª   tts_vi.wav
+ª       ª   
+ª       +---vi
+ª           +---chunks
+ª                   manifest.json
+ª                   seg_0000.wav
+ª                   seg_0001.wav
+ª                   seg_0002.wav
+ª                   seg_0003.wav
+ª                   seg_0004.wav
+ª                   seg_0005.wav
+ª                   seg_0006.wav
+ª                   seg_0007.wav
+ª                   seg_0008.wav
+ª                   seg_0009.wav
+ª                   seg_0010.wav
+ª                   seg_0011.wav
+ª                   seg_0012.wav
+ª                   seg_0013.wav
+ª                   seg_0014.wav
+ª                   seg_0015.wav
+ª                   seg_0016.wav
+ª                   seg_0017.wav
+ª                   seg_0018.wav
+ª                   seg_0019.wav
+ª                   seg_0020.wav
+ª                   seg_0021.wav
+ª                   seg_0022.wav
+ª                   seg_0023.wav
+ª                   seg_0024.wav
+ª                   seg_0025.wav
+ª                   seg_0026.wav
+ª                   seg_0027.wav
+ª                   seg_0028.wav
+ª                   seg_0029.wav
+ª                   seg_0030.wav
+ª                   seg_0031.wav
+ª                   seg_0032.wav
+ª                   seg_0033.wav
+ª                   seg_0034.wav
+ª                   seg_0035.wav
+ª                   seg_0036.wav
+ª                   seg_0037.wav
+ª                   seg_0038.wav
+ª                   seg_0039.wav
+ª                   seg_0040.wav
+ª                   seg_0041.wav
+ª                   seg_0042.wav
+ª                   seg_0043.wav
+ª                   seg_0044.wav
+ª                   seg_0045.wav
+ª                   seg_0046.wav
+ª                   seg_0047.wav
+ª                   seg_0048.wav
+ª                   seg_0049.wav
+ª                   seg_0050.wav
+ª                   seg_0051.wav
+ª                   seg_0052.wav
+ª                   seg_0053.wav
+ª                   seg_0054.wav
+ª                   seg_0055.wav
+ª                   seg_0056.wav
+ª                   seg_0057.wav
+ª                   seg_0058.wav
+ª                   seg_0059.wav
+ª                   seg_0060.wav
+ª                   seg_0061.wav
+ª                   seg_0062.wav
+ª                   seg_0063.wav
+ª                   seg_0064.wav
+ª                   seg_0065.wav
+ª                   seg_0066.wav
+ª                   seg_0067.wav
+ª                   seg_0068.wav
+ª                   seg_0069.wav
+ª                   seg_0070.wav
+ª                   seg_0071.wav
+ª                   seg_0072.wav
+ª                   seg_0073.wav
+ª                   seg_0074.wav
+ª                   seg_0075.wav
+ª                   seg_0076.wav
+ª                   seg_0077.wav
+ª                   seg_0078.wav
+ª                   seg_0079.wav
+ª                   seg_0080.wav
+ª                   seg_0081.wav
+ª                   seg_0082.wav
+ª                   seg_0083.wav
+ª                   seg_0084.wav
+ª                   seg_0085.wav
+ª                   seg_0086.wav
+ª                   seg_0087.wav
+ª                   seg_0088.wav
+ª                   seg_0089.wav
+ª                   seg_0090.wav
+ª                   seg_0091.wav
+ª                   seg_0092.wav
+ª                   seg_0093.wav
+ª                   seg_0094.wav
+ª                   seg_0095.wav
+ª                   seg_0096.wav
+ª                   seg_0097.wav
+ª                   seg_0098.wav
+ª                   seg_0099.wav
+ª                   seg_0100.wav
+ª                   seg_0101.wav
+ª                   seg_0102.wav
+ª                   seg_0103.wav
+ª                   seg_0104.wav
+ª                   seg_0105.wav
+ª                   seg_0106.wav
+ª                   seg_0107.wav
+ª                   seg_0108.wav
+ª                   seg_0109.wav
+ª                   seg_0110.wav
+ª                   seg_0111.wav
+ª                   seg_0112.wav
+ª                   seg_0113.wav
+ª                   seg_0114.wav
+ª                   seg_0115.wav
+ª                   seg_0116.wav
+ª                   seg_0117.wav
+ª                   seg_0118.wav
+ª                   seg_0119.wav
+ª                   seg_0120.wav
+ª                   seg_0121.wav
+ª                   seg_0122.wav
+ª                   seg_0123.wav
+ª                   seg_0124.wav
+ª                   seg_0125.wav
+ª                   seg_0126.wav
+ª                   seg_0127.wav
+ª                   seg_0128.wav
+ª                   seg_0129.wav
+ª                   seg_0130.wav
+ª                   seg_0131.wav
+ª                   seg_0132.wav
+ª                   seg_0133.wav
+ª                   seg_0134.wav
+ª                   seg_0135.wav
+ª                   seg_0136.wav
+ª                   seg_0137.wav
+ª                   seg_0138.wav
+ª                   seg_0139.wav
+ª                   seg_0140.wav
+ª                   seg_0141.wav
+ª                   seg_0142.wav
+ª                   seg_0143.wav
+ª                   seg_0144.wav
+ª                   seg_0145.wav
+ª                   seg_0146.wav
+ª                   seg_0147.wav
+ª                   seg_0148.wav
+ª                   seg_0149.wav
+ª                   seg_0150.wav
+ª                   seg_0151.wav
+ª                   seg_0152.wav
+ª                   seg_0153.wav
+ª                   seg_0154.wav
+ª                   seg_0155.wav
+ª                   seg_0156.wav
+ª                   seg_0157.wav
+ª                   seg_0158.wav
+ª                   seg_0159.wav
+ª                   seg_0160.wav
+ª                   seg_0161.wav
+ª                   seg_0162.wav
+ª                   seg_0163.wav
+ª                   seg_0164.wav
+ª                   seg_0165.wav
+ª                   seg_0166.wav
+ª                   seg_0167.wav
+ª                   seg_0168.wav
+ª                   seg_0169.wav
+ª                   seg_0170.wav
+ª                   seg_0171.wav
+ª                   seg_0172.wav
+ª                   seg_0173.wav
+ª                   seg_0174.wav
+ª                   seg_0175.wav
+ª                   seg_0176.wav
+ª                   seg_0177.wav
+ª                   seg_0178.wav
+ª                   seg_0179.wav
+ª                   seg_0180.wav
+ª                   seg_0181.wav
+ª                   seg_0182.wav
+ª                   seg_0183.wav
+ª                   seg_0184.wav
+ª                   seg_0185.wav
+ª                   seg_0186.wav
+ª                   seg_0187.wav
+ª                   seg_0188.wav
+ª                   seg_0189.wav
+ª                   seg_0190.wav
+ª                   seg_0191.wav
+ª                   seg_0192.wav
+ª                   seg_0193.wav
+ª                   seg_0194.wav
+ª                   seg_0195.wav
+ª                   seg_0196.wav
+ª                   seg_0197.wav
+ª                   seg_0198.wav
+ª                   seg_0199.wav
+ª                   seg_0200.wav
+ª                   seg_0201.wav
+ª                   seg_0202.wav
+ª                   seg_0203.wav
+ª                   seg_0204.wav
+ª                   seg_0205.wav
+ª                   seg_0206.wav
+ª                   seg_0207.wav
+ª                   seg_0208.wav
+ª                   seg_0209.wav
+ª                   seg_0210.wav
+ª                   seg_0211.wav
+ª                   seg_0212.wav
+ª                   seg_0213.wav
+ª                   seg_0214.wav
+ª                   seg_0215.wav
+ª                   seg_0216.wav
+ª                   seg_0217.wav
+ª                   seg_0218.wav
+ª                   seg_0219.wav
+ª                   seg_0220.wav
+ª                   seg_0221.wav
+ª                   seg_0222.wav
+ª                   seg_0223.wav
+ª                   seg_0224.wav
+ª                   seg_0225.wav
+ª                   seg_0226.wav
+ª                   seg_0227.wav
+ª                   seg_0228.wav
+ª                   seg_0229.wav
+ª                   seg_0230.wav
+ª                   seg_0231.wav
+ª                   seg_0232.wav
+ª                   seg_0233.wav
+ª                   seg_0234.wav
+ª                   seg_0235.wav
+ª                   seg_0236.wav
+ª                   seg_0237.wav
+ª                   seg_0238.wav
+ª                   seg_0239.wav
+ª                   seg_0240.wav
+ª                   seg_0241.wav
+ª                   seg_0242.wav
+ª                   seg_0243.wav
+ª                   seg_0244.wav
+ª                   seg_0245.wav
+ª                   seg_0246.wav
+ª                   seg_0247.wav
+ª                   seg_0248.wav
+ª                   seg_0249.wav
+ª                   seg_0250.wav
+ª                   seg_0251.wav
+ª                   seg_0252.wav
+ª                   
++---scripts
+ª   ª   prefetch_models.py
+ª   ª   seed_users.py
+ª   ª   
+ª   +---__pycache__
+ª           prefetch_models.cpython-312.pyc
+ª           seed_users.cpython-312.pyc
+ª           
++---tests
+ª   ª   conftest.py
+ª   ª   test_admin_monitoring.py
+ª   ª   test_contact.py
+ª   ª   test_language_flow.py
+ª   ª   test_main.py
+ª   ª   test_notifications.py
+ª   ª   test_payment.py
+ª   ª   test_pipeline.py
+ª   ª   test_settings_and_integrations.py
+ª   ª   test_storage_breakdown.py
+ª   ª   test_storage_failover.py
+ª   ª   test_subscription.py
+ª   ª   test_subtitle_service.py
+ª   ª   test_tokenizer_and_word_quota.py
+ª   ª   test_translation_pipeline.py
+ª   ª   test_video_understanding.py
+ª   ª   test_workspace_features.py
+ª   ª   test_workspace_rag_search.py
+ª   ª   __init__.py
+ª   ª   
+ª   +---__pycache__
+ª           conftest.cpython-312-pytest-8.3.4.pyc
+ª           conftest.cpython-312-pytest-9.1.1.pyc
+ª           conftest.cpython-312.pyc
+ª           test_admin_monitoring.cpython-312-pytest-8.3.4.pyc
+ª           test_admin_monitoring.cpython-312-pytest-9.1.1.pyc
+ª           test_admin_monitoring.cpython-312.pyc
+ª           test_contact.cpython-312-pytest-8.3.4.pyc
+ª           test_contact.cpython-312-pytest-9.1.1.pyc
+ª           test_contact.cpython-312.pyc
+ª           test_language_flow.cpython-312-pytest-8.3.4.pyc
+ª           test_language_flow.cpython-312-pytest-9.1.1.pyc
+ª           test_language_flow.cpython-312.pyc
+ª           test_main.cpython-312-pytest-8.3.4.pyc
+ª           test_main.cpython-312-pytest-9.1.1.pyc
+ª           test_main.cpython-312.pyc
+ª           test_notifications.cpython-312-pytest-8.3.4.pyc
+ª           test_notifications.cpython-312-pytest-9.1.1.pyc
+ª           test_notifications.cpython-312.pyc
+ª           test_payment.cpython-312-pytest-8.3.4.pyc
+ª           test_payment.cpython-312-pytest-9.1.1.pyc
+ª           test_payment.cpython-312.pyc
+ª           test_pipeline.cpython-312-pytest-8.3.4.pyc
+ª           test_pipeline.cpython-312-pytest-9.1.1.pyc
+ª           test_pipeline.cpython-312.pyc
+ª           test_settings_and_integrations.cpython-312-pytest-8.3.4.pyc
+ª           test_settings_and_integrations.cpython-312-pytest-9.1.1.pyc
+ª           test_settings_and_integrations.cpython-312.pyc
+ª           test_storage_breakdown.cpython-312-pytest-8.3.4.pyc
+ª           test_storage_breakdown.cpython-312-pytest-9.1.1.pyc
+ª           test_storage_breakdown.cpython-312.pyc
+ª           test_storage_failover.cpython-312-pytest-8.3.4.pyc
+ª           test_storage_failover.cpython-312-pytest-9.1.1.pyc
+ª           test_storage_failover.cpython-312.pyc
+ª           test_subscription.cpython-312-pytest-8.3.4.pyc
+ª           test_subscription.cpython-312-pytest-9.1.1.pyc
+ª           test_subscription.cpython-312.pyc
+ª           test_subtitle_service.cpython-312-pytest-8.3.4.pyc
+ª           test_subtitle_service.cpython-312-pytest-9.1.1.pyc
+ª           test_subtitle_service.cpython-312.pyc
+ª           test_tokenizer_and_word_quota.cpython-312-pytest-8.3.4.pyc
+ª           test_tokenizer_and_word_quota.cpython-312-pytest-9.1.1.pyc
+ª           test_tokenizer_and_word_quota.cpython-312.pyc
+ª           test_translation_pipeline.cpython-312-pytest-8.3.4.pyc
+ª           test_translation_pipeline.cpython-312-pytest-9.1.1.pyc
+ª           test_translation_pipeline.cpython-312.pyc
+ª           test_video_understanding.cpython-312-pytest-8.3.4.pyc
+ª           test_video_understanding.cpython-312-pytest-9.1.1.pyc
+ª           test_video_understanding.cpython-312.pyc
+ª           test_workspace_features.cpython-312-pytest-8.3.4.pyc
+ª           test_workspace_features.cpython-312-pytest-9.1.1.pyc
+ª           test_workspace_features.cpython-312.pyc
+ª           test_workspace_rag_search.cpython-312-pytest-8.3.4.pyc
+ª           test_workspace_rag_search.cpython-312-pytest-9.1.1.pyc
+ª           test_workspace_rag_search.cpython-312.pyc
+ª           __init__.cpython-312.pyc
+ª           
++---tmp
++---uploads
+ª       10_snaptik.vn_7488309426378525957.mp4
+ª       11_snaptik.vn_7655215736859708686.mp4
+ª       12_YTDown.com_YouTube_Media_DsKZpgoy830_Every-AI-Model-Explained_001_1080p.mp4
+ª       13_snaptik.vn_7655215736859708686.mp4
+ª       14_snaptik.vn_7655215736859708686.mp4
+ª       15_snaptik.vn_7488309426378525957.mp4
+ª       16_snaptik.vn_7655215736859708686.mp4
+ª       17_snaptik.vn_7605981992932445470_ja.mp4
+ª       18_snaptik.vn_7605981992932445470_ja.mp4
+ª       7_snaptik.vn_7605981992932445470.mp4
+ª       8_snaptik.vn_7605981992932445470.mp4
+ª       9_YTDown.com_YouTube_Media_DsKZpgoy830_Every-AI-Model-Explained_001_1080p.mp4
+ª       thumb_1.jpg
+ª       thumb_10.jpg
+ª       thumb_11.jpg
+ª       thumb_12.jpg
+ª       thumb_13.jpg
+ª       thumb_14.jpg
+ª       thumb_15.jpg
+ª       thumb_16.jpg
+ª       thumb_17.jpg
+ª       thumb_18.jpg
+ª       thumb_2.jpg
+ª       thumb_3.jpg
+ª       thumb_4.jpg
+ª       thumb_5.jpg
+ª       thumb_6.jpg
+ª       thumb_7.jpg
+ª       thumb_8.jpg
+ª       thumb_9.jpg
+ª       
++---__pycache__
+        test_docker_verification.cpython-312.pyc
+        test_storage_sync_verification.cpython-312.pyc
+        

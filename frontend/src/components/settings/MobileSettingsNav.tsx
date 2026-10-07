@@ -1,14 +1,9 @@
 import {
-  User,
-  SlidersHorizontal,
-  Globe,
-  Bot,
-  Languages,
-  CreditCard,
   Bell,
-  Blocks,
+  CreditCard,
   Lock,
   Shield,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { SettingsSection } from "../../types/settings";
@@ -25,14 +20,9 @@ export default function MobileSettingsNav({
   const { t } = useTranslation(["settings"]);
 
   const items = [
-    { id: "account", icon: <User size={15} />, label: t("settings:sidebar.account", "Account") },
     { id: "general", icon: <SlidersHorizontal size={15} />, label: t("settings:sidebar.general", "General") },
-    { id: "workspace", icon: <Globe size={15} />, label: t("settings:sidebar.workspace", "Workspace") },
-    { id: "ai", icon: <Bot size={15} />, label: t("settings:sidebar.ai", "AI & Processing") },
-    { id: "translation", icon: <Languages size={15} />, label: t("settings:sidebar.translation", "Translation & Voice") },
-    { id: "billing", icon: <CreditCard size={15} />, label: t("settings:sidebar.billing", "Billing") },
+    { id: "billing", icon: <CreditCard size={15} />, label: t("settings:sidebar.billing", "Billing & Subscription") },
     { id: "notifications", icon: <Bell size={15} />, label: t("settings:sidebar.notifications", "Notifications") },
-    { id: "integrations", icon: <Blocks size={15} />, label: t("settings:sidebar.integrations", "Integrations") },
     { id: "security", icon: <Lock size={15} />, label: t("settings:sidebar.security", "Security") },
     { id: "privacy", icon: <Shield size={15} />, label: t("settings:sidebar.privacy", "Data & Privacy") },
   ] as const;

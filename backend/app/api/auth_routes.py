@@ -73,7 +73,7 @@ router = APIRouter(
 # Security
 # =========================================================
 
-bearer_scheme = HTTPBearer()
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_current_user_id(
@@ -81,6 +81,14 @@ def get_current_user_id(
         bearer_scheme
     ),
 ) -> int:
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication credentials were not provided.",
+            headers={
+                "WWW-Authenticate": "Bearer",
+            },
+        )
 
     token = credentials.credentials
 
