@@ -431,17 +431,31 @@ export default function FloatingChatWidget() {
     }
   };
 
-  const handleJumpToTimestamp = (citation: Citation) => {
+  const handleJumpToTimestamp = async (citation: Citation) => {
     const targetSec = Math.max(0, Math.floor(citation.start_time));
     const targetVidId = citation.video_id || activeVideoId;
-    const targetProjId = citation.project_id || selectedProjectId || 1;
+    let targetProjId = citation.project_id || selectedProjectId;
+
+    // If targetProjId is missing, resolve it dynamically from video details
+    if (!targetProjId && targetVidId) {
+      try {
+        const vidDetail = await videoService.getVideo(targetVidId);
+        if (vidDetail?.project_id) {
+          targetProjId = vidDetail.project_id;
+        }
+      } catch (err) {
+        console.warn("Could not fetch project_id for video:", err);
+      }
+    }
+    const finalProjId = targetProjId || 1;
+
     const currentSearchParams = new URLSearchParams(location.search);
     const currentStep = currentSearchParams.get("step");
 
     // If jump from workspace or different video, navigate directly to target project & video
-    if (targetVidId && (targetVidId !== activeVideoId || targetProjId !== selectedProjectId)) {
+    if (targetVidId && (targetVidId !== activeVideoId || finalProjId !== selectedProjectId)) {
       navigate(
-        `/workspace/project/${targetProjId}/video/${targetVidId}?step=review-export&t=${targetSec}`
+        `/workspace/project/${finalProjId}/video/${targetVidId}?step=review-export&t=${targetSec}`
       );
       return;
     }
@@ -449,18 +463,23 @@ export default function FloatingChatWidget() {
     // If on the same video but not yet on review-export step, switch to review-export step
     if (targetVidId && currentStep !== "review-export") {
       navigate(
-        `/workspace/project/${targetProjId}/video/${targetVidId}?step=review-export&t=${targetSec}`
+        `/workspace/project/${finalProjId}/video/${targetVidId}?step=review-export&t=${targetSec}`
       );
       return;
     }
 
-    // If already on the same video AND at step=review-export, seek video directly
+    // If already on the same video, seek video element directly
     if (activeVideoId) {
-      const videoEl = document.querySelector("video") as HTMLVideoElement | null;
-      if (videoEl) {
-        videoEl.currentTime = targetSec;
-        videoEl.play().catch(() => {});
-      }
+      const allVideos = document.querySelectorAll("video");
+      allVideos.forEach((v) => {
+        try {
+          v.currentTime = targetSec;
+          v.play().catch(() => {});
+        } catch (e) {
+          // ignore
+        }
+      });
+      currentSearchParams.set("step", "review-export");
       currentSearchParams.set("t", String(targetSec));
       navigate({ search: currentSearchParams.toString() }, { replace: true });
     } else if (citation.project_id || selectedProjectId) {
@@ -719,7 +738,9 @@ export default function FloatingChatWidget() {
                             Đoạn trích dẫn liên quan:
                           </p>
                           <div className="flex flex-wrap gap-1.5">
-                            {m.citations.map((cite, cIdx) => {
+                            {[...m.citations]
+                              .sort((a, b) => (a.start_time ?? 0) - (b.start_time ?? 0))
+                              .map((cite, cIdx) => {
                               const vName = cite.video_title ? cite.video_title.replace(/\.[^/.]+$/, "") : "";
                               const shortVName = vName.length > 18 ? vName.slice(0, 18) + "..." : vName;
                               const showVideoTag = !activeVideoId && Boolean(shortVName);

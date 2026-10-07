@@ -436,6 +436,8 @@ class VideoUnderstandingService:
             "summary", "overview", "key takeaways", "nói về cái gì", "nội dung là gì"
         ])
 
+        proj_id = video.get("project_id") if isinstance(video, dict) else getattr(video, "project_id", None)
+
         top_chunks = self.search_transcript(video_id=video_id, query=message, limit=5)
         citations = []
         context_snippets = []
@@ -443,6 +445,7 @@ class VideoUnderstandingService:
         for c in top_chunks:
             spk = c.get("speaker") or "Speaker"
             citations.append({
+                "project_id": proj_id,
                 "video_id": video_id,
                 "start_time": c.get("start_time", 0.0),
                 "end_time": c.get("end_time", 0.0),
@@ -463,6 +466,7 @@ class VideoUnderstandingService:
             for ch in chapters[:4]:
                 st = ch.get("start_time", 0.0)
                 citations.append({
+                    "project_id": proj_id,
                     "video_id": video_id,
                     "start_time": st,
                     "end_time": ch.get("end_time", st + 5.0),
@@ -470,6 +474,9 @@ class VideoUnderstandingService:
                     "text": f"Chương: {ch.get('title', 'Chapter')} - {ch.get('summary', '')}",
                     "speaker": "Chapter",
                 })
+
+        # Sắp xếp các đoạn trích dẫn citations theo thứ tự thời lượng tăng dần
+        citations.sort(key=lambda x: (x.get("start_time", 0.0), x.get("end_time", 0.0)))
 
         # Step 2: Formulate Assistant Answer via LLM with Fallback
         llm_reply = None
@@ -614,6 +621,7 @@ class VideoUnderstandingService:
         citations = []
         for c in top_chunks:
             citations.append({
+                "project_id": project_id,
                 "video_id": c.get("video_id"),
                 "video_title": c.get("video_title", "Video"),
                 "start_time": c.get("start_time"),
@@ -622,6 +630,8 @@ class VideoUnderstandingService:
                 "text": c.get("text"),
                 "translated_text": c.get("translated_text"),
             })
+
+        citations.sort(key=lambda x: (x.get("start_time", 0.0), x.get("end_time", 0.0)))
 
         if citations:
             llm_reply = None
@@ -766,6 +776,8 @@ class VideoUnderstandingService:
                 "text": c.get("text"),
                 "translated_text": c.get("translated_text"),
             })
+
+        citations.sort(key=lambda x: (x.get("start_time", 0.0), x.get("end_time", 0.0)))
 
         if citations:
             llm_reply = None

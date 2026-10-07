@@ -209,20 +209,34 @@ export const StandardVideoPlayer: React.FC<StandardVideoPlayerProps> = ({
   }, [effectiveRatio]);
 
   const [searchParams] = useSearchParams();
-  const playerSeekDoneRef = useRef(false);
 
-  const seekToQueryTimestamp = () => {
+  const seekToQueryTimestamp = useCallback(() => {
     const tParam = searchParams.get("t");
-    if (tParam !== null && videoRef.current) {
+    const video = videoRef.current;
+    if (tParam !== null && video) {
       const seekSec = parseFloat(tParam);
       if (!isNaN(seekSec) && seekSec >= 0) {
-        videoRef.current.currentTime = seekSec;
-        setCurrentTime(seekSec);
-        videoRef.current.play().catch(() => {});
-        setIsPlaying(true);
+        if (video.readyState >= 1) {
+          video.currentTime = seekSec;
+          setCurrentTime(seekSec);
+          video.play().catch(() => {});
+          setIsPlaying(true);
+        } else {
+          // If metadata not ready yet, seek on loadedmetadata or canplay
+          const onReadyToSeek = () => {
+            video.currentTime = seekSec;
+            setCurrentTime(seekSec);
+            video.play().catch(() => {});
+            setIsPlaying(true);
+            video.removeEventListener("loadedmetadata", onReadyToSeek);
+            video.removeEventListener("canplay", onReadyToSeek);
+          };
+          video.addEventListener("loadedmetadata", onReadyToSeek);
+          video.addEventListener("canplay", onReadyToSeek);
+        }
       }
     }
-  };
+  }, [searchParams]);
 
   const handleMetadataLoaded = () => {
     const video = videoRef.current;
@@ -243,18 +257,12 @@ export const StandardVideoPlayer: React.FC<StandardVideoPlayerProps> = ({
       }
     }
 
-    if (!playerSeekDoneRef.current) {
-      seekToQueryTimestamp();
-      playerSeekDoneRef.current = true;
-    }
+    seekToQueryTimestamp();
   };
 
   useEffect(() => {
-    const tParam = searchParams.get("t");
-    if (tParam !== null && videoRef.current) {
-      seekToQueryTimestamp();
-    }
-  }, [searchParams.get("t")]);
+    seekToQueryTimestamp();
+  }, [searchParams.get("t"), src, seekToQueryTimestamp]);
 
   return (
     <div

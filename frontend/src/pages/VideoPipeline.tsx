@@ -129,6 +129,16 @@ function VideoPipelineContent() {
   const [activeStep, setActiveStep] = useState<string>(() =>
     initialQueryStep && STEP_ID_TO_NUM[initialQueryStep] ? initialQueryStep : "upload"
   );
+
+  // If URL has a specific step parameter on initial load, ensure pipeline context reflects it immediately
+  useEffect(() => {
+    if (initialQueryStep && STEP_ID_TO_NUM[initialQueryStep]) {
+      const stepNum = STEP_ID_TO_NUM[initialQueryStep];
+      if (state.step !== stepNum) {
+        dispatch({ type: "SET_STEP", payload: stepNum });
+      }
+    }
+  }, []);
   const [isSaved, setIsSaved] = useState(true);
   const [projectName, setProjectName] = useState<string>("");
   const [isLoadingVideo, setIsLoadingVideo] = useState(false);
@@ -398,10 +408,12 @@ function VideoPipelineContent() {
       const targetStepId = STEP_NUM_TO_ID[state.step];
       if (targetStepId !== activeStep) {
         setActiveStep(targetStepId);
-        setSearchParams({ step: targetStepId }, { replace: true });
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.set("step", targetStepId);
+        setSearchParams(nextParams, { replace: true });
       }
     }
-  }, [state.step, activeStep]);
+  }, [state.step, activeStep, searchParams]);
 
   // Polling for active background tasks (Phase 4 Re-hydration & Live Sync)
   useEffect(() => {
@@ -608,7 +620,9 @@ function VideoPipelineContent() {
     // Update the context step and sync URL query params
     const stepNum = STEP_ID_TO_NUM[stepId] || 1;
     dispatch({ type: "SET_STEP", payload: stepNum });
-    setSearchParams({ step: stepId }, { replace: true });
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("step", stepId);
+    setSearchParams(nextParams, { replace: true });
   };
 
   const handleSave = async () => {

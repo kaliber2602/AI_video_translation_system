@@ -392,7 +392,17 @@ class TTSAlignerService:
                 default_voice = lang_defaults.get(clean_lang, "vi-VN-HoaiMyNeural")
                 target_voice = voice_map.get((voice_id or "").lower(), (voice_id if voice_id and "-" in voice_id else default_voice))
 
-                logger.info(f"[Edge-TTS] {seg_info} [voice: {target_voice}] [lang: {tgt_lang}] Generating speech...")
+                # Strip non-speech symbols / punctuation-only text
+                import re
+                import time
+                has_speech_content = bool(re.search(r"[\w\d]", text, re.UNICODE))
+                if not has_speech_content:
+                    logger.warning(f"[Edge-TTS] {seg_info} Text contains no alphanumeric characters ('{text}'), generating silence fallback.")
+                    return np.zeros(int(22050 * 0.5), dtype=np.float32)
+
+                audio_success = False
+                temp_edge_mp3 = None
+
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f:
                     temp_edge_mp3 = f.name
 
@@ -402,9 +412,46 @@ class TTSAlignerService:
 
                 try:
                     asyncio.run(_run_edge())
+                    if os.path.exists(temp_edge_mp3) and os.path.getsize(temp_edge_mp3) > 100:
+                        audio_success = True
                 except Exception as edge_err:
-                    logger.error(f"[Edge-TTS] Run failed: {edge_err}")
-                    raise RuntimeError(f"Edge-TTS không thể tạo giọng cho ngôn ngữ '{tgt_lang}': {edge_err}")
+                    logger.warning(f"[Edge-TTS] {seg_info} Edge-TTS single attempt failed ({edge_err}). Immediate fallback...")
+
+                if not audio_success:
+                    if temp_edge_mp3 and os.path.exists(temp_edge_mp3):
+                        os.unlink(temp_edge_mp3)
+                        temp_edge_mp3 = None
+
+                if not audio_success or not temp_edge_mp3:
+                    logger.warning(f"[Edge-TTS] {seg_info} Edge-TTS could not synthesize '{text[:60]}...'. Falling back to Google TTS engine...")
+                    try:
+                        import urllib.request
+                        import urllib.parse
+                        import io
+                        clean_q = re.sub(r'[\r\n\t]+', ' ', text).strip()
+                        g_lang = (tgt_lang or "vi").lower().split("-")[0].split("_")[0]
+                        g_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={urllib.parse.quote(clean_q)}&tl={g_lang}&client=tw-ob"
+                        g_req = urllib.request.Request(g_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+                        with urllib.request.urlopen(g_req, timeout=10) as g_resp:
+                            g_data = g_resp.read()
+                        if len(g_data) > 500:
+                            g_seg = AudioSegment.from_file(io.BytesIO(g_data), format="mp3")
+                            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f_gw:
+                                g_wav = f_gw.name
+                            g_seg.export(g_wav, format="wav")
+                            audio, sr = sf.read(g_wav)
+                            if sr != 22050:
+                                from scipy import signal
+                                audio = signal.resample(audio, int(len(audio) * 22050 / sr))
+                            if os.path.exists(g_wav):
+                                os.unlink(g_wav)
+                            logger.info(f"[Google-TTS Fallback] {seg_info} Successfully generated speech fallback ({len(audio)/22050:.2f}s)!")
+                            return audio
+                    except Exception as g_err:
+                        logger.warning(f"[Google-TTS Fallback] {seg_info} Fallback failed: {g_err}")
+
+                    logger.warning(f"[Edge-TTS] {seg_info} Generating silence fallback.")
+                    return np.zeros(int(22050 * 0.5), dtype=np.float32)
 
                 if os.path.exists(temp_edge_mp3) and os.path.getsize(temp_edge_mp3) > 100:
                     try:
@@ -422,7 +469,8 @@ class TTSAlignerService:
                         if os.path.exists(temp_edge_mp3):
                             os.unlink(temp_edge_mp3)
                 else:
-                    raise RuntimeError(f"Edge-TTS tạo file âm thanh rỗng hoặc không hợp lệ cho giọng {target_voice}.")
+                    logger.warning(f"[Edge-TTS] Empty audio file generated for '{text}', falling back to silence.")
+                    return np.zeros(int(22050 * 0.5), dtype=np.float32)
 
             raise RuntimeError(f"Mô hình TTS '{model}' không được hệ thống hỗ trợ.")
         except RuntimeError:
