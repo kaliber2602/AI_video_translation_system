@@ -1,12 +1,7 @@
 export type SettingsSection =
-  | "account"
   | "general"
-  | "workspace"
-  | "ai"
-  | "translation"
   | "billing"
   | "notifications"
-  | "integrations"
   | "security"
   | "privacy";
 
