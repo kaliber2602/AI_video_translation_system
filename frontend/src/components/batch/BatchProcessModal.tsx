@@ -132,10 +132,25 @@ export default function BatchProcessModal({
     }
   };
 
+  const XTTS_SUPPORTED_LANGS = ["en", "es", "fr", "de", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh", "ja", "hu", "ko", "hi"];
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (selectedVideoIds.length === 0) {
       toast.error("Chưa chọn video nào để xử lý");
+      return;
+    }
+
+    // Validate Model Responsibilities & Capabilities (Strict Singleton Responsibility)
+    const effectiveTtsModel = (selectedPreset?.tts_model || selectedPreset?.config_data?.tts_dubbing?.engine || "").toLowerCase();
+    const isXttsEngine = effectiveTtsModel.includes("xtts") || effectiveTtsModel.includes("coqui");
+    const cleanTargetLang = (targetLang || "").toLowerCase().trim();
+
+    if (isXttsEngine && !XTTS_SUPPORTED_LANGS.includes(cleanTargetLang)) {
+      toast.error(
+        `Mô hình Coqui XTTS-v2 không hỗ trợ ngôn ngữ "${cleanTargetLang.toUpperCase()}". Vui lòng chọn Preset sử dụng Microsoft Edge-TTS hoặc ElevenLabs.`
+      );
       return;
     }
 
@@ -312,7 +327,12 @@ export default function BatchProcessModal({
               <select
                 value={targetLang}
                 onChange={(e) => setTargetLang(e.target.value)}
-                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs font-medium text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                className={`w-full rounded-lg border px-3 py-2 text-xs font-medium text-[var(--color-text-primary)] focus:outline-none ${
+                  (selectedPreset?.tts_model || selectedPreset?.config_data?.tts_dubbing?.engine || "").toLowerCase().includes("xtts") &&
+                  !XTTS_SUPPORTED_LANGS.includes((targetLang || "").toLowerCase().trim())
+                    ? "border-rose-500 bg-rose-500/5 focus:border-rose-500"
+                    : "border-[var(--color-border)] bg-[var(--color-surface)] focus:border-[var(--color-primary)]"
+                }`}
               >
                 <option value="vi">Tiếng Việt (vi)</option>
                 <option value="en">Tiếng Anh (en)</option>
@@ -323,6 +343,12 @@ export default function BatchProcessModal({
                 <option value="es">Tiếng Tây Ban Nha (es)</option>
                 <option value="de">Tiếng Đức (de)</option>
               </select>
+              {(selectedPreset?.tts_model || selectedPreset?.config_data?.tts_dubbing?.engine || "").toLowerCase().includes("xtts") &&
+                !XTTS_SUPPORTED_LANGS.includes((targetLang || "").toLowerCase().trim()) && (
+                  <p className="mt-1 text-[11px] font-semibold text-rose-500">
+                    Mô hình Coqui XTTS-v2 không hỗ trợ ngôn ngữ này.
+                  </p>
+                )}
             </div>
 
             {/* Voice Speed */}

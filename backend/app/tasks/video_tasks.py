@@ -109,15 +109,361 @@ def _send_task_notification(
         )
 
 
+@celery_app.task(bind=True, base=PipelineTask, name="task_pipeline_completed_step",
+                 soft_time_limit=1800, time_limit=2400)
+def task_pipeline_completed_step(
+    self,
+    last_step_result: Any,
+    video_id: int,
+    user_id: int,
+    job_id: Optional[str] = None,
+    batch_id: Optional[str] = None,
+    batch_item_id: Optional[str] = None,
+):
+    """
+    Final callback executed when all sequential Celery steps in the pipeline complete.
+    Builds FAISS embeddings, finalizes Job and Video records, updates Batch progress,
+    and dispatches success notifications.
+    """
+    db = self.db
+    logger.info(f"[PipelineCallback] Finalizing completed pipeline for Video #{video_id} (Job: {job_id})")
+    job_service = JobService(db)
+
+    job = None
+    if job_id:
+        try:
+            job_uuid = uuid.UUID(job_id) if isinstance(job_id, str) else job_id
+            job = job_service.get_job(job_uuid)
+        except Exception as je:
+            logger.warning(f"Could not load job {job_id}: {je}")
+
+    # Build FAISS Vector Embeddings for Semantic Search & RAG
+    try:
+        from app.services.faiss_vector_service import FaissVectorService
+        vec_service = FaissVectorService(db=db)
+        indexed_count = vec_service.index_video_segments(video_id=video_id)
+        logger.info(f"[FAISS] Indexed {indexed_count} chunks for Video #{video_id}")
+    except Exception as faiss_err:
+        logger.warning(f"[FAISS] Automatic indexing failed for video #{video_id}: {faiss_err}")
+
+    # Finalize Job Status
+    if job:
+        try:
+            job_service.update_job_status(job.id, JobStatus.COMPLETED, progress=100)
+            job_service.log_task(job.id, "pipeline_complete", "success", "Video pipeline completed across all Celery workers")
+        except Exception as err:
+            logger.warning(f"Could not finalize job {job_id}: {err}")
+
+    # Update Video Status
+    try:
+        from app.models.enums import VideoStatus
+        video = db.query(Video).filter(Video.id == video_id).first()
+        if video:
+            video.status = VideoStatus.COMPLETED.value
+            video.progress = 100
+            db.commit()
+    except Exception as v_err:
+        logger.warning(f"Could not update video {video_id} status: {v_err}")
+
+    # Update Batch Job Item if this video was part of a Batch
+    if batch_id and batch_item_id:
+        try:
+            from app.core.database import get_connection
+            conn = get_connection()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE batch_job_items
+                        SET status = 'completed', progress = 100, finished_at = NOW(), updated_at = NOW()
+                        WHERE id = %s;
+                        """,
+                        (batch_item_id,),
+                    )
+                    cur.execute(
+                        """
+                        UPDATE batch_jobs
+                        SET completed_videos = (SELECT COUNT(*) FROM batch_job_items WHERE batch_id = %s AND status = 'completed'),
+                            updated_at = NOW()
+                        WHERE id = %s;
+                        """,
+                        (batch_id, batch_id),
+                    )
+                    conn.commit()
+
+                    # Check if all items are completed or failed
+                    cur.execute("SELECT COUNT(*) FROM batch_job_items WHERE batch_id = %s AND status IN ('pending', 'processing');", (batch_id,))
+                    pending_row = cur.fetchone()
+                    remaining_count = pending_row[0] if pending_row else 0
+
+                    if remaining_count == 0:
+                        cur.execute(
+                            """
+                            UPDATE batch_jobs
+                            SET status = 'completed', finished_at = NOW(), updated_at = NOW()
+                            WHERE id = %s;
+                            """,
+                            (batch_id,),
+                        )
+                        conn.commit()
+            finally:
+                conn.close()
+            logger.info(f"[BatchEngine] Updated batch item {batch_item_id} for Video #{video_id} as completed.")
+        except Exception as b_err:
+            logger.warning(f"Could not update batch progress for item {batch_item_id}: {b_err}")
+
+    # Send Notification
+    _send_task_notification(
+        user_id=user_id,
+        video_id=video_id,
+        title=f"Xử lý video hoàn tất (Video #{video_id})",
+        message=f"Toàn bộ quy trình xử lý phân tán cho video #{video_id} đã hoàn tất thành công.",
+        step="full_pipeline",
+        status="completed",
+        db=db,
+    )
+
+    return {
+        "status": "completed",
+        "video_id": video_id,
+        "job_id": str(job.id) if job else job_id,
+        "message": "Full distributed pipeline executed successfully across Celery workers",
+        "last_step_result": last_step_result,
+    }
+
+
+@celery_app.task(bind=True, base=PipelineTask, name="task_pipeline_failed_step",
+                 soft_time_limit=600, time_limit=900)
+def task_pipeline_failed_step(
+    self,
+    *args,
+    request: Any = None,
+    exc: Any = None,
+    traceback: Any = None,
+    video_id: int,
+    user_id: int,
+    job_id: Optional[str] = None,
+    batch_id: Optional[str] = None,
+    batch_item_id: Optional[str] = None,
+    **kwargs,
+):
+    """
+    Error callback (link_error) executed if any step in the pipeline chain fails.
+    Handles Celery link_error whether passed as positional args or kwargs.
+    """
+    # Extract exc / request from positional args if provided by Celery errback
+    task_id_failed = None
+    if args:
+        if len(args) == 1:
+            # Celery 5 passes failed task_id as first arg
+            task_id_failed = args[0]
+            try:
+                failed_res = celery_app.AsyncResult(str(task_id_failed))
+                if failed_res.result:
+                    exc = failed_res.result
+            except Exception:
+                pass
+            if not exc:
+                exc = args[0]
+        elif len(args) >= 3:
+            # Celery classic: (request, exc, traceback)
+            request = request or args[0]
+            exc = exc or args[1]
+            traceback = traceback or args[2]
+
+    db = self.db
+    error_msg = str(exc) if exc else "Pipeline task failed"
+    if task_id_failed and error_msg == str(task_id_failed):
+        # Fallback if Celery backend didn't return exc directly
+        try:
+            failed_res = celery_app.AsyncResult(str(task_id_failed))
+            if failed_res.traceback:
+                error_msg = failed_res.traceback.strip().split("\n")[-1]
+            elif failed_res.result:
+                error_msg = str(failed_res.result)
+        except Exception:
+            pass
+    logger.error(f"[PipelineCallback] Pipeline failed for Video #{video_id}: {error_msg}")
+
+    job_service = JobService(db)
+    if job_id:
+        try:
+            job_uuid = uuid.UUID(job_id) if isinstance(job_id, str) else job_id
+            job_service.update_job_status(job_uuid, JobStatus.FAILED, error_message=error_msg)
+        except Exception as db_err:
+            logger.warning(f"Could not mark job {job_id} as failed: {db_err}")
+
+    # Update Batch Job Item if this video was part of a Batch
+    if batch_id and batch_item_id:
+        try:
+            from app.core.database import get_connection
+            conn = get_connection()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE batch_job_items
+                        SET status = 'failed', error_message = %s, finished_at = NOW(), updated_at = NOW()
+                        WHERE id = %s;
+                        """,
+                        (error_msg[:500], batch_item_id),
+                    )
+                    cur.execute(
+                        """
+                        UPDATE batch_jobs
+                        SET failed_videos = (SELECT COUNT(*) FROM batch_job_items WHERE batch_id = %s AND status = 'failed'),
+                            updated_at = NOW()
+                        WHERE id = %s;
+                        """,
+                        (batch_id, batch_id),
+                    )
+                    conn.commit()
+            finally:
+                conn.close()
+        except Exception as b_err:
+            logger.warning(f"Could not update failed batch item {batch_item_id}: {b_err}")
+
+    # Refund word quota on failure
+    try:
+        from app.services.subscription_service import refund_user_words, get_model_word_multiplier
+        from app.core.tokenizer import TokenizerService
+        from app.models import VideoPipelineConfig
+        video = db.query(Video).filter(Video.id == video_id).first()
+        dur = (video.duration or 60.0) if video else 60.0
+        v_cfg = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
+        m_mult = 1
+        if v_cfg:
+            stt_m = get_model_word_multiplier(v_cfg.stt_model or "whisperx_large_v3", default_multiplier=1)
+            trans_m = get_model_word_multiplier(v_cfg.translation_model or "nllb_200_1.3b", default_multiplier=1)
+            tts_m = get_model_word_multiplier(v_cfg.tts_model or "xtts_v2", default_multiplier=1)
+            m_mult = max(1, stt_m + trans_m + tts_m)
+        words_to_refund = TokenizerService.estimate_video_words(dur) * m_mult
+        refund_user_words(
+            user_id=user_id,
+            words_amount=words_to_refund,
+            description=f"Hoàn hạn mức từ khi xử lý thất bại video #{video_id}",
+            video_id=video_id,
+            job_id=job_id,
+        )
+    except Exception as ref_err:
+        logger.warning(f"Could not refund words for failed video {video_id}: {ref_err}")
+
+    _send_task_notification(
+        user_id=user_id,
+        video_id=video_id,
+        title=f"Xử lý video thất bại (Video #{video_id})",
+        message=f"Quy trình xử lý cho video #{video_id} gặp sự cố: {error_msg[:120]}",
+        step="full_pipeline",
+        status="failed",
+        error=error_msg,
+        db=db,
+    )
+
+
+def create_distributed_video_pipeline_chain(
+    video_id: int,
+    user_id: int,
+    job_id: str,
+    target_lang: str = "vi",
+    enable_diarization: bool = True,
+    stt_model: Optional[str] = None,
+    translation_model: Optional[str] = None,
+    tts_model: Optional[str] = None,
+    voice_speed: float = 1.0,
+    speaker_id: Optional[int] = None,
+    burn_subtitles: bool = True,
+    batch_id: Optional[str] = None,
+    batch_item_id: Optional[str] = None,
+):
+    """
+    Constructs a distributed Celery Canvas Chain that routes each step to its
+    dedicated Celery worker queue:
+      Step 1: task_extract_audio_step      -> queue_media
+      Step 2: task_transcribe_step         -> queue_stt
+      Step 3: task_translate_step          -> queue_translate
+      Step 4: task_generate_tts_step       -> queue_tts (if dubbing enabled)
+      Step 5: task_dub_mux_step            -> queue_media
+      Step 6: task_pipeline_completed_step -> queue_pipeline
+    """
+    from celery import chain
+
+    steps = []
+
+    # Step 1: Media Worker (Extraction & Demucs Separation)
+    steps.append(task_extract_audio_step.si(video_id=video_id, user_id=user_id, job_id=job_id))
+
+    # Step 2: STT Worker (Whisper Transcription & Diarization)
+    steps.append(task_transcribe_step.si(
+        video_id=video_id,
+        user_id=user_id,
+        enable_diarization=enable_diarization,
+        job_id=job_id,
+        stt_model=stt_model
+    ))
+
+    # Step 3: Translate Worker (NLLB / LLM Translation)
+    steps.append(task_translate_step.si(
+        video_id=video_id,
+        user_id=user_id,
+        target_language=target_lang,
+        model=translation_model,
+        job_id=job_id
+    ))
+
+    # Step 4: TTS Worker (Voice synthesis if enabled)
+    if tts_model and tts_model != "none":
+        steps.append(task_generate_tts_step.si(
+            video_id=video_id,
+            user_id=user_id,
+            language=target_lang,
+            speaker_id=speaker_id,
+            speed=voice_speed,
+            job_id=job_id,
+            model=tts_model
+        ))
+
+    # Step 5: Media Worker (Dubbing, Subtitle burning, FFmpeg NVENC Muxing)
+    steps.append(task_dub_mux_step.si(
+        video_id=video_id,
+        user_id=user_id,
+        language=target_lang,
+        burn_subtitles=burn_subtitles,
+        job_id=job_id
+    ))
+
+    # Final Step: Pipeline Completion Callback
+    steps.append(task_pipeline_completed_step.s(
+        video_id=video_id,
+        user_id=user_id,
+        job_id=job_id,
+        batch_id=batch_id,
+        batch_item_id=batch_item_id,
+    ))
+
+    workflow = chain(*steps)
+    workflow.link_error(task_pipeline_failed_step.s(
+        video_id=video_id,
+        user_id=user_id,
+        job_id=job_id,
+        batch_id=batch_id,
+        batch_item_id=batch_item_id,
+    ))
+    return workflow
+
+
 @celery_app.task(bind=True, base=PipelineTask, name="process_video_pipeline", 
                  max_retries=3, soft_time_limit=7200, time_limit=7800)
 def process_video_pipeline(self, video_id: int, user_id: int, job_id: Optional[str] = None):
-    """Process a video through the full pipeline with auto device detection"""
+    """
+    Master Dispatcher for single video pipeline.
+    Constructs and dispatches the distributed Celery chain across worker queues
+    (queue_media, queue_stt, queue_translate, queue_tts) instead of executing in-process.
+    """
     db = self.db
     
     try:
         cuda_available = torch.cuda.is_available()
-        print(f"🚀 Starting pipeline for video {video_id} using {'GPU' if cuda_available else 'CPU'}", flush=True)
+        logger.info(f"Dispatching distributed pipeline for video {video_id} using {'GPU' if cuda_available else 'CPU'}")
         
         self.update_state(
             state="STARTED", 
@@ -138,6 +484,12 @@ def process_video_pipeline(self, video_id: int, user_id: int, job_id: Optional[s
         
         target_lang = config.target_language if config and getattr(config, "target_language", None) else "vi"
         source_lang = config.source_language if config and getattr(config, "source_language", None) else "en"
+        stt_model = getattr(config, "stt_model", None) or "whisper_medium"
+        enable_diarization = bool(getattr(config, "diarization_model", True))
+        translation_model = getattr(config, "translation_model", None) or "nllb_200_1.3b"
+        tts_model = getattr(config, "tts_model", None) or "coqui_xtts_v2"
+        voice_speed = float(getattr(config, "voice_speed", 1.0) or 1.0)
+        burn_subtitles = bool(getattr(config, "auto_generate_subtitles", True))
 
         job = None
         if job_id:
@@ -145,7 +497,7 @@ def process_video_pipeline(self, video_id: int, user_id: int, job_id: Optional[s
                 job_uuid = uuid.UUID(job_id) if isinstance(job_id, str) else job_id
                 job = job_service.get_job(job_uuid)
             except Exception as e:
-                print(f"⚠️ Could not load job {job_id}: {e}", flush=True)
+                logger.warning(f"Could not load job {job_id}: {e}")
 
         if not job:
             job = job_service.create_job(
@@ -158,7 +510,7 @@ def process_video_pipeline(self, video_id: int, user_id: int, job_id: Optional[s
                     "device": "GPU" if cuda_available else "CPU"
                 }
             )
-            print(f"✅ Job created: {job.id} for video {video_id}", flush=True)
+            logger.info(f"Job created: {job.id} for video {video_id}")
         else:
             job_config = job.config_json or {}
             if isinstance(job_config, str):
@@ -172,59 +524,48 @@ def process_video_pipeline(self, video_id: int, user_id: int, job_id: Optional[s
             job.config_json = job_config
             job.status = JobStatus.PROCESSING.value
             db.commit()
-            print(f"✅ Reusing existing Job: {job.id} for video {video_id}", flush=True)
+            logger.info(f"Reusing existing Job: {job.id} for video {video_id}")
         
         self.update_state(
             state="PROCESSING",
             meta={
                 "job_id": str(job.id),
                 "video_id": video_id,
-                "current_step": "starting",
-                "progress": 0,
+                "current_step": "dispatching_pipeline_chain",
+                "progress": 5,
                 "device": "GPU" if cuda_available else "CPU"
             }
         )
-        
-        result = run_full_pipeline(
-            job.id, 
-            video_id, 
-            user_id, 
-            db
-        )
-        
-        print(f"✅ Pipeline completed for video {video_id}", flush=True)
 
-        # Build FAISS Vector Embeddings for Video and Project (Semantic Search & RAG)
-        try:
-            from app.services.faiss_vector_service import FaissVectorService
-            vec_service = FaissVectorService(db=db)
-            indexed_count = vec_service.index_video_segments(video_id=video_id)
-            print(f"✅ [FAISS] Indexed {indexed_count} chunks for Video #{video_id}", flush=True)
-        except Exception as faiss_err:
-            print(f"⚠️ [FAISS] Automatic indexing failed for video #{video_id}: {faiss_err}", flush=True)
-
-        _send_task_notification(
-            user_id=user_id,
+        # Build distributed workflow chain across worker queues
+        workflow = create_distributed_video_pipeline_chain(
             video_id=video_id,
-            title=f"Xử lý video hoàn tất (Video #{video_id})",
-            message=f"Toàn bộ quy trình xử lý tự động cho video #{video_id} đã hoàn tất thành công.",
-            step="full_pipeline",
-            status="completed",
-            db=db,
+            user_id=user_id,
+            job_id=str(job.id),
+            target_lang=target_lang,
+            enable_diarization=enable_diarization,
+            stt_model=stt_model,
+            translation_model=translation_model,
+            tts_model=tts_model,
+            voice_speed=voice_speed,
+            burn_subtitles=burn_subtitles,
         )
+
+        # Dispatch asynchronous Celery chain
+        chain_async_result = workflow.apply_async()
+        logger.info(f"[PipelineDispatcher] Launched Celery Chain {chain_async_result.id} for Video #{video_id}")
 
         return {
-            "status": "completed",
+            "status": "dispatched",
             "job_id": str(job.id),
             "video_id": video_id,
-            "message": "Video processing completed successfully",
-            "device": "GPU" if cuda_available else "CPU",
-            "result": result
+            "chain_task_id": str(chain_async_result.id),
+            "message": "Distributed pipeline chain dispatched across Celery workers",
         }
         
     except Exception as e:
         error_msg = str(e)
-        print(f"❌ Pipeline failed for video {video_id}: {error_msg}", flush=True)
+        logger.error(f"Pipeline dispatch failed for video {video_id}: {error_msg}")
         
         try:
             job_service = JobService(db)
@@ -233,9 +574,8 @@ def process_video_pipeline(self, video_id: int, user_id: int, job_id: Optional[s
             ).order_by(desc(PipelineJob.created_at)).first()
             if job:
                 job_service.update_job_status(job.id, JobStatus.FAILED, error_message=error_msg)
-                print(f"✅ Job {job.id} marked as failed", flush=True)
         except Exception as db_error:
-            print(f"⚠️ Could not update job status: {db_error}", flush=True)
+            logger.warning(f"Could not update job status: {db_error}")
 
         _send_task_notification(
             user_id=user_id,
@@ -247,15 +587,7 @@ def process_video_pipeline(self, video_id: int, user_id: int, job_id: Optional[s
             error=error_msg,
             db=db,
         )
-        
-        if self.request.retries < self.max_retries:
-            print(f"🔄 Retrying task (attempt {self.request.retries + 1}/{self.max_retries})...", flush=True)
-            raise self.retry(exc=e, countdown=60 * (self.request.retries + 1))
-        
         raise
-        
-    finally:
-        print(f"🏁 Pipeline task for video {video_id} finished", flush=True)
 
 
 @celery_app.task(bind=True, base=PipelineTask, name="task_extract_audio_step",
@@ -359,7 +691,8 @@ def task_extract_audio_step(self, video_id: int, user_id: int, job_id: Optional[
             logger.warning(f"Demucs separation skipped or failed in task_extract_audio_step, using raw audio: {sep_err}")
 
         job_service.log_task(job.id, "audio_extract", "success", "Audio and vocals extracted successfully")
-        job_service.update_job_status(job.id, JobStatus.COMPLETED, progress=100)
+        from app.models.enums import JobStep
+        job_service.update_job_status(job.id, JobStatus.COMPLETED, progress=25, current_step=JobStep.AUDIO_EXTRACT, is_full_pipeline=False)
 
         # Upload to Object Storage
         try:
@@ -392,7 +725,7 @@ def task_extract_audio_step(self, video_id: int, user_id: int, job_id: Optional[
 
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"❌ Audio extraction failed for video {video_id}: {error_msg}")
+        logger.error(f" Audio extraction failed for video {video_id}: {error_msg}")
         if job:
             try:
                 job_service.log_task(job.id, "audio_extract", "failed", error_trace=error_msg)
@@ -683,16 +1016,16 @@ def task_transcribe_step(self, video_id: int, user_id: int, enable_diarization: 
             from app.services.faiss_vector_service import FaissVectorService
             vec_service = FaissVectorService(db=db)
             indexed_count = vec_service.index_video_segments(video_id=video_id)
-            logger.info(f"✅ [FAISS] Indexed {indexed_count} source transcript chunks for Video #{video_id}")
+            logger.info(f" [FAISS] Indexed {indexed_count} source transcript chunks for Video #{video_id}")
         except Exception as faiss_err:
-            logger.warning(f"⚠️ [FAISS] Indexing failed for video #{video_id} on transcript: {faiss_err}")
+            logger.warning(f" [FAISS] Indexing failed for video #{video_id} on transcript: {faiss_err}")
 
         # Finalize step job
         from app.models.enums import JobStep
         job_service.update_job_status(
             job.id, 
             JobStatus.COMPLETED, 
-            progress=100, 
+            progress=50, 
             current_step=JobStep.WHISPERX, 
             is_full_pipeline=False
         )
@@ -1035,15 +1368,15 @@ def task_translate_step(
             from app.services.faiss_vector_service import FaissVectorService
             vec_service = FaissVectorService(db=db)
             indexed_count = vec_service.index_video_segments(video_id=video_id)
-            logger.info(f"✅ [FAISS] Indexed {indexed_count} translated segments for Video #{video_id}")
+            logger.info(f" [FAISS] Indexed {indexed_count} translated segments for Video #{video_id}")
         except Exception as faiss_err:
-            logger.warning(f"⚠️ [FAISS] Indexing failed for video #{video_id} on translation: {faiss_err}")
+            logger.warning(f" [FAISS] Indexing failed for video #{video_id} on translation: {faiss_err}")
 
         # Finalize step job
         job_service.update_job_status(
             job.id,
             JobStatus.COMPLETED,
-            progress=100,
+            progress=70,
             current_step=JobStep.TRANSLATION,
             is_full_pipeline=False
         )
@@ -1317,7 +1650,7 @@ def task_generate_tts_step(
         job_service.update_job_status(
             job.id,
             JobStatus.COMPLETED,
-            progress=100,
+            progress=85,
             current_step=JobStep.TTS_GENERATE,
             is_full_pipeline=False
         )
@@ -1552,7 +1885,7 @@ def task_dub_mux_step(
                             )
                             if sub_paths.get("ass"):
                                 resolved_sub_path = sub_paths["ass"]
-                            logger.info(f"🔄 Re-generated subtitles with saved config: font_size={sub_cfg['font_size']}, font={sub_cfg['font_name']}, color={sub_cfg['primary_color']}")
+                            logger.info(f" Re-generated subtitles with saved config: font_size={sub_cfg['font_size']}, font={sub_cfg['font_name']}, color={sub_cfg['primary_color']}")
                 except Exception as regen_err:
                     logger.warning(f"Could not re-generate subtitles with saved config: {regen_err}")
 
@@ -1719,7 +2052,7 @@ def task_dub_mux_step(
         job_service.update_job_status(
             job.id,
             JobStatus.COMPLETED,
-            progress=100,
+            progress=95,
             current_step=JobStep.RENDER_VIDEO,
             is_full_pipeline=False
         )
@@ -2096,7 +2429,7 @@ def task_process_batch_job(self, batch_id: str, user_id: int):
     Sends an Omni-Channel Batch Digest Notification upon completion.
     """
     db = self.db
-    logger.info(f"🚀 [BatchEngine] Starting batch processing job {batch_id} for user {user_id}")
+    logger.info(f" [BatchEngine] Starting batch processing job {batch_id} for user {user_id}")
     
     from app.services.batch_service import BatchService
     from app.core.database import get_connection
@@ -2161,7 +2494,7 @@ def task_process_batch_job(self, batch_id: str, user_id: int):
         finally:
             conn.close()
             
-        logger.info(f"▶️ [BatchEngine] Processing item {idx+1}/{total_videos}: video {video_id} (batch {batch_id})")
+        logger.info(f" [BatchEngine] Processing item {idx+1}/{total_videos}: video {video_id} (batch {batch_id})")
         
         # Mark item as processing
         conn = get_connection()
@@ -2269,45 +2602,32 @@ def task_process_batch_job(self, batch_id: str, user_id: int):
             finally:
                 conn.close()
 
-            # 3. Run full pipeline
-            run_full_pipeline(
-                job.id,
-                video_id,
-                user_id,
-                db
+            # 3. Build & Dispatch distributed Celery chain across specialized worker queues:
+            # (queue_media -> queue_stt -> queue_translate -> queue_tts -> queue_media -> queue_pipeline)
+            workflow = create_distributed_video_pipeline_chain(
+                video_id=video_id,
+                user_id=user_id,
+                job_id=str(job.id),
+                target_lang=target_lang,
+                enable_diarization=enable_diarization,
+                stt_model=stt_model,
+                translation_model=translation_model,
+                tts_model=tts_model,
+                voice_speed=voice_speed,
+                burn_subtitles=bool(subtitles.get("burn_mode") != "none") if "burn_mode" in subtitles else True,
+                batch_id=batch_id,
+                batch_item_id=item_id,
             )
 
-            # 4. Success for this item
-            completed_count += 1
-            conn = get_connection()
-            try:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        UPDATE batch_job_items
-                        SET status = 'completed', progress = 100, finished_at = NOW(), updated_at = NOW()
-                        WHERE id = %s;
-                        """,
-                        (item_id,),
-                    )
-                    cur.execute(
-                        """
-                        UPDATE batch_jobs
-                        SET completed_videos = %s, updated_at = NOW()
-                        WHERE id = %s;
-                        """,
-                        (completed_count, batch_id),
-                    )
-                    conn.commit()
-            finally:
-                conn.close()
-
-            logger.info(f"✅ [BatchEngine] Item {idx+1}/{total_videos} (video {video_id}) completed successfully.")
+            chain_async_result = workflow.apply_async()
+            logger.info(
+                f"[BatchEngine] Item {idx+1}/{total_videos} (video {video_id}) dispatched to Celery chain {chain_async_result.id}"
+            )
 
         except Exception as item_err:
             failed_count += 1
             err_msg = str(item_err)
-            logger.error(f"❌ [BatchEngine] Item {idx+1}/{total_videos} (video {video_id}) failed: {err_msg}", exc_info=True)
+            logger.error(f"[BatchEngine] Item {idx+1}/{total_videos} (video {video_id}) failed: {err_msg}", exc_info=True)
             conn = get_connection()
             try:
                 with conn.cursor() as cur:
@@ -2331,15 +2651,15 @@ def task_process_batch_job(self, batch_id: str, user_id: int):
             finally:
                 conn.close()
 
-        # Update batch progress in Celery state using real-time item completion
+        # Update batch progress in Celery state using real-time item status
         conn = get_connection()
         try:
             with conn.cursor() as cur:
                 cur.execute("SELECT COALESCE(AVG(progress), 0) FROM batch_job_items WHERE batch_id = %s;", (batch_id,))
                 row = cur.fetchone()
-                curr_progress = round(float(row[0])) if row else round(((completed_count + failed_count) / total_videos) * 100)
+                curr_progress = round(float(row[0])) if row else 0
         except Exception:
-            curr_progress = round(((completed_count + failed_count) / total_videos) * 100) if total_videos > 0 else 0
+            curr_progress = 0
         finally:
             conn.close()
 
@@ -2354,69 +2674,37 @@ def task_process_batch_job(self, batch_id: str, user_id: int):
             }
         )
 
-    # Finalize batch status
-    if is_cancelled:
-        final_status = "cancelled"
-    elif failed_count == total_videos and total_videos > 0:
+    # If all items failed during dispatch
+    if failed_count == total_videos and total_videos > 0:
         final_status = "failed"
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE batch_jobs
+                    SET status = %s, finished_at = NOW(), updated_at = NOW(),
+                        completed_videos = 0, failed_videos = %s
+                    WHERE id = %s;
+                    """,
+                    (final_status, failed_count, batch_id),
+                )
+                conn.commit()
+        finally:
+            conn.close()
+        logger.info(f"[BatchEngine] Batch {batch_id} all items failed dispatch.")
     else:
-        final_status = "completed"
-
-    conn = get_connection()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE batch_jobs
-                SET status = %s, finished_at = NOW(), updated_at = NOW(),
-                    completed_videos = %s, failed_videos = %s
-                WHERE id = %s;
-                """,
-                (final_status, completed_count, failed_count, batch_id),
-            )
-            conn.commit()
-    finally:
-        conn.close()
-
-    logger.info(f"🏁 [BatchEngine] Batch {batch_id} finished with status '{final_status}' ({completed_count} success, {failed_count} failed)")
-
-    # Dispatch Batch Digest Omni-Channel Notification
-    try:
-        from app.services.notification_service import create_notification
-        digest_title = f"Xử lý hàng loạt hoàn tất ({batch_name})"
-        digest_msg = (
-            f"Đã xử lý xong {total_videos} video trong dự án: "
-            f"{completed_count} video thành công, {failed_count} video thất bại."
-        )
-        create_notification(
-            user_id=user_id,
-            type="pipeline",
-            title=digest_title,
-            message=digest_msg,
-            action_url=f"/workspace/project/{project_id}" if project_id else "/workspace",
-            target_type="project",
-            target_id=str(project_id) if project_id else "0",
-            metadata={
-                "batch_id": batch_id,
-                "total_videos": total_videos,
-                "completed_videos": completed_count,
-                "failed_videos": failed_count,
-                "status": final_status,
-                "event": "batch_completed",
-            },
-            background_tasks=None,
-        )
-        logger.info(f"📬 [BatchEngine] Dispatched batch digest notification for user {user_id}, batch {batch_id}")
-    except Exception as notif_err:
-        logger.warning(f"⚠️ [BatchEngine] Could not dispatch digest notification: {notif_err}")
+        logger.info(f"[BatchEngine] All {total_videos} items for batch {batch_id} successfully dispatched to Celery queues.")
 
     return {
-        "status": final_status,
+        "status": "dispatched",
         "batch_id": batch_id,
-        "total": total_videos,
-        "completed": completed_count,
-        "failed": failed_count,
+        "total_dispatched": total_videos,
+        "failed_dispatches": failed_count,
+        "message": f"Successfully dispatched {total_videos - failed_count}/{total_videos} video chains across Celery queues",
     }
+
+
 
 
 # ============================================================================
@@ -2433,7 +2721,7 @@ def periodic_clean_temp_files(self, max_age_hours: int = 12):
     from pathlib import Path
     from app.core.config import UPLOAD_DIR, OUTPUT_DIR
 
-    logger.info(f"🧹 [CeleryBeat] Starting periodic temp files cleanup (older than {max_age_hours}h)...")
+    logger.info(f" [CeleryBeat] Starting periodic temp files cleanup (older than {max_age_hours}h)...")
     cutoff_time = time.time() - (max_age_hours * 3600)
     cleaned_count = 0
     cleaned_bytes = 0
@@ -2461,7 +2749,7 @@ def periodic_clean_temp_files(self, max_age_hours: int = 12):
             except Exception as e:
                 logger.warning(f"Could not remove temp dir {dir_path}: {e}")
 
-    logger.info(f"✅ [CeleryBeat] Temp cleanup finished: removed {cleaned_count} items (~{cleaned_bytes / (1024*1024):.2f} MB)")
+    logger.info(f" [CeleryBeat] Temp cleanup finished: removed {cleaned_count} items (~{cleaned_bytes / (1024*1024):.2f} MB)")
     return {"cleaned_items": cleaned_count, "cleaned_bytes": cleaned_bytes}
 
 
@@ -2476,7 +2764,7 @@ def periodic_cleanup_stale_jobs(self, timeout_minutes: int = 60):
     from app.models.enums import JobStatus, VideoStatus
 
     db = self.db
-    logger.info(f"🔍 [CeleryBeat] Checking for stale processing jobs (> {timeout_minutes}m)...")
+    logger.info(f" [CeleryBeat] Checking for stale processing jobs (> {timeout_minutes}m)...")
     stale_threshold = datetime.utcnow() - timedelta(minutes=timeout_minutes)
 
     stale_jobs = db.query(PipelineJob).filter(
@@ -2487,7 +2775,7 @@ def periodic_cleanup_stale_jobs(self, timeout_minutes: int = 60):
     recovered_count = 0
     for job in stale_jobs:
         try:
-            logger.warning(f"⚠️ [CeleryBeat] Marking stale job #{job.id} (Video #{job.video_id}) as FAILED (exceeded {timeout_minutes}m)")
+            logger.warning(f" [CeleryBeat] Marking stale job #{job.id} (Video #{job.video_id}) as FAILED (exceeded {timeout_minutes}m)")
             job.status = JobStatus.FAILED.value
             job.error_message = f"Job timed out or worker disconnected after {timeout_minutes} minutes of inactivity"
             job.updated_at = datetime.utcnow()
@@ -2506,6 +2794,6 @@ def periodic_cleanup_stale_jobs(self, timeout_minutes: int = 60):
     if recovered_count > 0:
         db.commit()
 
-    logger.info(f"✅ [CeleryBeat] Stale jobs check completed: recovered {recovered_count} stuck jobs")
+    logger.info(f" [CeleryBeat] Stale jobs check completed: recovered {recovered_count} stuck jobs")
     return {"stale_jobs_recovered": recovered_count}
-
+

@@ -65,7 +65,7 @@ export default function AdminModelsPage() {
 
   const handleOpenEdit = (model: AdminAIModelResponse) => {
     setEditingModel(model);
-    setEditCost(model.credit_cost_per_minute);
+    setEditCost(model.word_cost_multiplier);
     setEditPlan(model.required_plan);
   };
 
@@ -76,7 +76,7 @@ export default function AdminModelsPage() {
     try {
       setSaving(true);
       const updated = await updateAdminModel(editingModel.id, {
-        credit_cost_per_minute: editCost,
+        word_cost_multiplier: editCost,
         required_plan: editPlan,
       });
       setModels((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
@@ -191,7 +191,7 @@ export default function AdminModelsPage() {
                     <td className="px-4 py-3 font-mono font-bold">
                       <span className="inline-flex items-center gap-1 text-teal-600 dark:text-teal-400">
                         <Zap size={13} />
-                        x{model.credit_cost_per_minute} rate ({model.credit_cost_per_minute * 150} từ/m)
+                        x{model.word_cost_multiplier} multiplier ({model.word_cost_multiplier * 150} từ/m)
                       </span>
                     </td>
                     <td className="px-4 py-3">

@@ -105,10 +105,11 @@ export const videoService = {
     return response.data;
   },
 
-  async saveVideoAsPreset(videoId: number, name: string, description?: string) {
+  async saveVideoAsPreset(videoId: number, name: string, description?: string, configData?: any) {
     const response = await api.post(`/api/videos/${videoId}/save-as-preset`, {
       name,
       description,
+      config_data: configData,
     });
     return response.data;
   },

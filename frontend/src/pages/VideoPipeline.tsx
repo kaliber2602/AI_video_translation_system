@@ -192,7 +192,12 @@ function VideoPipelineContent() {
 
     try {
       setIsSavingPreset(true);
-      const res = await videoService.saveVideoAsPreset(currentVideoId, newPresetName.trim(), newPresetDesc.trim());
+      const res = await videoService.saveVideoAsPreset(
+        currentVideoId,
+        newPresetName.trim(),
+        newPresetDesc.trim(),
+        state.pipelineConfig
+      );
       toast.success(`Đã lưu cấu hình thành preset "${res.preset?.name || newPresetName}" thành công!`);
       setIsSavePresetModalOpen(false);
       setNewPresetName("");

@@ -24,7 +24,7 @@ class AudioService:
             output_audio_path
         ]
         subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-        logger.info(f"✅ Audio extracted to: {output_audio_path}")
+        logger.info(f" Audio extracted to: {output_audio_path}")
 
     @staticmethod
     def separate_vocal_bgm(audio_path: str, output_dir: str, model_name: str = "htdemucs"):
@@ -41,10 +41,10 @@ class AudioService:
         cuda_available = torch.cuda.is_available()
         
         if cuda_available:
-            logger.info(f"[Demucs] ✅ CUDA detected, using GPU with model {selected_model}")
+            logger.info(f"[Demucs]  CUDA detected, using GPU with model {selected_model}")
             device = "cuda"
         else:
-            logger.info(f"[Demucs] ⚠️ CUDA not detected, using CPU with model {selected_model}")
+            logger.info(f"[Demucs]  CUDA not detected, using CPU with model {selected_model}")
             device = "cpu"
         
         command = [
@@ -58,12 +58,12 @@ class AudioService:
         
         try:
             subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-            logger.info(f"[Demucs] ✅ Separation complete on {device.upper()} using {selected_model}")
+            logger.info(f"[Demucs]  Separation complete on {device.upper()} using {selected_model}")
         except Exception as e:
-            logger.error(f"[Demucs] ❌ Separation failed: {e}")
+            logger.error(f"[Demucs]  Separation failed: {e}")
             # Fallback: try CPU if GPU failed
             if device == "cuda":
-                logger.info(f"[Demucs] 🔄 Retrying on CPU with {selected_model}...")
+                logger.info(f"[Demucs]  Retrying on CPU with {selected_model}...")
                 command = [
                     "demucs", "--two-stems=vocals",
                     "-n", selected_model,
@@ -102,8 +102,8 @@ class AudioService:
         if not os.path.exists(bgm_path):
             raise FileNotFoundError(f"BGM track not found at: {bgm_path}")
         
-        logger.info(f"✅ Vocal track: {vocal_path}")
-        logger.info(f"✅ BGM track: {bgm_path}")
+        logger.info(f" Vocal track: {vocal_path}")
+        logger.info(f" BGM track: {bgm_path}")
         
         return vocal_path, bgm_path
 
@@ -280,11 +280,11 @@ class AudioService:
                     if m_w > 10 and m_h > 10:
                         if m_type in ("banner", "solid"):
                             vf_filters.append(f"drawbox=x={m_x}:y={m_y}:w={m_w}:h={m_h}:color={m_color}@{m_opacity}:t=fill")
-                            logger.info(f"🛡️ [Subtitle Mask] Solid banner applied at ({m_x},{m_y}) {m_w}x{m_h} color={m_color}@{m_opacity}")
+                            logger.info(f" [Subtitle Mask] Solid banner applied at ({m_x},{m_y}) {m_w}x{m_h} color={m_color}@{m_opacity}")
                         else:
                             # Use delogo to remove / blur hardcoded subtitles smoothly
                             vf_filters.append(f"delogo=x={m_x}:y={m_y}:w={m_w}:h={m_h}:show=0")
-                            logger.info(f"🛡️ [Subtitle Mask] Blur/Delogo mask applied at ({m_x},{m_y}) {m_w}x{m_h}")
+                            logger.info(f" [Subtitle Mask] Blur/Delogo mask applied at ({m_x},{m_y}) {m_w}x{m_h}")
                 except Exception as mask_err:
                     logger.warning(f"Failed to build subtitle mask filter: {mask_err}")
 
@@ -303,7 +303,7 @@ class AudioService:
                     vf_filters.append(
                         f"drawtext=text='{escaped_text}':fontcolor={font_color}:fontsize={font_size}:box=1:boxcolor={bg_color}:boxborderw=8:x=w-mod(t*{speed_px}\\,w+tw):y=h-th-20"
                     )
-                    logger.info(f"🏷️ [Overlay] Ticker marquee added: {ticker_text[:30]}...")
+                    logger.info(f" [Overlay] Ticker marquee added: {ticker_text[:30]}...")
 
                 # Logo watermark file
                 l_path = overlay_config.get("logo_path")
@@ -311,7 +311,7 @@ class AudioService:
                     logo_file_path = l_path
                     logo_x = int(overlay_config.get("logo_x", 20))
                     logo_y = int(overlay_config.get("logo_y", 20))
-                    logger.info(f"🏷️ [Overlay] Logo watermark found: {logo_file_path} at ({logo_x}, {logo_y})")
+                    logger.info(f" [Overlay] Logo watermark found: {logo_file_path} at ({logo_x}, {logo_y})")
 
             # 3. Burn Subtitles (new translated subtitles rendered on top of mask)
             if burn_subtitles and subtitle_path:
@@ -330,9 +330,9 @@ class AudioService:
                 if os.path.exists(chosen_sub):
                     escaped_sub = chosen_sub.replace('\\', '/').replace(':', '\\:')
                     vf_filters.append(f"subtitles={escaped_sub}")
-                    logger.info(f"🔥 Burning subtitles into video ({clean_aspect or 'original'}): {chosen_sub}")
+                    logger.info(f" Burning subtitles into video ({clean_aspect or 'original'}): {chosen_sub}")
                 else:
-                    logger.warning(f"⚠️ Subtitle path provided but file not found on disk: {chosen_sub}")
+                    logger.warning(f" Subtitle path provided but file not found on disk: {chosen_sub}")
 
             vf_string = ",".join(vf_filters)
 
@@ -346,7 +346,7 @@ class AudioService:
                     if "h264_nvenc" in enc_check.stdout:
                         hw_flags = ["-c:v", "h264_nvenc", "-preset", "p4", "-tune", "hq", "-b:v", "5M"]
                         is_nvenc = True
-                        logger.info("🚀 [FFmpeg NVENC] Kích hoạt tăng tốc phần cứng h264_nvenc cho xuất video!")
+                        logger.info(" [FFmpeg NVENC] Kích hoạt tăng tốc phần cứng h264_nvenc cho xuất video!")
                 except Exception as ne:
                     logger.warning(f"Could not check NVENC encoder: {ne}")
 
@@ -392,7 +392,7 @@ class AudioService:
             
             # If NVENC failed (e.g. driver mismatch), fallback gracefully to libx264
             if result.returncode != 0 and is_nvenc:
-                logger.warning(f"⚠️ [FFmpeg NVENC] Thất bại ({result.stderr[:200]}). Đang tự động fallback về libx264...")
+                logger.warning(f" [FFmpeg NVENC] Thất bại ({result.stderr[:200]}). Đang tự động fallback về libx264...")
                 if logo_file_path:
                     command_fb = [
                         "ffmpeg", "-y",
@@ -462,7 +462,7 @@ class AudioService:
                 if file_size < 1024:
                     raise Exception(f"Output file is still too small ({file_size} bytes)")
             
-            logger.info(f"✅ Dubbed video created successfully: {final_output_path} ({file_size} bytes)")
+            logger.info(f" Dubbed video created successfully: {final_output_path} ({file_size} bytes)")
             
             # Prepare result
             result = {

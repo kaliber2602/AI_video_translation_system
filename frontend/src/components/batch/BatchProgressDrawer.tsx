@@ -130,7 +130,29 @@ export default function BatchProgressDrawer({
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStepLabel = (step?: string | null) => {
+    switch (step) {
+      case "extract_audio":
+        return "Tách âm thanh";
+      case "transcribe":
+      case "stt":
+        return "Bóc băng (STT)";
+      case "translate":
+        return "Dịch thuật";
+      case "tts":
+      case "generate_tts":
+        return "Tạo giọng đọc (TTS)";
+      case "dub_mux":
+      case "mux":
+        return "Lồng tiếng & Xuất video";
+      case "completed":
+        return "Hoàn tất";
+      default:
+        return "Đang xử lý";
+    }
+  };
+
+  const getStatusBadge = (status: string, currentStep?: string | null) => {
     switch (status) {
       case "completed":
         return (
@@ -143,7 +165,7 @@ export default function BatchProgressDrawer({
         return (
           <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400">
             <RefreshCw size={12} className="animate-spin" />
-            Đang xử lý
+            {getStepLabel(currentStep)}
           </span>
         );
       case "queued":
@@ -358,12 +380,7 @@ export default function BatchProgressDrawer({
                               {item.video_title || `Video #${item.video_id}`}
                             </p>
                             <div className="flex items-center gap-2 mt-0.5">
-                              {getStatusBadge(item.status)}
-                              {item.status === "processing" && (
-                                <span className="text-[11px] font-medium text-[var(--color-primary)]">
-                                  {item.progress}%
-                                </span>
-                              )}
+                              {getStatusBadge(item.status, item.current_step)}
                             </div>
 
                             {item.error_message && (

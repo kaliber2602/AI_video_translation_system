@@ -44,7 +44,7 @@ def convert_to_hls_adaptive(
         dict with HLS result information
     """
     os.makedirs(output_dir, exist_ok=True)
-    logger.info(f"🎬 Converting {input_path} to HLS adaptive format")
+    logger.info(f" Converting {input_path} to HLS adaptive format")
     
     # Define quality profiles
     quality_profiles = {
@@ -99,7 +99,7 @@ def convert_to_hls_adaptive(
     ]
     result = subprocess.run(probe_cmd, capture_output=True, text=True)
     original_width, original_height = map(int, result.stdout.strip().split(',')) if result.stdout else (1920, 1080)
-    logger.info(f"📹 Original video resolution: {original_width}x{original_height}")
+    logger.info(f" Original video resolution: {original_width}x{original_height}")
     
     # Hardware acceleration check for HLS encoding
     v_codec = "libx264"
@@ -109,20 +109,20 @@ def convert_to_hls_adaptive(
             enc_check = subprocess.run(["ffmpeg", "-hide_banner", "-encoders"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
             if "h264_nvenc" in enc_check.stdout:
                 v_codec = "h264_nvenc"
-                logger.info("🚀 [HLS NVENC] Kích hoạt h264_nvenc cho HLS multi-bitrate!")
+                logger.info(" [HLS NVENC] Kích hoạt h264_nvenc cho HLS multi-bitrate!")
         except Exception:
             pass
 
     for name, settings in quality_profiles.items():
         # Skip qualities that are higher than original
         if settings["height"] > original_height:
-            logger.info(f"⏭️ Skipping {name} (higher than original {original_height}p)")
+            logger.info(f" Skipping {name} (higher than original {original_height}p)")
             continue
             
         quality_dir = os.path.join(output_dir, name)
         os.makedirs(quality_dir, exist_ok=True)
         
-        logger.info(f"🎬 Generating HLS for {name} ({v_codec})...")
+        logger.info(f" Generating HLS for {name} ({v_codec})...")
         
         # Generate HLS for this quality
         command = [
@@ -141,7 +141,7 @@ def convert_to_hls_adaptive(
         try:
             run_ffmpeg(command)
         except RuntimeError as e:
-            logger.error(f"❌ Failed to generate {name}: {e}")
+            logger.error(f" Failed to generate {name}: {e}")
             continue
         
         segments = sorted(
@@ -150,7 +150,7 @@ def convert_to_hls_adaptive(
         )
         
         if not segments:
-            logger.warning(f"⚠️ No segments generated for {name}")
+            logger.warning(f" No segments generated for {name}")
             continue
         
         quality_results[name] = {
@@ -183,7 +183,7 @@ def convert_to_hls_adaptive(
     with open(master_path, "w") as f:
         f.write("\n".join(content))
     
-    logger.info(f"✅ HLS conversion complete: {len(quality_results)} qualities generated")
+    logger.info(f" HLS conversion complete: {len(quality_results)} qualities generated")
     
     return {
         "master_playlist": master_path,
@@ -214,7 +214,7 @@ def upload_hls_to_s3(
     output_dir = hls_result["output_dir"]
     s3_prefix = f"videos/{video_id}/hls/{language}"
     
-    logger.info(f"📤 Uploading HLS files for video {video_id} to S3: {s3_prefix}")
+    logger.info(f" Uploading HLS files for video {video_id} to S3: {s3_prefix}")
     
     content_type_map = {
         ".m3u8": "application/x-mpegURL",
@@ -272,13 +272,13 @@ def upload_hls_to_s3(
                     )
                 
         except Exception as e:
-            logger.error(f"❌ Failed to upload {relative_path}: {e}")
+            logger.error(f" Failed to upload {relative_path}: {e}")
     
     # Track qualities
     for quality in hls_result.get("qualities", {}).keys():
         uploaded["qualities"].append(quality)
     
-    logger.info(f"✅ HLS upload complete: {len(uploaded['segments'])} segments, {len(uploaded['playlists'])} playlists")
+    logger.info(f" HLS upload complete: {len(uploaded['segments'])} segments, {len(uploaded['playlists'])} playlists")
     logger.info(f"   Master playlist: {uploaded['master_playlist']}")
     logger.info(f"   S3 URI: s3://{AWS_S3_BUCKET}/{uploaded['master_playlist']}")
     
@@ -334,7 +334,7 @@ def process_video_to_hls(
         # Clean up local HLS files (optional, to save space)
         import shutil
         shutil.rmtree(hls_dir, ignore_errors=True)
-        logger.info(f"🧹 Cleaned up local HLS directory: {hls_dir}")
+        logger.info(f" Cleaned up local HLS directory: {hls_dir}")
         
         return {
             "hls_result": hls_result,
@@ -345,7 +345,7 @@ def process_video_to_hls(
         }
         
     except Exception as e:
-        logger.error(f"❌ HLS processing failed: {e}")
+        logger.error(f" HLS processing failed: {e}")
         # Clean up on failure
         import shutil
         shutil.rmtree(hls_dir, ignore_errors=True)

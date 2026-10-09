@@ -30,7 +30,7 @@ class DiarizationService:
         """Load pyannote pipeline with auto device detection"""
         hf_token = (os.getenv("HF_TOKEN") or "").strip()
         if not hf_token:
-            print("[Diarization] ⚠️ HF_TOKEN not set; Diarization pipeline will run in fallback mode", flush=True)
+            print("[Diarization]  HF_TOKEN not set; Diarization pipeline will run in fallback mode", flush=True)
             self.pipeline = None
             return
 
@@ -47,13 +47,13 @@ class DiarizationService:
             # Auto-detect CUDA
             if torch.cuda.is_available():
                 self.pipeline.to(torch.device("cuda"))
-                print("[Diarization] ✅ Pyannote pipeline loaded on GPU", flush=True)
+                print("[Diarization]  Pyannote pipeline loaded on GPU", flush=True)
             else:
                 self.pipeline.to(torch.device("cpu"))
-                print("[Diarization] ⚠️ Pyannote pipeline loaded on CPU", flush=True)
+                print("[Diarization]  Pyannote pipeline loaded on CPU", flush=True)
             
         except Exception as e:
-            print(f"[Diarization] ❌ Failed to load pyannote: {e}", flush=True)
+            print(f"[Diarization]  Failed to load pyannote: {e}", flush=True)
             self.pipeline = None
     
     def is_available(self) -> bool:

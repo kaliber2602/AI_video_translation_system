@@ -557,7 +557,6 @@ def list_ai_models(
                     name,
                     category,
                     provider,
-                    credit_cost_per_minute,
                     is_active,
                     required_plan,
                     created_at,
@@ -577,11 +576,10 @@ def list_ai_models(
                     name=r[2],
                     category=r[3],
                     provider=r[4],
-                    credit_cost_per_minute=r[5],
-                    is_active=r[6],
-                    required_plan=r[7],
-                    created_at=r[8],
-                    word_cost_multiplier=r[9] if len(r) > 9 else 1,
+                    is_active=r[5],
+                    required_plan=r[6],
+                    created_at=r[7],
+                    word_cost_multiplier=r[8] if len(r) > 8 else 1,
                 )
                 for r in rows
             ]
@@ -599,10 +597,6 @@ def update_ai_model(model_id: int, update_data: AdminAIModelUpdateRequest) -> Ad
             if update_data.name is not None:
                 updates.append("name = %s")
                 params.append(update_data.name)
-
-            if update_data.credit_cost_per_minute is not None:
-                updates.append("credit_cost_per_minute = %s")
-                params.append(update_data.credit_cost_per_minute)
 
             if update_data.word_cost_multiplier is not None:
                 updates.append("word_cost_multiplier = %s")
@@ -634,7 +628,6 @@ def update_ai_model(model_id: int, update_data: AdminAIModelUpdateRequest) -> Ad
                     name,
                     category,
                     provider,
-                    credit_cost_per_minute,
                     is_active,
                     required_plan,
                     created_at,
@@ -656,11 +649,10 @@ def update_ai_model(model_id: int, update_data: AdminAIModelUpdateRequest) -> Ad
                 name=row[2],
                 category=row[3],
                 provider=row[4],
-                credit_cost_per_minute=row[5],
-                is_active=row[6],
-                required_plan=row[7],
-                created_at=row[8],
-                word_cost_multiplier=row[9] if len(row) > 9 else 1,
+                is_active=row[5],
+                required_plan=row[6],
+                created_at=row[7],
+                word_cost_multiplier=row[8] if len(row) > 8 else 1,
             )
     finally:
         conn.close()

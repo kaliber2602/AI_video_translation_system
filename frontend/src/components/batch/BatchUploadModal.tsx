@@ -386,9 +386,9 @@ export default function BatchUploadModal({
       maxWidth="2xl"
       showCloseButton={!isProcessingQueue}
     >
-      <div className="flex flex-col gap-5 pt-2">
+      <div className="flex flex-col gap-3 pt-1">
         {/* Settings Bar */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3.5">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-2.5">
           {/* Target Folder */}
           <div>
             <label className="block text-[11px] font-semibold text-[var(--color-text-secondary)] mb-1">
@@ -471,13 +471,15 @@ export default function BatchUploadModal({
           </div>
         </div>
 
-        {/* Dropzone Area */}
+        {/* Dropzone Area: Compact when queue has files */}
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={() => !isProcessingQueue && fileInputRef.current?.click()}
-          className={`group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 transition cursor-pointer select-none ${
+          className={`group flex items-center justify-center rounded-xl border-2 border-dashed transition cursor-pointer select-none ${
+            queue.length > 0 ? "py-2 px-4 gap-2.5" : "flex-col p-5"
+          } ${
             isDragging
               ? "border-indigo-500 bg-indigo-500/10 scale-[1.01]"
               : "border-[var(--color-border)] bg-[var(--color-surface-muted)] hover:border-indigo-500/50 hover:bg-[var(--color-surface)]"
@@ -491,20 +493,33 @@ export default function BatchUploadModal({
             onChange={handleFileChange}
             className="hidden"
           />
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-400 group-hover:scale-110 transition">
-            <UploadCloud size={26} />
-          </div>
-          <p className="mt-3 text-sm font-bold text-[var(--color-text-primary)]">
-            Kéo thả các video vào đây hoặc <span className="text-indigo-400 underline">duyệt từ máy tính</span>
-          </p>
-          <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-            Hỗ trợ MP4, MOV, MKV, AVI, WEBM. Có thể chọn nhiều tệp cùng lúc.
-          </p>
+          {queue.length > 0 ? (
+            <>
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 group-hover:scale-110 transition">
+                <UploadCloud size={16} />
+              </div>
+              <p className="text-xs font-medium text-[var(--color-text-primary)]">
+                Kéo thả thêm video hoặc <span className="text-indigo-400 font-semibold underline">duyệt từ máy tính</span>
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 group-hover:scale-110 transition">
+                <UploadCloud size={22} />
+              </div>
+              <p className="mt-2 text-xs font-bold text-[var(--color-text-primary)]">
+                Kéo thả các video vào đây hoặc <span className="text-indigo-400 underline">duyệt từ máy tính</span>
+              </p>
+              <p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">
+                Hỗ trợ MP4, MOV, MKV, AVI, WEBM. Có thể chọn nhiều tệp cùng lúc.
+              </p>
+            </>
+          )}
         </div>
 
         {/* Queue List Header & Overall Progress */}
         {queue.length > 0 && (
-          <div className="space-y-3 animate-fade-in">
+          <div className="space-y-2 animate-fade-in">
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-[var(--color-text-primary)]">
@@ -529,7 +544,7 @@ export default function BatchUploadModal({
             </div>
 
             {/* Total progress bar */}
-            <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-surface-muted)] border border-[var(--color-border)]">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface-muted)] border border-[var(--color-border)]">
               <div
                 className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-300"
                 style={{ width: `${overallPercent}%` }}
@@ -537,14 +552,14 @@ export default function BatchUploadModal({
             </div>
 
             {/* Queue Items Scroll Box */}
-            <div className="max-h-[220px] overflow-y-auto space-y-2 pr-1">
+            <div className="max-h-[160px] overflow-y-auto space-y-1.5 pr-1">
               {queue.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5 text-xs transition"
+                  className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-xs transition"
                 >
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-3">
-                    <FileVideo size={18} className="text-indigo-400 shrink-0" />
+                  <div className="flex items-center gap-2 min-w-0 flex-1 pr-2.5">
+                    <FileVideo size={16} className="text-indigo-400 shrink-0" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between">
                         <span className="truncate font-medium text-[var(--color-text-primary)]" title={item.name}>
@@ -556,8 +571,8 @@ export default function BatchUploadModal({
                       </div>
 
                       {/* Progress bar per item */}
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--color-surface-muted)]">
+                      <div className="mt-1 flex items-center gap-2">
+                        <div className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--color-surface-muted)]">
                           <div
                             className={`h-full transition-all duration-200 ${
                               item.status === "completed"
@@ -623,26 +638,26 @@ export default function BatchUploadModal({
         )}
 
         {/* Auto start pipeline checkbox */}
-        <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-2.5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
             <input
               type="checkbox"
               id="auto_start_pipeline"
               checked={autoStartPipeline}
               onChange={(e) => setAutoStartPipeline(e.target.checked)}
               disabled={isProcessingQueue}
-              className="h-4 w-4 rounded accent-indigo-500 cursor-pointer"
+              className="h-3.5 w-3.5 rounded accent-indigo-500 cursor-pointer"
             />
             <div>
               <label htmlFor="auto_start_pipeline" className="text-xs font-bold text-[var(--color-text-primary)] cursor-pointer">
                 Tự động bắt đầu Pipeline xử lý ngay sau khi upload xong
               </label>
-              <p className="text-[11px] text-[var(--color-text-muted)]">
+              <p className="text-[10px] text-[var(--color-text-muted)]">
                 Tự động gom {queue.length || "các"} video thành 1 mẻ Batch Job chạy tuần tự bằng GPU NVENC.
               </p>
             </div>
           </div>
-          <Sparkles size={16} className="text-indigo-400 shrink-0" />
+          <Sparkles size={15} className="text-indigo-400 shrink-0" />
         </div>
 
         {/* Footer Actions */}

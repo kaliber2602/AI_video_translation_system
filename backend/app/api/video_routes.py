@@ -46,7 +46,6 @@ from app.services.subscription_service import (
     refund_user_credits,
     deduct_user_words,
     refund_user_words,
-    get_model_credit_cost,
     get_model_word_multiplier,
     validate_model_access,
 )
@@ -511,7 +510,7 @@ async def upload_video(
     db.add(config)
     db.commit()
     
-    logger.info(f"📤 Video uploaded: {file.filename} (ID: {video.id}, Size: {file_size} bytes, User: {user_id})")
+    logger.info(f" Video uploaded: {file.filename} (ID: {video.id}, Size: {file_size} bytes, User: {user_id})")
     logger.info(f"   Local path: {input_path}")
     
     return VideoUploadResponse(
@@ -916,7 +915,7 @@ async def save_video_snapshot(
 ================================================================================
 """
     print(banner, flush=True)
-    logger.warning(f"💾 [SNAPSHOT SAVED] Video {video_id} step={payload.active_step} ({step_display}) progress={video.progress}% at {now_vn_str}")
+    logger.warning(f" [SNAPSHOT SAVED] Video {video_id} step={payload.active_step} ({step_display}) progress={video.progress}% at {now_vn_str}")
 
     return await get_video_details(video_id=video_id, db=db, user_id=user_id)
 
@@ -1138,7 +1137,7 @@ async def update_video_pipeline_config(
         config.updated_at = datetime.utcnow()
 
     db.commit()
-    logger.info(f"💾 Video #{video_id} 6-tier pipeline config synchronized successfully.")
+    logger.info(f" Video #{video_id} 6-tier pipeline config synchronized successfully.")
     return {"status": "success", "video_id": video_id, "config_data": cfg_data}
 
 
@@ -1965,37 +1964,28 @@ async def start_processing(
     if not config:
         raise HTTPException(404, "Pipeline config not found")
 
-    # 2. Enforce AI credit deduction dynamically based on ai_models table
-    sep_cost = get_model_credit_cost(config.separation_model or "demucs_v4", default_cost=1)
-    stt_cost = get_model_credit_cost(config.stt_model or "whisperx_large_v3", default_cost=1)
-    diar_cost = get_model_credit_cost(config.diarization_model or "pyannote_3.1", default_cost=1)
-    trans_cost = get_model_credit_cost(config.translation_model or "nllb_200_1.3b", default_cost=1)
-    tts_cost = get_model_credit_cost(config.tts_model or "xtts_v2", default_cost=2)
-    llm_cost = get_model_credit_cost(config.llm_model or "gpt_4o_mini", default_cost=1) if (config.auto_chapter_detection or config.auto_generate_summary) else 0
-    total_model_rate = sep_cost + stt_cost + diar_cost + trans_cost + tts_cost + llm_cost
+    # 2. Enforce Word Quota deduction (Tokenize / Word-based subscription with Model Multipliers)
+    stt_multiplier = get_model_word_multiplier(config.stt_model or "whisperx_large_v3", default_multiplier=1)
+    trans_multiplier = get_model_word_multiplier(config.translation_model or "nllb_200_1.3b", default_multiplier=1)
+    tts_multiplier = get_model_word_multiplier(config.tts_model or "xtts_v2", default_multiplier=1)
+    pipeline_word_multiplier = max(1, stt_multiplier + trans_multiplier + tts_multiplier)
 
-    duration_mins = max(1, int(math.ceil((video.duration or 60) / 60.0)))
-    credits_needed = duration_mins * total_model_rate
+    raw_words = TokenizerService.estimate_video_words(video.duration or 60.0)
+    words_needed = raw_words * pipeline_word_multiplier
 
-    if not deduct_user_credits(
-        user_id=user_id,
-        credits_amount=credits_needed,
-        service_type="COMPLETE_PIPELINE",
-        description=f"Full pipeline #{video_id} ({duration_mins}m x {total_model_rate}cr/m = {credits_needed} credits)",
-        video_id=video_id,
-    ):
+    quota = get_user_effective_quota(user_id)
+    rem_words = quota.get("words", {}).get("remaining_words", 0)
+    if rem_words < words_needed:
         raise HTTPException(
             status.HTTP_402_PAYMENT_REQUIRED,
-            f"Insufficient AI credits to start processing ({credits_needed} required). Please upgrade your plan or purchase extra credits."
+            f"Không đủ hạn mức từ (word quota) để xử lý video (~{words_needed} từ cần thiết, còn lại: {rem_words} từ). Vui lòng nâng cấp gói."
         )
 
-    # Enforce word quota deduction for tokenize-based subscription
-    estimated_words = TokenizerService.estimate_video_words(video.duration or 60.0)
     deduct_user_words(
         user_id=user_id,
-        words_amount=estimated_words,
+        words_amount=words_needed,
         service_type="COMPLETE_PIPELINE",
-        description=f"Full pipeline #{video_id} (~{estimated_words} words)",
+        description=f"Full pipeline #{video_id} ({raw_words} từ x {pipeline_word_multiplier}x = {words_needed} từ)",
         video_id=video_id,
     )
     
@@ -2026,7 +2016,7 @@ async def start_processing(
     }
     db.commit()
     
-    logger.info(f"🚀 Processing started for video {video_id} (Celery Task: {task.id}, Credits: {credits_needed})")
+    logger.info(f" Processing started for video {video_id} (Celery Task: {task.id}, Credits: {credits_needed})")
     
     return StartProcessingResponse(
         job_id=str(job.id),
@@ -2067,10 +2057,16 @@ async def cancel_processing(
     
     job_service.update_job_status(job.id, JobStatus.CANCELLED, error_message="Cancelled by user")
     
-    # Refund AI credits and word quota
-    credits_to_refund = max(1, int(round((video.duration or 60) / 60)))
-    refund_user_credits(user_id=user_id, credits=credits_to_refund, reason=f"Refund for cancelled video #{video_id}", db=db)
-    refund_user_words(user_id=user_id, words_amount=TokenizerService.estimate_video_words(video.duration or 60.0), description=f"Refund for cancelled video #{video_id}", video_id=video_id)
+    # Refund word quota
+    config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
+    m_mult = 1
+    if config:
+        stt_m = get_model_word_multiplier(config.stt_model or "whisperx_large_v3", default_multiplier=1)
+        trans_m = get_model_word_multiplier(config.translation_model or "nllb_200_1.3b", default_multiplier=1)
+        tts_m = get_model_word_multiplier(config.tts_model or "xtts_v2", default_multiplier=1)
+        m_mult = max(1, stt_m + trans_m + tts_m)
+    refund_words = TokenizerService.estimate_video_words(video.duration or 60.0) * m_mult
+    refund_user_words(user_id=user_id, words_amount=refund_words, description=f"Refund for cancelled video #{video_id}", video_id=video_id)
     
     return JobCancelResponse(status="cancelled", job_id=str(job.id), message="Processing cancelled")
 
@@ -2425,7 +2421,7 @@ async def start_transcription(
                 out_dir = OUTPUT_DIR / f"audio_{video_id}"
                 out_dir.mkdir(parents=True, exist_ok=True)
                 raw_out = out_dir / "audio.wav"
-                logger.info(f"🎙️ Auto-extracting audio for video #{video_id} before transcription...")
+                logger.info(f" Auto-extracting audio for video #{video_id} before transcription...")
                 audio_svc.extract_audio(video_path, str(raw_out))
                 if raw_out.exists():
                     vocal_path = str(raw_out)
@@ -2443,21 +2439,25 @@ async def start_transcription(
     # Enforce AI credit deduction for STT from ai_models table
     config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
     stt_model = config.stt_model if config and config.stt_model else "whisperx_large_v3"
-    cost_per_min = get_model_credit_cost(stt_model, default_cost=1)
-    duration_mins = max(1, int(math.ceil((video.duration or 60) / 60.0)))
-    credits_needed = duration_mins * cost_per_min
+    stt_multiplier = get_model_word_multiplier(stt_model, default_multiplier=1)
+    raw_words = TokenizerService.estimate_video_words(video.duration or 60.0)
+    words_needed = raw_words * stt_multiplier
 
-    if not deduct_user_credits(
-        user_id=user_id,
-        credits_amount=credits_needed,
-        service_type="WHISPER_STT",
-        description=f"STT ({stt_model}) for video #{video_id} ({duration_mins}m @ {cost_per_min}cr/m = {credits_needed} credits)",
-        video_id=video_id,
-    ):
+    quota = get_user_effective_quota(user_id)
+    rem_words = quota.get("words", {}).get("remaining_words", 0)
+    if rem_words < words_needed:
         raise HTTPException(
             status.HTTP_402_PAYMENT_REQUIRED,
-            f"Insufficient AI credits for transcription ({credits_needed} required). Please upgrade your plan or top up credits."
+            f"Không đủ hạn mức từ (word quota) cho nhận dạng STT (~{words_needed} từ cần thiết, còn lại: {rem_words} từ). Vui lòng nâng cấp gói."
         )
+
+    deduct_user_words(
+        user_id=user_id,
+        words_amount=words_needed,
+        service_type="WHISPER_STT",
+        description=f"STT ({stt_model}, {stt_multiplier}x) for video #{video_id} ({words_needed} words)",
+        video_id=video_id,
+    )
     
     # ============================================================
     # ASYNCHRONOUS CELERY DISPATCH (Default Mode: HTTP 202 Accepted)
@@ -2475,9 +2475,9 @@ async def start_transcription(
             r = redis.Redis.from_url(REDIS_URL)
             acquired = r.set(lock_key, "active", nx=True, ex=1800)
             if not acquired:
-                refund_user_credits(
+                refund_user_words(
                     user_id=user_id,
-                    credits_amount=credits_needed,
+                    words_amount=words_needed,
                     reason=f"Duplicate transcription request for video #{video_id}",
                     video_id=video_id,
                 )
@@ -2497,7 +2497,7 @@ async def start_transcription(
                 triggered_by=user_id,
                 config={
                     "stt_model": stt_model,
-                    "credits_needed": credits_needed,
+                    "words_needed": words_needed,
                     "enable_diarization": enable_diarization,
                     "mode": "single_step",
                     "step": "transcript"
@@ -2532,9 +2532,9 @@ async def start_transcription(
                     r.delete(lock_key)
                 except Exception:
                     pass
-            refund_user_credits(
+            refund_user_words(
                 user_id=user_id,
-                credits_amount=credits_needed,
+                words_amount=words_needed,
                 reason=f"Failed to dispatch transcription task for video #{video_id}",
                 video_id=video_id,
             )
@@ -2549,7 +2549,7 @@ async def start_transcription(
         # ============================================================
         # MILESTONE 1: Whisper STT (Immediate Persistence)
         # ============================================================
-        logger.info(f"🎙️ Starting Whisper STT for video #{video_id} on {vocal_path}...")
+        logger.info(f" Starting Whisper STT for video #{video_id} on {vocal_path}...")
         segments, detected_lang = await run_in_threadpool(stt_service.transcribe_audio, vocal_path)
         
         # Ensure default speaker label on all segments
@@ -2614,7 +2614,7 @@ async def start_transcription(
         video.current_step = "transcript"
         video.progress = max(int(video.progress or 0), 40)
         db.commit()
-        logger.info(f"✅ STT Milestone 1 committed to DB: video #{video_id}, {len(segments)} segments, {transcribed_words} words")
+        logger.info(f" STT Milestone 1 committed to DB: video #{video_id}, {len(segments)} segments, {transcribed_words} words")
 
         # ============================================================
         # MILESTONE 2: Diarization Enrichment (Soft Timeout & Fallback)
@@ -2626,7 +2626,7 @@ async def start_transcription(
             if diar_service.is_available():
                 diar_timeout = int(os.getenv("DIARIZATION_TIMEOUT", "150"))
                 try:
-                    logger.info(f"👥 Running Pyannote diarization on {vocal_path} (soft timeout: {diar_timeout}s)...")
+                    logger.info(f" Running Pyannote diarization on {vocal_path} (soft timeout: {diar_timeout}s)...")
                     import asyncio
                     diar_segments = await asyncio.wait_for(
                         run_in_threadpool(diar_service.diarize, vocal_path),
@@ -2642,7 +2642,7 @@ async def start_transcription(
 
                     # Only update DB if multiple speakers were found
                     if len(unique_speakers) > 1 or unique_speakers != ["SPEAKER_01"]:
-                        logger.info(f"👥 Updating speaker profiles for {unique_speakers} on video #{video_id}")
+                        logger.info(f" Updating speaker profiles for {unique_speakers} on video #{video_id}")
                         db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).delete()
                         db.query(SpeakerProfile).filter(SpeakerProfile.video_id == video_id).delete()
                         db.flush()
@@ -2711,10 +2711,10 @@ async def start_transcription(
                     else:
                         diarization_message = "Transcription completed (single speaker detected)"
                 except asyncio.TimeoutError:
-                    logger.warning(f"⚠️ Pyannote diarization timed out after {diar_timeout}s for video #{video_id}. Retaining single-speaker fallback.")
+                    logger.warning(f" Pyannote diarization timed out after {diar_timeout}s for video #{video_id}. Retaining single-speaker fallback.")
                     diarization_message = "Transcription completed (single-speaker fallback due to CPU timeout)"
                 except Exception as de:
-                    logger.warning(f"⚠️ Pyannote diarization error for video #{video_id}: {de}. Retaining single-speaker fallback.")
+                    logger.warning(f" Pyannote diarization error for video #{video_id}: {de}. Retaining single-speaker fallback.")
                     diarization_message = f"Transcription completed (single-speaker fallback: {de})"
             else:
                 logger.info("Diarization model unavailable or HF_TOKEN not set, defaulting to SPEAKER_01")
@@ -2734,14 +2734,14 @@ async def start_transcription(
     except Exception as e:
         logger.exception(f"Transcription failed for video #{video_id}: {e}")
         try:
-            refund_user_credits(
+            refund_user_words(
                 user_id=user_id,
-                credits_amount=credits_needed,
+                words_amount=words_needed,
                 reason=f"Failed transcription for video #{video_id}",
                 video_id=video_id,
             )
         except Exception as ref_err:
-            logger.error(f"Failed to refund credits for user {user_id}: {ref_err}")
+            logger.error(f"Failed to refund words for user {user_id}: {ref_err}")
 @router.get("/{video_id}/steps-summary")
 async def get_video_steps_summary(
     video_id: int,
@@ -3271,20 +3271,13 @@ def start_translation(
         config.translation_model = model
         db.flush()
     trans_model = model or (config.translation_model if config and config.translation_model else "nllb_200_1.3b")
-    cost_per_min = get_model_credit_cost(trans_model, default_cost=1)
-    duration_mins = max(1, int(math.ceil((video.duration or 60) / 60.0)))
-    credits_needed = duration_mins * cost_per_min
-
-    if not deduct_user_credits(
-        user_id=user_id,
-        credits_amount=credits_needed,
-        service_type="TRANSLATION",
-        description=f"Translation ({trans_model}, {target_language}) for video #{video_id} ({duration_mins}m @ {cost_per_min}cr/m = {credits_needed} credits)",
-        video_id=video_id,
-    ):
+    # Check word quota before proceeding
+    quota = get_user_effective_quota(user_id)
+    rem_words = quota.get("words", {}).get("remaining_words", 0)
+    if rem_words <= 0:
         raise HTTPException(
             status.HTTP_402_PAYMENT_REQUIRED,
-            f"Insufficient AI credits for translation ({credits_needed} required). Please upgrade your plan or top up credits."
+            f"Không đủ hạn mức từ (word quota) để dịch thuật (còn lại: {rem_words} từ). Vui lòng nâng cấp gói."
         )
     
     try:
@@ -3327,12 +3320,6 @@ def start_translation(
                 r = redis.Redis.from_url(REDIS_URL)
                 acquired = r.set(lock_key, "active", nx=True, ex=1800)
                 if not acquired:
-                    refund_user_credits(
-                        user_id=user_id,
-                        credits_amount=credits_needed,
-                        reason=f"Duplicate translation request for video #{video_id}",
-                        video_id=video_id,
-                    )
                     refund_user_words(
                         user_id=user_id,
                         words_amount=trans_words,
@@ -3356,7 +3343,7 @@ def start_translation(
                     config={
                         "target_language": target_lang_clean,
                         "model": trans_model,
-                        "credits_needed": credits_needed,
+                        "words_needed": trans_words,
                         "mode": "single_step",
                         "step": "translation"
                     },
@@ -3391,12 +3378,6 @@ def start_translation(
                         r.delete(lock_key)
                     except Exception:
                         pass
-                refund_user_credits(
-                    user_id=user_id,
-                    credits_amount=credits_needed,
-                    reason=f"Failed to dispatch translation task for video #{video_id}",
-                    video_id=video_id,
-                )
                 refund_user_words(
                     user_id=user_id,
                     words_amount=trans_words,
@@ -4937,7 +4918,7 @@ async def generate_tts(
     user_id: int = Depends(get_current_user_id),
 ):
     """Generate speech from translated text with voice selection and style (supports HTTP 202 Async & Sync)."""
-    logger.info(f"🎤 Starting TTS generation for video {video_id}")
+    logger.info(f" Starting TTS generation for video {video_id}")
     logger.info(f"   Language: {language}, Style: {style}, Speed: {speed}, Model: {model}, Voice: {voice_id}")
     
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
@@ -4958,31 +4939,24 @@ async def generate_tts(
             f"Mô hình Coqui XTTS-v2 không hỗ trợ ngôn ngữ '{language.upper()}'. Vui lòng chọn Microsoft Edge-TTS hoặc ElevenLabs."
         )
 
-    cost_per_min = get_model_credit_cost(tts_model, default_cost=2)
-    duration_mins = max(1, int(math.ceil((video.duration or 60) / 60.0)))
-    credits_needed = duration_mins * cost_per_min
-
-    if not deduct_user_credits(
-        user_id=user_id,
-        credits_amount=credits_needed,
-        service_type="TTS_SYNTHESIS",
-        description=f"Voice TTS ({tts_model}, {language}) for video #{video_id} ({duration_mins}m @ {cost_per_min}cr/m = {credits_needed} credits)",
-        video_id=video_id,
-    ):
+    # Check word quota before proceeding
+    quota = get_user_effective_quota(user_id)
+    rem_words = quota.get("words", {}).get("remaining_words", 0)
+    if rem_words <= 0:
         raise HTTPException(
             status.HTTP_402_PAYMENT_REQUIRED,
-            f"Insufficient AI credits for voice synthesis ({credits_needed} required). Please upgrade your plan or top up credits."
+            f"Không đủ hạn mức từ (word quota) để tạo giọng nói AI (còn lại: {rem_words} từ). Vui lòng nâng cấp gói."
         )
     
     # Find translation
     translation_dir = os.path.dirname(video.transcript_path) if video.transcript_path else None
     if not translation_dir:
-        logger.error(f"❌ Transcript directory not found for video {video_id}")
+        logger.error(f" Transcript directory not found for video {video_id}")
         raise HTTPException(404, "Transcript directory not found")
     
     translation_path = os.path.join(translation_dir, f"translation_{language}.json")
     if not os.path.exists(translation_path):
-        logger.error(f"❌ Translation not found for video {video_id}, language {language}")
+        logger.error(f" Translation not found for video {video_id}, language {language}")
         raise HTTPException(404, f"Translation for {language} not found")
     
     # Load translation data
@@ -4990,7 +4964,7 @@ async def generate_tts(
         with open(translation_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
             segments = data.get("segments", [])
-        logger.info(f"📄 Loaded {len(segments)} segments from translation")
+        logger.info(f" Loaded {len(segments)} segments from translation")
 
         # Enforce word quota deduction for tokenize-based subscription
         raw_words = TokenizerService.count_segments_words(segments)
@@ -5006,11 +4980,11 @@ async def generate_tts(
             video_id=video_id,
         )
     except Exception as e:
-        logger.error(f"❌ Failed to read translation: {e}")
+        logger.error(f" Failed to read translation: {e}")
         raise HTTPException(500, f"Failed to read translation: {str(e)}")
     
     if not segments:
-        logger.error(f"❌ No segments found in translation for video {video_id}")
+        logger.error(f" No segments found in translation for video {video_id}")
         raise HTTPException(400, "No segments found in translation")
 
     # ============================================================
@@ -5059,7 +5033,7 @@ async def generate_tts(
                     "voice_id": voice_id,
                     "style": style,
                     "speed": speed,
-                    "credits_needed": credits_needed,
+                    "words_needed": tts_words,
                     "mode": "single_step",
                     "step": "tts"
                 },
@@ -5096,12 +5070,6 @@ async def generate_tts(
                     r.delete(lock_key)
                 except Exception:
                     pass
-            refund_user_credits(
-                user_id=user_id,
-                credits_amount=credits_needed,
-                reason=f"Failed to dispatch TTS task for video #{video_id}",
-                video_id=video_id,
-            )
             refund_user_words(
                 user_id=user_id,
                 words_amount=tts_words,
@@ -5113,16 +5081,16 @@ async def generate_tts(
     # Get vocal path for voice cloning
     vocal_path = video.extracted_vocal_path
     if not vocal_path or not os.path.exists(vocal_path):
-        logger.warning(f"⚠️ No vocal track found for video {video_id}, using default voice")
+        logger.warning(f" No vocal track found for video {video_id}, using default voice")
         vocal_path = None
     else:
-        logger.info(f"🎵 Using vocal track for voice cloning: {vocal_path}")
+        logger.info(f" Using vocal track for voice cloning: {vocal_path}")
     
     # Language mapping for XTTS
     from app.core.languages import TARGET_LANGUAGE_MAP
     lang_config = TARGET_LANGUAGE_MAP.get(language)
     xtts_lang = lang_config["xtts"] if lang_config else "en"
-    logger.info(f"🌐 XTTS language: {xtts_lang}")
+    logger.info(f" XTTS language: {xtts_lang}")
     
     tts_service = TTSAlignerService()
     
@@ -5133,7 +5101,7 @@ async def generate_tts(
     
     try:
         # Generate TTS
-        logger.info(f"🔧 Generating TTS for {len(segments)} segments...")
+        logger.info(f" Generating TTS for {len(segments)} segments...")
         voice_id_str = voice_id or (str(speaker_id) if speaker_id is not None else None)
         tts_service.generate_tts_with_alignment(
             segments=segments,
@@ -5148,19 +5116,19 @@ async def generate_tts(
         
         # Validate the generated file
         if not os.path.exists(tts_path):
-            logger.error(f"❌ TTS file was not created: {tts_path}")
+            logger.error(f" TTS file was not created: {tts_path}")
             raise HTTPException(500, "TTS file was not created")
         
         file_size = os.path.getsize(tts_path)
         if file_size < 1024:
-            logger.error(f"❌ TTS file is too small: {file_size} bytes")
+            logger.error(f" TTS file is too small: {file_size} bytes")
             raise HTTPException(400, f"TTS audio file is corrupted or empty ({file_size} bytes)")
         
-        logger.info(f"✅ TTS generated successfully: {tts_path} ({file_size} bytes)")
+        logger.info(f" TTS generated successfully: {tts_path} ({file_size} bytes)")
         
         # Apply speed adjustment if needed
         if speed != 1.0:
-            logger.info(f"⏱️ Adjusting speed to {speed}x")
+            logger.info(f" Adjusting speed to {speed}x")
             temp_path = tts_dir / f"tts_{language}_temp.wav"
             try:
                 subprocess.run([
@@ -5174,11 +5142,11 @@ async def generate_tts(
                 
                 # Validate again
                 if os.path.getsize(tts_path) < 1024:
-                    logger.error(f"❌ Speed-adjusted TTS file is corrupted")
+                    logger.error(f" Speed-adjusted TTS file is corrupted")
                     raise HTTPException(400, "Speed-adjusted TTS file is corrupted")
                     
             except subprocess.CalledProcessError as e:
-                logger.error(f"⚠️ Speed adjustment failed: {e.stderr}")
+                logger.error(f" Speed adjustment failed: {e.stderr}")
                 # Continue with original file
         
         # Update video record
@@ -5187,7 +5155,7 @@ async def generate_tts(
         video.progress = max(int(video.progress or 0), 85)
         db.commit()
         
-        logger.info(f"✅ TTS generation completed for video {video_id}")
+        logger.info(f" TTS generation completed for video {video_id}")
         
         return {
             "video_id": video_id,
@@ -5203,7 +5171,7 @@ async def generate_tts(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ TTS generation failed: {str(e)}")
+        logger.error(f" TTS generation failed: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
         raise HTTPException(500, f"TTS generation failed: {str(e)}")
@@ -5233,7 +5201,7 @@ async def get_tts(
         
         # Check if file is valid
         if file_size < 1024:
-            logger.warning(f"⚠️ TTS file {tts_path} is too small ({file_size} bytes)")
+            logger.warning(f" TTS file {tts_path} is too small ({file_size} bytes)")
             return {
                 "video_id": video_id,
                 "language": language,
@@ -5256,14 +5224,14 @@ async def get_tts(
                 ]
                 result = subprocess.run(probe_cmd, capture_output=True, text=True)
                 if result.returncode != 0:
-                    logger.error(f"❌ Invalid audio file: {result.stderr}")
+                    logger.error(f" Invalid audio file: {result.stderr}")
                     raise HTTPException(400, "TTS file is corrupted")
                 
                 duration = float(result.stdout.strip()) if result.stdout else 0
                 if duration < 0.1:
-                    logger.warning(f"⚠️ TTS file has very short duration: {duration}s")
+                    logger.warning(f" TTS file has very short duration: {duration}s")
             except Exception as e:
-                logger.error(f"❌ Error validating TTS file: {e}")
+                logger.error(f" Error validating TTS file: {e}")
                 # Still try to serve it
                 pass
             
@@ -5424,24 +5392,21 @@ async def generate_dubbed_video(
     user_id: int = Depends(get_current_user_id),
 ):
     """Generate a complete dubbed video with format, quality, aspect ratio and 3-track audio mixer options (supports HTTP 202 Async & Sync)."""
-    logger.info(f"🎬 Starting dubbing for video {video_id}")
+    logger.info(f" Starting dubbing for video {video_id}")
     logger.info(f"   Language: {language}, Format: {video_format}, Quality: {quality}, BurnSubtitles: {burn_subtitles}, AspectRatio: {aspect_ratio}")
     
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
     
     # Enforce AI credit deduction for video dubbing render
     duration_mins = max(1, int(math.ceil((video.duration or 60) / 60.0)))
-    credits_needed = duration_mins * 1
-    if not deduct_user_credits(
-        user_id=user_id,
-        credits_amount=credits_needed,
-        service_type="DUBBING_RENDER",
-        description=f"Dubbed video mixing ({language}) for video #{video_id} ({duration_mins} mins)",
-        video_id=video_id,
-    ):
+    # Check word quota before proceeding
+    quota = get_user_effective_quota(user_id)
+    rem_words = quota.get("words", {}).get("remaining_words", 0)
+    dub_words = TokenizerService.estimate_video_words(video.duration or 60.0)
+    if rem_words < dub_words:
         raise HTTPException(
             status.HTTP_402_PAYMENT_REQUIRED,
-            f"Insufficient AI credits for video dubbing ({credits_needed} required). Please upgrade your plan or top up credits."
+            f"Không đủ hạn mức từ (word quota) để xuất video lồng tiếng (~{dub_words} từ cần thiết, còn lại: {rem_words} từ). Vui lòng nâng cấp gói."
         )
 
     # Enforce word quota deduction for tokenize-based subscription
@@ -5458,26 +5423,26 @@ async def generate_dubbed_video(
     video_path = None
     for file in UPLOAD_DIR.glob(f"{video_id}_*"):
         video_path = str(file)
-        logger.info(f"📹 Found original video: {video_path}")
+        logger.info(f" Found original video: {video_path}")
         break
     
     if not video_path:
-        logger.error(f"❌ Original video file not found for video {video_id}")
+        logger.error(f" Original video file not found for video {video_id}")
         raise HTTPException(404, "Original video not found")
     
     # Check TTS audio exists
     tts_path = video.dubbed_audio_path
     if not tts_path or not os.path.exists(tts_path):
-        logger.error(f"❌ TTS not found for video {video_id}: {tts_path}")
+        logger.error(f" TTS not found for video {video_id}: {tts_path}")
         raise HTTPException(400, "TTS not found. Generate TTS first.")
     
     # Check TTS file size
     tts_size = os.path.getsize(tts_path)
     if tts_size < 1024:
-        logger.error(f"❌ TTS file corrupted for video {video_id}: {tts_size} bytes")
+        logger.error(f" TTS file corrupted for video {video_id}: {tts_size} bytes")
         raise HTTPException(400, f"TTS audio file is corrupted or empty ({tts_size} bytes)")
     
-    logger.info(f"✅ TTS file found: {tts_path} ({tts_size} bytes)")
+    logger.info(f" TTS file found: {tts_path} ({tts_size} bytes)")
 
     # ============================================================
     # ASYNCHRONOUS CELERY DISPATCH (Default Mode: HTTP 202 Accepted)
@@ -5528,7 +5493,7 @@ async def generate_dubbed_video(
                     "vocal_volume": vocal_volume,
                     "bgm_volume": bgm_volume,
                     "dub_volume": dub_volume,
-                    "credits_needed": credits_needed,
+                    "words_needed": dub_words,
                     "mode": "single_step",
                     "step": "dub"
                 },
@@ -5567,12 +5532,6 @@ async def generate_dubbed_video(
                     r.delete(lock_key)
                 except Exception:
                     pass
-            refund_user_credits(
-                user_id=user_id,
-                credits_amount=credits_needed,
-                reason=f"Failed to dispatch dubbing task for video #{video_id}",
-                video_id=video_id,
-            )
             refund_user_words(
                 user_id=user_id,
                 words_amount=dub_words,
@@ -5589,7 +5548,7 @@ async def generate_dubbed_video(
     # 1. Check if BGM path is saved in database
     if video.background_music_path and os.path.exists(video.background_music_path):
         bgm_path = video.background_music_path
-        logger.info(f"🎵 Using BGM from video record: {bgm_path}")
+        logger.info(f" Using BGM from video record: {bgm_path}")
     else:
         # 2. Search in audio directory with multiple patterns
         bgm_dir = OUTPUT_DIR / f"audio_{video_id}"
@@ -5635,14 +5594,14 @@ async def generate_dubbed_video(
                     bgm_files = bgm_files_filtered
                 
                 bgm_path = str(bgm_files[0])
-                logger.info(f"🎵 Found BGM at: {bgm_path}")
+                logger.info(f" Found BGM at: {bgm_path}")
             else:
-                logger.warning(f"⚠️ No BGM found in: {bgm_dir}")
+                logger.warning(f" No BGM found in: {bgm_dir}")
         else:
-            logger.warning(f"⚠️ Audio directory not found: {bgm_dir}")
+            logger.warning(f" Audio directory not found: {bgm_dir}")
     
     if not bgm_path:
-        logger.warning(f"⚠️ No BGM found for video {video_id}, using TTS only")
+        logger.warning(f" No BGM found for video {video_id}, using TTS only")
     # ============================================================
     
     audio_service = AudioService()
@@ -5652,12 +5611,12 @@ async def generate_dubbed_video(
     output_filename = f"dubbed_{language}_{quality}_{timestamp}_{uuid.uuid4().hex[:8]}.{video_format}"
     output_path = str(OUTPUT_DIR / output_filename)
     
-    logger.info(f"📁 Output path: {output_path}")
+    logger.info(f" Output path: {output_path}")
     
     try:
         import tempfile
         with tempfile.TemporaryDirectory() as temp_dir:
-            logger.info(f"🔧 Starting audio mixing and muxing in temp dir: {temp_dir}")
+            logger.info(f" Starting audio mixing and muxing in temp dir: {temp_dir}")
             
             # Resolve subtitle path if subtitle burning is enabled (prioritize styled .ass)
             resolved_sub_path = None
@@ -5680,7 +5639,7 @@ async def generate_dubbed_video(
                             break
 
                 if resolved_sub_path:
-                    logger.info(f"🔥 Subtitles located for burning: {resolved_sub_path}")
+                    logger.info(f" Subtitles located for burning: {resolved_sub_path}")
                 else:
                     logger.info(f"No subtitle file found for video {video_id}, proceeding without burning")
 
@@ -5711,7 +5670,7 @@ async def generate_dubbed_video(
                                 )
                                 if sub_paths.get("ass"):
                                     resolved_sub_path = sub_paths["ass"]
-                                logger.info(f"🔄 Re-generated subtitles with saved config: font_size={sub_cfg['font_size']}, font={sub_cfg['font_name']}, color={sub_cfg['primary_color']}")
+                                logger.info(f" Re-generated subtitles with saved config: font_size={sub_cfg['font_size']}, font={sub_cfg['font_name']}, color={sub_cfg['primary_color']}")
                     except Exception as regen_err:
                         logger.warning(f"Could not re-generate subtitles with saved config: {regen_err}")
 
@@ -5750,7 +5709,7 @@ async def generate_dubbed_video(
                     except Exception:
                         pass
 
-            logger.info(f"📐 Applying aspect ratio for dubbing: {final_aspect_ratio or 'original/source'}")
+            logger.info(f" Applying aspect ratio for dubbing: {final_aspect_ratio or 'original/source'}")
 
             # Resolve original vocal path if vocal_volume > 0
             resolved_vocal_path = None
@@ -5801,7 +5760,7 @@ async def generate_dubbed_video(
         hls_result = result.get("hls", {})
         error = result.get("error")
         
-        logger.info(f"✅ Dubbing completed for video {video_id}")
+        logger.info(f" Dubbing completed for video {video_id}")
         logger.info(f"   Local path: {local_path}")
         logger.info(f"   File size: {file_size} bytes")
         
@@ -5811,7 +5770,7 @@ async def generate_dubbed_video(
             logger.info(f"   Master playlist: {hls_result.get('master_playlist_s3')}")
         
         if error:
-            logger.warning(f"⚠️ Warning: {error}")
+            logger.warning(f" Warning: {error}")
         
         # Update video record
         if s3_key:
@@ -5910,7 +5869,7 @@ async def generate_dubbed_video(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Dubbing failed for video {video_id}: {str(e)}")
+        logger.error(f" Dubbing failed for video {video_id}: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
         
@@ -5918,7 +5877,7 @@ async def generate_dubbed_video(
         if os.path.exists(output_path):
             try:
                 os.remove(output_path)
-                logger.info(f"🧹 Cleaned up failed output: {output_path}")
+                logger.info(f" Cleaned up failed output: {output_path}")
             except Exception as cleanup_error:
                 logger.warning(f"Could not clean up {output_path}: {cleanup_error}")
         
@@ -6024,7 +5983,7 @@ def resolve_or_transcode_video_quality(
                 except Exception:
                     pass
 
-            logger.info(f"✅ video.output_path is the master render matching requested quality {quality_clean}: {target_out}")
+            logger.info(f" video.output_path is the master render matching requested quality {quality_clean}: {target_out}")
             try:
                 existing = db.query(VideoRenderOutput).filter(
                     VideoRenderOutput.video_id == video.id,
@@ -6065,7 +6024,7 @@ def resolve_or_transcode_video_quality(
             VideoRenderOutput.status == "completed",
         ).first()
         if cached_render and cached_render.output_video_path:
-            logger.info(f"✅ Found cached render in DB for video {video.id} ({quality_clean}, {format_clean}): {cached_render.output_video_path}")
+            logger.info(f" Found cached render in DB for video {video.id} ({quality_clean}, {format_clean}): {cached_render.output_video_path}")
             return cached_render.output_video_path
     except Exception as exc:
         logger.warning(f"Failed to query video_render_outputs: {exc}")
@@ -6107,7 +6066,7 @@ def resolve_or_transcode_video_quality(
     out_filename = f"dubbed_{language_clean}_{quality_clean}_{uuid.uuid4().hex[:8]}.{format_clean}"
     local_render_path = render_dir / out_filename
 
-    logger.info(f"🎬 Transcoding video {video.id} to {quality_clean} ({target_height}p) -> {local_render_path}")
+    logger.info(f" Transcoding video {video.id} to {quality_clean} ({target_height}p) -> {local_render_path}")
 
     ffmpeg_cmd = [
         "ffmpeg", "-y",
@@ -6131,7 +6090,7 @@ def resolve_or_transcode_video_quality(
             raise HTTPException(500, f"FFmpeg transcoding failed: {proc.stderr[:200]}")
 
     file_size = local_render_path.stat().st_size
-    logger.info(f"✅ Transcoded successfully: {local_render_path} ({file_size} bytes)")
+    logger.info(f" Transcoded successfully: {local_render_path} ({file_size} bytes)")
 
     # 5. Upload to S3
     s3_key = f"videos/{video.id}/dubbed/{language_clean}/{quality_clean}/{out_filename}"
@@ -6143,7 +6102,7 @@ def resolve_or_transcode_video_quality(
 
     try:
         storage_manager.upload_file(str(local_render_path), s3_key, content_type=content_type)
-        logger.info(f"✅ Uploaded transcoded video to S3: {s3_key}")
+        logger.info(f" Uploaded transcoded video to S3: {s3_key}")
     except Exception as upload_err:
         logger.error(f"Failed to upload transcoded video to S3: {upload_err}")
         raise HTTPException(500, f"Failed to upload transcoded video to storage: {upload_err}")
@@ -6177,7 +6136,7 @@ def resolve_or_transcode_video_quality(
             )
             db.add(render_record)
         db.commit()
-        logger.info("✅ Recorded render in video_render_outputs")
+        logger.info(" Recorded render in video_render_outputs")
     except Exception as db_err:
         db.rollback()
         logger.warning(f"Failed to save record to video_render_outputs: {db_err}")
@@ -6203,7 +6162,7 @@ async def download_dubbed_video(
     user_id: int = Depends(get_current_user_id),
 ):
     """Download or preview the dubbed video at requested quality and format."""
-    logger.info(f"📥 Download request for video {video_id}, language {language}, quality {quality}, format {format}, preview={preview}")
+    logger.info(f" Download request for video {video_id}, language {language}, quality {quality}, format {format}, preview={preview}")
     
     video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
     
@@ -6302,7 +6261,7 @@ async def export_video(
     user_id: int = Depends(get_current_user_id),
 ):
     """Export video with specified options and optional custom filename."""
-    logger.info(f"📤 Export request: video={video_id}, type={export_type}, format={format}, quality={quality}, custom_name={custom_filename}")
+    logger.info(f" Export request: video={video_id}, type={export_type}, format={format}, quality={quality}, custom_name={custom_filename}")
     
     video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
     
@@ -6337,7 +6296,7 @@ async def export_video(
                     },
                     expires_in=3600
                 )
-                logger.info(f"✅ Generated presigned URL for export: {presigned_url[:100]}...")
+                logger.info(f" Generated presigned URL for export: {presigned_url[:100]}...")
                 return {
                     "url": presigned_url,
                     "video_id": video_id,
@@ -6347,10 +6306,10 @@ async def export_video(
                     "message": "Presigned URL generated successfully"
                 }
             except ClientError as e:
-                logger.error(f"❌ S3 error: {e}")
+                logger.error(f" S3 error: {e}")
                 raise HTTPException(500, f"S3 error: {str(e)}")
             except Exception as e:
-                logger.error(f"❌ Unexpected error: {e}")
+                logger.error(f" Unexpected error: {e}")
                 raise HTTPException(500, f"Error generating download URL: {str(e)}")
 
         if os.path.exists(s3_key_or_path):
@@ -6896,7 +6855,7 @@ async def separate_audio(
         except Exception as s3_err:
             logger.warning(f"Could not upload separated audio stems to Object Storage: {s3_err}")
         
-        logger.info(f"✅ Audio separated for video {video_id}")
+        logger.info(f" Audio separated for video {video_id}")
         logger.info(f"   Vocal track: {vocal_path}")
         logger.info(f"   BGM track: {bgm_path}")
         
@@ -6908,7 +6867,7 @@ async def separate_audio(
             "message": "Audio separated successfully"
         }
     except Exception as e:
-        logger.error(f"❌ Audio separation failed: {e}")
+        logger.error(f" Audio separation failed: {e}")
         raise HTTPException(500, f"Audio separation failed: {str(e)}")
 
 

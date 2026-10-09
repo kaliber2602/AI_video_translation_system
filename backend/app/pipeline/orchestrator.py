@@ -202,7 +202,7 @@ def run_full_pipeline(
             from app.services.faiss_vector_service import FaissVectorService
             vec_service = FaissVectorService(db=session)
             indexed_count = vec_service.index_video_segments(video_id=video_id)
-            print(f"[Pipeline] ✅ Indexed {indexed_count} vector chunks into FAISS/DB for video {video_id}", flush=True)
+            print(f"[Pipeline]  Indexed {indexed_count} vector chunks into FAISS/DB for video {video_id}", flush=True)
             job_service.log_task(
                 job_id,
                 "vector_indexing",
@@ -210,7 +210,7 @@ def run_full_pipeline(
                 f"Generated and indexed {indexed_count} vector embeddings"
             )
         except Exception as vec_err:
-            print(f"[Pipeline] ⚠️ Vector indexing warning for video {video_id}: {vec_err}", flush=True)
+            print(f"[Pipeline]  Vector indexing warning for video {video_id}: {vec_err}", flush=True)
             job_service.log_task(
                 job_id,
                 "vector_indexing",

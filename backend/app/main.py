@@ -39,7 +39,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         body_str = body.decode("utf-8", errors="replace")
     except Exception:
         body_str = "<could not read body>"
-    logger.error(f"❌ [422 Validation Error] {request.method} {request.url.path} -> Errors: {exc.errors()} | Raw Body: {body_str}")
+    logger.error(f"[422 Validation Error] {request.method} {request.url.path} -> Errors: {exc.errors()} | Raw Body: {body_str}")
     return JSONResponse(status_code=422, content={"detail": jsonable_encoder(exc.errors())})
 
 

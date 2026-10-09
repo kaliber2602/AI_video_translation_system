@@ -55,9 +55,9 @@ class FaissVectorService:
                     DEFAULT_EMBEDDING_MODEL,
                     device=self.device
                 )
-                logger.info(f"[FAISS] ✅ Embedding Model loaded successfully on {self.device.upper()}")
+                logger.info(f"[FAISS]  Embedding Model loaded successfully on {self.device.upper()}")
             except Exception as e:
-                logger.warning(f"[FAISS] ⚠️ Failed to load SentenceTransformer on {self.device}: {e}. Falling back to CPU / mock.")
+                logger.warning(f"[FAISS]  Failed to load SentenceTransformer on {self.device}: {e}. Falling back to CPU / mock.")
                 try:
                     FaissVectorService._embed_model = SentenceTransformer(DEFAULT_EMBEDDING_MODEL, device="cpu")
                 except Exception as e_cpu:
@@ -201,7 +201,7 @@ class FaissVectorService:
                 logger.error(f"[FAISS] Failed to update FAISS index for project {project_id}: {e}")
                 raise
 
-        logger.info(f"[FAISS] ✅ Indexed {len(chunk_texts)} dual-language chunks for video #{video_id} (Project #{project_id})")
+        logger.info(f"[FAISS]  Indexed {len(chunk_texts)} dual-language chunks for video #{video_id} (Project #{project_id})")
         return len(chunk_texts)
 
     def _update_faiss_project_index(self, project_id: int, new_embeddings: np.ndarray, new_metas: List[Dict[str, Any]]):

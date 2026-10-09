@@ -34,6 +34,12 @@ export interface TTSDubbingConfig {
   speaker_voice_mapping?: Record<string, string>;
   speed_rate?: number;
   pitch_shift?: number;
+  vocal_volume?: number;
+  bgm_volume?: number;
+  dub_volume?: number;
+  is_vocal_muted?: boolean;
+  is_bgm_muted?: boolean;
+  is_dub_muted?: boolean;
 }
 
 export interface SubtitleStyleConfig {
@@ -45,11 +51,19 @@ export interface SubtitleStyleConfig {
   max_chars_per_line?: number;
   karaoke_effect?: boolean;
   highlight_color?: string;
+  alignment?: "left" | "center" | "right" | "justify";
+  max_lines?: number;
+  line_spacing?: number;
+  position?: "bottom" | "middle" | "top";
+  position_y?: number;
+  effect?: "none" | "fade" | "pop" | "slide" | "karaoke";
+  aspect_ratio?: "16:9" | "9:16" | "1:1" | "4:3";
 }
 
 export interface SubtitlesConfig {
   format?: string;
   burn_mode?: "hardcode" | "hardsub" | "soft" | "none";
+  bilingual_subtitles?: boolean;
   style?: SubtitleStyleConfig;
 }
 

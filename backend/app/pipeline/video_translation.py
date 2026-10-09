@@ -58,14 +58,14 @@ def _video_translation(video_input_path: str, final_output_path: str, target_lan
     # Auto-detect and log device
     cuda_available = torch.cuda.is_available()
     device_info = "GPU" if cuda_available else "CPU"
-    print(f"[Pipeline] 🚀 Starting translation pipeline using {device_info}", flush=True)
+    print(f"[Pipeline]  Starting translation pipeline using {device_info}", flush=True)
     
     lang_config = TARGET_LANGUAGE_MAP.get(target_language, TARGET_LANGUAGE_MAP["vi"])
     nllb_tgt_lang = lang_config["nllb"]
     xtts_tgt_lang = lang_config["xtts"]
     
-    print(f"[Pipeline] 🎯 Target language: {target_language.upper()} ({nllb_tgt_lang})", flush=True)
-    print(f"[Pipeline] 🎤 TTS language: {xtts_tgt_lang}", flush=True)
+    print(f"[Pipeline]  Target language: {target_language.upper()} ({nllb_tgt_lang})", flush=True)
+    print(f"[Pipeline]  TTS language: {xtts_tgt_lang}", flush=True)
     
     # Get services (lazy initialization)
     audio_service = get_audio_service()
@@ -78,30 +78,30 @@ def _video_translation(video_input_path: str, final_output_path: str, target_lan
         temp_final_tts = os.path.join(temp_dir, "final_tts_track.wav")
         
         # --- BƯỚC 1: Tiền xử lý & Tách âm thanh ---
-        print(f"[1/5] 🔄 Trích xuất và bóc tách Vocal / Nhạc nền (Demucs {demucs_model or 'htdemucs'})...", flush=True)
+        print(f"[1/5]  Trích xuất và bóc tách Vocal / Nhạc nền (Demucs {demucs_model or 'htdemucs'})...", flush=True)
         try:
             audio_service.extract_audio(video_input_path, temp_raw_audio)
             vocal_path, bgm_path = audio_service.separate_vocal_bgm(temp_raw_audio, temp_dir, model_name=demucs_model or "htdemucs")
-            print("[1/5] ✅ Audio extraction and separation complete", flush=True)
+            print("[1/5]  Audio extraction and separation complete", flush=True)
         except Exception as e:
-            print(f"[1/5] ❌ Audio extraction failed: {e}", flush=True)
+            print(f"[1/5]  Audio extraction failed: {e}", flush=True)
             raise
         
         # --- BƯỚC 2: STT & TIN TƯỞNG TUYỆT ĐỐI VÀO WHISPER ---
-        print(f"[2/5] 🔄 Nhận diện giọng nói và phát hiện ngôn ngữ (Whisper {stt_model or 'default'})...", flush=True)
+        print(f"[2/5]  Nhận diện giọng nói và phát hiện ngôn ngữ (Whisper {stt_model or 'default'})...", flush=True)
         try:
             segments, detected_iso_lang = stt_service.transcribe_audio(vocal_path)
-            print(f"[2/5] ✅ Whisper detected {len(segments)} segments, language: {detected_iso_lang.upper()}", flush=True)
+            print(f"[2/5]  Whisper detected {len(segments)} segments, language: {detected_iso_lang.upper()}", flush=True)
         except Exception as e:
-            print(f"[2/5] ❌ Transcription failed: {e}", flush=True)
+            print(f"[2/5]  Transcription failed: {e}", flush=True)
             raise
         
-        print(f"[*] 🗣️ Whisper detected source language: {detected_iso_lang.upper()}", flush=True)
+        print(f"[*]  Whisper detected source language: {detected_iso_lang.upper()}", flush=True)
         nllb_src_lang = SOURCE_LANGUAGE_MAP.get(detected_iso_lang, "eng_Latn")
-        print(f"[*] 🔄 NLLB source language code: {nllb_src_lang}", flush=True)
+        print(f"[*]  NLLB source language code: {nllb_src_lang}", flush=True)
         
         # --- BƯỚC 3: Dịch thuật bối cảnh (Document Context) & Bảo vệ từ khóa ---
-        print(f"[3/5] 🔄 Dịch thuật văn bản ({nllb_src_lang} -> {nllb_tgt_lang}) bằng {translation_model or 'NLLB'}...", flush=True)
+        print(f"[3/5]  Dịch thuật văn bản ({nllb_src_lang} -> {nllb_tgt_lang}) bằng {translation_model or 'NLLB'}...", flush=True)
         try:
             translated_segments = translation_service.translate_document(
                 segments=segments,
@@ -110,13 +110,13 @@ def _video_translation(video_input_path: str, final_output_path: str, target_lan
                 tgt_lang=nllb_tgt_lang,
                 model=translation_model or "nllb_200_1.3b"
             )
-            print(f"[3/5] ✅ Translation complete: {len(translated_segments)} segments", flush=True)
+            print(f"[3/5]  Translation complete: {len(translated_segments)} segments", flush=True)
         except Exception as e:
-            print(f"[3/5] ❌ Translation failed: {e}", flush=True)
+            print(f"[3/5]  Translation failed: {e}", flush=True)
             raise
         
         # --- BƯỚC 4: Lồng tiếng Voice Cloning & Ép Timeline ---
-        print(f"[4/5] 🔄 Trích xuất Voice Profile VAD và sinh giọng lồng tiếng ({xtts_tgt_lang}, {tts_model or 'default'})...", flush=True)
+        print(f"[4/5]  Trích xuất Voice Profile VAD và sinh giọng lồng tiếng ({xtts_tgt_lang}, {tts_model or 'default'})...", flush=True)
         try:
             tts_aligner.generate_tts_with_alignment(
                 segments=translated_segments,
@@ -127,13 +127,13 @@ def _video_translation(video_input_path: str, final_output_path: str, target_lan
                 voice_id=voice_id,
                 model=tts_model
             )
-            print("[4/5] ✅ TTS generation complete", flush=True)
+            print("[4/5]  TTS generation complete", flush=True)
         except Exception as e:
-            print(f"[4/5] ❌ TTS generation failed: {e}", flush=True)
+            print(f"[4/5]  TTS generation failed: {e}", flush=True)
             raise
         
         # --- BƯỚC 5: Mix Audio & Xuất Video ---
-        print("[5/5] 🔄 Trộn âm thanh lồng tiếng + Nhạc nền gốc và đóng gói Video...", flush=True)
+        print("[5/5]  Trộn âm thanh lồng tiếng + Nhạc nền gốc và đóng gói Video...", flush=True)
         try:
             audio_service.mix_and_mux(
                 video_input_path, 
@@ -142,13 +142,13 @@ def _video_translation(video_input_path: str, final_output_path: str, target_lan
                 final_output_path, 
                 temp_dir
             )
-            print("[5/5] ✅ Video rendering complete", flush=True)
+            print("[5/5]  Video rendering complete", flush=True)
         except Exception as e:
-            print(f"[5/5] ❌ Video rendering failed: {e}", flush=True)
+            print(f"[5/5]  Video rendering failed: {e}", flush=True)
             raise
         
-    print(f"[Pipeline] ✅ Xử lý hoàn tất! Output: {final_output_path}", flush=True)
-    print(f"[Pipeline] ℹ️ Source language: {detected_iso_lang.upper()}, Target: {target_language.upper()}", flush=True)
+    print(f"[Pipeline]  Xử lý hoàn tất! Output: {final_output_path}", flush=True)
+    print(f"[Pipeline] ℹ Source language: {detected_iso_lang.upper()}, Target: {target_language.upper()}", flush=True)
     return final_output_path, detected_iso_lang, translated_segments
 
 

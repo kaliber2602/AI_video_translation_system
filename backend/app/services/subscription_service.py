@@ -1138,24 +1138,8 @@ def refund_user_credits(
 
 
 def get_model_credit_cost(model_code: Optional[str], default_cost: int = 1) -> int:
-    """
-    Look up the real-time credit_cost_per_minute for an AI model from the ai_models database table.
-    """
-    if not model_code:
-        return default_cost
-    try:
-        conn = get_connection()
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT COALESCE(word_cost_multiplier, credit_cost_per_minute) FROM ai_models WHERE code = %s AND is_active = true LIMIT 1;",
-                (model_code,)
-            )
-            row = cur.fetchone()
-            if row and row[0] is not None:
-                return int(row[0])
-    except Exception as e:
-        logger.error(f"[SubscriptionService] Failed to query credit cost for model {model_code}: {e}")
-    return default_cost
+    """Deprecated alias for get_model_word_multiplier."""
+    return get_model_word_multiplier(model_code, default_multiplier=default_cost)
 
 
 def get_model_word_multiplier(model_code: Optional[str], default_multiplier: int = 1) -> int:
@@ -1170,14 +1154,17 @@ def get_model_word_multiplier(model_code: Optional[str], default_multiplier: int
         return 0
     try:
         conn = get_connection()
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT COALESCE(word_cost_multiplier, credit_cost_per_minute) FROM ai_models WHERE code = %s AND is_active = true LIMIT 1;",
-                (model_code,)
-            )
-            row = cur.fetchone()
-            if row and row[0] is not None:
-                return int(row[0])
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT word_cost_multiplier FROM ai_models WHERE code = %s AND is_active = true LIMIT 1;",
+                    (model_code,)
+                )
+                row = cur.fetchone()
+                if row and row[0] is not None:
+                    return int(row[0])
+        finally:
+            conn.close()
     except Exception as e:
         logger.error(f"[SubscriptionService] Failed to query word cost multiplier for model {model_code}: {e}")
     return default_multiplier
@@ -1185,17 +1172,20 @@ def get_model_word_multiplier(model_code: Optional[str], default_multiplier: int
 
 def get_all_ai_model_credit_costs() -> Dict[str, int]:
     """
-    Returns a dictionary mapping model_code -> credit_cost_per_minute from the ai_models table.
+    Returns a dictionary mapping model_code -> word_cost_multiplier from the ai_models table.
     """
     result = {}
     try:
         conn = get_connection()
-        with conn.cursor() as cur:
-            cur.execute("SELECT code, COALESCE(word_cost_multiplier, credit_cost_per_minute) FROM ai_models WHERE is_active = true;")
-            for r in cur.fetchall():
-                result[r[0]] = int(r[1])
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT code, word_cost_multiplier FROM ai_models WHERE is_active = true;")
+                for r in cur.fetchall():
+                    result[r[0]] = int(r[1])
+        finally:
+            conn.close()
     except Exception as e:
-        logger.error(f"[SubscriptionService] Failed to query all ai model credit costs: {e}")
+        logger.error(f"[SubscriptionService] Failed to query all ai model multipliers: {e}")
     return result
 
 
@@ -1230,7 +1220,7 @@ def get_user_credit_audit_logs(user_id: int, limit: int = 50, offset: int = 0) -
                     "id": r[0],
                     "user_id": r[1],
                     "video_id": r[2],
-                    "job_id": r[3],
+                    "job_id": str(r[3]) if r[3] else None,
                     "service_type": r[4],
                     "credits_deducted": r[5],
                     "balance_after": r[6],

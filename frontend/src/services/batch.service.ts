@@ -14,6 +14,7 @@ export interface BatchJobItem {
   duration?: number;
   thumbnail?: string;
   output_path?: string;
+  current_step?: string | null;
 }
 
 export interface BatchJobDetail {

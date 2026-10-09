@@ -30,12 +30,12 @@ async def video_progress_websocket(
         try:
             user_id = get_user_id_from_token(token, "access")
         except Exception as auth_err:
-            logger.warning(f"⚠️ [WebSocket] Auth failed for video {video_id}: {auth_err}")
+            logger.warning(f" [WebSocket] Auth failed for video {video_id}: {auth_err}")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
     await websocket.accept()
-    logger.info(f"🔌 [WebSocket Connected] User {user_id or 'anonymous'} subscribed to Video #{video_id}")
+    logger.info(f" [WebSocket Connected] User {user_id or 'anonymous'} subscribed to Video #{video_id}")
 
     redis_conn: Optional[aioredis.Redis] = None
     pubsub: Optional[aioredis.client.PubSub] = None
@@ -89,7 +89,7 @@ async def video_progress_websocket(
                 pass
 
     except Exception as exc:
-        logger.error(f"❌ [WebSocket Error] Video #{video_id}: {exc}")
+        logger.error(f" [WebSocket Error] Video #{video_id}: {exc}")
     finally:
         if pubsub:
             try:
@@ -102,4 +102,4 @@ async def video_progress_websocket(
                 await redis_conn.close()
             except Exception:
                 pass
-        logger.info(f"🔌 [WebSocket Disconnected] Video #{video_id}")
+        logger.info(f" [WebSocket Disconnected] Video #{video_id}")

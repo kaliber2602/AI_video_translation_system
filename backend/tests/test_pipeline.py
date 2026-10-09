@@ -8,7 +8,7 @@ def test_process_video_translation_orchestrates_pipeline(monkeypatch, tmp_path):
         def extract_audio(self, video, audio):
             calls.append("extract_audio")
 
-        def separate_vocal_bgm(self, audio, directory):
+        def separate_vocal_bgm(self, audio, directory, **kwargs):
             calls.append("separate_vocal_bgm")
             return str(tmp_path / "vocals.wav"), str(tmp_path / "bgm.wav")
 
@@ -61,7 +61,7 @@ def test_pipeline_language_mapping(monkeypatch, tmp_path):
 
     class Audio:
         def extract_audio(self, *args): pass
-        def separate_vocal_bgm(self, *args):
+        def separate_vocal_bgm(self, *args, **kwargs):
             return str(tmp_path / "v.wav"), str(tmp_path / "b.wav")
         def mix_and_mux(self, *args): pass
 

@@ -108,7 +108,7 @@ class ExportService:
             if should_burn and chosen_sub:
                 escaped_sub = chosen_sub.replace('\\', '/').replace(':', '\\:')
                 vf_filters.append(f"subtitles={escaped_sub}")
-                logger.info(f"🔥 Burning subtitles in export: {chosen_sub}")
+                logger.info(f" Burning subtitles in export: {chosen_sub}")
 
             # Use FFmpeg to re-encode (with NVENC hardware acceleration if available)
             hw_flags = ["-c:v", "libx264", "-preset", "medium", "-crf", "23"]
@@ -118,7 +118,7 @@ class ExportService:
                     enc_check = subprocess.run(["ffmpeg", "-hide_banner", "-encoders"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
                     if "h264_nvenc" in enc_check.stdout:
                         hw_flags = ["-c:v", "h264_nvenc", "-preset", "p4", "-tune", "hq", "-b:v", "5M"]
-                        logger.info("🚀 [Export NVENC] Kích hoạt h264_nvenc cho xuất video!")
+                        logger.info(" [Export NVENC] Kích hoạt h264_nvenc cho xuất video!")
                 except Exception:
                     pass
 
@@ -159,7 +159,7 @@ class ExportService:
                 shutil.copy2(video_path, output_path)
                 logger.info(f"Fallback: Copied original to {output_path}")
             
-            logger.info(f"✅ Video exported successfully: {output_path} ({out_size} bytes)")
+            logger.info(f" Video exported successfully: {output_path} ({out_size} bytes)")
             return output_path
             
         except Exception as e:
@@ -195,7 +195,7 @@ class ExportService:
         
         try:
             subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-            logger.info(f"✅ Audio exported: {output_path}")
+            logger.info(f" Audio exported: {output_path}")
             return output_path
         except subprocess.CalledProcessError as e:
             logger.error(f"Audio export failed: {e}")
@@ -214,7 +214,7 @@ class ExportService:
         
         # Simple copy for now
         shutil.copy2(transcript_path, output_path)
-        logger.info(f"✅ Transcript exported: {output_path}")
+        logger.info(f" Transcript exported: {output_path}")
         return output_path
 
     def export_translation(self, translation_path: str, format: str = "json") -> str:
@@ -229,7 +229,7 @@ class ExportService:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
         shutil.copy2(translation_path, output_path)
-        logger.info(f"✅ Translation exported: {output_path}")
+        logger.info(f" Translation exported: {output_path}")
         return output_path
 
     # app/services/export_service.py - Update get_available_exports

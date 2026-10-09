@@ -84,7 +84,7 @@ export interface AdminAIModelResponse {
   name: string;
   category: "separation" | "stt" | "diarization" | "translation" | "tts" | "llm" | "embedding" | string;
   provider: "local" | "openai" | "elevenlabs" | "anthropic" | "google" | string;
-  credit_cost_per_minute: number;
+  word_cost_multiplier: number;
   is_active: boolean;
   required_plan: "free" | "pro" | string;
   created_at: string;
@@ -92,7 +92,7 @@ export interface AdminAIModelResponse {
 
 export interface AdminAIModelUpdateRequest {
   name?: string;
-  credit_cost_per_minute?: number;
+  word_cost_multiplier?: number;
   is_active?: boolean;
   required_plan?: string;
 }

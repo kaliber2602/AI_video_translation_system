@@ -45,5 +45,5 @@ def publish_video_progress(
         r.publish(channel, json.dumps(payload))
         return True
     except Exception as e:
-        logger.warning(f"⚠️ [Redis PubSub] Failed to publish video progress for Video #{video_id}: {e}")
+        logger.warning(f" [Redis PubSub] Failed to publish video progress for Video #{video_id}: {e}")
         return False

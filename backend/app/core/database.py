@@ -44,14 +44,17 @@ def _init_pool() -> pool.ThreadedConnectionPool:
     if ("@db:" in database_url or "@db/" in database_url) and (os.name == "nt" or not os.path.exists("/.dockerenv")):
         database_url = database_url.replace("@db:", "@localhost:").replace("@db/", "@localhost/")
 
+    max_pool_conn = int(os.getenv("DB_POOL_MAX", "50"))
+    min_pool_conn = int(os.getenv("DB_POOL_MIN", "2"))
+
     try:
-        _POOL = pool.ThreadedConnectionPool(1, 20, dsn=database_url, connect_timeout=1)
+        _POOL = pool.ThreadedConnectionPool(min_pool_conn, max_pool_conn, dsn=database_url, connect_timeout=3)
         _RESOLVED_DATABASE_URL = database_url
         try:
             extras.register_uuid()
         except Exception:
             pass
-        logger.info("Initialized PostgreSQL ThreadedConnectionPool (min=1, max=20)")
+        logger.info(f"Initialized PostgreSQL ThreadedConnectionPool (min={min_pool_conn}, max={max_pool_conn})")
         return _POOL
     except psycopg2.OperationalError as exc:
         _RESOLVED_DATABASE_URL = database_url
@@ -66,20 +69,23 @@ class PooledConnectionWrapper:
     Intercepts close() to return connection back to ThreadedConnectionPool
     instead of terminating the underlying TCP socket.
     """
-    def __init__(self, conn, p: pool.ThreadedConnectionPool):
+    def __init__(self, conn, p: Optional[pool.ThreadedConnectionPool] = None):
         self._conn = conn
         self._pool = p
         self._returned = False
 
     def close(self):
-        if not self._returned and self._pool is not None:
+        if not self._returned:
             self._returned = True
             try:
                 if not self._conn.closed:
                     self._conn.rollback()
-                self._pool.putconn(self._conn)
+                if self._pool is not None:
+                    self._pool.putconn(self._conn)
+                else:
+                    self._conn.close()
             except Exception as e:
-                logger.warning(f"Error returning connection to pool: {e}")
+                logger.warning(f"Error returning connection to pool or closing: {e}")
 
     def __enter__(self):
         return self._conn.__enter__()
@@ -95,10 +101,22 @@ def get_connection():
     """
     Get a PostgreSQL connection from the centralized connection pool.
     Calling conn.close() safely returns the connection to the pool.
+    Includes retry logic and direct fallback if pool is temporarily exhausted.
     """
     p = _init_pool()
-    raw_conn = p.getconn()
-    return PooledConnectionWrapper(raw_conn, p)
+    import time
+    for attempt in range(5):
+        try:
+            raw_conn = p.getconn()
+            return PooledConnectionWrapper(raw_conn, p)
+        except pool.PoolError as pe:
+            if attempt < 4:
+                time.sleep(0.05 * (attempt + 1))
+            else:
+                logger.warning(f"Connection pool exhausted after retries. Spawning standalone connection: {pe}")
+                raw_url = _RESOLVED_DATABASE_URL or os.getenv("DATABASE_URL", DATABASE_URL)
+                raw_conn = psycopg2.connect(_clean_url(raw_url), connect_timeout=3)
+                return PooledConnectionWrapper(raw_conn, None)
 
 
 @contextmanager
@@ -399,6 +417,7 @@ class DBQuery:
     def first(self) -> Optional[RowRecord]:
         self.limit_val = 1
         sql, params = self._build_sql()
+        self.session._ensure_conn()
         with self.session.conn.cursor() as cur:
             cur.execute(sql, params)
             row = cur.fetchone()
@@ -411,6 +430,7 @@ class DBQuery:
 
     def all(self) -> List[RowRecord]:
         sql, params = self._build_sql()
+        self.session._ensure_conn()
         with self.session.conn.cursor() as cur:
             cur.execute(sql, params)
             rows = cur.fetchall()
@@ -429,6 +449,7 @@ class DBQuery:
         self.selected_col = "COUNT(*)"
         sql, params = self._build_sql()
         self.selected_col = old_col
+        self.session._ensure_conn()
         with self.session.conn.cursor() as cur:
             cur.execute(sql, params)
             res = cur.fetchone()
@@ -436,6 +457,7 @@ class DBQuery:
 
     def delete(self) -> int:
         """Execute DELETE on the queried table matching the filters."""
+        self.session._ensure_conn()
         sql = f"DELETE FROM {self.table}"
         where_parts: List[str] = []
         params: List[Any] = []
@@ -491,11 +513,26 @@ class DatabaseSession:
     Replaces SQLAlchemy Session throughout the application.
     """
     def __init__(self, conn=None):
+        self._custom_conn = conn
         self.conn = conn or get_connection()
         self._owns_conn = (conn is None)
         self._tracked_records: Dict[int, RowRecord] = {}
         self._pending_adds: List[RowRecord] = []
         self._pending_deletes: List[RowRecord] = []
+
+    def _ensure_conn(self):
+        """Ensure connection is alive and reopen from pool if closed."""
+        if self._owns_conn:
+            is_dead = False
+            if self.conn is None:
+                is_dead = True
+            else:
+                raw_c = getattr(self.conn, "_conn", self.conn)
+                if getattr(raw_c, "closed", 1) != 0:
+                    is_dead = True
+            if is_dead:
+                self.conn = get_connection()
+        return self.conn
 
     def _track_record(self, record: RowRecord):
         self._tracked_records[id(record)] = record
@@ -505,6 +542,7 @@ class DatabaseSession:
 
     def execute(self, sql: str, params: Any = None):
         """Execute a raw SQL command (e.g. DELETE, UPDATE, raw SELECT) within the active session."""
+        self._ensure_conn()
         with self.conn.cursor() as cur:
             cur.execute(sql, params)
             return cur
@@ -520,6 +558,7 @@ class DatabaseSession:
 
     def flush(self):
         import json
+        self._ensure_conn()
         with self.conn.cursor() as cur:
             # 1. Process inserts
             for entity in self._pending_adds:
@@ -577,6 +616,7 @@ class DatabaseSession:
 
     def commit(self):
         self.flush()
+        self._ensure_conn()
         self.conn.commit()
 
     def rollback(self):
@@ -584,10 +624,15 @@ class DatabaseSession:
         self._pending_deletes.clear()
         for entity in self._tracked_records.values():
             entity._dirty.clear()
-        self.conn.rollback()
+        try:
+            if self.conn and not getattr(getattr(self.conn, "_conn", self.conn), "closed", 1):
+                self.conn.rollback()
+        except Exception:
+            pass
 
     def refresh(self, entity: RowRecord):
         if "id" in entity:
+            self._ensure_conn()
             with self.conn.cursor() as cur:
                 cur.execute(f"SELECT * FROM {entity._table} WHERE id = %s", (entity["id"],))
                 row = cur.fetchone()

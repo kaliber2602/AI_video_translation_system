@@ -126,16 +126,62 @@ class JobService:
                     from app.core.database import get_connection
                     b_conn = get_connection()
                     with b_conn.cursor() as b_cur:
-                        item_progress = 100 if status == JobStatus.COMPLETED else (progress or 0)
-                        item_status = "completed" if status == JobStatus.COMPLETED else ("failed" if status == JobStatus.FAILED else "processing")
-                        b_cur.execute(
-                            """
-                            UPDATE batch_job_items
-                            SET progress = %s, status = %s, updated_at = NOW()
-                            WHERE id = %s;
-                            """,
-                            (item_progress, item_status, batch_item_id),
-                        )
+                        # Map granular progress into global pipeline intervals to ensure monotonicity:
+                        # audio_extract: 5% - 25%
+                        # whisperx / transcript: 25% - 50%
+                        # translation: 50% - 70%
+                        # tts_generate / tts: 70% - 85%
+                        # render_video / dub: 85% - 95%
+                        step_val = (current_step.value if hasattr(current_step, "value") else str(current_step or "")).lower()
+                        p = progress or 0
+                        if step_val in ("whisperx", "transcript", "transcribe"):
+                            scaled_prog = 25 + int(p * 0.25)
+                        elif step_val in ("translation", "translate"):
+                            scaled_prog = 50 + int(p * 0.20)
+                        elif step_val in ("tts_generate", "tts"):
+                            scaled_prog = 70 + int(p * 0.15)
+                        elif step_val in ("render_video", "dub", "dub_mux", "mux"):
+                            scaled_prog = 85 + int(p * 0.10)
+                        elif step_val in ("audio_extract", "extract_audio", "audio_separate"):
+                            scaled_prog = max(5, min(25, p))
+                        else:
+                            scaled_prog = p
+
+                        if status == JobStatus.COMPLETED:
+                            if is_single_step:
+                                # Intermediate step in chain: keep item as processing with granular step progress
+                                item_status = "processing"
+                                item_progress = min(99, max(scaled_prog, 25))
+                            else:
+                                item_status = "completed"
+                                item_progress = 100
+                        elif status == JobStatus.FAILED:
+                            item_status = "failed"
+                            item_progress = progress or 0
+                        else:
+                            item_status = "processing"
+                            item_progress = max(0, min(99, scaled_prog))
+
+                        if item_status == "failed":
+                            b_cur.execute(
+                                """
+                                UPDATE batch_job_items
+                                SET status = %s, updated_at = NOW()
+                                WHERE id = %s;
+                                """,
+                                (item_status, batch_item_id),
+                            )
+                        else:
+                            b_cur.execute(
+                                """
+                                UPDATE batch_job_items
+                                SET progress = GREATEST(COALESCE(progress, 0), %s),
+                                    status = %s,
+                                    updated_at = NOW()
+                                WHERE id = %s;
+                                """,
+                                (item_progress, item_status, batch_item_id),
+                            )
                         b_conn.commit()
                     b_conn.close()
                 except Exception:

@@ -39,6 +39,11 @@ def get_xtts_model():
         # Compatibility shims giữa transformers 4.46+ và coqui-tts
         if not hasattr(_u, "is_torch_greater_or_equal"):
             _u.is_torch_greater_or_equal = lambda v: version.parse(torch.__version__.split('+')[0]) >= version.parse(v)
+        if hasattr(_u, "check_torch_load_is_safe"):
+            _u.check_torch_load_is_safe = lambda: None
+        import transformers.modeling_utils as _tmu
+        if hasattr(_tmu, "check_torch_load_is_safe"):
+            _tmu.check_torch_load_is_safe = lambda: None
         if not hasattr(_u, "is_torchcodec_available"):
             _u.is_torchcodec_available = lambda: False
         if not hasattr(_tpu, "isin_mps_friendly"):
@@ -464,12 +469,13 @@ class TTSAlignerService:
                             audio = signal.resample(audio, int(len(audio) * 22050 / sr))
                         if os.path.exists(wav_temp):
                             os.unlink(wav_temp)
+                        logger.info(f"[Edge-TTS] {seg_info} [voice: {target_voice}] [lang: {clean_lang}] - Done: Synthesized {len(audio)/22050:.2f}s audio")
                         return audio
                     finally:
                         if os.path.exists(temp_edge_mp3):
                             os.unlink(temp_edge_mp3)
                 else:
-                    logger.warning(f"[Edge-TTS] Empty audio file generated for '{text}', falling back to silence.")
+                    logger.warning(f"[Edge-TTS] {seg_info} [voice: {target_voice}] [lang: {clean_lang}] - Failed: Empty audio file generated for '{text}', falling back to silence")
                     return np.zeros(int(22050 * 0.5), dtype=np.float32)
 
             raise RuntimeError(f"Mô hình TTS '{model}' không được hệ thống hỗ trợ.")
@@ -598,7 +604,7 @@ class TTSAlignerService:
         Micro-resynthesize a single segment in < 1s, overwrite its chunk,
         update manifest, and in-place re-splice the master audio.
         """
-        logger.info(f"⚡ [Micro-TTS] Resynthesizing segment #{segment_id} for video #{video_id} (lang: {tgt_lang})")
+        logger.info(f"[Micro-TTS] Resynthesizing segment #{segment_id} for video #{video_id} (lang: {tgt_lang})")
         
         # 1. Locate directories
         tts_base = OUTPUT_DIR / f"tts_{video_id}"
@@ -655,7 +661,7 @@ class TTSAlignerService:
         if speed_factor != 1.0:
             audio_seg = self._time_stretch_audio(audio_seg, speed_factor)
             audio_seg.export(chunk_path, format="wav")
-            logger.info(f"⚡ [Micro-TTS] Segment #{segment_id} time-stretched (factor: {speed_factor:.2f})")
+            logger.info(f"[Micro-TTS] Segment #{segment_id} time-stretched (factor: {speed_factor:.2f})")
         
         final_duration = round(len(audio_seg) / 1000.0, 3)
         
@@ -715,11 +721,11 @@ class TTSAlignerService:
                     if c_p and os.path.exists(c_p):
                         c_audio = AudioSegment.from_file(c_p)
                         audio_segments.append((float(ch.get("start", 0)), c_audio))
-                if audio_segments:
-                    recombined = self._combine_audio_segments(audio_segments)
-                    m_path = master_output_path or str(tts_base / f"tts_{tgt_lang}.wav")
-                    recombined.export(m_path, format="wav")
-                    logger.info(f"⚡ [Micro-TTS] Master audio re-spliced in < 0.2s: {m_path}")
+                    if audio_segments:
+                        recombined = self._combine_audio_segments(audio_segments)
+                        m_path = master_output_path or str(tts_base / f"tts_{tgt_lang}.wav")
+                        recombined.export(m_path, format="wav")
+                        logger.info(f"[Micro-TTS] Master audio re-spliced in < 0.2s: {m_path}")
             except Exception as mix_err:
                 logger.warning(f"Could not re-splice master audio: {mix_err}")
         
