@@ -39,6 +39,14 @@ export async function getUnreadCount(): Promise<number> {
 }
 
 /**
+ * Fetch a single notification by id with complete metadata.
+ */
+export async function getNotificationById(notificationId: number): Promise<NotificationItem> {
+  const response = await api.get<NotificationItem>(`/api/notifications/${notificationId}`);
+  return response.data;
+}
+
+/**
  * Mark a single notification as read (idempotent).
  */
 export async function markAsRead(notificationId: number): Promise<NotificationItem> {

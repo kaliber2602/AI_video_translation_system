@@ -137,6 +137,24 @@ services:
     volumes:
       - redis_data:/data
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ai_video_translation_system-ollama-1
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
   minio:
     image: ghcr.io/coollabsio/minio:latest
     command: server /data --console-address ":9001"
@@ -378,3 +396,4 @@ volumes:
   postgres_data:
   minio_data:
   redis_data:
+  ollama_data:

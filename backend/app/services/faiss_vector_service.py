@@ -227,7 +227,7 @@ class FaissVectorService:
                     JOIN videos v ON ve.video_id = v.id
                     LEFT JOIN transcript_segments ts ON ve.transcript_segment_id = ts.id
                     LEFT JOIN translation_segments tr ON ts.id = tr.transcript_segment_id
-                    WHERE v.project_id = %s
+                    WHERE v.project_id = %s AND v.deleted_at IS NULL
                     ORDER BY ve.video_id ASC, ve.start_time ASC;
                 """, (project_id,))
                 rows = cur.fetchall()

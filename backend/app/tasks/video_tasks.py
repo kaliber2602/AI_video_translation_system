@@ -2,6 +2,7 @@
 import os
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 import torch
 try:
@@ -59,11 +60,48 @@ def _send_task_notification(
     try:
         from app.services.notification_service import create_notification
         project_id = None
+        video_title = None
+        project_name = None
         if db is not None:
             try:
                 v = db.query(Video).filter(Video.id == video_id).first()
-                if v and getattr(v, "project_id", None):
-                    project_id = v.project_id
+                if v:
+                    video_title = getattr(v, "title", None) or (v.get("title") if isinstance(v, dict) else None)
+                    if getattr(v, "project_id", None):
+                        project_id = v.project_id
+                        from app.models import Project
+                        p = db.query(Project).filter(Project.id == project_id).first()
+                        if p:
+                            project_name = getattr(p, "name", None) or (p.get("name") if isinstance(p, dict) else None)
+            except Exception:
+                pass
+
+        # Fallback SQL for video title and project name if not yet found
+        if not video_title or not project_name:
+            try:
+                from app.core.database import get_connection
+                c_temp = get_connection()
+                try:
+                    with c_temp.cursor() as cur:
+                        cur.execute(
+                            """
+                            SELECT v.title, v.project_id, p.name
+                            FROM videos v
+                            LEFT JOIN projects p ON p.id = v.project_id
+                            WHERE v.id = %s;
+                            """,
+                            (video_id,),
+                        )
+                        v_row = cur.fetchone()
+                        if v_row:
+                            if not video_title and v_row[0]:
+                                video_title = v_row[0]
+                            if not project_id and v_row[1]:
+                                project_id = v_row[1]
+                            if not project_name and v_row[2]:
+                                project_name = v_row[2]
+                finally:
+                    c_temp.close()
             except Exception:
                 pass
 
@@ -72,14 +110,136 @@ def _send_task_notification(
             if project_id
             else f"/workspace/video/{video_id}/editor"
         )
+
+        # Retrieve user remaining quota and consumed quota
+        quota_remaining = None
+        quota_consumed = None
+        started_at_str = None
+        finished_at_str = None
+        duration_formatted = None
+        pipeline_models = None
+        languages_str = f"Mục tiêu: {language.upper()}" if language else None
+
+        try:
+            from app.core.database import get_connection
+            conn = get_connection()
+            try:
+                with conn.cursor() as cur:
+                    # 1. Pipeline Config: models and languages
+                    cur.execute(
+                        """
+                        SELECT separation_model, stt_model, translation_model, tts_model, source_language, target_language
+                        FROM video_pipeline_configs
+                        WHERE video_id = %s;
+                        """,
+                        (video_id,),
+                    )
+                    cfg_row = cur.fetchone()
+                    if cfg_row:
+                        sep_m, stt_m, trans_m, tts_m, s_lang, t_lang = cfg_row
+                        pipeline_models = f"STT: {stt_m or 'large-v3'} | Dịch: {trans_m or 'NLLB-200'} | TTS: {tts_m or 'Edge-TTS'}"
+                        if not languages_str and (s_lang or t_lang):
+                            languages_str = f"{s_lang or 'Tự động'} ➔ {t_lang or 'vi'}"
+
+                    # 2. Pipeline Timestamps: started_at, finished_at, duration
+                    cur.execute(
+                        """
+                        SELECT started_at, finished_at, created_at
+                        FROM pipeline_jobs
+                        WHERE video_id = %s
+                        ORDER BY created_at DESC
+                        LIMIT 1;
+                        """,
+                        (video_id,),
+                    )
+                    job_row = cur.fetchone()
+                    if job_row:
+                        j_start, j_finish, j_created = job_row
+                        start_time = j_start or j_created
+                        end_time = j_finish or datetime.now(timezone.utc)
+                        if start_time:
+                            started_at_str = start_time.strftime("%d/%m/%Y %H:%M:%S")
+                        if end_time:
+                            finished_at_str = end_time.strftime("%d/%m/%Y %H:%M:%S")
+                        if start_time and end_time:
+                            # Handle timezone differences if any
+                            try:
+                                total_seconds = int((end_time - start_time).total_seconds())
+                                if total_seconds < 0:
+                                    total_seconds = abs(total_seconds)
+                                m, s = divmod(total_seconds, 60)
+                                duration_formatted = f"{m} phút {s} giây" if m > 0 else f"{s} giây"
+                            except Exception:
+                                pass
+
+                    # 3. Quota Consumed for this video
+                    cur.execute(
+                        """
+                        SELECT credits_deducted, description
+                        FROM credit_audit_logs
+                        WHERE video_id = %s
+                        ORDER BY id DESC
+                        LIMIT 1;
+                        """,
+                        (video_id,),
+                    )
+                    audit_row = cur.fetchone()
+                    if audit_row:
+                        quota_consumed = audit_row[0]
+
+                    # 4. Detect if video is part of a batch job
+                    video_batch_id = None
+                    try:
+                        cur.execute(
+                            """
+                            SELECT batch_id FROM batch_job_items WHERE video_id = %s LIMIT 1;
+                            """,
+                            (video_id,),
+                        )
+                        b_row = cur.fetchone()
+                        if b_row and b_row[0]:
+                            video_batch_id = str(b_row[0])
+                    except Exception:
+                        pass
+            finally:
+                conn.close()
+        except Exception as query_err:
+            logger.warning(f"[CeleryNotification] Could not query enriched metadata: {query_err}")
+
+        # 4. Quota remaining
+        try:
+            from app.services.subscription_service import get_user_effective_quota
+            eq = get_user_effective_quota(user_id)
+            if eq:
+                words_dict = eq.get("words")
+                if words_dict and isinstance(words_dict, dict):
+                    quota_remaining = words_dict.get("remaining_words")
+                if quota_remaining is None:
+                    quota_remaining = eq.get("remaining_words")
+        except Exception as q_err:
+            logger.warning(f"[CeleryNotification] Could not get remaining quota: {q_err}")
+
         meta = {
             "video_id": video_id,
+            "video_title": video_title or f"Video #{video_id}",
+            "project_name": project_name,
             "step": step,
             "status": status,
             "event": "pipeline_success" if status == "completed" else "pipeline_failed",
+            "started_at": started_at_str,
+            "finished_at": finished_at_str,
+            "duration_formatted": duration_formatted,
+            "words_used": quota_consumed,
+            "quota_consumed": quota_consumed,
+            "quota_remaining": quota_remaining,
+            "pipeline_models": pipeline_models,
+            "languages": languages_str,
+            "batch_id": video_batch_id,
+            "is_batch": bool(video_batch_id),
         }
-        if language:
+        if language and not languages_str:
             meta["language"] = language
+            meta["languages"] = f"Mục tiêu: {language.upper()}"
         if error:
             meta["error"] = error[:300]
 
@@ -206,6 +366,92 @@ def task_pipeline_completed_step(
                             (batch_id,),
                         )
                         conn.commit()
+
+                        # Dispatch Batch Summary Notification
+                        try:
+                            from app.services.notification_service import create_notification
+                            cur.execute(
+                                """
+                                SELECT bj.name, bj.total_videos, bj.completed_videos, bj.failed_videos, bj.project_id, bj.started_at, bj.finished_at, bj.created_at, p.name
+                                FROM batch_jobs bj
+                                LEFT JOIN projects p ON p.id = bj.project_id
+                                WHERE bj.id = %s;
+                                """,
+                                (batch_id,),
+                            )
+                            bj = cur.fetchone()
+                            if bj:
+                                b_name, b_total, b_comp, b_fail, b_pid, b_start, b_finish, b_created, p_name = bj
+                                b_msg = f"Tiến trình Batch '{b_name}' đã xử lý xong {b_comp}/{b_total} video thành công."
+                                if b_fail and b_fail > 0:
+                                    b_msg += f" Có {b_fail} video thất bại."
+                                
+                                # Calculate batch duration
+                                b_start_time = b_start or b_created
+                                b_end_time = b_finish or datetime.now(timezone.utc)
+                                b_duration_str = None
+                                if b_start_time and b_end_time:
+                                    try:
+                                        total_sec = int((b_end_time - b_start_time).total_seconds())
+                                        if total_sec < 0:
+                                            total_sec = abs(total_sec)
+                                        bm, bs = divmod(total_sec, 60)
+                                        b_duration_str = f"{bm} phút {bs} giây" if bm > 0 else f"{bs} giây"
+                                    except Exception:
+                                        pass
+
+                                # Calculate total quota consumed across all videos in this batch
+                                b_quota_consumed = 0
+                                try:
+                                    cur.execute(
+                                        """
+                                        SELECT COALESCE(SUM(credits_deducted), 0)
+                                        FROM credit_audit_logs
+                                        WHERE description LIKE %s;
+                                        """,
+                                        (f"%{str(batch_id)[:8]}%",),
+                                    )
+                                    q_row = cur.fetchone()
+                                    if q_row:
+                                        b_quota_consumed = int(q_row[0])
+                                except Exception:
+                                    pass
+
+                                # Get user remaining quota
+                                b_quota_remaining = None
+                                try:
+                                    from app.services.subscription_service import get_user_effective_quota
+                                    eq_b = get_user_effective_quota(user_id)
+                                    if eq_b and "words" in eq_b:
+                                        b_quota_remaining = eq_b["words"].get("remaining_words")
+                                except Exception:
+                                    pass
+
+                                create_notification(
+                                    user_id=user_id,
+                                    type="batch",
+                                    title=f"Xử lý hàng loạt hoàn tất: {b_name}",
+                                    message=b_msg,
+                                    action_url=f"/workspace/project/{b_pid}" if b_pid else "/workspace",
+                                    target_type="batch",
+                                    metadata={
+                                        "batch_id": batch_id,
+                                        "name": b_name,
+                                        "project_name": p_name,
+                                        "status": "completed",
+                                        "event": "pipeline_success",
+                                        "batch_summary": f"{b_comp}/{b_total} video thành công ({b_fail} lỗi)",
+                                        "started_at": b_start_time.strftime("%d/%m/%Y %H:%M:%S") if b_start_time else None,
+                                        "finished_at": b_end_time.strftime("%d/%m/%Y %H:%M:%S") if b_end_time else None,
+                                        "duration_formatted": b_duration_str,
+                                        "quota_consumed": b_quota_consumed if b_quota_consumed > 0 else None,
+                                        "words_used": b_quota_consumed if b_quota_consumed > 0 else None,
+                                        "quota_remaining": b_quota_remaining,
+                                    },
+                                    background_tasks=None,
+                                )
+                        except Exception as n_b_err:
+                            logger.warning(f"Could not dispatch batch completion notification: {n_b_err}")
             finally:
                 conn.close()
             logger.info(f"[BatchEngine] Updated batch item {batch_item_id} for Video #{video_id} as completed.")

@@ -67,6 +67,44 @@ function StepLoadingFallback() {
   );
 }
 
+import React from "react";
+
+class StepErrorBoundary extends React.Component<
+  { step: string; children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error("Step rendering error in step:", this.props.step, error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 p-8 text-center">
+          <p className="text-base font-bold text-red-500">Đã xảy ra lỗi khi hiển thị bước này</p>
+          <p className="max-w-md text-xs text-[var(--color-text-secondary)] font-mono">
+            {this.state.error?.message || "Lỗi không xác định khi tải giao diện bước."}
+          </p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="mt-3 rounded-xl bg-[var(--color-primary)] px-4 py-2 text-xs font-semibold text-white transition hover:opacity-90"
+          >
+            Thử lại bước này
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function renderStep(step: string) {
   let stepComponent;
   switch (step) {
@@ -92,7 +130,11 @@ function renderStep(step: string) {
       stepComponent = <UploadStep />;
       break;
   }
-  return <Suspense fallback={<StepLoadingFallback />}>{stepComponent}</Suspense>;
+  return (
+    <StepErrorBoundary key={step} step={step}>
+      <Suspense fallback={<StepLoadingFallback />}>{stepComponent}</Suspense>
+    </StepErrorBoundary>
+  );
 }
 
 function formatSnapshotTime(snapshotData: any): string | null {
@@ -379,9 +421,11 @@ function VideoPipelineContent() {
             const resolvedStepId = STEP_NUM_TO_ID[targetStep] || "upload";
             setActiveStep(resolvedStepId);
             if (searchParams.get("step") !== resolvedStepId) {
-              const nextParams = new URLSearchParams(searchParams);
-              nextParams.set("step", resolvedStepId);
-              setSearchParams(nextParams, { replace: true });
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                next.set("step", resolvedStepId);
+                return next;
+              }, { replace: true });
             }
           })
           .catch((err: any) => {
@@ -413,12 +457,14 @@ function VideoPipelineContent() {
       const targetStepId = STEP_NUM_TO_ID[state.step];
       if (targetStepId !== activeStep) {
         setActiveStep(targetStepId);
-        const nextParams = new URLSearchParams(searchParams);
-        nextParams.set("step", targetStepId);
-        setSearchParams(nextParams, { replace: true });
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.set("step", targetStepId);
+          return next;
+        }, { replace: true });
       }
     }
-  }, [state.step, activeStep, searchParams]);
+  }, [state.step, activeStep]);
 
   // Polling for active background tasks (Phase 4 Re-hydration & Live Sync)
   useEffect(() => {

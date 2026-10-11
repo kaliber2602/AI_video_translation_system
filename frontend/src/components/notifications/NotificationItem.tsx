@@ -14,6 +14,7 @@ interface NotificationItemProps {
   onMarkAsRead: (id: number) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
   onCloseDropdown?: () => void;
+  onOpenDetail?: (notification: NotificationItemType) => void;
 }
 
 export default function NotificationItem({
@@ -21,6 +22,7 @@ export default function NotificationItem({
   onMarkAsRead,
   onDelete,
   onCloseDropdown,
+  onOpenDetail,
 }: NotificationItemProps) {
   const { t, i18n } = useTranslation(["notifications", "common"]);
   const navigate = useNavigate();
@@ -32,17 +34,21 @@ export default function NotificationItem({
   const meta = getNotificationMeta(notification.type, eventName);
   const safeActionUrl = sanitizeInternalActionUrl(notification.action_url);
 
-  const handleItemClick = async () => {
-    // If unread, mark as read on click
+  const handleOpen = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     if (!notification.is_read) {
       handleMarkRead();
     }
-
-    // If safe action url exists, navigate
-    if (safeActionUrl) {
+    if (onOpenDetail) {
+      onOpenDetail(notification);
+    } else if (safeActionUrl) {
       if (onCloseDropdown) onCloseDropdown();
       navigate(safeActionUrl);
     }
+  };
+
+  const handleItemClick = async () => {
+    handleOpen();
   };
 
   const handleMarkRead = async (e?: React.MouseEvent) => {
@@ -77,15 +83,15 @@ export default function NotificationItem({
       role="article"
       aria-label={notification.title}
       onClick={handleItemClick}
-      className={`group relative flex items-start gap-3 p-3.5 transition-colors duration-150 cursor-pointer border-b border-[var(--color-border)]/50 last:border-b-0 hover:bg-[var(--color-surface-muted)]/60 ${
+      className={`group relative flex items-start gap-3 p-3.5 transition-colors duration-150 cursor-pointer border-b border-[var(--color-border)]/50 last:border-b-0 hover:bg-[var(--color-surface-muted)]/70 ${
         notification.is_read
-          ? "bg-[var(--color-surface)] opacity-85"
-          : "bg-[var(--color-primary-soft)]/15 dark:bg-[var(--color-primary-soft)]/10"
+          ? "bg-[var(--color-surface)] opacity-90"
+          : "bg-[var(--color-primary-soft)]/20 dark:bg-[var(--color-primary-soft)]/15"
       }`}
     >
       {/* Type Icon Badge */}
       <div
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl shadow-2xs ${meta.badgeBg} ${meta.badgeText}`}
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl shadow-2xs mt-0.5 ${meta.badgeBg} ${meta.badgeText}`}
       >
         {meta.icon}
       </div>
@@ -117,30 +123,29 @@ export default function NotificationItem({
           {notification.message}
         </p>
 
-        {/* Footer info: Relative timestamp + optional internal action link */}
-        <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-[var(--color-text-muted)]">
+        {/* Footer info: Relative timestamp */}
+        <div className="mt-2 flex items-center gap-2 text-[11px] text-[var(--color-text-muted)]">
           <span>{formatRelativeTime(notification.created_at, i18n.language)}</span>
-
-          {safeActionUrl && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!notification.is_read) handleMarkRead();
-                if (onCloseDropdown) onCloseDropdown();
-                navigate(safeActionUrl);
-              }}
-              className="inline-flex items-center gap-1 font-semibold text-[var(--color-primary)] hover:underline"
-            >
-              <span>{t("notifications:viewAction", "Open")}</span>
-              <ExternalLink size={11} />
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Row action buttons (Mark read & Delete) */}
-      <div className="shrink-0 flex items-center gap-1 opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+      {/* Row action buttons cluster - ALWAYS VISIBLE in an action grid/row */}
+      <div
+        className="shrink-0 flex items-center gap-1 self-start"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Open detail / view button */}
+        <button
+          type="button"
+          onClick={handleOpen}
+          title={t("notifications:viewAction", "Open details")}
+          aria-label={t("notifications:viewAction", "Open details")}
+          className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--color-border)]/60 bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-primary-soft)]/20 transition shadow-2xs"
+        >
+          <ExternalLink size={13} />
+        </button>
+
+        {/* Mark read button */}
         {!notification.is_read && (
           <button
             type="button"
@@ -148,19 +153,20 @@ export default function NotificationItem({
             disabled={isMarkingRead}
             title={t("notifications:markRead", "Mark as read")}
             aria-label={t("notifications:markRead", "Mark as read")}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text-primary)] transition disabled:opacity-50"
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--color-border)]/60 bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border)] hover:bg-[var(--color-surface-muted)] transition disabled:opacity-50 shadow-2xs"
           >
-            <Check size={14} />
+            <Check size={13} />
           </button>
         )}
 
+        {/* Delete button */}
         <button
           type="button"
           onClick={handleDelete}
           disabled={isDeleting}
           title={t("notifications:deleteNotification", "Delete")}
           aria-label={t("notifications:deleteNotification", "Delete")}
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)] transition disabled:opacity-50"
+          className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--color-border)]/60 bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)] hover:border-[var(--color-danger)]/40 transition disabled:opacity-50 shadow-2xs"
         >
           <Trash2 size={13} />
         </button>

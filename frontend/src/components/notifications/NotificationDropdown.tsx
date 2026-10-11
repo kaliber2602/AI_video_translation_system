@@ -17,6 +17,7 @@ import {
 import type { NotificationItem as NotificationItemType } from "../../types/notification";
 import { useNotifications } from "../../app/providers/NotificationContext";
 import NotificationItem from "./NotificationItem";
+import NotificationDetailModal from "./NotificationDetailModal";
 
 interface NotificationDropdownProps {
   isOpen: boolean;
@@ -41,6 +42,8 @@ export default function NotificationDropdown({
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isMarkingAll, setIsMarkingAll] = useState<boolean>(false);
+  const [selectedNotification, setSelectedNotification] =
+    useState<NotificationItemType | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -342,6 +345,7 @@ export default function NotificationDropdown({
               onMarkAsRead={handleMarkRead}
               onDelete={handleDelete}
               onCloseDropdown={onClose}
+              onOpenDetail={(item) => setSelectedNotification(item)}
             />
           ))
         )}
@@ -385,6 +389,16 @@ export default function NotificationDropdown({
           <ExternalLink size={11} />
         </button>
       </div>
+
+      {/* Detail Summary Modal */}
+      {selectedNotification && (
+        <NotificationDetailModal
+          notification={selectedNotification}
+          isOpen={Boolean(selectedNotification)}
+          onClose={() => setSelectedNotification(null)}
+          onMarkAsRead={handleMarkRead}
+        />
+      )}
     </div>
   );
 }

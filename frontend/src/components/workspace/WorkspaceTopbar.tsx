@@ -24,6 +24,8 @@ import { toast } from "../../lib/toast";
 
 import { clearTokens } from "../../services/api/token";
 import NotificationBell from "../notifications/NotificationBell";
+import WorkspaceSemanticSearchModal from "../search/WorkspaceSemanticSearchModal";
+import { Search } from "lucide-react";
 
 import type { UserResponse } from "../../types/auth";
 import type { UserSubscriptionSummary } from "../../types/subscription";
@@ -53,6 +55,19 @@ export default function WorkspaceTopbar({
 
   const [loadingUser, setLoadingUser] =
     useState(true);
+  const [isSemanticSearchOpen, setIsSemanticSearchOpen] = useState(false);
+
+  // Global Ctrl+K / Cmd+K listener for semantic search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsSemanticSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // =========================================================
   // Load current user & subscription
@@ -265,6 +280,33 @@ export default function WorkspaceTopbar({
           alt="VIDNOVA"
           className="h-11 sm:h-[50px] md:h-14 w-auto max-w-[240px] sm:max-w-[290px] object-contain transition-transform duration-200 group-hover:scale-[1.02] select-none"
         />
+      </button>
+
+      {/* =====================================================
+          SEMANTIC SEARCH BAR (AI VECTOR / DIALOGUE SEARCH)
+      ====================================================== */}
+      <div className="flex-1 max-w-xl mx-2 sm:mx-6 hidden md:block">
+        <button
+          type="button"
+          onClick={() => setIsSemanticSearchOpen(true)}
+          className="w-full flex items-center gap-2.5 h-10 px-3.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)]/80 hover:bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)]/50 shadow-xs transition-all duration-200 text-left group cursor-pointer"
+          title="Tìm kiếm theo ngữ nghĩa"
+        >
+          <Search size={16} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)] transition-colors shrink-0" />
+          <span className="text-xs font-normal text-[var(--color-text-muted)] group-hover:text-[var(--color-text-primary)] transition-colors truncate">
+            Tìm kiếm theo ngữ nghĩa
+          </span>
+        </button>
+      </div>
+
+      {/* Mobile search trigger icon */}
+      <button
+        type="button"
+        onClick={() => setIsSemanticSearchOpen(true)}
+        className="md:hidden flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] shadow-xs hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] cursor-pointer"
+        title="Tìm kiếm AI"
+      >
+        <Search size={18} />
       </button>
 
       {/* =====================================================
@@ -578,6 +620,14 @@ export default function WorkspaceTopbar({
           )}
         </button>
       )}
+
+      {/* =====================================================
+          SEMANTIC SEARCH POPUP MODAL
+      ====================================================== */}
+      <WorkspaceSemanticSearchModal
+        isOpen={isSemanticSearchOpen}
+        onClose={() => setIsSemanticSearchOpen(false)}
+      />
     </header>
   );
 }

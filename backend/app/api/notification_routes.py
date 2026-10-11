@@ -47,6 +47,7 @@ from app.schemas.notification import (
 from app.services.notification_service import (
     create_notification,
     delete_notification,
+    get_notification_by_id,
     get_notification_preferences,
     get_notifications,
     get_unread_count,
@@ -253,6 +254,42 @@ def get_notifications_route(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve notifications.",
+        ) from exc
+
+
+# =========================================================
+# GET /api/notifications/{notification_id}
+# =========================================================
+
+@router.get(
+    "/{notification_id}",
+    response_model=NotificationResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get single notification details with full metadata",
+)
+def get_notification_detail_route(
+    notification_id: int = Path(..., ge=1),
+    user_id: int = Depends(get_current_user_id),
+):
+    try:
+        notification = get_notification_by_id(
+            user_id=user_id, notification_id=notification_id
+        )
+
+        if notification is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Notification not found.",
+            )
+
+        return NotificationResponse(**notification)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"[NotificationRoutes] Error getting notification {notification_id}: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve notification.",
         ) from exc
 
 

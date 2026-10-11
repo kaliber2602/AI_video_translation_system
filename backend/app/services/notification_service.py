@@ -368,6 +368,29 @@ def mark_all_notifications_as_read(user_id: int) -> int:
         connection.close()
 
 
+def get_notification_by_id(user_id: int, notification_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Retrieves a single notification by id with strict ownership check.
+    """
+    connection = get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    id, user_id, type, title, message, action_url,
+                    target_type, target_id, metadata, is_read, read_at, created_at
+                FROM notifications
+                WHERE id = %s AND user_id = %s
+                """,
+                (notification_id, user_id),
+            )
+            row = cursor.fetchone()
+            return _row_to_notification(row)
+    finally:
+        connection.close()
+
+
 def delete_notification(user_id: int, notification_id: int) -> bool:
     """
     Permanently deletes a notification with strict ownership check.
@@ -394,29 +417,77 @@ def delete_notification(user_id: int, notification_id: int) -> bool:
 
 
 # =========================================================
-# Email Helper (Non-blocking, isolated)
+# Email Helper (Non-blocking, isolated, rich-metadata structured)
 # =========================================================
 
 def _send_notification_email_safe(
-    to_email: str, subject: str, message: str, action_url: Optional[str] = None
+    to_email: str,
+    subject: str,
+    message: str,
+    action_url: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
     """
-    Sends notification email via email_service.
+    Sends notification email via email_service with structured metrics (quota, models, duration).
     Never throws an exception to ensure zero impact on calling transactions.
     """
     try:
         from app.services.email_service import send_email
 
-        html_body = f"""
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-            <div style="margin-bottom: 20px;">
-                <span style="font-weight: 800; font-size: 18px; color: #0d9488; letter-spacing: -0.5px;">VIDNOVA</span>
+        meta = metadata or {}
+        video_title = meta.get("video_title") or meta.get("name") or (f"Video #{meta.get('video_id')}" if meta.get("video_id") else None)
+        project_name = meta.get("project_name")
+        status_val = meta.get("status", "completed").upper()
+        status_color = "#10b981" if status_val in ("COMPLETED", "SUCCESS") else "#ef4444"
+        
+        # Meta metrics rows
+        rows_html = []
+        if video_title:
+            rows_html.append(f'<tr><td style="padding: 6px 12px; color: #64748b; font-size: 13px; font-weight: 600;">Đối tượng:</td><td style="padding: 6px 12px; color: #0f172a; font-size: 13px; font-weight: 700;">{video_title}</td></tr>')
+        if project_name:
+            rows_html.append(f'<tr><td style="padding: 6px 12px; color: #64748b; font-size: 13px; font-weight: 600;">Dự án:</td><td style="padding: 6px 12px; color: #0f172a; font-size: 13px;">{project_name}</td></tr>')
+        if meta.get("started_at"):
+            rows_html.append(f'<tr><td style="padding: 6px 12px; color: #64748b; font-size: 13px; font-weight: 600;">Thời gian bắt đầu:</td><td style="padding: 6px 12px; color: #0f172a; font-size: 13px;">{meta.get("started_at")}</td></tr>')
+        if meta.get("finished_at"):
+            rows_html.append(f'<tr><td style="padding: 6px 12px; color: #64748b; font-size: 13px; font-weight: 600;">Thời gian hoàn tất:</td><td style="padding: 6px 12px; color: #0f172a; font-size: 13px;">{meta.get("finished_at")}</td></tr>')
+        if meta.get("duration_formatted"):
+            rows_html.append(f'<tr><td style="padding: 6px 12px; color: #64748b; font-size: 13px; font-weight: 600;">Tổng thời lượng chạy:</td><td style="padding: 6px 12px; color: #0f172a; font-size: 13px;">{meta.get("duration_formatted")}</td></tr>')
+        if meta.get("words_used") or meta.get("quota_consumed"):
+            consumed = meta.get("words_used") or meta.get("quota_consumed")
+            rows_html.append(f'<tr><td style="padding: 6px 12px; color: #64748b; font-size: 13px; font-weight: 600;">Quota tiêu hao:</td><td style="padding: 6px 12px; color: #0d9488; font-size: 13px; font-weight: 700;">{consumed:,} từ</td></tr>')
+        if meta.get("quota_remaining") is not None:
+            rows_html.append(f'<tr><td style="padding: 6px 12px; color: #64748b; font-size: 13px; font-weight: 600;">Quota khả dụng còn:</td><td style="padding: 6px 12px; color: #0f172a; font-size: 13px;">{meta.get("quota_remaining"):,} từ</td></tr>')
+        if meta.get("pipeline_models"):
+            rows_html.append(f'<tr><td style="padding: 6px 12px; color: #64748b; font-size: 13px; font-weight: 600;">Cấu hình AI:</td><td style="padding: 6px 12px; color: #0f172a; font-size: 13px;">{meta.get("pipeline_models")}</td></tr>')
+        if meta.get("languages"):
+            rows_html.append(f'<tr><td style="padding: 6px 12px; color: #64748b; font-size: 13px; font-weight: 600;">Ngôn ngữ:</td><td style="padding: 6px 12px; color: #0f172a; font-size: 13px;">{meta.get("languages")}</td></tr>')
+        if meta.get("batch_summary"):
+            rows_html.append(f'<tr><td style="padding: 6px 12px; color: #64748b; font-size: 13px; font-weight: 600;">Tổng kết lô:</td><td style="padding: 6px 12px; color: #0f172a; font-size: 13px; font-weight: 700;">{meta.get("batch_summary")}</td></tr>')
+
+        metrics_table = ""
+        if rows_html:
+            metrics_table = f"""
+            <div style="margin: 16px 0; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <tbody>
+                        {"".join(rows_html)}
+                    </tbody>
+                </table>
             </div>
-            <h2 style="font-size: 18px; font-weight: 700; color: #0f172a; margin: 0 0 12px 0;">{subject}</h2>
-            <p style="font-size: 14px; line-height: 1.6; color: #334155; margin: 0 0 20px 0;">{message}</p>
-            {f'<div style="margin-bottom: 24px;"><a href="{action_url}" style="display: inline-block; padding: 10px 20px; font-size: 14px; font-weight: 600; color: #ffffff; background-color: #0d9488; text-decoration: none; border-radius: 8px;">Open VidNova</a></div>' if action_url else ''}
+            """
+
+        html_body = f"""
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                <span style="font-weight: 800; font-size: 20px; color: #0d9488; letter-spacing: -0.5px;">VIDNOVA AI</span>
+                <span style="display: inline-block; padding: 4px 10px; border-radius: 9999px; background-color: {status_color}20; color: {status_color}; font-size: 12px; font-weight: 700; text-transform: uppercase;">{status_val}</span>
+            </div>
+            <h2 style="font-size: 18px; font-weight: 700; color: #0f172a; margin: 0 0 8px 0;">{subject}</h2>
+            <p style="font-size: 14px; line-height: 1.6; color: #334155; margin: 0 0 16px 0;">{message}</p>
+            {metrics_table}
+            {f'<div style="margin: 24px 0 12px 0;"><a href="{action_url}" style="display: inline-block; padding: 12px 24px; font-size: 14px; font-weight: 700; color: #ffffff; background-color: #0d9488; text-decoration: none; border-radius: 8px; text-align: center;">Mở VidNova & Xem Kết Quả</a></div>' if action_url else ''}
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0 16px 0;" />
-            <p style="font-size: 12px; color: #94a3b8; margin: 0;">You received this update because email alerts are enabled in your VidNova notification preferences.</p>
+            <p style="font-size: 12px; color: #94a3b8; margin: 0;">Bạn nhận được email này vì thông báo tự động được kích hoạt trong tài khoản VidNova của bạn.</p>
         </div>
         """
         send_email(
@@ -425,7 +496,7 @@ def _send_notification_email_safe(
             html_body=html_body,
             text_body=message,
         )
-        logger.info(f"[NotificationService] Notification email dispatched to {to_email}")
+        logger.info(f"[NotificationService] Structured notification email dispatched to {to_email}")
     except Exception as exc:
         logger.warning(f"[NotificationService] Notification email delivery skipped/failed: {exc}")
 
@@ -508,7 +579,13 @@ def create_notification(
 
         # 2. Determine Email Permission
         email_allowed = False
+        is_part_of_batch = bool(metadata and (metadata.get("batch_id") or metadata.get("is_batch")))
         if safe_type == "pipeline":
+            # If video is processed as part of a batch job, do not send individual video emails
+            if not is_part_of_batch:
+                email_allowed = prefs.get("email_on_pipeline_failed", True) if "failed" in event_name else prefs.get("email_on_pipeline_success", True)
+        elif safe_type == "batch":
+            # Batch completion summary email
             email_allowed = prefs.get("email_on_pipeline_failed", True) if "failed" in event_name else prefs.get("email_on_pipeline_success", True)
         elif safe_type == "quota":
             email_allowed = prefs.get("email_on_quota_warning", True)
@@ -536,15 +613,26 @@ def create_notification(
                         safe_title,
                         safe_message,
                         cleaned_url,
+                        metadata,
                     )
                 else:
-                    # In Celery worker context, background_tasks is None: dispatch directly
-                    _send_notification_email_safe(
-                        user_email,
-                        safe_title,
-                        safe_message,
-                        cleaned_url,
-                    )
+                    # In Celery worker context: safely dispatch structured email
+                    try:
+                        import threading
+                        t = threading.Thread(
+                            target=_send_notification_email_safe,
+                            args=(user_email, safe_title, safe_message, cleaned_url, metadata),
+                            daemon=True,
+                        )
+                        t.start()
+                    except Exception:
+                        _send_notification_email_safe(
+                            user_email,
+                            safe_title,
+                            safe_message,
+                            cleaned_url,
+                            metadata,
+                        )
 
         return created_notification
     except Exception as exc:

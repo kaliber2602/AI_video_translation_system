@@ -7,7 +7,6 @@ import {
   SlidersHorizontal,
   Trash2,
   X,
-  Sparkles,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TagResponse } from "../../types/tag";
@@ -53,7 +52,6 @@ export default function ProjectToolbar({
   isTrashMode = false,
   onEmptyTrash,
   trashCount = 0,
-  isSearchingSemantic = false,
 }: ProjectToolbarProps) {
 
   const { t } = useTranslation(["workspace", "common"]);
@@ -88,32 +86,20 @@ export default function ProjectToolbar({
           type="text"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder={t("workspace:searchPlaceholder")}
-          className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-10 pr-24 text-xs text-[var(--color-text-primary)] outline-none transition placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/10"
+          placeholder={t("workspace:searchPlaceholder", "Tìm kiếm dự án hoặc tags...")}
+          className="h-11 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] pl-10 pr-10 text-xs text-[var(--color-text-primary)] outline-none transition placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/10"
         />
 
-        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
-          {search && (
-            <button
-              type="button"
-              onClick={() => onSearchChange("")}
-              aria-label="Clear search"
-              className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-surface-muted)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
-            >
-              <X size={12} />
-            </button>
-          )}
-
-          <span
-            className={`flex items-center gap-1 rounded-md bg-[var(--color-primary-soft)] px-2 py-0.5 text-xs font-bold text-teal-800 dark:text-teal-300 select-none transition-all ${
-              isSearchingSemantic ? "animate-pulse ring-1 ring-[var(--color-primary)]" : ""
-            }`}
-            title="Semantic AI Search hỗ trợ tìm kiếm theo ngữ nghĩa và từ khóa"
+        {search && (
+          <button
+            type="button"
+            onClick={() => onSearchChange("")}
+            aria-label="Clear search"
+            className="absolute right-3 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-surface-muted)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
           >
-            <Sparkles size={12} className={isSearchingSemantic ? "animate-spin" : "text-teal-700 dark:text-teal-400"} />
-            <span>AI</span>
-          </span>
-        </div>
+            <X size={12} />
+          </button>
+        )}
       </div>
 
 

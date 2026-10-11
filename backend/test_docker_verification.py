@@ -101,5 +101,67 @@ def test_edit_config():
 
     print("\nALL SUBTITLE EDIT CONFIG VERIFICATION TESTS PASSED SUCCESSFULLY! [OK]")
 
+def test_rag_live_hermes():
+    print("\n=== Testing Live Video RAG with Hermes-3 (GPU Inference) ===")
+    login_res = requests.post(
+        f"{BASE_URL}/api/auth/login",
+        json={"email": "admin@vidnova.com", "password": "Admin@123456"},
+    )
+    assert login_res.status_code == 200, f"Login failed: {login_res.text}"
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Test question with Video #6
+    query = "Chuỗi máy học trong video này là gì và người nói giải thích thế nào?"
+    print(f"Sending prompt to Hermes-3: '{query}'")
+    chat_res = requests.post(
+        f"{BASE_URL}/api/videos/6/chat",
+        headers=headers,
+        json={
+            "message": query,
+            "model_name": "hermes",
+            "chat_history": []
+        },
+        timeout=60
+    )
+    assert chat_res.status_code == 200, f"Chat failed: {chat_res.text}"
+    data = chat_res.json()
+    reply = data.get("reply", "")
+    citations = data.get("citations", [])
+    print(f"\n[Hermes-3 LLM Answer]:\n{reply}\n")
+    print(f"[Citations Found ({len(citations)})]:")
+    for c in citations:
+        print(f"  - [{c.get('timestamp_formatted')}] {c.get('text')} (Score: {c.get('relevance_score')}, Rerank: {c.get('rerank_score')})")
+    # Test question with Video #6 using Ollama
+    query_ollama = "Toàn bộ pipeline có những bước nào?"
+    print(f"Sending prompt to Ollama: '{query_ollama}'")
+    chat_res2 = requests.post(
+        f"{BASE_URL}/api/videos/6/chat",
+        headers=headers,
+        json={
+            "message": query_ollama,
+            "model_name": "ollama",
+            "chat_history": []
+        },
+        timeout=60
+    )
+    assert chat_res2.status_code == 200, f"Chat failed: {chat_res2.text}"
+    data2 = chat_res2.json()
+    reply2 = data2.get("reply", "")
+    citations2 = data2.get("citations", [])
+    print(f"\n[Ollama LLM Answer]:\n{reply2}\n")
+    print(f"[Citations Found ({len(citations2)})]:")
+    for c in citations2:
+        print(f"  - [{c.get('timestamp_formatted')}] {c.get('text')}")
+    assert len(reply2) > 20, "Ollama reply too short"
+    print("[PASS] Live Video RAG with Ollama completed successfully!")
+
+
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 if __name__ == "__main__":
+    test_rag_live_hermes()
     test_edit_config()
+

@@ -9,9 +9,8 @@ from abc import ABC, abstractmethod
 from app.core.config import (
     OLLAMA_BASE_URL,
     OLLAMA_MODEL,
-    GEMINI_API_KEY,
-    GROQ_API_KEY,
-    OPENAI_API_KEY,
+    HF_TOKEN,
+    HERMES_MODEL,
 )
 
 logger = logging.getLogger("app.services.llm_service")
@@ -29,20 +28,24 @@ class BaseLLMProvider(ABC):
 
 class OllamaLocalProvider(BaseLLMProvider):
     """
-    Local GPU LLM execution via Ollama (DeepSeek-R1 / Qwen2.5).
-    100% Free, unlimited, runs directly on RTX 4060.
+    Local GPU LLM execution via Ollama.
+    100% Free, runs directly on local GPU/CPU.
     """
     def __init__(self, base_url: str = OLLAMA_BASE_URL, model: str = OLLAMA_MODEL):
         self.base_url = base_url.rstrip("/")
         self.model = model
 
     def is_available(self) -> bool:
-        try:
-            req = urllib.request.Request(f"{self.base_url}/api/tags", headers={"User-Agent": "VidNova"})
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
-                return resp.status == 200
-        except Exception:
-            return False
+        for candidate_url in [self.base_url, "http://localhost:11434", "http://127.0.0.1:11434", "http://172.18.0.1:11434"]:
+            try:
+                req = urllib.request.Request(f"{candidate_url}/api/tags", headers={"User-Agent": "VidNova"})
+                with urllib.request.urlopen(req, timeout=1.5) as resp:
+                    if resp.status == 200:
+                        self.base_url = candidate_url
+                        return True
+            except Exception:
+                continue
+        return False
 
     def generate_response(self, prompt: str, system_prompt: Optional[str] = None) -> Optional[str]:
         url = f"{self.base_url}/api/generate"
@@ -65,122 +68,98 @@ class OllamaLocalProvider(BaseLLMProvider):
             return None
 
 
-class GeminiFreeCloudProvider(BaseLLMProvider):
+class HermesLLMProvider(BaseLLMProvider):
     """
-    Google Gemini Flash Free Tier via Google AI Studio API.
-    15 Requests/Min, 1,500 Requests/Day Free, fast and excellent Vietnamese comprehension.
+    Nous Hermes (Hermes-3-Llama-3.1-8B) Reasoning Model running locally via Ollama container
+    with fallback to Hugging Face Inference API if configured.
+    Renowned for steerability, detailed explanations, and structured video reasoning.
     """
-    def __init__(self, api_key: Optional[str] = GEMINI_API_KEY):
-        self.api_key = api_key
+    def __init__(self, base_url: str = OLLAMA_BASE_URL, model: str = "hermes3:8b", token: Optional[str] = HF_TOKEN):
+        self.base_url = base_url.rstrip("/")
+        self.model = model
+        self.token = token
 
     def is_available(self) -> bool:
-        return bool(self.api_key and len(self.api_key) > 10)
+        # Check local Ollama container first
+        for candidate_url in [self.base_url, "http://ollama:11434", "http://localhost:11434", "http://172.18.0.1:11434"]:
+            try:
+                req = urllib.request.Request(f"{candidate_url}/api/tags", headers={"User-Agent": "VidNova"})
+                with urllib.request.urlopen(req, timeout=1.5) as resp:
+                    if resp.status == 200:
+                        self.base_url = candidate_url
+                        return True
+            except Exception:
+                continue
+        return bool(self.token and len(self.token) > 10)
 
     def generate_response(self, prompt: str, system_prompt: Optional[str] = None) -> Optional[str]:
-        if not self.is_available():
-            return None
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.api_key}"
-        parts = []
-        if system_prompt:
-            parts.append({"text": f"Instruction: {system_prompt}\n\n"})
-        parts.append({"text": prompt})
-
+        # 1. Primary: Query local GPU Ollama Hermes-3-8b
+        url = f"{self.base_url}/api/generate"
         payload = {
-            "contents": [{
-                "parts": parts
-            }],
-            "generationConfig": {
-                "temperature": 0.3,
-                "maxOutputTokens": 2048,
-            }
+            "model": self.model,
+            "prompt": prompt,
+            "stream": False,
         }
+        if system_prompt:
+            payload["system"] = system_prompt
+
         try:
             data = json.dumps(payload).encode("utf-8")
             req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                res_json = json.loads(resp.read().decode("utf-8"))
-                candidates = res_json.get("candidates", [])
-                if candidates:
-                    parts = candidates[0].get("content", {}).get("parts", [])
-                    if parts:
-                        return parts[0].get("text", "").strip()
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+                ans = result.get("response", "").strip()
+                if ans:
+                    return ans
         except Exception as e:
-            logger.warning(f"[GeminiFreeCloudProvider] API error: {e}")
-        return None
+            logger.warning(f"[HermesLLMProvider] Local Ollama Hermes-3 inference warning: {e}")
 
-
-class GroqFreeCloudProvider(BaseLLMProvider):
-    """
-    Groq Cloud Free Tier (Llama-3.3-70b-versatile).
-    Very fast speed.
-    """
-    def __init__(self, api_key: Optional[str] = GROQ_API_KEY):
-        self.api_key = api_key
-
-    def is_available(self) -> bool:
-        return bool(self.api_key and len(self.api_key) > 10)
-
-    def generate_response(self, prompt: str, system_prompt: Optional[str] = None) -> Optional[str]:
-        if not self.is_available():
-            return None
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-
-        payload = {
-            "model": "llama-3.3-70b-versatile",
-            "messages": messages,
-            "temperature": 0.3,
-        }
-        try:
-            data = json.dumps(payload).encode("utf-8")
-            req = urllib.request.Request(
-                url,
-                data=data,
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {self.api_key}",
-                }
-            )
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                res_json = json.loads(resp.read().decode("utf-8"))
-                choices = res_json.get("choices", [])
-                if choices:
-                    return choices[0].get("message", {}).get("content", "").strip()
-        except Exception as e:
-            logger.warning(f"[GroqFreeCloudProvider] API error: {e}")
+        # 2. Fallback: Hugging Face Inference API if token is valid
+        if self.token:
+            hf_url = f"https://api-inference.huggingface.co/models/{self.model}/v1/chat/completions"
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+            try:
+                hf_payload = {"model": self.model, "messages": messages, "temperature": 0.3, "max_tokens": 1024}
+                req = urllib.request.Request(
+                    hf_url,
+                    data=json.dumps(hf_payload).encode("utf-8"),
+                    headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"}
+                )
+                with urllib.request.urlopen(req, timeout=20) as resp:
+                    res_json = json.loads(resp.read().decode("utf-8"))
+                    choices = res_json.get("choices", [])
+                    if choices:
+                        return choices[0].get("message", {}).get("content", "").strip()
+            except Exception as e:
+                logger.warning(f"[HermesLLMProvider] HF Inference error: {e}")
         return None
 
 
 class LLMService:
     """
     Strategy Orchestrator:
-    Tự động ưu tiên mô hình Miễn Phí (Ollama Local GPU -> Gemini Free Cloud -> Groq Free Cloud).
-    Cho phép người dùng chỉ định cụ thể model_name hoặc tone (giọng điệu/phong cách giải thích).
-    Nếu tất cả provider ngoại vi đều chưa cấu hình hoặc lỗi, tự động fallback về Rule-Based Heuristic sạch đẹp.
+    Tập trung vào 2 mô hình theo yêu cầu hệ thống: Ollama (Local/Self-hosted) & Hermes (Nous Research).
+    Nếu provider ngoại vi tạm thời chưa sẵn sàng, tự động chuyển đổi sang Heuristic RAG sạch đẹp.
     """
     def __init__(self):
         self.ollama = OllamaLocalProvider()
-        self.gemini = GeminiFreeCloudProvider()
-        self.groq = GroqFreeCloudProvider()
+        self.hermes = HermesLLMProvider()
         self.providers: List[BaseLLMProvider] = [
             self.ollama,
-            self.gemini,
-            self.groq,
+            self.hermes,
         ]
 
     def _resolve_provider(self, model_name: Optional[str]) -> Optional[BaseLLMProvider]:
-        if not model_name or model_name.lower() in ("auto", "default"):
+        if not model_name:
             return None
-        m = model_name.lower()
-        if "ollama" in m or "local" in m or "gpu" in m:
+        m = model_name.lower().strip()
+        if "hermes" in m or "nous" in m:
+            return self.hermes
+        if "ollama" in m or "local" in m:
             return self.ollama
-        if "gemini" in m or "google" in m:
-            return self.gemini
-        if "groq" in m or "llama" in m:
-            return self.groq
         return None
 
     def generate_chat_answer(
@@ -237,17 +216,26 @@ class LLMService:
         targeted_provider = self._resolve_provider(model_name)
         if targeted_provider and targeted_provider.is_available():
             ans = targeted_provider.generate_response(prompt=user_prompt, system_prompt=system_prompt)
-            if ans:
-                return ans
+            if ans and len(ans.strip()) > 10:
+                return ans.strip()
 
-        # 2. Fallback to priority list (Ollama Local GPU -> Gemini Free Cloud -> Groq Free Cloud)
+        # 2. Try any other configured providers
         for provider in self.providers:
-            if provider.is_available():
+            if provider != targeted_provider and provider.is_available():
                 ans = provider.generate_response(prompt=user_prompt, system_prompt=system_prompt)
-                if ans:
-                    return ans
+                if ans and len(ans.strip()) > 10:
+                    return ans.strip()
 
-        return None
+        # 3. Fallback only if no provider responded: present retrieved evidence cleanly without hardcoded heuristics
+        snippets = []
+        for c in citations[:4]:
+            ts = c.get("timestamp_formatted", "00:00")
+            txt = (c.get("translated_text") or c.get("text") or "").strip()
+            if txt:
+                snippets.append(f"- Mốc [{ts}]: {txt}")
+        if snippets:
+            return "Dựa trên nội dung trong video:\n\n" + "\n".join(snippets)
+        return "Không tìm thấy nội dung liên quan trong video để trả lời câu hỏi này."
 
     def summarize_video_content(
         self,

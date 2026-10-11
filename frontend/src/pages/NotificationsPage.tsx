@@ -20,6 +20,7 @@ import type {
 } from "../types/notification";
 import { useNotifications } from "../app/providers/NotificationContext";
 import NotificationItem from "../components/notifications/NotificationItem";
+import NotificationDetailModal from "../components/notifications/NotificationDetailModal";
 
 export default function NotificationsPage() {
   const { t } = useTranslation(["notifications", "common", "settings"]);
@@ -36,6 +37,8 @@ export default function NotificationsPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isMarkingAll, setIsMarkingAll] = useState<boolean>(false);
+  const [selectedNotification, setSelectedNotification] =
+    useState<NotificationItemType | null>(null);
 
   const pageSize = 20;
 
@@ -306,6 +309,7 @@ export default function NotificationsPage() {
                 notification={notification}
                 onMarkAsRead={handleMarkRead}
                 onDelete={handleDelete}
+                onOpenDetail={(item) => setSelectedNotification(item)}
               />
             ))
           )}
@@ -345,6 +349,16 @@ export default function NotificationsPage() {
           </div>
         )}
       </main>
+
+      {/* Detail Summary Modal */}
+      {selectedNotification && (
+        <NotificationDetailModal
+          notification={selectedNotification}
+          isOpen={Boolean(selectedNotification)}
+          onClose={() => setSelectedNotification(null)}
+          onMarkAsRead={handleMarkRead}
+        />
+      )}
     </div>
   );
 }

@@ -354,20 +354,24 @@ class VideoUnderstandingService:
                 top_k=limit
             )
             if sem_results and len(sem_results) > 0:
-                # Attach video titles
+                # Attach video titles and filter out any deleted videos
+                valid_results = []
                 video_map = {}
                 for r in sem_results:
                     vid_id = r.get("video_id")
                     if vid_id not in video_map:
-                        v = self.db.query(Video).filter(Video.id == vid_id).first()
-                        video_map[vid_id] = v.get("title") if v else f"Video #{vid_id}"
-                    r["video_title"] = video_map[vid_id]
-                return sem_results[:limit]
+                        v = self.db.query(Video).filter(Video.id == vid_id, Video.deleted_at.is_(None)).first()
+                        video_map[vid_id] = (v.get("title") if v else None)
+                    title = video_map[vid_id]
+                    if title:
+                        r["video_title"] = title
+                        valid_results.append(r)
+                return valid_results[:limit]
         except Exception as e:
             logger.warning(f"[Project Search] FAISS project search fallback: {e}")
 
         # 2. Fallback per-video search
-        videos = self.db.query(Video).filter(Video.project_id == project_id).all()
+        videos = self.db.query(Video).filter(Video.project_id == project_id, Video.deleted_at.is_(None)).all()
         all_results = []
         for v in videos:
             vid_id = v.get("id") if hasattr(v, "get") else getattr(v, "id", None)
@@ -438,7 +442,18 @@ class VideoUnderstandingService:
 
         proj_id = video.get("project_id") if isinstance(video, dict) else getattr(video, "project_id", None)
 
-        top_chunks = self.search_transcript(video_id=video_id, query=message, limit=5)
+        # Stage 1: Vector Search Top-K Candidates (up to 20 candidate chunks)
+        candidates = self.search_transcript(video_id=video_id, query=message, limit=20)
+
+        # Stage 2: CrossEncoder Reranking to select Top-6 best context chunks
+        try:
+            from app.services.reranker_service import RerankerService
+            reranker = RerankerService()
+            top_chunks = reranker.rerank(query=message, candidates=candidates, top_k=6)
+        except Exception as e:
+            logger.warning(f"[Chat] Reranking fallback: {e}")
+            top_chunks = candidates[:6]
+
         citations = []
         context_snippets = []
 
@@ -451,6 +466,7 @@ class VideoUnderstandingService:
                 "end_time": c.get("end_time", 0.0),
                 "timestamp_formatted": c.get("timestamp_formatted", "00:00"),
                 "text": c.get("text", ""),
+                "translated_text": c.get("translated_text", ""),
                 "speaker": spk,
             })
             context_snippets.append(f"[{c.get('timestamp_formatted', '00:00')}] ({spk}): {c.get('text', '')}")
@@ -579,6 +595,7 @@ class VideoUnderstandingService:
             "video_id": video_id,
             "role": "assistant",
             "message": reply,
+            "reply": reply,
             "citations": citations,
             "created_at": now.isoformat(),
         }
@@ -615,8 +632,17 @@ class VideoUnderstandingService:
 
         project_name = project.get("name") or f"Project #{project_id}"
 
-        # 1. Search across project
-        top_chunks = self.search_project_transcripts(project_id=project_id, query=message, user_id=user_id, limit=5)
+        # 1. Search across project (Stage 1: Candidates)
+        candidates = self.search_project_transcripts(project_id=project_id, query=message, user_id=user_id, limit=20)
+
+        # Stage 2: CrossEncoder Reranking
+        try:
+            from app.services.reranker_service import RerankerService
+            reranker = RerankerService()
+            top_chunks = reranker.rerank(query=message, candidates=candidates, top_k=6)
+        except Exception as e:
+            logger.warning(f"[ProjectChat] Reranking fallback: {e}")
+            top_chunks = candidates[:6]
 
         citations = []
         for c in top_chunks:
@@ -726,14 +752,14 @@ class VideoUnderstandingService:
 
         all_results: List[Dict[str, Any]] = []
 
-        # 1. Search across each project's FAISS index
+        # 1. Search across each project's FAISS index with generous candidate window (top_k=50)
         for pid, pname in project_map.items():
             try:
                 proj_results = self.search_project_transcripts(
                     project_id=pid,
                     query=query,
                     user_id=user_id,
-                    limit=limit
+                    limit=max(50, limit * 3)
                 )
                 for r in proj_results:
                     r["project_id"] = pid
@@ -742,9 +768,20 @@ class VideoUnderstandingService:
             except Exception as e:
                 logger.warning(f"[Workspace Search] Error searching project {pid}: {e}")
 
-        # 2. Sort all combined results by relevance score descending
-        all_results.sort(key=lambda x: x.get("relevance_score", 0.0), reverse=True)
-        return all_results[:limit]
+        # 2. Stage 2: CrossEncoder Reranking + Lexical Boost
+        if all_results:
+            try:
+                from app.services.reranker_service import RerankerService
+                reranker = RerankerService()
+                all_results = reranker.rerank(query=query, candidates=all_results, top_k=limit)
+            except Exception as re_err:
+                logger.warning(f"[Workspace Search] Reranker fallback: {re_err}")
+                all_results.sort(key=lambda x: x.get("relevance_score", 0.0), reverse=True)
+                all_results = all_results[:limit]
+        else:
+            all_results = []
+
+        return all_results
 
     def chat_with_workspace(
         self,
@@ -761,7 +798,17 @@ class VideoUnderstandingService:
         if not message or not message.strip():
             raise ValueError("Message cannot be empty.")
 
-        top_chunks = self.search_workspace_transcripts(user_id=user_id, query=message, limit=6)
+        # Stage 1: Candidate retrieval across workspace
+        candidates = self.search_workspace_transcripts(user_id=user_id, query=message, limit=25)
+
+        # Stage 2: CrossEncoder Reranking
+        try:
+            from app.services.reranker_service import RerankerService
+            reranker = RerankerService()
+            top_chunks = reranker.rerank(query=message, candidates=candidates, top_k=6)
+        except Exception as e:
+            logger.warning(f"[WorkspaceChat] Reranking fallback: {e}")
+            top_chunks = candidates[:6]
 
         citations = []
         for c in top_chunks:

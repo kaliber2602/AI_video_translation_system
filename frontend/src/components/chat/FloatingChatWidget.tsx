@@ -51,19 +51,15 @@ export default function FloatingChatWidget() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Only render on authenticated workspace/admin/editor routes
-  const isExcludedRoute =
-    location.pathname === "/" ||
-    location.pathname === "/login" ||
-    location.pathname === "/register" ||
-    location.pathname === "/pricing" ||
-    location.pathname.startsWith("/payments/vnpay/return");
+  // Chỉ hiển thị icon Floating Chatbot AI khi người dùng đã điều hướng vào bên trong dự án hoặc video cụ thể
+  const isInsideProjectOrVideo =
+    location.pathname.startsWith("/workspace/project") ||
+    location.pathname.includes("/video/");
 
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(true);
-  const [selectedModel, setSelectedModel] = useState("auto");
-  const [selectedTone, setSelectedTone] = useState("Tự nhiên, súc tích");
+  const [selectedModel, setSelectedModel] = useState("ollama");
 
   // Multi-session state
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -252,8 +248,6 @@ export default function FloatingChatWidget() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
-  if (isExcludedRoute) return null;
-
   const handleSendMessage = async (textToSend?: string) => {
     const prompt = (textToSend || inputValue).trim();
     if (!prompt || isLoading) return;
@@ -321,8 +315,7 @@ export default function FloatingChatWidget() {
           activeVideoId,
           prompt,
           historyForBackend,
-          selectedModel,
-          selectedTone
+          selectedModel
         );
 
         const asstMsg: ChatMessage = {
@@ -347,8 +340,7 @@ export default function FloatingChatWidget() {
         const res = await videoService.chatWithProject(
           selectedProjectId,
           prompt,
-          selectedModel,
-          selectedTone
+          selectedModel
         );
 
         const asstMsg: ChatMessage = {
@@ -380,8 +372,7 @@ export default function FloatingChatWidget() {
         // Global Workspace-Level RAG Chat across ALL projects & videos
         const res = await videoService.chatWithWorkspace(
           prompt,
-          selectedModel,
-          selectedTone
+          selectedModel
         );
 
         const asstMsg: ChatMessage = {
@@ -488,25 +479,11 @@ export default function FloatingChatWidget() {
     }
   };
 
-  const quickPrompts = activeVideoId
-    ? [
-        "Tổng kết nội dung video này",
-        "Có đoạn nào nói về chi phí hay giá không?",
-        "Trích xuất các mốc thời gian quan trọng",
-      ]
-    : [
-        "Tìm video có nhắc đến trí tuệ nhân tạo",
-        "Hướng dẫn dịch video sang tiếng Anh",
-        "Kiểm tra gói cước và quota của tôi",
-      ];
 
-  const toneOptions = [
-    "Tự nhiên, súc tích",
-    "Dễ hiểu (ELI5 / Cho người mới)",
-    "Chuyên sâu kỹ thuật",
-    "Gạch đầu dòng ngắn gọn",
-    "Trang trọng, học thuật",
-  ];
+
+  if (!isInsideProjectOrVideo) {
+    return null;
+  }
 
   return (
     <>
@@ -785,20 +762,6 @@ export default function FloatingChatWidget() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Quick Prompts */}
-              <div className="px-3 py-1.5 border-t border-[var(--color-border)] bg-[var(--color-surface-muted)]/30 overflow-x-auto whitespace-nowrap flex gap-1.5 scrollbar-none">
-                {quickPrompts.map((qp, qIdx) => (
-                  <button
-                    key={qIdx}
-                    type="button"
-                    onClick={() => handleSendMessage(qp)}
-                    className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-[10px] font-medium text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition shrink-0"
-                  >
-                    {qp}
-                  </button>
-                ))}
-              </div>
-
               {/* Footer Input - ChatGPT Style */}
               <form
                 onSubmit={(e) => {
@@ -829,7 +792,7 @@ export default function FloatingChatWidget() {
                   {/* Actions / Selectors Bar inside Capsule */}
                   <div className="flex items-center justify-between pt-1.5 border-t border-[var(--color-border)]/40">
                     <div className="flex items-center gap-2">
-                      {/* Model Selector Pill */}
+                      {/* Model Selector Pill (Chỉ còn Ollama và Hermes) */}
                       <div className="flex items-center gap-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-full px-2 py-0.5 shadow-xs hover:border-[var(--color-primary)]/60 transition">
                         <Cpu size={11} className="text-[var(--color-primary)] shrink-0" />
                         <select
@@ -838,26 +801,8 @@ export default function FloatingChatWidget() {
                           className="bg-transparent text-[10px] font-medium text-[var(--color-text-secondary)] outline-none cursor-pointer pr-1"
                           title="Chọn mô hình AI xử lý"
                         >
-                          <option value="auto">Auto (Free Fast)</option>
-                          <option value="gemini-1.5-flash">Gemini 1.5 Flash (Google)</option>
-                          <option value="groq-llama-3.3-70b">Groq Llama 3.3 (Cực nhanh)</option>
-                          <option value="ollama-local">Ollama Local (Offline)</option>
-                        </select>
-                      </div>
-
-                      {/* Tone Selector Pill */}
-                      <div className="hidden sm:flex items-center bg-[var(--color-surface)] border border-[var(--color-border)] rounded-full px-2 py-0.5 shadow-xs hover:border-[var(--color-primary)]/60 transition">
-                        <select
-                          value={selectedTone}
-                          onChange={(e) => setSelectedTone(e.target.value)}
-                          className="bg-transparent text-[10px] text-[var(--color-text-secondary)] outline-none cursor-pointer pr-1"
-                          title="Phong cách trả lời"
-                        >
-                          {toneOptions.map((tone) => (
-                            <option key={tone} value={tone}>
-                              {tone}
-                            </option>
-                          ))}
+                          <option value="ollama">Ollama</option>
+                          <option value="hermes">Hermes</option>
                         </select>
                       </div>
                     </div>
