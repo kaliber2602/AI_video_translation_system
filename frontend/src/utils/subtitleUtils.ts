@@ -10,6 +10,90 @@ export interface SubtitleSegmentLike {
 }
 
 /**
+ * Helper to test whether a character belongs to CJK unicode blocks.
+ */
+export function isCjkChar(ch: string): boolean {
+  if (!ch) return false;
+  const cp = ch.codePointAt(0) || 0;
+  return (
+    (cp >= 0x4e00 && cp <= 0x9fff) || // CJK Unified Ideographs
+    (cp >= 0x3400 && cp <= 0x4dbf) || // CJK Extension A
+    (cp >= 0x20000 && cp <= 0x2a6df) || // Extension B
+    (cp >= 0x3040 && cp <= 0x309f) || // Hiragana
+    (cp >= 0x30a0 && cp <= 0x30ff) || // Katakana
+    (cp >= 0xac00 && cp <= 0xd7af) || // Hangul Syllables
+    (cp >= 0x1100 && cp <= 0x11ff) || // Hangul Jamo
+    (cp >= 0x3000 && cp <= 0x303f) || // CJK Symbols and Punctuation
+    (cp >= 0xff00 && cp <= 0xffef) // Halfwidth and Fullwidth Forms
+  );
+}
+
+/**
+ * Checks if a string contains mostly CJK characters.
+ */
+export function isCjkDominant(text: string): boolean {
+  if (!text) return false;
+  let cjkCount = 0;
+  let alphaCount = 0;
+  for (const ch of text) {
+    if (isCjkChar(ch)) {
+      cjkCount++;
+    } else if (/[a-zA-Z0-9]/.test(ch)) {
+      alphaCount++;
+    }
+  }
+  return cjkCount > 0 && cjkCount >= alphaCount;
+}
+
+const CJK_NO_START_PUNCT = new Set([
+  "!", "%", ")", ",", ".", ":", ";", "?", "]", "}", "¢", "°", "·", "'", "\"",
+  "†", "‡", "›", "℃", "：", "；", "？", "！", "）", "〕", "︶", "︺", "︾",
+  "﹂", "﹗", "＂", "＇", "ˊ", "ˋ", "―", "—", "～", "…", "、", "，", "。", "・", "”", "’", "》", "』", "】"
+]);
+
+const CJK_NO_END_PUNCT = new Set([
+  "$", "(", "[", "{", "£", "¥", "‹", "℃", "（", "〔", "︶", "︺", "︾", "﹁",
+  "“", "‘", "《", "『", "【"
+]);
+
+function breakCjkIntoTwoLines(text: string, targetChars: number = 18): string {
+  if (text.length <= targetChars) return text;
+  const mid = Math.floor(text.length / 2);
+  const searchRadius = Math.max(2, Math.floor(text.length * 0.3));
+
+  const punctRegex = /[，。！？；：、…,.?!;:]/;
+
+  for (let offset = 0; offset <= searchRadius; offset++) {
+    for (const sign of [-1, 1]) {
+      const idx = mid + offset * sign;
+      if (idx > 0 && idx < text.length) {
+        const charBefore = text[idx - 1];
+        const charAt = text[idx];
+        if (punctRegex.test(charBefore) && !CJK_NO_START_PUNCT.has(charAt)) {
+          return `${text.slice(0, idx).trim()}\n${text.slice(idx).trim()}`;
+        }
+      }
+    }
+  }
+
+  // Fallback: character boundary near mid avoiding forbidden line-start/end punctuation
+  for (let offset = 0; offset <= searchRadius; offset++) {
+    for (const sign of [-1, 1]) {
+      const idx = mid + offset * sign;
+      if (idx > 0 && idx < text.length) {
+        const charBefore = text[idx - 1];
+        const charAt = text[idx];
+        if (!CJK_NO_START_PUNCT.has(charAt) && !CJK_NO_END_PUNCT.has(charBefore)) {
+          return `${text.slice(0, idx).trim()}\n${text.slice(idx).trim()}`;
+        }
+      }
+    }
+  }
+
+  return `${text.slice(0, mid).trim()}\n${text.slice(mid).trim()}`;
+}
+
+/**
  * Intelligently wraps text into balanced lines (e.g. max 2 lines),
  * preferring breaks at punctuation marks (, . ? ! ; :) and respecting existing manual newlines.
  */
@@ -43,9 +127,29 @@ export function formatSubtitleLines(
     return rawLines.join("\n");
   }
 
+  const isCjk = isCjkDominant(normalized);
+  const effectiveMaxChars = isCjk ? Math.min(maxChars, 18) : maxChars;
+
   const clean = normalized.replace(/\s+/g, " ");
-  if (maxLines === 1 || clean.length <= maxChars) {
+  if (maxLines === 1 || clean.length <= effectiveMaxChars) {
     return clean;
+  }
+
+  // CJK handling without space requirements
+  if (isCjk && (!clean.includes(" ") || clean.split(" ").length <= 2)) {
+    if (maxLines === 2) {
+      return breakCjkIntoTwoLines(clean, effectiveMaxChars);
+    }
+    // More lines
+    const lines: string[] = [];
+    let remaining = clean;
+    while (remaining.length > effectiveMaxChars && (maxLines === 0 || lines.length < maxLines - 1)) {
+      const sliceIdx = Math.min(effectiveMaxChars, remaining.length);
+      lines.push(remaining.slice(0, sliceIdx).trim());
+      remaining = remaining.slice(sliceIdx).trim();
+    }
+    if (remaining.length > 0) lines.push(remaining);
+    return lines.join("\n");
   }
 
   const words = clean.split(" ");
@@ -93,7 +197,7 @@ export function formatSubtitleLines(
   let curWords: string[] = [];
   let curLen = 0;
   for (const w of words) {
-    if (curLen + w.length + 1 > maxChars && curWords.length > 0) {
+    if (curLen + w.length + 1 > effectiveMaxChars && curWords.length > 0) {
       lines.push(curWords.join(" "));
       curWords = [w];
       curLen = w.length;
@@ -117,26 +221,54 @@ export function splitSegmentIntoTwo<T extends SubtitleSegmentLike>(
 ): [T, T] {
   const text = (segment.translated_text || segment.text || "").trim();
   const duration = Math.max(0.4, segment.end - segment.start);
+  const isCjk = isCjkDominant(text);
   const words = text.split(/\s+/).filter(Boolean);
 
-  let midIdx = Math.max(1, Math.floor(words.length / 2));
+  let firstText = "";
+  let secondText = "";
 
-  // If explicit split time given, estimate word boundary based on time ratio
-  if (explicitSplitTime !== undefined && explicitSplitTime > segment.start && explicitSplitTime < segment.end) {
-    const timeRatio = Math.max(0.1, Math.min(0.9, (explicitSplitTime - segment.start) / duration));
-    midIdx = Math.max(1, Math.min(words.length - 1, Math.round(words.length * timeRatio)));
-  } else {
-    // Prefer punctuation break near center
-    for (let i = Math.max(1, midIdx - 2); i < Math.min(words.length - 1, midIdx + 3); i++) {
-      if (/[,.?!;:]$/.test(words[i])) {
-        midIdx = i + 1;
-        break;
+  if (isCjk && words.length <= 1) {
+    // Character-based split for CJK text lacking spaces
+    const totalChars = text.length;
+    let splitIdx = Math.max(1, Math.floor(totalChars / 2));
+
+    if (explicitSplitTime !== undefined && explicitSplitTime > segment.start && explicitSplitTime < segment.end) {
+      const timeRatio = Math.max(0.1, Math.min(0.9, (explicitSplitTime - segment.start) / duration));
+      splitIdx = Math.max(1, Math.min(totalChars - 1, Math.round(totalChars * timeRatio)));
+    } else {
+      const punctRegex = /[，。！？；：、…,.?!;:]/;
+      for (let offset = 0; offset <= Math.floor(totalChars * 0.3); offset++) {
+        for (const sign of [-1, 1]) {
+          const idx = splitIdx + offset * sign;
+          if (idx > 0 && idx < totalChars && punctRegex.test(text[idx - 1])) {
+            splitIdx = idx;
+            break;
+          }
+        }
       }
     }
-  }
+    firstText = text.slice(0, splitIdx).trim();
+    secondText = text.slice(splitIdx).trim();
+  } else {
+    let midIdx = Math.max(1, Math.floor(words.length / 2));
 
-  const firstText = words.slice(0, midIdx).join(" ");
-  const secondText = words.slice(midIdx).join(" ");
+    // If explicit split time given, estimate word boundary based on time ratio
+    if (explicitSplitTime !== undefined && explicitSplitTime > segment.start && explicitSplitTime < segment.end) {
+      const timeRatio = Math.max(0.1, Math.min(0.9, (explicitSplitTime - segment.start) / duration));
+      midIdx = Math.max(1, Math.min(words.length - 1, Math.round(words.length * timeRatio)));
+    } else {
+      // Prefer punctuation break near center
+      for (let i = Math.max(1, midIdx - 2); i < Math.min(words.length - 1, midIdx + 3); i++) {
+        if (/[,.?!;:]$/.test(words[i])) {
+          midIdx = i + 1;
+          break;
+        }
+      }
+    }
+
+    firstText = words.slice(0, midIdx).join(" ");
+    secondText = words.slice(midIdx).join(" ");
+  }
 
   const ratio = firstText.length / Math.max(1, text.length);
   const splitTime = explicitSplitTime !== undefined
@@ -175,8 +307,14 @@ export function autoSplitLongSegments<T extends SubtitleSegmentLike>(
   for (const seg of segments) {
     const text = (seg.translated_text || seg.text || "").trim();
     const duration = seg.end - seg.start;
+    const isCjk = isCjkDominant(text);
+    const effectiveMaxChars = isCjk ? 24 : maxChars;
 
-    if ((text.length > maxChars || duration > maxDuration) && duration >= 2.0 && text.split(/\s+/).length >= 4) {
+    const canSplit = isCjk
+      ? (text.length > effectiveMaxChars || duration > maxDuration) && duration >= 2.0 && text.length >= 8
+      : (text.length > maxChars || duration > maxDuration) && duration >= 2.0 && text.split(/\s+/).length >= 4;
+
+    if (canSplit) {
       const [seg1, seg2] = splitSegmentIntoTwo(seg);
       result.push(seg1, seg2);
     } else {

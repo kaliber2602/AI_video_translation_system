@@ -107,8 +107,12 @@ export default function AdminDashboard() {
     },
     {
       title: t("admin:dashboard.kpi.totalRevenue"),
-      value: `$${(metrics?.total_revenue_usd ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-      subtext: t("admin:finance.subtitle"),
+      value: (metrics?.total_revenue_vnd ?? 0) > 0
+        ? `${Math.round(metrics?.total_revenue_vnd ?? 0).toLocaleString("vi-VN")} ₫`
+        : `$${(metrics?.total_revenue_usd ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      subtext: (metrics?.total_revenue_usd ?? 0) > 0 && (metrics?.total_revenue_vnd ?? 0) > 0
+        ? `+ $${(metrics?.total_revenue_usd ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })} USD`
+        : t("admin:finance.subtitle"),
       icon: DollarSign,
       color: "text-teal-500",
       bg: "bg-teal-500/10",

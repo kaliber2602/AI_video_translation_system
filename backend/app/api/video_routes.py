@@ -4025,7 +4025,8 @@ async def generate_subtitles(
         except Exception:
             pass
 
-        final_font_name = str(b.get("font_name") or b.get("fontName") or font_name or "Montserrat")
+        raw_font = str(b.get("font_name") or b.get("fontName") or font_name or "Montserrat")
+        final_font_name = SubtitleService.resolve_font_for_script(raw_font, lang_clean)
         final_font_size = int(b.get("font_size") or b.get("fontSize") or font_size or 22)
         final_primary_color = str(b.get("primary_color") or b.get("primaryColor") or primary_color or "#FFFFFF")
         final_outline_color = str(b.get("outline_color") or b.get("outlineColor") or outline_color or "#000000")
@@ -4614,7 +4615,7 @@ async def download_subtitles_file(
                     f.write(vtt_data)
         
         if os.path.exists(subtitle_path):
-            media_type = "text/plain" if format in ["srt", "ass"] else "text/vtt"
+            media_type = "text/plain; charset=utf-8" if format in ["srt", "ass"] else "text/vtt; charset=utf-8"
             return FileResponse(
                 subtitle_path,
                 media_type=media_type,
@@ -4667,7 +4668,7 @@ async def download_default_subtitles_file(
                 break
 
         if os.path.exists(subtitle_path):
-            media_type = "text/plain" if format in ["srt", "ass"] else "text/vtt"
+            media_type = "text/plain; charset=utf-8" if format in ["srt", "ass"] else "text/vtt; charset=utf-8"
             safe_title = (video.title or f"video_{video_id}").replace('"', "").strip()
             return FileResponse(
                 subtitle_path,

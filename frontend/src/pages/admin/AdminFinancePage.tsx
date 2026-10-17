@@ -15,6 +15,14 @@ import type {
   AdminPaymentTransactionResponse,
 } from "../../types/admin";
 
+const formatCurrency = (amount: number, currency: string = "USD") => {
+  const curr = (currency || "USD").toUpperCase();
+  if (curr === "VND") {
+    return `${Math.round(amount).toLocaleString("vi-VN")} ₫`;
+  }
+  return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
 export default function AdminFinancePage() {
   const { t } = useTranslation(["admin", "common"]);
 
@@ -79,16 +87,28 @@ export default function AdminFinancePage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-sm">
           <p className="text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
-            {t("admin:finance.totalRevenue")}
+            {t("admin:finance.totalRevenue")} (VND)
           </p>
-          <p className="mt-2 text-3xl font-black text-teal-600 dark:text-teal-400">
+          <p className="mt-2 text-2xl font-black text-emerald-600 dark:text-emerald-400">
+            {Math.round(stats?.total_revenue_vnd ?? 0).toLocaleString("vi-VN")} ₫
+          </p>
+          <p className="mt-2 text-xs text-[var(--color-text-muted)]">
+            Cổng VNPay
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-sm">
+          <p className="text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
+            {t("admin:finance.totalRevenue")} (USD)
+          </p>
+          <p className="mt-2 text-2xl font-black text-teal-600 dark:text-teal-400">
             ${(stats?.total_revenue_usd ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
           </p>
           <p className="mt-2 text-xs text-[var(--color-text-muted)]">
-            {t("admin:finance.subtitle")}
+            Cổng Quốc tế
           </p>
         </div>
 
@@ -96,7 +116,7 @@ export default function AdminFinancePage() {
           <p className="text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
             {t("admin:finance.transactionsCount")}
           </p>
-          <p className="mt-2 text-3xl font-black text-[var(--color-text-primary)]">
+          <p className="mt-2 text-2xl font-black text-[var(--color-text-primary)]">
             {stats?.total_transactions_count ?? 0}
           </p>
           <p className="mt-2 text-xs text-[var(--color-text-muted)]">
@@ -108,7 +128,7 @@ export default function AdminFinancePage() {
           <p className="text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
             {t("admin:finance.completed")}
           </p>
-          <p className="mt-2 text-3xl font-black text-emerald-500">
+          <p className="mt-2 text-2xl font-black text-emerald-500">
             {stats?.completed_count ?? 0}
           </p>
           <p className="mt-2 text-xs text-[var(--color-text-muted)]">
@@ -120,7 +140,7 @@ export default function AdminFinancePage() {
           <p className="text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
             {t("admin:finance.pending")} / {t("admin:finance.failed")}
           </p>
-          <p className="mt-2 text-3xl font-black text-amber-500">
+          <p className="mt-2 text-2xl font-black text-amber-500">
             {stats?.pending_count ?? 0} / {stats?.failed_count ?? 0}
           </p>
           <p className="mt-2 text-xs text-[var(--color-text-muted)]">Pending / Failed</p>
@@ -128,14 +148,14 @@ export default function AdminFinancePage() {
       </div>
 
       {/* Gateway Distribution Cards */}
-      <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="flex items-center justify-between rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-sm">
           <div>
             <span className="rounded-md bg-blue-500/10 px-2 py-0.5 text-xs font-extrabold uppercase text-blue-600">
               VNPay Gateway
             </span>
             <p className="mt-2 text-xl font-bold">
-              ${((stats?.gateway_breakdown?.vnpay?.total_amount) ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              {formatCurrency((stats?.gateway_breakdown?.vnpay?.total_amount) ?? 0, "VND")}
             </p>
             <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
               {(stats?.gateway_breakdown?.vnpay?.count) ?? 0} {t("admin:finance.transactionsCount")}
@@ -145,6 +165,25 @@ export default function AdminFinancePage() {
             <Globe size={24} />
           </div>
         </div>
+
+        {stats?.gateway_breakdown?.stripe && (
+          <div className="flex items-center justify-between rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-sm">
+            <div>
+              <span className="rounded-md bg-purple-500/10 px-2 py-0.5 text-xs font-extrabold uppercase text-purple-600">
+                Stripe Gateway
+              </span>
+              <p className="mt-2 text-xl font-bold">
+                {formatCurrency((stats?.gateway_breakdown?.stripe?.total_amount) ?? 0, "USD")}
+              </p>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                {(stats?.gateway_breakdown?.stripe?.count) ?? 0} {t("admin:finance.transactionsCount")}
+              </p>
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600">
+              <Globe size={24} />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Transactions Filter */}
@@ -226,7 +265,7 @@ export default function AdminFinancePage() {
                       {tx.user_email}
                     </td>
                     <td className="px-4 py-3 font-mono font-bold text-teal-600">
-                      ${tx.amount.toFixed(2)} {tx.currency}
+                      {formatCurrency(tx.amount, tx.currency)} {tx.currency?.toUpperCase() !== "VND" ? tx.currency : ""}
                     </td>
                     <td className="px-4 py-3">
                       <span className="rounded bg-[var(--color-surface-muted)] border border-[var(--color-border)] px-2 py-0.5 text-[10px] font-black uppercase text-[var(--color-text-secondary)]">

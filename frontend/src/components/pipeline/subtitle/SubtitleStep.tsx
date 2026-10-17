@@ -140,6 +140,10 @@ export default function SubtitleStep() {
     { id: "Bebas Neue", name: "Bebas Neue", sample: "Aa" },
     { id: "Oswald", name: "Oswald", sample: "Aa" },
     { id: "Playfair Display", name: "Playfair", sample: "Aa" },
+    { id: "Noto Sans CJK SC", name: "Noto Sans SC (简体中文)", sample: "中文" },
+    { id: "Noto Sans CJK TC", name: "Noto Sans TC (繁體中文)", sample: "繁體" },
+    { id: "Noto Sans CJK JP", name: "Noto Sans JP (日本語)", sample: "日本" },
+    { id: "Noto Sans CJK KR", name: "Noto Sans KR (한국어)", sample: "한글" },
   ];
 
   const effectCards = [

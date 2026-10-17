@@ -34,9 +34,20 @@ def _load_subtitle_config(video_id: int, language: str, video=None, db=None) -> 
       2. video.snapshot_data["subtitle_config"]  (DB)
       3. Hardcoded defaults
     """
+    lang_clean = language.lower().strip()
+    default_font = "Montserrat"
+    if lang_clean in ["zh-tw", "zh-hk", "zh-hant"]:
+        default_font = "Noto Sans CJK TC"
+    elif lang_clean in ["zh", "zh-cn", "zh-hans"]:
+        default_font = "Noto Sans CJK SC"
+    elif lang_clean in ["ja", "jpn"]:
+        default_font = "Noto Sans CJK JP"
+    elif lang_clean in ["ko", "kor"]:
+        default_font = "Noto Sans CJK KR"
+
     defaults = {
         "font_size": 22,
-        "font_name": "Montserrat",
+        "font_name": default_font,
         "primary_color": "#FFFFFF",
         "outline_color": "#000000",
         "position": "bottom",

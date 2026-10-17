@@ -89,7 +89,12 @@ class TranslationService:
         mapping = {}
         for idx, (term, translation) in enumerate(glossary.items()):
             placeholder = f"__GLOSSARY_{idx}__"
-            text = re.sub(rf'\b{re.escape(term)}\b', placeholder, text, flags=re.IGNORECASE)
+            # CJK characters do not have standard ASCII word boundaries (\b)
+            if re.search(r'[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u30ff\uac00-\ud7af]', term):
+                pattern = re.escape(term)
+            else:
+                pattern = rf'\b{re.escape(term)}\b'
+            text = re.sub(pattern, placeholder, text, flags=re.IGNORECASE)
             mapping[placeholder] = translation
         return text, mapping
 
@@ -132,7 +137,14 @@ class TranslationService:
                 current_merge["text"] = current_merge["text"].strip()
                 current_merge["_constituent_indices"] = [i]
             else:
-                current_merge["text"] += " " + next_text
+                last_ch = current_merge["text"][-1] if current_merge["text"] else ""
+                first_ch = next_text[0] if next_text else ""
+                is_cjk_merge = (
+                    bool(re.search(r'[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u30ff]', last_ch)) and
+                    bool(re.search(r'[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u30ff]', first_ch))
+                )
+                joiner = "" if is_cjk_merge else " "
+                current_merge["text"] += joiner + next_text
                 current_merge["end"] = next_seg["end"]
                 current_merge["_constituent_indices"].append(i)
                 

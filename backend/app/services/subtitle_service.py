@@ -52,9 +52,111 @@ class SubtitleService:
             return f"&H{alpha:02X}{b.upper()}{g.upper()}{r.upper()}"
         return default
 
+    CJK_PUNCTUATION_NO_LINE_START = set("。！？!?,，、）)]}」』》〉”’;:；：~～…")
+    CJK_PUNCTUATION_NO_LINE_END = set("（([{「『《〈“‘")
+
+    @staticmethod
+    def is_cjk_char(ch: str) -> bool:
+        """Check if character is within Chinese, Japanese, or Korean Unicode ranges."""
+        if not ch:
+            return False
+        cp = ord(ch)
+        return (
+            0x4E00 <= cp <= 0x9FFF or   # CJK Unified Ideographs
+            0x3400 <= cp <= 0x4DBF or   # CJK Extension A
+            0x20000 <= cp <= 0x2A6DF or # CJK Extension B
+            0x3040 <= cp <= 0x309F or   # Hiragana
+            0x30A0 <= cp <= 0x30FF or   # Katakana
+            0xAC00 <= cp <= 0xD7AF or   # Hangul Syllables
+            0x1100 <= cp <= 0x11FF      # Hangul Jamo
+        )
+
+    @staticmethod
+    def is_cjk_dominant(text: str) -> bool:
+        """Return True if 20% or more characters in the text are CJK ideographs/syllables."""
+        if not text:
+            return False
+        total = sum(1 for ch in text if not ch.isspace())
+        if total == 0:
+            return False
+        cjk_count = sum(1 for ch in text if SubtitleService.is_cjk_char(ch))
+        return (cjk_count / total) >= 0.20
+
+    @staticmethod
+    def _break_cjk_into_two_lines(clean_text: str, target_chars: int = 18) -> List[str]:
+        """Split a long CJK text chunk into two balanced lines respecting punctuation and Kinshoku Shori."""
+        total_len = len(clean_text)
+        if total_len <= target_chars:
+            return [clean_text]
+
+        mid_target = total_len // 2
+        best_idx = -1
+        min_dist = total_len
+
+        # 1. Look for natural CJK punctuation near the middle (within 35% of center)
+        for i in range(1, total_len):
+            ch = clean_text[i - 1]
+            if ch in "，、,。！？!?;； ":
+                dist = abs(i - mid_target)
+                if dist < total_len * 0.35 and dist < min_dist:
+                    min_dist = dist
+                    best_idx = i
+
+        # 2. If no punctuation near center, find a break position that doesn't violate Kinshoku Shori
+        if best_idx == -1:
+            for offset in range(total_len // 2):
+                for candidate in (mid_target + offset, mid_target - offset):
+                    if 1 <= candidate < total_len:
+                        prev_ch = clean_text[candidate - 1]
+                        next_ch = clean_text[candidate]
+                        if (next_ch not in SubtitleService.CJK_PUNCTUATION_NO_LINE_START and 
+                            prev_ch not in SubtitleService.CJK_PUNCTUATION_NO_LINE_END):
+                            best_idx = candidate
+                            break
+                if best_idx != -1:
+                    break
+
+        if best_idx <= 0 or best_idx >= total_len:
+            best_idx = max(1, mid_target)
+
+        line1 = clean_text[:best_idx].strip()
+        line2 = clean_text[best_idx:].strip()
+        return [line1, line2]
+
+    @staticmethod
+    def _break_cjk_multi_lines(clean_text: str, max_chars: int = 18, max_lines: int = 0) -> List[str]:
+        """Break CJK text into multiple lines of at most max_chars length."""
+        lines = []
+        rem = clean_text.strip()
+        while rem:
+            if len(rem) <= max_chars:
+                lines.append(rem)
+                break
+            best_break = max_chars
+            # Look backwards for punctuation
+            for i in range(min(len(rem), max_chars), max(1, max_chars // 2), -1):
+                if rem[i - 1] in "，、,。！？!?;； ":
+                    best_break = i
+                    break
+            else:
+                for i in range(min(len(rem), max_chars), max(1, max_chars // 2), -1):
+                    if (rem[i] not in SubtitleService.CJK_PUNCTUATION_NO_LINE_START and 
+                        rem[i - 1] not in SubtitleService.CJK_PUNCTUATION_NO_LINE_END):
+                        best_break = i
+                        break
+            lines.append(rem[:best_break].strip())
+            rem = rem[best_break:].strip()
+            if max_lines > 0 and len(lines) >= max_lines:
+                break
+        return lines
+
     @staticmethod
     def _break_into_two_lines(clean_text: str, words: List[str], max_chars: int = 38) -> List[str]:
         """Split a long text chunk into two balanced lines, preferring natural punctuation."""
+        if SubtitleService.is_cjk_dominant(clean_text):
+            cjk_budget = min(max_chars, 18)
+            return SubtitleService._break_cjk_into_two_lines(clean_text, target_chars=cjk_budget)
+
         if not words:
             return [""]
         if len(words) == 1:
@@ -93,6 +195,12 @@ class SubtitleService:
     @staticmethod
     def _break_single_line(line: str, max_chars: int = 38) -> List[str]:
         """Break a single line that exceeds max_chars into balanced sub-lines."""
+        if SubtitleService.is_cjk_dominant(line):
+            cjk_budget = min(max_chars, 18)
+            if len(line) <= cjk_budget:
+                return [line]
+            return SubtitleService._break_cjk_into_two_lines(line, target_chars=cjk_budget)
+
         words = line.split()
         if len(words) <= 1 or len(line) <= max_chars:
             return [line]
@@ -129,9 +237,8 @@ class SubtitleService:
         """
         Wrap and limit text to max_lines lines.
         Intelligently preserves existing manual newlines if present,
-        and cleanly splits long lines at natural phrase boundaries
-        (punctuation like commas, periods, question marks, or mid-sentence spaces)
-        so that long sentences are not squashed into a single line or spilled off-screen.
+        and cleanly splits long lines at natural phrase boundaries.
+        Supports space-less CJK scripts (Chinese, Japanese, Korean) with Kinshoku Shori rules.
         """
         if not text:
             return ""
@@ -148,8 +255,9 @@ class SubtitleService:
                 raw_lines = raw_lines[:max_lines]
             final_lines: List[str] = []
             for line in raw_lines:
-                if len(line) > max_chars:
-                    final_lines.extend(SubtitleService._break_single_line(line, max_chars=max_chars))
+                effective_budget = min(max_chars, 18) if SubtitleService.is_cjk_dominant(line) else max_chars
+                if len(line) > effective_budget:
+                    final_lines.extend(SubtitleService._break_single_line(line, max_chars=effective_budget))
                 else:
                     final_lines.append(line)
             if max_lines > 0:
@@ -161,8 +269,19 @@ class SubtitleService:
         if not clean_text:
             return ""
 
-        if max_lines == 1 or len(clean_text) <= max_chars:
+        is_cjk = SubtitleService.is_cjk_dominant(clean_text)
+        effective_budget = min(max_chars, 18) if is_cjk else max_chars
+
+        if max_lines == 1 or len(clean_text) <= effective_budget:
             return clean_text
+
+        # CJK handling when text does not use spaces
+        if is_cjk and " " not in clean_text:
+            if max_lines == 2:
+                lines = SubtitleService._break_cjk_into_two_lines(clean_text, target_chars=effective_budget)
+                return newline_token.join(lines)
+            lines = SubtitleService._break_cjk_multi_lines(clean_text, max_chars=effective_budget, max_lines=max_lines)
+            return newline_token.join(lines)
 
         words = clean_text.split()
         if not words:
@@ -170,11 +289,11 @@ class SubtitleService:
 
         # Smart breaking into 2 balanced lines
         if max_lines == 2:
-            lines = SubtitleService._break_into_two_lines(clean_text, words, max_chars=max_chars)
+            lines = SubtitleService._break_into_two_lines(clean_text, words, max_chars=effective_budget)
             return newline_token.join(lines)
 
         # If max_lines > 2 or 0 (unlimited lines)
-        lines = SubtitleService._break_multi_lines(words, max_chars=max_chars, max_lines=max_lines)
+        lines = SubtitleService._break_multi_lines(words, max_chars=effective_budget, max_lines=max_lines)
         return newline_token.join(lines)
 
     @staticmethod
@@ -184,17 +303,21 @@ class SubtitleService:
         max_duration: float = 5.0,
     ) -> List[Dict]:
         """
-        Detects segments that are excessively long (e.g. 3-4 lines of text in a single chunk)
-        or span too long a duration, and splits them into 2 sequential chunks with proportional
-        timestamps (start -> mid, mid -> end) so subtitles are comfortable to read.
+        Detects segments that are excessively long or span too long a duration,
+        and splits them into 2 sequential chunks with proportional timestamps.
+        Fully supports both Western space-separated languages and CJK scripts.
         """
         result = []
         for seg in segments:
             text = seg.get("translated_text", seg.get("text", "")).strip()
             duration = seg.get("end", 0.0) - seg.get("start", 0.0)
 
-            if (len(text) > max_chars or duration > max_duration) and duration >= 2.0:
+            is_cjk = SubtitleService.is_cjk_dominant(text)
+            effective_chars = min(max_chars, 24) if is_cjk else max_chars
+
+            if (len(text) > effective_chars or duration > max_duration) and duration >= 2.0:
                 words = text.split()
+                # Western languages with spaces
                 if len(words) >= 4:
                     mid_idx = len(words) // 2
                     for i in range(max(1, mid_idx - 2), min(len(words) - 1, mid_idx + 3)):
@@ -204,7 +327,7 @@ class SubtitleService:
 
                     first_text = " ".join(words[:mid_idx])
                     second_text = " ".join(words[mid_idx:])
-                    mid_time = round(seg["start"] + (duration * (len(first_text) / len(text))), 2)
+                    mid_time = round(seg["start"] + (duration * (len(first_text) / max(1, len(text)))), 2)
                     mid_time = max(seg["start"] + 0.8, min(seg["end"] - 0.8, mid_time))
 
                     seg1 = dict(seg)
@@ -224,6 +347,31 @@ class SubtitleService:
                     result.append(seg1)
                     result.append(seg2)
                     continue
+                elif is_cjk and len(text) >= 12:
+                    # CJK ideographic splitting without space boundaries
+                    cjk_parts = SubtitleService._break_cjk_into_two_lines(text, target_chars=len(text) // 2)
+                    if len(cjk_parts) == 2 and cjk_parts[0] and cjk_parts[1]:
+                        first_text, second_text = cjk_parts[0], cjk_parts[1]
+                        mid_time = round(seg["start"] + (duration * (len(first_text) / max(1, len(text)))), 2)
+                        mid_time = max(seg["start"] + 0.8, min(seg["end"] - 0.8, mid_time))
+
+                        seg1 = dict(seg)
+                        seg1["end"] = mid_time
+                        if "translated_text" in seg1:
+                            seg1["translated_text"] = first_text
+                        if "text" in seg1:
+                            seg1["text"] = first_text
+
+                        seg2 = dict(seg)
+                        seg2["start"] = mid_time
+                        if "translated_text" in seg2:
+                            seg2["translated_text"] = second_text
+                        if "text" in seg2:
+                            seg2["text"] = second_text
+
+                        result.append(seg1)
+                        result.append(seg2)
+                        continue
 
             result.append(seg)
         return result
@@ -379,6 +527,43 @@ class SubtitleService:
             }
 
     @staticmethod
+    def resolve_font_for_script(
+        font_name: Optional[str],
+        language: Optional[str] = None,
+        sample_text: Optional[str] = None
+    ) -> str:
+        """
+        Dynamically map generic/Latin fonts to proper CJK font families when CJK text is detected.
+        Supported CJK families in container: Noto Sans CJK SC, TC, JP, KR.
+        """
+        clean_font = (font_name or "").strip()
+        lang = (language or "").lower().strip()
+        is_cjk = SubtitleService.is_cjk_dominant(sample_text or "")
+
+        # If font is already explicitly set to a CJK font, preserve it
+        if any(cjk in clean_font.lower() for cjk in ["cjk", "yahei", "simhei", "pingfang", "gothic", "meiryo", "mincho"]):
+            return clean_font
+
+        # If font is not provided or is a standard Latin default, map to appropriate CJK font
+        latin_defaults = {
+            "", "arial", "montserrat", "roboto", "inter", "helvetica",
+            "impact", "bebas neue", "oswald", "playfair display", "be vietnam pro", "sans-serif"
+        }
+        if clean_font.lower() in latin_defaults or is_cjk:
+            if lang in ["zh-tw", "zh-hk", "zh-hant"]:
+                return "Noto Sans CJK TC"
+            elif lang in ["zh", "zh-cn", "zh-hans"]:
+                return "Noto Sans CJK SC"
+            elif lang in ["ja", "jpn"]:
+                return "Noto Sans CJK JP"
+            elif lang in ["ko", "kor"]:
+                return "Noto Sans CJK KR"
+            elif is_cjk:
+                return "Noto Sans CJK SC"
+
+        return clean_font or "Montserrat"
+
+    @staticmethod
     def generate_ass(
         segments: List[Dict],
         text_key: str = "translated_text",
@@ -399,6 +584,7 @@ class SubtitleService:
         position_y: Optional[float] = None,
         line_spacing: Optional[float] = 1.2,
         bilingual: bool = False,
+        language: Optional[str] = None,
     ) -> str:
         """Generate ASS subtitle content with styling, colors, limits, animation effects, alignment, and multi-aspect ratio adaptation."""
         align_clean = (alignment or "center").lower().strip()
@@ -457,6 +643,14 @@ class SubtitleService:
         # Secondary style for bilingual source text (slightly smaller, subtle muted tint)
         orig_font_size = max(12, int(scaled_font_size * 0.78))
         orig_primary_ass = "&H00D0D0D0"  # Subtle light grey for original text
+
+        # Detect CJK from segments and resolve appropriate font
+        sample_text = ""
+        for s in segments[:10]:
+            t = (s.get(text_key) or s.get("translated_text") or s.get("text") or "").strip()
+            if t:
+                sample_text += t + " "
+        resolved_font = SubtitleService.resolve_font_for_script(font_name, language=language, sample_text=sample_text)
         
         content = [
             "[Script Info]",
@@ -467,7 +661,7 @@ class SubtitleService:
             "",
             "[V4+ Styles]",
             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-            f"Style: Default,{font_name},{scaled_font_size},{primary_ass},&H0000FFFF,{outline_ass},{back_ass},{bold_flag},0,0,0,100,100,0,0,1,{outline_width},{shadow_dist},{ass_alignment},{margin_lr},{margin_lr},{margin_v},1",
+            f"Style: Default,{resolved_font},{scaled_font_size},{primary_ass},&H0000FFFF,{outline_ass},{back_ass},{bold_flag},0,0,0,100,100,0,0,1,{outline_width},{shadow_dist},{ass_alignment},{margin_lr},{margin_lr},{margin_v},1",
             "",
             "[Events]",
             "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"
@@ -478,27 +672,32 @@ class SubtitleService:
             trans_text = (seg.get(text_key) or seg.get("translated_text") or "").strip()
 
             if bilingual and orig_text and trans_text and orig_text.lower() != trans_text.lower():
-                # Bilingual dual-line mode: Line 1 = Original (muted, 78% font size), Line 2 = Translated (bold, primary)
+                is_orig_cjk = SubtitleService.is_cjk_dominant(orig_text)
+                is_trans_cjk = SubtitleService.is_cjk_dominant(trans_text)
+                orig_budget = min(max_chars, 18) if is_orig_cjk else int(max_chars * 1.2)
+                trans_budget = min(max_chars, 18) if is_trans_cjk else max_chars
                 wrapped_orig = SubtitleService.wrap_text_lines(
                     orig_text,
                     max_lines=1,
-                    max_chars=int(max_chars * 1.2),
+                    max_chars=orig_budget,
                     newline_token=" ",
                 )
                 wrapped_trans = SubtitleService.wrap_text_lines(
                     trans_text,
                     max_lines=max_lines,
-                    max_chars=max_chars,
+                    max_chars=trans_budget,
                     newline_token="\\N",
                 )
                 bilingual_line = f"{{\\fs{orig_font_size}\\c{orig_primary_ass}&}}{wrapped_orig}\\N{{\\fs{scaled_font_size}\\c{primary_ass}&}}{wrapped_trans}"
                 effect_text = SubtitleService.apply_ass_effect(bilingual_line, effect=effect, primary_ass=primary_ass)
             else:
                 raw_text = trans_text or orig_text or seg.get("text", "")
+                is_raw_cjk = SubtitleService.is_cjk_dominant(raw_text)
+                effective_budget = min(max_chars, 18) if is_raw_cjk else max_chars
                 wrapped_text = SubtitleService.wrap_text_lines(
                     raw_text,
                     max_lines=max_lines,
-                    max_chars=max_chars,
+                    max_chars=effective_budget,
                     newline_token="\\N",
                 )
                 effect_text = SubtitleService.apply_ass_effect(wrapped_text, effect=effect, primary_ass=primary_ass)
@@ -529,6 +728,7 @@ class SubtitleService:
         position_y: Optional[float] = None,
         line_spacing: Optional[float] = 1.2,
         bilingual: bool = False,
+        language: Optional[str] = None,
     ) -> str:
         """Generate subtitles in specified format with aspect ratio and positioning support"""
         fmt = (format or "srt").lower().lstrip(".")
@@ -555,6 +755,7 @@ class SubtitleService:
                 position_y=position_y,
                 line_spacing=line_spacing,
                 bilingual=bilingual,
+                language=language,
             )
         return SubtitleService.generate_srt(segments, text_key=text_key, max_lines=max_lines)
     
@@ -579,6 +780,7 @@ class SubtitleService:
         position_y: Optional[float] = None,
         line_spacing: Optional[float] = 1.2,
         bilingual: bool = False,
+        language: Optional[str] = None,
     ) -> str:
         """Generate and save subtitles to file"""
         content = SubtitleService.generate_subtitles(
@@ -600,6 +802,7 @@ class SubtitleService:
             position_y=position_y,
             line_spacing=line_spacing,
             bilingual=bilingual,
+            language=language,
         )
         
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -664,6 +867,7 @@ class SubtitleService:
                 position_y=position_y,
                 line_spacing=line_spacing,
                 bilingual=bilingual,
+                language=language,
             )
             paths[fmt] = out_path
         return paths

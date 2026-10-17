@@ -37,6 +37,7 @@ export interface SystemMetricsResponse {
     cancelled: number;
   };
   total_revenue_usd: number;
+  total_revenue_vnd?: number;
   total_credits_consumed: number;
   total_words_consumed?: number;
   timestamp: string;
@@ -150,6 +151,7 @@ export interface AdminPaymentTransactionResponse {
 
 export interface AdminPaymentStatsResponse {
   total_revenue_usd: number;
+  total_revenue_vnd?: number;
   total_transactions_count: number;
   completed_count: number;
   pending_count: number;

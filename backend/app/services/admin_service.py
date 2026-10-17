@@ -249,9 +249,14 @@ def get_system_metrics() -> SystemMetricsResponse:
 
             # Payments
             cursor.execute(
-                "SELECT COALESCE(SUM(amount), 0.0) FROM payment_transactions WHERE status = 'completed';"
+                "SELECT COALESCE(SUM(amount), 0.0) FROM payment_transactions WHERE status = 'completed' AND (currency = 'USD' OR currency IS NULL);"
             )
             total_revenue_usd = float(cursor.fetchone()[0] or 0.0)
+
+            cursor.execute(
+                "SELECT COALESCE(SUM(amount), 0.0) FROM payment_transactions WHERE status = 'completed' AND currency = 'VND';"
+            )
+            total_revenue_vnd = float(cursor.fetchone()[0] or 0.0)
 
             # Consumable AI Credits & Words Quota
             cursor.execute(
@@ -276,6 +281,7 @@ def get_system_metrics() -> SystemMetricsResponse:
                 total_jobs=total_jobs,
                 jobs_by_status=jobs_by_status,
                 total_revenue_usd=total_revenue_usd,
+                total_revenue_vnd=total_revenue_vnd,
                 total_credits_consumed=total_credits_consumed,
                 total_words_consumed=total_words_consumed,
                 timestamp=datetime.now(timezone.utc),
@@ -485,16 +491,28 @@ def retry_pipeline_job(job_id: str) -> bool:
                     started_at = NULL,
                     finished_at = NULL,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = %s;
+                WHERE id = %s
+                RETURNING video_id, triggered_by;
                 """,
                 (job_id,),
             )
-            if cursor.rowcount == 0:
+            row = cursor.fetchone()
+            if not row:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Job {job_id} not found",
                 )
+            video_id, triggered_by = row[0], row[1]
             conn.commit()
+
+            # Dispatch Celery task
+            try:
+                from app.tasks.video_tasks import process_video_pipeline
+                process_video_pipeline.delay(video_id, triggered_by, str(job_id))
+                logger.info(f"[AdminService] Retried and queued Celery task for job {job_id} (video {video_id})")
+            except Exception as task_err:
+                logger.error(f"[AdminService] Failed to dispatch Celery task for retried job {job_id}: {task_err}")
+
             return True
     finally:
         conn.close()
@@ -520,6 +538,15 @@ def cancel_pipeline_job(job_id: str) -> bool:
                     detail="Job is not in queued or processing state",
                 )
             conn.commit()
+
+            # Revoke Celery task
+            try:
+                from app.tasks.celery_app import celery_app
+                celery_app.control.revoke(str(job_id), terminate=True, signal="SIGTERM")
+                logger.info(f"[AdminService] Revoked Celery task for cancelled job {job_id}")
+            except Exception as revoke_err:
+                logger.warning(f"[AdminService] Could not revoke Celery task for job {job_id}: {revoke_err}")
+
             return True
     finally:
         conn.close()
@@ -1041,9 +1068,12 @@ def get_payment_stats() -> AdminPaymentStatsResponse:
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
-            # Total revenue
-            cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM payment_transactions WHERE status = 'completed';")
-            total_revenue = float(cursor.fetchone()[0] or 0)
+            # Total revenue by currency
+            cursor.execute("SELECT COALESCE(SUM(amount), 0.0) FROM payment_transactions WHERE status = 'completed' AND (currency = 'USD' OR currency IS NULL);")
+            total_revenue_usd = float(cursor.fetchone()[0] or 0.0)
+
+            cursor.execute("SELECT COALESCE(SUM(amount), 0.0) FROM payment_transactions WHERE status = 'completed' AND currency = 'VND';")
+            total_revenue_vnd = float(cursor.fetchone()[0] or 0.0)
 
             # Count by status
             cursor.execute("SELECT COUNT(*) FROM payment_transactions;")
@@ -1082,7 +1112,8 @@ def get_payment_stats() -> AdminPaymentStatsResponse:
             recent_txs, _ = list_payment_transactions(limit=10, offset=0)
 
             return AdminPaymentStatsResponse(
-                total_revenue_usd=total_revenue,
+                total_revenue_usd=total_revenue_usd,
+                total_revenue_vnd=total_revenue_vnd,
                 total_transactions_count=total_count,
                 completed_count=completed_count,
                 pending_count=pending_count,
@@ -1369,6 +1400,29 @@ def cleanup_temporary_files(target: str = "temp", older_than_days: int = 7) -> A
     deleted_count = 0
     freed_bytes = 0
 
+    # Query active video paths that must NEVER be deleted
+    protected_paths = set()
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT original_path, output_path, subtitle_path, transcript_path
+                FROM videos
+                WHERE deleted_at IS NULL;
+                """
+            )
+            for row in cursor.fetchall():
+                for p in row:
+                    if p:
+                        try:
+                            protected_paths.add(os.path.abspath(str(p)))
+                        except Exception:
+                            pass
+        conn.close()
+    except Exception as e:
+        logger.error(f"[AdminService] Error loading protected video paths: {e}")
+
     target_dirs = []
     if target in ("temp", "all"):
         target_dirs.append(UPLOAD_DIR)
@@ -1389,6 +1443,27 @@ def cleanup_temporary_files(target: str = "temp", older_than_days: int = 7) -> A
                     continue
 
                 fp = os.path.join(root, f)
+                abs_fp = os.path.abspath(fp)
+
+                # Skip explicitly protected paths
+                if abs_fp in protected_paths:
+                    continue
+
+                # Protect persistent subtitle/transcript/metadata files
+                lower_f = f.lower()
+                if (
+                    lower_f.startswith("subtitles_")
+                    or lower_f.startswith("subtitles.")
+                    or lower_f.startswith("translation_")
+                    or lower_f.startswith("transcript.")
+                    or lower_f == "transcript.json"
+                ):
+                    continue
+
+                # Protect final dubbed video files if in protected paths
+                if lower_f.startswith("dubbed_") and abs_fp in protected_paths:
+                    continue
+
                 try:
                     mtime = os.path.getmtime(fp)
                     if mtime < cutoff_time:

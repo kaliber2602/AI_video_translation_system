@@ -40,6 +40,7 @@ class SystemMetricsResponse(BaseModel):
     total_jobs: int
     jobs_by_status: Dict[str, int]
     total_revenue_usd: float
+    total_revenue_vnd: float = 0.0
     total_credits_consumed: int
     total_words_consumed: Optional[int] = 0
     timestamp: datetime
@@ -184,6 +185,7 @@ class AdminPaymentTransactionResponse(BaseModel):
 
 class AdminPaymentStatsResponse(BaseModel):
     total_revenue_usd: float
+    total_revenue_vnd: float = 0.0
     total_transactions_count: int
     completed_count: int
     pending_count: int
