@@ -1,10 +1,10 @@
-# 🎬 AI Video Translation & Dubbing Platform (VidNova)
+# AI Video Translation & Dubbing Platform (VidNova)
 
 Hệ thống AI xử lý, dịch thuật và lồng tiếng video đa ngôn ngữ toàn diện (End-to-End AI Video Translation & Dubbing Pipeline) hỗ trợ giao diện song ngữ (Tiếng Việt / English), tích hợp AI Models tiên tiến (Faster-Whisper, Demucs v4, NLLB-200, ElevenLabs, Ollama, EdgeTTS, VNPay Payment Gateway).
 
 ---
 
-## 📑 Mục Lục
+## Mục Lục
 - [1. Tính Năng Nổi Bật](#1-tính-năng-nổi-bật)
 - [2. Kiến Trúc Hệ Thống & Tech Stack](#2-kiến-trúc-hệ-thống--tech-stack)
 - [3. Yêu Cầu Phần Cứng & Môi Trường](#3-yêu-cầu-phần-cứng--môi-trường)
@@ -180,4 +180,4 @@ VNPAY_RETURN_URL=http://localhost:5173/payment/vnpay-return
 ```
 
 ---
-*Chúc bạn có trải nghiệm tuyệt vời với nền tảng biên dịch & lồng tiếng video AI VidNova!*
+
