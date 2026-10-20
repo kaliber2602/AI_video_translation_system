@@ -402,7 +402,24 @@
         "subtitles": "Tệp Phụ Đề (SRT, VTT, ASS)",
         "transcript": "Văn Bản Bóc Băng (Transcript gốc)",
         "translation": "Bản Dịch Thuật (Bilingual text)"
-      }
+      },
+      "backToStep5Tip": "Quay lại Studio Lồng Tiếng (Bước 5)",
+      "backToStep5": "Quay lại Bước 5",
+      "aiChaptersTitle": "Phân đoạn & Tóm tắt nội dung thông minh (AI Chapters & Summary)",
+      "aiChaptersDesc": "Phân tích ngữ nghĩa transcript bằng LLM để tự động chia chương mục và trích xuất điểm nổi bật",
+      "downloadMdTip": "Tải tài liệu tổng hợp Markdown",
+      "downloadMd": "Tải Báo Cáo (.md)",
+      "analyzingLlm": "Đang phân tích LLM...",
+      "regenerateAi": "Tạo lại với AI",
+      "generateChapters": "Tạo Chapters & Tóm tắt",
+      "loadingSummary": "Đang tải dữ liệu tóm tắt...",
+      "chaptersList": "Danh sách Chapters ({{count}})",
+      "clickChapterToSeek": "Click vào chapter để tua video",
+      "noChapters": "Chưa có chapters nào được tạo cho video này. Nhấn nút \"Tạo Chapters & Tóm tắt\" để LLM nhận diện các điểm nhấn.",
+      "executiveSummary": "Bản tóm tắt tổng quan (Executive Summary)",
+      "executiveSummaryPlaceholder": "Nhấn nút tạo phía trên để xem bản tóm tắt điều hành và các điểm chính (Key Takeaways).",
+      "zipEmptyError": "Tệp ZIP rỗng hoặc không có dữ liệu tải về.",
+      "zipDownloadFailed": "Tải gói tệp ZIP thất bại. Vui lòng thử lại sau."
     }
   },
   "batch": {

@@ -402,7 +402,24 @@
         "subtitles": "Subtitle File (SRT, VTT, ASS)",
         "transcript": "Transcript (Original Speech)",
         "translation": "Translation (Bilingual Text)"
-      }
+      },
+      "backToStep5Tip": "Return to Dubbing Studio (Step 5)",
+      "backToStep5": "Back to Step 5",
+      "aiChaptersTitle": "Smart Video Segmentation & Summary (AI Chapters & Summary)",
+      "aiChaptersDesc": "Analyze transcript semantics using LLM to automatically divide chapters and extract highlights",
+      "downloadMdTip": "Download Markdown summary report",
+      "downloadMd": "Download Report (.md)",
+      "analyzingLlm": "Analyzing with LLM...",
+      "regenerateAi": "Regenerate with AI",
+      "generateChapters": "Generate Chapters & Summary",
+      "loadingSummary": "Loading summary data...",
+      "chaptersList": "Chapters List ({{count}})",
+      "clickChapterToSeek": "Click on a chapter to seek video",
+      "noChapters": "No chapters created for this video yet. Click \"Generate Chapters & Summary\" to let LLM detect key highlights.",
+      "executiveSummary": "Executive Summary",
+      "executiveSummaryPlaceholder": "Click generate above to view executive summary and key takeaways.",
+      "zipEmptyError": "ZIP archive is empty or contains no downloadable data.",
+      "zipDownloadFailed": "Failed to download ZIP bundle. Please try again later."
     }
   },
   "batch": {

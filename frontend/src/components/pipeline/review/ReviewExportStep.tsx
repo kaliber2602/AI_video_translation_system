@@ -371,7 +371,7 @@ export default function ReviewExportStep() {
       setTimeout(() => setExportSuccess(false), 5000);
     } catch (error: any) {
       console.error("Export failed:", error);
-      setExportError(error.message || "Xuất video thất bại");
+      setExportError(error.message || t("pipeline:steps.reviewExport.exportFailed", "Xuất video thất bại"));
     } finally {
       setIsExporting(false);
     }
@@ -386,7 +386,7 @@ export default function ReviewExportStep() {
     try {
       const blob = await videoService.downloadAllAssetsZip(state.video.videoId, zipOptions);
       if (!blob || blob.size === 0) {
-        throw new Error("Tệp ZIP rỗng hoặc không có dữ liệu tải về.");
+        throw new Error(t("pipeline:steps.reviewExport.zipEmptyError", "Tệp ZIP rỗng hoặc không có dữ liệu tải về."));
       }
 
       const url = URL.createObjectURL(blob);
@@ -403,7 +403,7 @@ export default function ReviewExportStep() {
       setTimeout(() => setExportSuccess(false), 5000);
     } catch (error: any) {
       console.error("Download all assets ZIP failed:", error);
-      setExportError(error.message || "Tải gói tệp ZIP thất bại. Vui lòng thử lại sau.");
+      setExportError(error.message || t("pipeline:steps.reviewExport.zipDownloadFailed", "Tải gói tệp ZIP thất bại. Vui lòng thử lại sau."));
     } finally {
       setIsDownloadingZip(false);
     }
@@ -446,10 +446,10 @@ export default function ReviewExportStep() {
               dispatch({ type: "SET_STEP", payload: 5 });
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-xs font-semibold text-indigo-400 hover:bg-indigo-500/20 transition shadow-xs"
-            title="Quay lại Studio Lồng Tiếng (Bước 5)"
+            title={t("pipeline:steps.reviewExport.backToStep5Tip", "Quay lại Studio Lồng Tiếng (Bước 5)")}
           >
             <ChevronLeft size={13} />
-            <span>Quay lại Bước 5</span>
+            <span>{t("pipeline:steps.reviewExport.backToStep5", "Quay lại Bước 5")}</span>
           </button>
         }
         toolPanelTitle={t("pipeline:steps.reviewExport.exportOptionsTitle")}
@@ -584,10 +584,10 @@ export default function ReviewExportStep() {
                 <Sparkles size={18} className="text-[var(--color-primary)]" />
                 <div>
                   <h3 className="text-sm font-bold text-[var(--color-text-primary)]">
-                    Phân đoạn & Tóm tắt nội dung thông minh (AI Chapters & Summary)
+                    {t("pipeline:steps.reviewExport.aiChaptersTitle", "Phân đoạn & Tóm tắt nội dung thông minh (AI Chapters & Summary)")}
                   </h3>
                   <p className="text-[11px] text-[var(--color-text-muted)]">
-                    Phân tích ngữ nghĩa transcript bằng LLM để tự động chia chương mục và trích xuất điểm nổi bật
+                    {t("pipeline:steps.reviewExport.aiChaptersDesc", "Phân tích ngữ nghĩa transcript bằng LLM để tự động chia chương mục và trích xuất điểm nổi bật")}
                   </p>
                 </div>
               </div>
@@ -598,10 +598,10 @@ export default function ReviewExportStep() {
                     type="button"
                     onClick={handleDownloadSummaryDoc}
                     className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)] transition"
-                    title="Tải tài liệu tổng hợp Markdown"
+                    title={t("pipeline:steps.reviewExport.downloadMdTip", "Tải tài liệu tổng hợp Markdown")}
                   >
                     <Download size={13} />
-                    <span>Tải Báo Cáo (.md)</span>
+                    <span>{t("pipeline:steps.reviewExport.downloadMd", "Tải Báo Cáo (.md)")}</span>
                   </button>
                 )}
 
@@ -614,12 +614,12 @@ export default function ReviewExportStep() {
                   {isGeneratingIntelligence ? (
                     <>
                       <Loader2 size={13} className="animate-spin" />
-                      <span>Đang phân tích LLM...</span>
+                      <span>{t("pipeline:steps.reviewExport.analyzingLlm", "Đang phân tích LLM...")}</span>
                     </>
                   ) : (
                     <>
                       <Sparkles size={13} />
-                      <span>{chapters.length > 0 ? "Tạo lại với AI" : "Tạo Chapters & Tóm tắt"}</span>
+                      <span>{chapters.length > 0 ? t("pipeline:steps.reviewExport.regenerateAi", "Tạo lại với AI") : t("pipeline:steps.reviewExport.generateChapters", "Tạo Chapters & Tóm tắt")}</span>
                     </>
                   )}
                 </button>
@@ -629,7 +629,7 @@ export default function ReviewExportStep() {
             {isLoadingIntelligence ? (
               <div className="flex h-36 items-center justify-center">
                 <Loader2 size={24} className="animate-spin text-[var(--color-primary)] mr-2" />
-                <span className="text-xs text-[var(--color-text-muted)]">Đang tải dữ liệu tóm tắt...</span>
+                <span className="text-xs text-[var(--color-text-muted)]">{t("pipeline:steps.reviewExport.loadingSummary", "Đang tải dữ liệu tóm tắt...")}</span>
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -638,10 +638,10 @@ export default function ReviewExportStep() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)] flex items-center gap-1.5">
                       <Clock size={14} className="text-[var(--color-primary)]" />
-                      Danh sách Chapters ({chapters.length})
+                      {t("pipeline:steps.reviewExport.chaptersList", { count: chapters.length, defaultValue: `Danh sách Chapters (${chapters.length})` })}
                     </span>
                     <span className="text-[11px] text-[var(--color-text-muted)]">
-                      Click vào chapter để tua video
+                      {t("pipeline:steps.reviewExport.clickChapterToSeek", "Click vào chapter để tua video")}
                     </span>
                   </div>
 
@@ -649,7 +649,7 @@ export default function ReviewExportStep() {
                     <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-muted)]/40 p-8 text-center">
                       <BookOpen size={28} className="mx-auto text-[var(--color-text-muted)] opacity-60 mb-2" />
                       <p className="text-xs text-[var(--color-text-muted)]">
-                        Chưa có chapters nào được tạo cho video này. Nhấn nút "Tạo Chapters & Tóm tắt" để LLM nhận diện các phân đoạn ngữ nghĩa.
+                        {t("pipeline:steps.reviewExport.noChapters", "Chưa có chapters nào được tạo cho video này. Nhấn nút \"Tạo Chapters & Tóm tắt\" để LLM nhận diện các phân đoạn ngữ nghĩa.")}
                       </p>
                     </div>
                   ) : (
@@ -693,7 +693,7 @@ export default function ReviewExportStep() {
                 <div className="lg:col-span-5 flex flex-col rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/30 p-3.5">
                   <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)] flex items-center gap-1.5 mb-2.5">
                     <FileText size={14} className="text-[var(--color-primary)]" />
-                    Bản tóm tắt tổng quan (Executive Summary)
+                    {t("pipeline:steps.reviewExport.executiveSummary", "Bản tóm tắt tổng quan (Executive Summary)")}
                   </span>
 
                   {summaryDoc?.content_markdown ? (
@@ -703,7 +703,7 @@ export default function ReviewExportStep() {
                   ) : (
                     <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-xs text-[var(--color-text-muted)]">
                       <Sparkles size={24} className="opacity-40 mb-2" />
-                      Nhấn nút tạo phía trên để xem bản tóm tắt điều hành và các điểm chính (Key Takeaways).
+                      {t("pipeline:steps.reviewExport.executiveSummaryPlaceholder", "Nhấn nút tạo phía trên để xem bản tóm tắt điều hành và các điểm chính (Key Takeaways).")}
                     </div>
                   )}
                 </div>
