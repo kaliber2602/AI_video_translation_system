@@ -17,6 +17,7 @@ import Dialog from "../common/Dialog";
 import Button from "../common/Button";
 import { videoService } from "../../services/video.service";
 import { toast } from "../../lib/toast";
+import { useTranslation } from "react-i18next";
 import type { Video } from "./VideoCard";
 
 interface ThumbnailModalProps {
@@ -32,6 +33,7 @@ export default function ThumbnailModal({
   onClose,
   onThumbnailUpdated,
 }: ThumbnailModalProps) {
+  const { t } = useTranslation(["project", "common"]);
   const [activeTab, setActiveTab] = useState<"pick" | "upload" | "auto">("pick");
   const [sourceKind, setSourceKind] = useState<"output" | "original">("output");
 
@@ -165,10 +167,7 @@ export default function ThumbnailModal({
     try {
       setIsSubmitting(true);
       const res = await videoService.captureThumbnail(videoId, ts, sourceKind);
-      toast.success(
-        "Đã cập nhật Thumbnail",
-        `Đã trích xuất khung hình tại mốc ${formatTime(ts)}.`
-      );
+      toast.success(t("project:thumbnail.toastSuccess", "Đã cập nhật Thumbnail"), t("project:thumbnail.toastSuccessDesc", { time: formatTime(ts), defaultValue: `Đã trích xuất khung hình tại mốc ${formatTime(ts)}.` }));
       const newUrl =
         res.thumbnail_url ||
         videoService.getThumbnailUrl(videoId, Date.now());
@@ -177,8 +176,7 @@ export default function ThumbnailModal({
     } catch (err: any) {
       console.error("[ThumbnailModal] Capture error:", err);
       toast.error(
-        "Không thể lưu Thumbnail",
-        err.response?.data?.detail || "Đã xảy ra lỗi khi trích xuất khung hình."
+        t("project:thumbnail.toastSaveError", "Không thể lưu Thumbnail"), err.response?.data?.detail || t("project:thumbnail.toastSaveErrorDesc", "Đã xảy ra lỗi khi trích xuất khung hình.")
       );
     } finally {
       setIsSubmitting(false);
@@ -191,12 +189,12 @@ export default function ThumbnailModal({
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      toast.error("Tệp không hợp lệ", "Vui lòng chọn tệp hình ảnh (JPG, PNG, WebP).");
+      toast.error(t("project:thumbnail.toastInvalidFile", "Tệp không hợp lệ"), t("project:thumbnail.toastInvalidFileDesc", "Vui lòng chọn tệp hình ảnh (JPG, PNG, WebP)."));
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      toast.error("Ảnh quá lớn", "Dung lượng ảnh tối đa là 10MB.");
+      toast.error(t("project:thumbnail.toastFileTooLarge", "Ảnh quá lớn"), t("project:thumbnail.toastFileTooLargeDesc", "Dung lượng ảnh tối đa là 10MB."));
       return;
     }
 
@@ -215,7 +213,7 @@ export default function ThumbnailModal({
     try {
       setIsSubmitting(true);
       const res = await videoService.uploadThumbnail(videoId, selectedFile);
-      toast.success("Tải ảnh lên thành công", "Đã đặt làm Thumbnail video.");
+      toast.success(t("project:thumbnail.toastUploadSuccess", "Tải ảnh lên thành công"), t("project:thumbnail.toastUploadSuccessDesc", "Đã đặt làm Thumbnail video."));
       const newUrl =
         res.thumbnail_url ||
         videoService.getThumbnailUrl(videoId, Date.now());
@@ -224,8 +222,7 @@ export default function ThumbnailModal({
     } catch (err: any) {
       console.error("[ThumbnailModal] Upload error:", err);
       toast.error(
-        "Lỗi tải lên",
-        err.response?.data?.detail || "Không thể tải ảnh Thumbnail lên."
+        t("project:thumbnail.toastUploadError", "Lỗi tải lên"), err.response?.data?.detail || t("project:thumbnail.toastUploadErrorDesc", "Không thể tải ảnh Thumbnail lên.")
       );
     } finally {
       setIsSubmitting(false);
@@ -239,7 +236,7 @@ export default function ThumbnailModal({
     try {
       setIsSubmitting(true);
       const res = await videoService.autoGenerateThumbnail(videoId);
-      toast.success("Tự động tạo Thumbnail thành công!");
+      toast.success(t("project:thumbnail.toastAutoSuccess", "Tự động tạo Thumbnail thành công!"));
       const newUrl =
         res.thumbnail_url ||
         videoService.getThumbnailUrl(videoId, Date.now());
@@ -247,7 +244,7 @@ export default function ThumbnailModal({
       onClose();
     } catch (err: any) {
       console.error("[ThumbnailModal] Auto generate error:", err);
-      toast.error("Thất bại", "Không thể tự động trích xuất Thumbnail.");
+      toast.error(t("project:thumbnail.toastAutoError", "Thất bại"), t("project:thumbnail.toastAutoErrorDesc", "Không thể tự động trích xuất Thumbnail."));
     } finally {
       setIsSubmitting(false);
     }
@@ -260,12 +257,12 @@ export default function ThumbnailModal({
     try {
       setIsDeleting(true);
       await videoService.deleteThumbnail(videoId);
-      toast.info("Đã xóa Thumbnail tùy chỉnh", "Khôi phục về trạng thái ban đầu.");
+      toast.info(t("project:thumbnail.toastRemoveSuccess", "Đã xóa Thumbnail tùy chỉnh"), t("project:thumbnail.toastRemoveSuccessDesc", "Khôi phục về trạng thái ban đầu."));
       onThumbnailUpdated(videoId, "");
       onClose();
     } catch (err: any) {
       console.error("[ThumbnailModal] Delete error:", err);
-      toast.error("Lỗi xóa Thumbnail", "Không thể xóa Thumbnail.");
+      toast.error(t("project:thumbnail.toastRemoveError", "Lỗi xóa Thumbnail"), t("project:thumbnail.toastRemoveErrorDesc", "Không thể xóa Thumbnail."));
     } finally {
       setIsDeleting(false);
     }
@@ -284,7 +281,7 @@ export default function ThumbnailModal({
           </div>
           <div className="min-w-0">
             <h3 className="text-base font-bold text-[var(--color-text-primary)] truncate">
-              Chỉnh sửa Thumbnail Video
+              {t("project:thumbnail.modalTitle", "Chỉnh sửa Thumbnail Video")}
             </h3>
             <p className="text-xs text-[var(--color-text-muted)] truncate max-w-md">
               {video.title}
@@ -307,7 +304,7 @@ export default function ThumbnailModal({
             }`}
           >
             <Camera size={15} />
-            <span>Tua & Chọn khung hình</span>
+            <span>{t("project:thumbnail.tabPick", "Tua & Chọn khung hình")}</span>
           </button>
 
           <button
@@ -320,7 +317,7 @@ export default function ThumbnailModal({
             }`}
           >
             <Upload size={15} />
-            <span>Tải ảnh từ máy</span>
+            <span>{t("project:thumbnail.tabUpload", "Tải ảnh từ máy")}</span>
           </button>
 
           <button
@@ -333,13 +330,13 @@ export default function ThumbnailModal({
             }`}
           >
             <Sparkles size={15} />
-            <span>Tự động tạo</span>
+            <span>{t("project:thumbnail.tabAuto", "Tự động tạo")}</span>
           </button>
 
           {/* Current Thumbnail Indicator */}
           {video.thumbnail && (
             <div className="ml-auto hidden sm:flex items-center gap-2">
-              <span className="text-[11px] text-[var(--color-text-muted)]">Hiện tại:</span>
+              <span className="text-[11px] text-[var(--color-text-muted)]">{t("project:thumbnail.current", "Hiện tại:")}</span>
               <img
                 src={video.thumbnail}
                 alt="Current thumbnail"
@@ -356,7 +353,7 @@ export default function ThumbnailModal({
             {isCompleted && (
               <div className="flex items-center gap-3 bg-[var(--color-surface-muted)] p-2 rounded-xl">
                 <span className="text-xs font-semibold text-[var(--color-text-secondary)]">
-                  Nguồn video:
+                  {t("project:thumbnail.videoSource", "Nguồn video:")}
                 </span>
                 <div className="flex items-center gap-1.5">
                   <button
@@ -371,7 +368,7 @@ export default function ThumbnailModal({
                         : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                     }`}
                   >
-                    Video kết quả (Đã dịch / lồng tiếng)
+                    {t("project:thumbnail.sourceDubbed", "Video kết quả (Đã dịch / lồng tiếng)")}
                   </button>
                   <button
                     type="button"
@@ -385,7 +382,7 @@ export default function ThumbnailModal({
                         : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                     }`}
                   >
-                    Video gốc ban đầu
+                    {t("project:thumbnail.sourceOriginal", "Video gốc ban đầu")}
                   </button>
                 </div>
               </div>
@@ -407,7 +404,7 @@ export default function ThumbnailModal({
               {!videoLoaded && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 text-white gap-2">
                   <Loader2 size={28} className="animate-spin text-[var(--color-primary)]" />
-                  <span className="text-xs">Đang tải video...</span>
+                  <span className="text-xs">{t("project:thumbnail.loadingVideo", "Đang tải video...")}</span>
                 </div>
               )}
             </div>
@@ -439,7 +436,7 @@ export default function ThumbnailModal({
                   <button
                     type="button"
                     onClick={() => stepBy(-0.1)}
-                    title="Lùi 0.1s"
+                    title={t("project:thumbnail.stepBack", "Lùi 0.1s")}
                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] transition"
                   >
                     <ChevronLeft size={16} />
@@ -456,7 +453,7 @@ export default function ThumbnailModal({
                   <button
                     type="button"
                     onClick={() => stepBy(0.1)}
-                    title="Tiến 0.1s"
+                    title={t("project:thumbnail.stepForward", "Tiến 0.1s")}
                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] transition"
                   >
                     <ChevronRight size={16} />
@@ -466,7 +463,7 @@ export default function ThumbnailModal({
                 {/* Quick percentage jumps */}
                 <div className="flex items-center gap-1 text-[11px] text-[var(--color-text-secondary)]">
                   <span className="text-[10px] uppercase font-bold text-[var(--color-text-muted)] mr-1">
-                    Nhảy nhanh:
+                    {t("project:thumbnail.quickJump", "Nhảy nhanh:")}
                   </span>
                   {[0, 0.25, 0.5, 0.75, 0.9].map((ratio) => (
                     <button
@@ -475,7 +472,7 @@ export default function ThumbnailModal({
                       onClick={() => seekTo(duration * ratio)}
                       className="rounded px-2 py-0.5 border border-[var(--color-border)] bg-[var(--color-surface-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition"
                     >
-                      {ratio === 0 ? "Đầu" : `${Math.round(ratio * 100)}%`}
+                      {ratio === 0 ? t("project:thumbnail.start", "Đầu") : `${Math.round(ratio * 100)}%`}
                     </button>
                   ))}
                 </div>
@@ -487,7 +484,7 @@ export default function ThumbnailModal({
                   className="ml-auto flex items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-[var(--color-primary-hover)] active:scale-95 cursor-pointer"
                 >
                   <Camera size={14} />
-                  <span>Chụp khung hình này</span>
+                  <span>{t("project:thumbnail.captureFrame", "Capture Frame")}</span>
                 </button>
               </div>
             </div>
@@ -509,10 +506,10 @@ export default function ThumbnailModal({
 
                 <div className="min-w-0 flex-1">
                   <h4 className="text-sm font-bold text-[var(--color-text-primary)]">
-                    Đã chọn khung hình tại mốc {formatTime(capturedTime ?? currentTime)}
+                    {t("project:thumbnail.selectedAt", { time: formatTime(capturedTime ?? currentTime), defaultValue: `Đã chọn khung hình tại mốc ${formatTime(capturedTime ?? currentTime)}` })}
                   </h4>
                   <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                    Hệ thống sẽ trích xuất khung hình độ nét cao làm hình đại diện cho video này.
+                    {t("project:thumbnail.extractNote", "Hệ thống sẽ trích xuất khung hình độ nét cao làm hình đại diện cho video này.")}
                   </p>
                 </div>
 
@@ -522,7 +519,7 @@ export default function ThumbnailModal({
                   isLoading={isSubmitting}
                 >
                   <Check size={16} />
-                  <span>Xác nhận đặt làm Thumbnail</span>
+                  <span>{t("project:thumbnail.confirmThumbnail", "Xác nhận đặt làm Thumbnail")}</span>
                 </Button>
               </div>
             )}
@@ -549,10 +546,10 @@ export default function ThumbnailModal({
                   <Upload size={28} />
                 </div>
                 <h4 className="mt-3 text-sm font-bold text-[var(--color-text-primary)]">
-                  Bấm để chọn hoặc kéo thả ảnh Thumbnail
+                  {t("project:thumbnail.uploadDropzone", "Bấm để chọn hoặc kéo thả ảnh Thumbnail")}
                 </h4>
                 <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                  Hỗ trợ định dạng JPG, PNG, WebP (Tối đa 10MB)
+                  {t("project:thumbnail.uploadHint", "Hỗ trợ định dạng JPG, PNG, WebP (Tối đa 10MB)")}
                 </p>
               </div>
             ) : (
@@ -567,7 +564,7 @@ export default function ThumbnailModal({
 
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-[var(--color-text-muted)] truncate max-w-sm">
-                    Tệp đã chọn: <strong>{selectedFile?.name}</strong>
+                    {t("project:thumbnail.selectedFile", "Tệp đã chọn:")} <strong>{selectedFile?.name}</strong>
                   </span>
 
                   <div className="flex items-center gap-2">
@@ -576,7 +573,7 @@ export default function ThumbnailModal({
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isSubmitting}
                     >
-                      Chọn ảnh khác
+                      {t("project:thumbnail.chooseAnother", "Chọn ảnh khác")}
                     </Button>
 
                     <Button
@@ -585,7 +582,7 @@ export default function ThumbnailModal({
                       isLoading={isSubmitting}
                     >
                       <Check size={16} />
-                      <span>Lưu Thumbnail mới</span>
+                      <span>{t("project:thumbnail.saveNewThumbnail", "Lưu Thumbnail mới")}</span>
                     </Button>
                   </div>
                 </div>
@@ -603,10 +600,10 @@ export default function ThumbnailModal({
 
             <div className="max-w-md">
               <h4 className="text-base font-bold text-[var(--color-text-primary)]">
-                Tự động tạo Thumbnail từ Video
+                {t("project:thumbnail.autoExtractTitle", "Tự động tạo Thumbnail từ Video")}
               </h4>
               <p className="mt-1 text-xs text-[var(--color-text-secondary)] leading-relaxed">
-                Hệ thống AI sẽ tự động phân tích luồng video, loại bỏ màn hình đen hoặc phần giới thiệu, và trích xuất một khung hình chuẩn đẹp nhất từ video.
+                {t("project:thumbnail.autoExtractDesc", "Hệ thống AI sẽ tự động phân tích luồng video, loại bỏ màn hình đen hoặc phần giới thiệu, và trích xuất khung hình tiêu biểu rõ nét nhất.")}
               </p>
             </div>
 
@@ -617,7 +614,7 @@ export default function ThumbnailModal({
               className="mt-2"
             >
               <Sparkles size={16} />
-              <span>Bắt đầu tự động trích xuất</span>
+              <span>{t("project:thumbnail.startAutoExtract", "Bắt đầu tự động trích xuất")}</span>
             </Button>
           </div>
         )}
@@ -636,14 +633,14 @@ export default function ThumbnailModal({
               ) : (
                 <Trash2 size={14} />
               )}
-              <span>Xóa Thumbnail hiện tại</span>
+              <span>{t("project:thumbnail.removeThumbnail", "Xóa Thumbnail hiện tại")}</span>
             </button>
           ) : (
             <div />
           )}
 
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            Đóng
+            {t("common:actions.close", "Đóng")}
           </Button>
         </div>
       </div>

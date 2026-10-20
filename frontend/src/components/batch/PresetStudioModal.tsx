@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 
 import Dialog from "../common/Dialog";
 import Button from "../common/Button";
@@ -88,6 +89,7 @@ export default function PresetStudioModal({
   onSelectPreset,
 }: PresetStudioModalProps) {
   const { isPro } = useSubscriptionPlan();
+  const { t } = useTranslation(["pipeline", "common"]);
   const [activeTab, setActiveTab] = useState<TabKey>("separation");
   const [presets, setPresets] = useState<PipelinePreset[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<number | null>(null);
@@ -96,7 +98,7 @@ export default function PresetStudioModal({
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Preset Info
-  const [presetName, setPresetName] = useState("Cấu hình tùy chỉnh mới");
+  const [presetName, setPresetName] = useState(t("pipeline:presetStudio.customBadge", "Cấu hình tùy chỉnh mới"));
   const [presetDescription, setPresetDescription] = useState("");
   const [isSaveAsNewOpen, setIsSaveAsNewOpen] = useState(false);
   const [newSaveName, setNewSaveName] = useState("");
@@ -109,7 +111,7 @@ export default function PresetStudioModal({
 
   // Preview Subtitle Text
   const [previewSubtitleText, setPreviewSubtitleText] = useState(
-    "Chào mừng bạn đến với hệ thống dịch thuật video tự động bằng AI đa mô hình!"
+    t("pipeline:presetStudio.previewPlaceholder", "Chào mừng bạn đến với hệ thống dịch thuật video tự động bằng AI đa mô hình!")
   );
 
   useEffect(() => {
@@ -131,7 +133,7 @@ export default function PresetStudioModal({
         }
       }
     } catch (err: any) {
-      toast.error("Không thể tải danh sách presets");
+      toast.error(t("pipeline:presetStudio.toastLoadError", "Không thể tải danh sách presets"));
     } finally {
       setIsLoading(false);
     }
@@ -188,7 +190,7 @@ export default function PresetStudioModal({
 
   const handleResetDefaults = () => {
     setConfig(JSON.parse(JSON.stringify(DEFAULT_CONFIG)));
-    toast.success("Đã khôi phục cài đặt mặc định 6 tầng AI");
+    toast.success(t("pipeline:presetStudio.toastResetSuccess", "Đã khôi phục cài đặt mặc định 6 tầng AI"));
   };
 
   const XTTS_SUPPORTED_LANGS = ["en", "es", "fr", "de", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh", "ja", "hu", "ko", "hi"];
@@ -202,7 +204,7 @@ export default function PresetStudioModal({
       const res = config.export_muxing?.resolution;
       const proModels = ["mdx_extra", "mdx_net_karaoke", "whisper-large-v3", "whisper_large_v3", "nllb_200_3.3b", "coqui_xtts_v2", "xtts_v2", "elevenlabs"];
       if ([sep, stt, trans, tts].some(m => m && proModels.some(p => String(m).toLowerCase().includes(p))) || res === "1080p" || res === "4K") {
-        toast.error("Cấu hình chứa tính năng hoặc mô hình AI thuộc gói Pro. Vui lòng nâng cấp tài khoản để lưu cấu hình này.");
+        toast.error(t("pipeline:presetStudio.toastProRequired", "Cấu hình chứa tính năng hoặc mô hình AI thuộc gói Pro. Vui lòng nâng cấp tài khoản để lưu cấu hình này."));
         return;
       }
     }
@@ -211,7 +213,7 @@ export default function PresetStudioModal({
     const ttsEngine = (config.tts_dubbing?.engine || "").toLowerCase();
     const tgtLang = (config.translation?.target_language || "vi").toLowerCase().trim();
     if ((ttsEngine.includes("xtts") || ttsEngine.includes("coqui")) && !XTTS_SUPPORTED_LANGS.includes(tgtLang)) {
-      toast.error(`Mô hình Coqui XTTS-v2 không hỗ trợ ngôn ngữ "${tgtLang.toUpperCase()}". Vui lòng chọn Microsoft Edge-TTS hoặc ElevenLabs.`);
+      toast.error(t("pipeline:presetStudio.toastXttsLangError", { lang: tgtLang.toUpperCase(), defaultValue: `Mô hình Coqui XTTS-v2 không hỗ trợ ngôn ngữ "${tgtLang.toUpperCase()}". Vui lòng chọn Microsoft Edge-TTS hoặc ElevenLabs.` }));
       return;
     }
 
@@ -224,7 +226,7 @@ export default function PresetStudioModal({
 
       const payload = {
         name: presetName.trim(),
-        description: presetDescription || "Cấu hình tạo từ Preset Studio",
+        description: presetDescription || t("pipeline:presetStudio.customBadge", "Cấu hình tạo từ Preset Studio"),
         target_language: config.translation?.target_language || "vi",
         source_language: config.translation?.source_language || "auto",
         stt_model: config.transcription?.model_size || "medium",
@@ -242,10 +244,10 @@ export default function PresetStudioModal({
 
       const updated = await updatePreset(selectedPresetId, payload);
       setPresets((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      toast.success(`Đã cập nhật preset "${updated.name}" thành công!`);
+      toast.success(t("pipeline:presetStudio.toastUpdateSuccess", { name: updated.name, defaultValue: `Đã cập nhật preset "${updated.name}" thành công!` }));
       if (onPresetsChanged) onPresetsChanged();
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || "Lỗi khi cập nhật preset");
+      toast.error(err.response?.data?.detail || t("pipeline:presetStudio.toastUpdateError", "Lỗi khi cập nhật preset"));
     } finally {
       setIsSaving(false);
     }
@@ -260,19 +262,19 @@ export default function PresetStudioModal({
       const res = config.export_muxing?.resolution;
       const proModels = ["mdx_extra", "mdx_net_karaoke", "whisper-large-v3", "whisper_large_v3", "nllb_200_3.3b", "coqui_xtts_v2", "xtts_v2", "elevenlabs"];
       if ([sep, stt, trans, tts].some(m => m && proModels.some(p => String(m).toLowerCase().includes(p))) || res === "1080p" || res === "4K") {
-        toast.error("Cấu hình chứa tính năng hoặc mô hình AI thuộc gói Pro. Vui lòng nâng cấp tài khoản để lưu cấu hình này.");
+        toast.error(t("pipeline:presetStudio.toastProRequired", "Cấu hình chứa tính năng hoặc mô hình AI thuộc gói Pro. Vui lòng nâng cấp tài khoản để lưu cấu hình này."));
         return;
       }
     }
     if (!newSaveName.trim()) {
-      toast.error("Vui lòng nhập tên cho cấu hình mới");
+      toast.error(t("pipeline:presetStudio.toastEnterName", "Vui lòng nhập tên cho cấu hình mới"));
       return;
     }
 
     const ttsEngine = (config.tts_dubbing?.engine || "").toLowerCase();
     const tgtLang = (config.translation?.target_language || "vi").toLowerCase().trim();
     if ((ttsEngine.includes("xtts") || ttsEngine.includes("coqui")) && !XTTS_SUPPORTED_LANGS.includes(tgtLang)) {
-      toast.error(`Mô hình Coqui XTTS-v2 không hỗ trợ ngôn ngữ "${tgtLang.toUpperCase()}". Vui lòng chọn Microsoft Edge-TTS hoặc ElevenLabs.`);
+      toast.error(t("pipeline:presetStudio.toastXttsLangError", { lang: tgtLang.toUpperCase(), defaultValue: `Mô hình Coqui XTTS-v2 không hỗ trợ ngôn ngữ "${tgtLang.toUpperCase()}". Vui lòng chọn Microsoft Edge-TTS hoặc ElevenLabs.` }));
       return;
     }
 
@@ -285,7 +287,7 @@ export default function PresetStudioModal({
 
       const payload = {
         name: newSaveName.trim(),
-        description: presetDescription || "Cấu hình tạo từ Preset Studio",
+        description: presetDescription || t("pipeline:presetStudio.customBadge", "Cấu hình tạo từ Preset Studio"),
         target_language: config.translation?.target_language || "vi",
         source_language: config.translation?.source_language || "auto",
         stt_model: config.transcription?.model_size || "medium",
@@ -307,10 +309,10 @@ export default function PresetStudioModal({
       setPresetName(created.name);
       setIsSaveAsNewOpen(false);
       setNewSaveName("");
-      toast.success(`Đã tạo preset mới "${created.name}" thành công!`);
+      toast.success(t("pipeline:presetStudio.toastCreateSuccess", { name: created.name, defaultValue: `Đã tạo preset mới "${created.name}" thành công!` }));
       if (onPresetsChanged) onPresetsChanged();
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || "Lỗi khi tạo preset mới");
+      toast.error(err.response?.data?.detail || t("pipeline:presetStudio.toastCreateError", "Lỗi khi tạo preset mới"));
     } finally {
       setIsSaving(false);
     }
@@ -318,7 +320,7 @@ export default function PresetStudioModal({
 
   const handleDelete = async () => {
     if (!selectedPresetId || isSystemPreset) return;
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa preset "${presetName}"?`)) return;
+    if (!window.confirm(t("pipeline:presetStudio.toastConfirmDelete", { name: presetName, defaultValue: `Bạn có chắc chắn muốn xóa preset "${presetName}"?` }))) return;
 
     setIsDeleting(true);
     try {
@@ -328,10 +330,10 @@ export default function PresetStudioModal({
       if (remaining.length > 0) {
         applyPresetToState(remaining[0]);
       }
-      toast.success("Đã xóa preset thành công");
+      toast.success(t("pipeline:presetStudio.toastDeleteSuccess", "Đã xóa preset thành công"));
       if (onPresetsChanged) onPresetsChanged();
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || "Lỗi khi xóa preset");
+      toast.error(err.response?.data?.detail || t("pipeline:presetStudio.toastDeleteError", "Lỗi khi xóa preset"));
     } finally {
       setIsDeleting(false);
     }
@@ -345,7 +347,7 @@ export default function PresetStudioModal({
     }
 
     if (!window.speechSynthesis) {
-      toast.error("Trình duyệt không hỗ trợ Web Speech Synthesis");
+      toast.error(t("pipeline:presetStudio.toastTtsPreviewUnsupported", "Trình duyệt không hỗ trợ Web Speech Synthesis"));
       return;
     }
 
@@ -353,7 +355,7 @@ export default function PresetStudioModal({
     const utterance = new SpeechSynthesisUtterance(
       config.translation?.target_language === "en"
         ? "Hello, this is a sample voice preview generated for your dubbing configuration."
-        : "Xin chào, đây là giọng đọc thử nghiệm với tốc độ và âm điệu bạn đã chọn trong preset studio."
+        : t("pipeline:presetStudio.sampleTtsSpeech", "Xin chào, đây là giọng đọc thử nghiệm với tốc độ và âm điệu bạn đã chọn trong preset studio.")
     );
 
     utterance.rate = config.tts_dubbing?.speed_rate || 1.0;
@@ -373,10 +375,10 @@ export default function PresetStudioModal({
       onClose={onClose}
       title={
         <div className="flex items-center gap-2 text-lg font-bold text-[var(--color-text-primary)]">
-          <span>Preset Studio — Cấu Hình 6 Tầng AI Chuyên Sâu</span>
+          <span>{t("pipeline:presetStudio.title", "Preset Studio — Cấu Hình 6 Tầng AI Chuyên Sâu")}</span>
         </div>
       }
-      description="Thiết lập tham số toàn diện cho chu trình xử lý video: Tách âm, STT Whisper, Dịch thuật, TTS đa giọng, Phụ đề ASS & Render GPU NVENC."
+      description={t("pipeline:presetStudio.description", "Thiết lập tham số toàn diện cho chu trình xử lý video: Tách âm, STT Whisper, Dịch thuật đa ngữ, Lồng tiếng AI, Phụ đề ASS và Xuất video phần cứng NVENC.")}
       maxWidth="2xl"
     >
       <div className="flex flex-col gap-5 pt-2">
@@ -384,7 +386,7 @@ export default function PresetStudioModal({
         <div className="flex flex-col gap-3 rounded-2xl border border-[var(--color-border)]/60 bg-[var(--color-surface-muted)]/70 backdrop-blur-md p-4 sm:flex-row sm:items-center sm:justify-between shadow-xs">
           <div className="flex flex-1 items-center gap-3 min-w-0">
             <span className="text-xs font-bold text-[var(--color-text-secondary)] shrink-0">
-              Preset mẫu:
+              {t("pipeline:presetStudio.samplePreset", "Preset mẫu:")}
             </span>
             <select
               value={selectedPresetId || ""}
@@ -398,7 +400,7 @@ export default function PresetStudioModal({
             >
               {presets.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} {p.is_system ? "(Hệ thống)" : "(Tùy chỉnh)"}
+                  {p.name} {p.is_system ? t("pipeline:presetStudio.systemBadge", "(Hệ thống)") : t("pipeline:presetStudio.customBadge", "(Tùy chỉnh)")}
                 </option>
               ))}
             </select>
@@ -407,7 +409,7 @@ export default function PresetStudioModal({
           <div className="flex items-center gap-2 shrink-0">
             {isSystemPreset ? (
               <span className="inline-flex items-center rounded-lg border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-500">
-                Hệ thống (Read-only)
+                {t("pipeline:presetStudio.readOnlyBadge", "Hệ thống (Read-only)")}
               </span>
             ) : (
               <>
@@ -417,7 +419,7 @@ export default function PresetStudioModal({
                   disabled={isSaving}
                   className="flex h-8 items-center rounded-lg bg-indigo-600 px-3 text-xs font-medium text-white transition hover:bg-indigo-700 disabled:opacity-50 cursor-pointer"
                 >
-                  {isSaving ? "Đang lưu..." : "Lưu cập nhật"}
+                  {isSaving ? t("pipeline:presetStudio.saving", "Đang lưu...") : t("pipeline:presetStudio.saveChanges", "Lưu cập nhật")}
                 </button>
 
                 <button
@@ -425,9 +427,9 @@ export default function PresetStudioModal({
                   onClick={handleDelete}
                   disabled={isDeleting}
                   className="flex h-8 items-center justify-center rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 text-xs font-medium text-rose-500 transition hover:bg-rose-500/20 disabled:opacity-50 cursor-pointer"
-                  title="Xóa preset này"
+                  title={t("pipeline:presetStudio.deletePreset", "Xóa preset này")}
                 >
-                  {isDeleting ? "Đang xóa..." : "Xóa"}
+                  {isDeleting ? t("pipeline:presetStudio.deleting", "Đang xóa...") : t("pipeline:presetStudio.delete", "Xóa")}
                 </button>
               </>
             )}
@@ -440,7 +442,7 @@ export default function PresetStudioModal({
               }}
               className="flex h-8 items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-xs font-medium text-[var(--color-text-primary)] transition hover:border-indigo-500 hover:text-indigo-500 cursor-pointer"
             >
-              Lưu thành mới
+              {t("pipeline:presetStudio.saveAsNew", "Lưu thành mới")}
             </button>
           </div>
         </div>
@@ -448,20 +450,20 @@ export default function PresetStudioModal({
         {/* Save As New Popover/Bar */}
         {isSaveAsNewOpen && (
           <div className="flex flex-col gap-2 rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3 animate-fade-in">
-            <div className="text-xs font-bold text-indigo-400">Tạo Preset mới từ các thiết lập hiện tại:</div>
+            <div className="text-xs font-bold text-indigo-400">{t("pipeline:presetStudio.createNewFromCurrent", "Tạo Preset mới từ các thiết lập hiện tại:")}</div>
             <div className="flex items-center gap-2">
               <input
                 type="text"
-                placeholder="Nhập tên preset mới..."
+                placeholder={t("pipeline:presetStudio.enterNamePlaceholder", "Nhập tên preset mới...")}
                 value={newSaveName}
                 onChange={(e) => setNewSaveName(e.target.value)}
                 className="h-8 flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-xs text-[var(--color-text-primary)] outline-none focus:border-indigo-500"
               />
               <Button size="sm" onClick={handleSaveAsNew} disabled={isSaving}>
-                {isSaving ? "Đang lưu..." : "Xác nhận"}
+                {isSaving ? t("pipeline:presetStudio.saving", "Đang lưu...") : t("pipeline:presetStudio.confirm", "Xác nhận")}
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setIsSaveAsNewOpen(false)}>
-                Hủy
+                {t("pipeline:presetStudio.cancel", "Hủy")}
               </Button>
             </div>
           </div>
@@ -478,7 +480,7 @@ export default function PresetStudioModal({
                 : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
             }`}
           >
-            <span>1. Tách âm</span>
+            <span>{t("pipeline:presetStudio.tiers.separation", "1. Tách âm")}</span>
           </button>
 
           <button
@@ -502,7 +504,7 @@ export default function PresetStudioModal({
                 : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
             }`}
           >
-            <span>3. Dịch thuật</span>
+            <span>{t("pipeline:presetStudio.tiers.translation", "3. Dịch thuật")}</span>
           </button>
 
           <button
@@ -514,7 +516,7 @@ export default function PresetStudioModal({
                 : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
             }`}
           >
-            <span>4. Lồng tiếng</span>
+            <span>{t("pipeline:presetStudio.tiers.dubbing", "4. Lồng tiếng")}</span>
           </button>
 
           <button
@@ -526,7 +528,7 @@ export default function PresetStudioModal({
                 : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
             }`}
           >
-            <span>5. Phụ đề ASS</span>
+            <span>{t("pipeline:presetStudio.tiers.subtitle", "5. Phụ đề ASS")}</span>
           </button>
 
           <button
@@ -538,7 +540,7 @@ export default function PresetStudioModal({
                 : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
             }`}
           >
-            <span>6. Xuất NVENC</span>
+            <span>{t("pipeline:presetStudio.tiers.export", "6. Xuất NVENC")}</span>
           </button>
         </div>
 
@@ -550,10 +552,10 @@ export default function PresetStudioModal({
               <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
                 <div>
                   <h4 className="text-sm font-bold text-[var(--color-text-primary)]">
-                    Tầng 1: Tách Âm & Tiền Xử Lý (Demucs Audio Separation)
+                    {t("pipeline:presetStudio.tier1.title", "Tầng 1: Tách Âm & Tiền Xử Lý (Demucs Audio Separation)")}
                   </h4>
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    Bóc tách âm thanh gốc thành Vocals (cho STT & lồng tiếng) và Background Music (BGM).
+                    {t("pipeline:presetStudio.tier1.desc", "Bóc tách âm thanh gốc thành Vocals (cho STT & lồng tiếng) và Background Music (BGM).")}
                   </p>
                 </div>
                 <span className="rounded bg-indigo-500/10 px-2 py-0.5 text-[11px] font-semibold text-indigo-400">
@@ -564,7 +566,7 @@ export default function PresetStudioModal({
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-1">
                 <div>
                   <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
-                    Mô hình bóc tách âm thanh (Demucs)
+                    {t("pipeline:presetStudio.tier1.modelLabel", "Mô hình bóc tách âm thanh (Demucs)")}
                   </label>
                   <select
                     value={config.audio_separation?.demucs_model || "htdemucs"}
@@ -577,13 +579,13 @@ export default function PresetStudioModal({
                     className="w-full h-9 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs text-[var(--color-text-primary)] outline-none focus:border-indigo-500"
                   >
                     <option value="htdemucs">Meta Demucs v4 HT (Free - Nhanh, VRAM 1.2GB)</option>
-                    <option value="htdemucs_ft">Meta Demucs v4 FT (Free - Khử tạp âm tốt)</option>
+                    <option value="htdemucs_ft">{t("pipeline:presetStudio.tier1.demucsFt", "Meta Demucs v4 FT (Free - Khử tạp âm tốt)")}</option>
                     <option value="mdx_extra" disabled={!isPro}>
-                      MDX-Net Extra {!isPro ? "(Yeu cau goi Pro)" : "(Pro - Bảo toàn nhạc nền chi tiết)"}
+                      MDX-Net Extra {!isPro ? t("pipeline:presetStudio.tier1.proRequired", "(Yêu cầu gói Pro)") : t("pipeline:presetStudio.tier1.proDetailedBgm", "(Pro - Bảo toàn nhạc nền chi tiết)")}
                     </option>
                   </select>
                   <p className="text-[10px] text-[var(--color-text-muted)] mt-1.5">
-                    Demucs trích xuất riêng biệt Vocals (cho nhận diện giọng nói) và Background Music (cho khâu lồng tiếng).
+                    {t("pipeline:presetStudio.tier1.note", "Demucs trích xuất riêng biệt Vocals (cho nhận diện giọng nói) và Background Music.")}
                   </p>
                 </div>
               </div>
@@ -596,10 +598,10 @@ export default function PresetStudioModal({
               <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
                 <div>
                   <h4 className="text-sm font-bold text-[var(--color-text-primary)]">
-                    Tầng 2: Nhận Dạng Giọng Nói (Faster-Whisper STT)
+                    {t("pipeline:presetStudio.tier2.title", "Tầng 2: Nhận Dạng Giọng Nói (Faster-Whisper STT)")}
                   </h4>
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    Chuyển âm thanh thành văn bản với độ chính xác cao bám sát thời gian thực.
+                    {t("pipeline:presetStudio.tier2.desc", "Chuyển âm thanh thành văn bản với độ chính xác cao bám sát thời gian thực.")}
                   </p>
                 </div>
                 <span className="rounded bg-indigo-500/10 px-2 py-0.5 text-[11px] font-semibold text-indigo-400">
@@ -610,7 +612,7 @@ export default function PresetStudioModal({
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-1">
                 <div>
                   <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
-                    Mô hình nhận dạng giọng nói (Whisper STT)
+                    {t("pipeline:presetStudio.tier2.modelLabel", "Mô hình nhận dạng giọng nói (Whisper STT)")}
                   </label>
                   <select
                     value={config.transcription?.model_size || "whisper-medium"}
@@ -624,14 +626,14 @@ export default function PresetStudioModal({
                   >
                     <option value="whisper-base">OpenAI Whisper Base (Free)</option>
                     <option value="whisper-small">OpenAI Whisper Small (Free)</option>
-                    <option value="whisper-medium">OpenAI Whisper Medium (Free - Khuyên dùng)</option>
-                    <option value="whisperx-large-v3">WhisperX Large v3 (Free - Căn chỉnh thời gian chuẩn xác)</option>
+                    <option value="whisper-medium">{t("pipeline:presetStudio.tier2.medium", "OpenAI Whisper Medium (Free - Khuyên dùng)")}</option>
+                    <option value="whisperx-large-v3">{t("pipeline:presetStudio.tier2.whisperxLargeV3", "WhisperX Large v3 (Free - Căn chỉnh thời gian chuẩn xác)")}</option>
                     <option value="whisper-large-v3" disabled={!isPro}>
                       OpenAI Whisper Large v3 {!isPro ? "(Yeu cau goi Pro)" : "(Pro)"}
                     </option>
                   </select>
                   <p className="text-[10px] text-[var(--color-text-muted)] mt-1.5">
-                    Mô hình nhận dạng giọng nói tự động trích xuất lời thoại chính xác theo từng đoạn video.
+                    {t("pipeline:presetStudio.tier2.note", "Mô hình nhận dạng giọng nói tự động trích xuất lời thoại chính xác theo từng đoạn video.")}
                   </p>
                 </div>
               </div>
@@ -644,10 +646,10 @@ export default function PresetStudioModal({
               <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
                 <div>
                   <h4 className="text-sm font-bold text-[var(--color-text-primary)]">
-                    Tầng 3: Dịch Thuật Đa Ngữ (NLLB-200) & Từ Điển Thuật Ngữ (Glossary)
+                    {t("pipeline:presetStudio.tier3.title", "Tầng 3: Dịch Thuật Đa Ngữ (NLLB-200) & Từ Điển Thuật Ngữ (Glossary)")}
                   </h4>
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    Bản dịch mạch lạc tự nhiên, bảo toàn ngữ cảnh và dịch chính xác thuật ngữ chuyên ngành.
+                    {t("pipeline:presetStudio.tier3.desc", "Bản dịch mạch lạc tự nhiên, bảo toàn ngữ cảnh và dịch chính xác thuật ngữ chuyên ngành.")}
                   </p>
                 </div>
                 <span className="rounded bg-indigo-500/10 px-2 py-0.5 text-[11px] font-semibold text-indigo-400">
@@ -658,7 +660,7 @@ export default function PresetStudioModal({
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
-                    Ngôn ngữ đích mặc định
+                    {t("pipeline:presetStudio.tier3.targetLangLabel", "Ngôn ngữ đích mặc định")}
                   </label>
                   <select
                     value={config.translation?.target_language || "vi"}
@@ -687,7 +689,7 @@ export default function PresetStudioModal({
 
                 <div>
                   <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
-                    Mô hình dịch thuật
+                    {t("pipeline:presetStudio.tier3.modelLabel", "Mô hình dịch thuật")}
                   </label>
                   <select
                     value={config.translation?.model_name || "nllb_200_1.3b"}
@@ -717,10 +719,10 @@ export default function PresetStudioModal({
               <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
                 <div>
                   <h4 className="text-sm font-bold text-[var(--color-text-primary)]">
-                    Tầng 4: Lồng Tiếng AI (TTS Dubbing) & Phân Vai Giọng Đọc
+                    {t("pipeline:presetStudio.tier4.title", "Tầng 4: Lồng Tiếng AI (TTS Dubbing) & Phân Vai Giọng Đọc")}
                   </h4>
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    Nhân bản giọng gốc bằng XTTS v2 hoặc sử dụng Microsoft Neural Voice truyền cảm.
+                    {t("pipeline:presetStudio.tier4.desc", "Nhân bản giọng gốc bằng XTTS v2 hoặc sử dụng Microsoft Neural Voice truyền cảm.")}
                   </p>
                 </div>
                 <button
@@ -728,14 +730,14 @@ export default function PresetStudioModal({
                   onClick={handleTestVoiceAudio}
                   className="flex items-center rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-400 transition hover:bg-indigo-500/20 cursor-pointer"
                 >
-                  {isPlayingAudio ? "Dừng phát" : "Nghe thử giọng mẫu"}
+                  {isPlayingAudio ? t("pipeline:presetStudio.tier4.stopPreview", "Dừng phát") : t("pipeline:presetStudio.tier4.listenPreview", "Nghe thử giọng mẫu")}
                 </button>
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
-                    Mô hình lồng tiếng AI (TTS Engine)
+                    {t("pipeline:presetStudio.tier4.engineLabel", "Mô hình lồng tiếng AI (TTS Engine)")}
                   </label>
                   <select
                     value={config.tts_dubbing?.engine || "edge_tts"}
@@ -768,14 +770,14 @@ export default function PresetStudioModal({
                   {(config.tts_dubbing?.engine === "coqui_xtts_v2") &&
                     !XTTS_SUPPORTED_LANGS.includes((config.translation?.target_language || "vi").toLowerCase().trim()) && (
                       <p className="mt-1 text-[11px] font-semibold text-rose-500">
-                        Coqui XTTS-v2 không hỗ trợ ngôn ngữ "{config.translation?.target_language?.toUpperCase() || "VI"}". Vui lòng chọn Microsoft Edge-TTS hoặc ElevenLabs.
+                        {t("pipeline:presetStudio.tier4.xttsUnsupported", { lang: config.translation?.target_language?.toUpperCase() || "VI", defaultValue: `Coqui XTTS-v2 không hỗ trợ ngôn ngữ "${config.translation?.target_language?.toUpperCase() || "VI"}". Khuyến nghị Edge-TTS hoặc ElevenLabs.` })}
                       </p>
                     )}
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
-                    Giọng đọc chính (Default Voice)
+                    {t("pipeline:presetStudio.tier4.voiceLabel", "Giọng đọc chính (Default Voice)")}
                   </label>
                   <select
                     value={config.tts_dubbing?.default_voice_id || "vi-VN-HoaiMyNeural"}
@@ -818,7 +820,7 @@ export default function PresetStudioModal({
                 <div className="flex items-center justify-between pb-2 border-b border-[var(--color-border)]">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-primary)]">
-                      Bàn Trộn 3 Rãnh (Virtual Mixer)
+                      {t("pipeline:presetStudio.tier4.mixerTitle", "Bàn Trộn 3 Rãnh (Virtual Mixer)")}
                     </span>
                   </div>
                   <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded">
@@ -829,7 +831,7 @@ export default function PresetStudioModal({
                 {/* 1-Click Audio Presets */}
                 <div className="space-y-1">
                   <span className="text-[10px] font-semibold text-[var(--color-text-muted)] block">
-                    Bộ Preset Hòa Âm 1-Click:
+                    {t("pipeline:presetStudio.tier4.quickMixPresets", "Bộ Preset Hòa Âm 1-Click:")}
                   </span>
                   <div className="grid grid-cols-3 gap-1.5">
                     <button
@@ -849,9 +851,9 @@ export default function PresetStudioModal({
                         }));
                       }}
                       className="px-2 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-indigo-500 text-[10px] font-medium text-[var(--color-text-primary)] flex flex-col items-center gap-0.5 text-center transition cursor-pointer"
-                      title="Vocal Gốc 0% (Tắt) + BGM 70% (Bật) + Giọng AI 100%"
+                      title={t("pipeline:presetStudio.tier4.presetAiVoiceTip", "Vocal Gốc 0% + BGM 70% + Giọng AI 100%")}
                     >
-                      <span>Giọng AI</span>
+                      <span>{t("pipeline:presetStudio.tier4.presetAiVoice", "Giọng AI")}</span>
                       <span className="text-[9px] text-[var(--color-text-muted)]">Pure Dub</span>
                     </button>
 
@@ -872,9 +874,9 @@ export default function PresetStudioModal({
                         }));
                       }}
                       className="px-2 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-indigo-500 text-[10px] font-medium text-[var(--color-text-primary)] flex flex-col items-center gap-0.5 text-center transition cursor-pointer"
-                      title="Vocal Gốc 30% (Bật) + BGM 50% (Bật) + Giọng AI 70%"
+                      title={t("pipeline:presetStudio.tier4.presetBroadcastTip", "Vocal Gốc 30% + BGM 50% + Giọng AI 70%")}
                     >
-                      <span>Truyền hình</span>
+                      <span>{t("pipeline:presetStudio.tier4.presetBroadcast", "Truyền hình")}</span>
                       <span className="text-[9px] text-[var(--color-text-muted)]">70/30 Mux</span>
                     </button>
 
@@ -895,9 +897,9 @@ export default function PresetStudioModal({
                         }));
                       }}
                       className="px-2 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-indigo-500 text-[10px] font-medium text-[var(--color-text-primary)] flex flex-col items-center gap-0.5 text-center transition cursor-pointer"
-                      title="Vocal Gốc 0% (Tắt) + BGM 0% (Tắt) + Giọng AI 100%"
+                      title={t("pipeline:presetStudio.tier4.presetSpeechOnlyTip", "Vocal Gốc 0% + BGM 0% + Giọng AI 100%")}
                     >
-                      <span>🗣️ Chỉ lời nói</span>
+                      <span>🗣️ {t("pipeline:presetStudio.tier4.presetSpeechOnly", "Chỉ lời nói")}</span>
                       <span className="text-[9px] text-[var(--color-text-muted)]">Clean Speech</span>
                     </button>
                   </div>
@@ -907,7 +909,7 @@ export default function PresetStudioModal({
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[10px]">
                     <span className="font-semibold text-[var(--color-text-secondary)]">
-                      Vocal Gốc (Original)
+                      {t("pipeline:presetStudio.tier4.trackOriginal", "Vocal Gốc (Original)")}
                     </span>
                     <div className="flex items-center gap-1.5 font-mono">
                       <button
@@ -956,7 +958,7 @@ export default function PresetStudioModal({
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[10px]">
                     <span className="font-semibold text-[var(--color-text-secondary)]">
-                      Nhạc nền (BGM)
+                      {t("pipeline:presetStudio.tier4.trackBgm", "Nhạc nền (BGM)")}
                     </span>
                     <div className="flex items-center gap-1.5 font-mono">
                       <button
@@ -1005,7 +1007,7 @@ export default function PresetStudioModal({
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[10px]">
                     <span className="font-semibold text-[var(--color-text-secondary)]">
-                      Giọng AI Dubbing
+                      {t("pipeline:presetStudio.tier4.trackDubbing", "Giọng AI Dubbing")}
                     </span>
                     <div className="flex items-center gap-1.5 font-mono">
                       <button
@@ -1060,10 +1062,10 @@ export default function PresetStudioModal({
               <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
                 <div>
                   <h4 className="text-sm font-bold text-[var(--color-text-primary)]">
-                    Tầng 5: Tùy Biến Kiểu Dáng Phụ Đề (Subtitle Studio)
+                    {t("pipeline:presetStudio.tier5.title", "Tầng 5: Tùy Biến Kiểu Dáng Phụ Đề (Subtitle Studio)")}
                   </h4>
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    Đồng bộ 100% tham số hiển thị, typography, căn lề, hoạt ảnh và vị trí chuẩn xác.
+                    {t("pipeline:presetStudio.tier5.desc", "Đồng bộ 100% tham số hiển thị, typography, căn lề, hoạt ảnh và vị trí chuẩn xác.")}
                   </p>
                 </div>
                 <span className="rounded bg-indigo-500/10 px-2 py-0.5 text-[11px] font-semibold text-indigo-400">
@@ -1074,7 +1076,7 @@ export default function PresetStudioModal({
               {/* 1-CLICK QUICK PRESETS */}
               <div>
                 <label className="text-[11px] font-bold text-[var(--color-text-secondary)] block mb-1.5 uppercase tracking-wider">
-                  Kiểu mẫu xu hướng 1-Click (Trending Presets):
+                  {t("pipeline:presetStudio.tier5.trendingPresets", "Kiểu mẫu xu hướng 1-Click (Trending Presets):")}
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   <button
@@ -1111,7 +1113,7 @@ export default function PresetStudioModal({
                     }`}
                   >
                     <span className="font-bold text-xs">None</span>
-                    <span className="text-[9px] text-[var(--color-text-muted)] mt-0.5">Mặc định</span>
+                    <span className="text-[9px] text-[var(--color-text-muted)] mt-0.5">{t("pipeline:presetStudio.tier5.presetDefault", "Mặc định")}</span>
                   </button>
 
                   <button
@@ -1219,7 +1221,7 @@ export default function PresetStudioModal({
                     }`}
                   >
                     <span className="font-bold text-xs">TikTok</span>
-                    <span className="text-[9px] text-[var(--color-text-muted)] mt-0.5">9:16 Dọc</span>
+                    <span className="text-[9px] text-[var(--color-text-muted)] mt-0.5">{t("pipeline:presetStudio.tier5.presetShorts", "9:16 Dọc")}</span>
                   </button>
 
                   <button
@@ -1255,7 +1257,7 @@ export default function PresetStudioModal({
                     }`}
                   >
                     <span className="font-bold text-xs">YouTube</span>
-                    <span className="text-[9px] text-[var(--color-text-muted)] mt-0.5">Chuẩn 16:9</span>
+                    <span className="text-[9px] text-[var(--color-text-muted)] mt-0.5">{t("pipeline:presetStudio.tier5.presetStandard", "Chuẩn 16:9")}</span>
                   </button>
                 </div>
 
@@ -1263,10 +1265,10 @@ export default function PresetStudioModal({
                 <div className="mt-2.5 p-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] flex items-center justify-between">
                   <div>
                     <span className="text-xs font-bold text-[var(--color-text-primary)] block">
-                      Phụ đề song ngữ (Bilingual)
+                      {t("pipeline:presetStudio.tier5.bilingual", "Phụ đề song ngữ (Bilingual)")}
                     </span>
                     <span className="text-[10px] text-[var(--color-text-muted)]">
-                      Dòng 1 câu gốc, Dòng 2 câu dịch
+                      {t("pipeline:presetStudio.tier5.bilingualDesc", "Dòng 1 câu gốc, Dòng 2 câu dịch")}
                     </span>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -1337,7 +1339,7 @@ export default function PresetStudioModal({
                   type="text"
                   value={previewSubtitleText}
                   onChange={(e) => setPreviewSubtitleText(e.target.value)}
-                  placeholder="Nhập câu mẫu để thử nghiệm phụ đề..."
+                  placeholder={t("pipeline:presetStudio.tier5.previewPlaceholder", "Nhập câu mẫu để thử nghiệm phụ đề...")}
                   className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs text-[var(--color-text-primary)] outline-none focus:border-indigo-500"
                 />
               </div>
@@ -1346,7 +1348,7 @@ export default function PresetStudioModal({
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-[11px] font-semibold text-[var(--color-text-secondary)]">
-                    Kiểu phông chữ thực tế:
+                    {t("pipeline:presetStudio.tier5.fontPreviewTitle", "Kiểu phông chữ thực tế:")}
                   </label>
                   <span className="text-[10px] font-mono text-indigo-400 font-bold">
                     {config.subtitles?.style?.font_name || "Montserrat"}
@@ -1406,12 +1408,12 @@ export default function PresetStudioModal({
                 {/* HÀNG 1: Cỡ chữ + Màu chữ + Màu viền */}
                 <div>
                   <div className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">
-                    Hàng 1 · Cỡ chữ & Màu sắc:
+                    {t("pipeline:presetStudio.tier5.row1Title", "Hàng 1 · Cỡ chữ & Màu sắc:")}
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <label className="text-[10px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                        Cỡ chữ:
+                        {t("pipeline:presetStudio.tier5.fontSize", "Cỡ chữ:")}
                       </label>
                       <select
                         value={String(config.subtitles?.style?.font_size || 22)}
@@ -1438,7 +1440,7 @@ export default function PresetStudioModal({
 
                     <div>
                       <label className="text-[10px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                        Màu chữ:
+                        {t("pipeline:presetStudio.tier5.fontColor", "Màu chữ:")}
                       </label>
                       <div className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] p-1 h-8">
                         <input
@@ -1464,7 +1466,7 @@ export default function PresetStudioModal({
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="text-[10px] font-medium text-[var(--color-text-secondary)]">
-                          Viền:
+                          {t("pipeline:presetStudio.tier5.outlineColor", "Viền:")}
                         </label>
                         <label className="relative inline-flex items-center cursor-pointer">
                           <input
@@ -1509,7 +1511,7 @@ export default function PresetStudioModal({
                         />
                         <span className="font-mono text-[9px] text-[var(--color-text-muted)] uppercase truncate">
                           {config.subtitles?.style?.outline_color === "transparent"
-                            ? "Tắt"
+                            ? t("pipeline:presetStudio.tier5.outlineOff", "Tắt")
                             : config.subtitles?.style?.outline_color || "#000000"}
                         </span>
                       </div>
@@ -1520,19 +1522,19 @@ export default function PresetStudioModal({
                 {/* HÀNG 2: Căn lề + Số dòng + Khoảng cách */}
                 <div className="pt-2 border-t border-[var(--color-border)]/40 space-y-1.5">
                   <div className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
-                    Hàng 2 · Căn lề & Số dòng:
+                    {t("pipeline:presetStudio.tier5.row2Title", "Hàng 2 · Căn lề & Số dòng:")}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <div>
                       <label className="text-[10px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                        Căn lề:
+                        {t("pipeline:presetStudio.tier5.alignment", "Căn lề:")}
                       </label>
                       <div className="grid grid-cols-4 gap-0.5 bg-[var(--color-surface)] p-0.5 rounded-lg border border-[var(--color-border)]">
                         {[
-                          { id: "left", label: "Trái" },
-                          { id: "center", label: "Giữa" },
-                          { id: "right", label: "Phải" },
-                          { id: "justify", label: "Đều" },
+                          { id: "left", label: t("pipeline:presetStudio.tier5.alignLeft", "Trái") },
+                          { id: "center", label: t("pipeline:presetStudio.tier5.alignCenter", "Giữa") },
+                          { id: "right", label: t("pipeline:presetStudio.tier5.alignRight", "Phải") },
+                          { id: "justify", label: t("pipeline:presetStudio.tier5.alignJustify", "Đều") },
                         ].map((al) => (
                           <button
                             key={al.id}
@@ -1560,7 +1562,7 @@ export default function PresetStudioModal({
 
                     <div>
                       <label className="text-[10px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                        Số dòng tối đa:
+                        {t("pipeline:presetStudio.tier5.maxLines", "Số dòng tối đa:")}
                       </label>
                       <div className="grid grid-cols-3 gap-0.5 bg-[var(--color-surface)] p-0.5 rounded-lg border border-[var(--color-border)]">
                         {[1, 2, 3].map((lines) => (
@@ -1582,7 +1584,7 @@ export default function PresetStudioModal({
                                 : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                             }`}
                           >
-                            {lines} dòng
+                            {t("pipeline:presetStudio.tier5.linesCount", { count: lines, defaultValue: `${lines} dòng` })}
                           </button>
                         ))}
                       </div>
@@ -1591,7 +1593,7 @@ export default function PresetStudioModal({
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="text-[10px] font-medium text-[var(--color-text-secondary)]">
-                          Khoảng cách dòng:
+                          {t("pipeline:presetStudio.tier5.lineSpacing", "Khoảng cách dòng:")}
                         </label>
                         <span className="text-[9px] font-mono font-bold text-indigo-400">
                           {(config.subtitles?.style?.line_spacing || 1.2).toFixed(1)}x
@@ -1610,11 +1612,11 @@ export default function PresetStudioModal({
                         }
                         className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-xs font-medium text-[var(--color-text-primary)] outline-none focus:border-indigo-500"
                       >
-                        <option value="1.0">1.0x (Sát)</option>
-                        <option value="1.2">1.2x (Chuẩn)</option>
-                        <option value="1.3">1.3x (Thoáng)</option>
-                        <option value="1.4">1.4x (Rộng)</option>
-                        <option value="1.6">1.6x (Rất rộng)</option>
+                        <option value="1.0">1.0x ({t("pipeline:presetStudio.tier5.tight", "Sát")})</option>
+                        <option value="1.2">1.2x ({t("pipeline:presetStudio.tier5.standard", "Chuẩn")})</option>
+                        <option value="1.3">1.3x ({t("pipeline:presetStudio.tier5.relaxed", "Thoáng")})</option>
+                        <option value="1.4">1.4x ({t("pipeline:presetStudio.tier5.wide", "Rộng")})</option>
+                        <option value="1.6">1.6x ({t("pipeline:presetStudio.tier5.extraWide", "Rất rộng")})</option>
                       </select>
                     </div>
                   </div>
@@ -1624,7 +1626,7 @@ export default function PresetStudioModal({
                 <div className="pt-2 border-t border-[var(--color-border)]/40 space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
-                      Hàng 3 · Vị trí Y:
+                      {t("pipeline:presetStudio.tier5.row3Title", "Hàng 3 · Vị trí Y:")}
                     </span>
                     <span className="text-[10px] font-mono text-indigo-400 font-bold">
                       {Math.round(config.subtitles?.style?.position_y || 84)}%
@@ -1648,7 +1650,7 @@ export default function PresetStudioModal({
                           : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                       }`}
                     >
-                      Đỉnh (14%)
+                      {t("pipeline:presetStudio.tier5.posTop", "Đỉnh (14%)")}
                     </button>
                     <button
                       type="button"
@@ -1668,7 +1670,7 @@ export default function PresetStudioModal({
                           : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                       }`}
                     >
-                      Giữa (50%)
+                      {t("pipeline:presetStudio.tier5.posMiddle", "Giữa (50%)")}
                     </button>
                     <button
                       type="button"
@@ -1687,7 +1689,7 @@ export default function PresetStudioModal({
                           : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                       }`}
                     >
-                      Đáy (84%)
+                      {t("pipeline:presetStudio.tier5.posBottom", "Đáy (84%)")}
                     </button>
                   </div>
                   <div className="flex items-center gap-2 pt-0.5">
@@ -1719,15 +1721,15 @@ export default function PresetStudioModal({
               {/* MOTION EFFECTS (ACCORDION 2 IN MANUAL PROCESSING) */}
               <div>
                 <label className="text-[11px] font-bold text-[var(--color-text-secondary)] block mb-1.5 uppercase tracking-wider">
-                  Hiệu ứng chuyển động (Motion Effects):
+                  {t("pipeline:presetStudio.tier5.motionEffects", "Hiệu ứng chuyển động (Motion Effects):")}
                 </label>
                 <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                   {[
-                    { id: "none" as const, name: "Tĩnh (Standard)", desc: "Mặc định" },
-                    { id: "pop" as const, name: "Bật nảy (Pop)", desc: "TikTok / Shorts" },
-                    { id: "fade" as const, name: "Mờ dần (Fade)", desc: "Điện ảnh" },
-                    { id: "slide" as const, name: "Trượt lên (Slide)", desc: "Mượt mà" },
-                    { id: "karaoke" as const, name: "Karaoke Glow", desc: "Âm nhạc" },
+                    { id: "none" as const, name: t("pipeline:presetStudio.tier5.fxNone", "Tĩnh (Standard)"), desc: t("pipeline:presetStudio.tier5.presetDefault", "Mặc định") },
+                    { id: "pop" as const, name: t("pipeline:presetStudio.tier5.fxPop", "Bật nảy (Pop)"), desc: "TikTok / Shorts" },
+                    { id: "fade" as const, name: t("pipeline:presetStudio.tier5.fxFade", "Mờ dần (Fade)"), desc: t("pipeline:presetStudio.tier5.fxFade", "Điện ảnh") },
+                    { id: "slide" as const, name: t("pipeline:presetStudio.tier5.fxSlide", "Trượt lên (Slide)"), desc: t("pipeline:presetStudio.tier5.fxSlide", "Mượt mà") },
+                    { id: "karaoke" as const, name: t("pipeline:presetStudio.tier5.fxKaraoke", "Karaoke Glow"), desc: t("pipeline:presetStudio.tier5.fxKaraoke", "Âm nhạc") },
                   ].map((ef) => {
                     const isSelected = (config.subtitles?.style?.effect || "none") === ef.id;
                     return (
@@ -1765,7 +1767,7 @@ export default function PresetStudioModal({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                 <div>
                   <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1">
-                    Định dạng file phụ đề
+                    {t("pipeline:presetStudio.tier5.subFormat", "Định dạng file phụ đề")}
                   </label>
                   <select
                     value={config.subtitles?.format || "ass"}
@@ -1777,15 +1779,15 @@ export default function PresetStudioModal({
                     }
                     className="w-full h-8 rounded border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-xs"
                   >
-                    <option value="ass">.ASS (Gốc - Hiệu ứng màu sắc, animation)</option>
-                    <option value="srt">.SRT (SubRip phổ thông)</option>
+                    <option value="ass">.ASS ({t("pipeline:presetStudio.tier5.assDesc", "Gốc - Hiệu ứng màu sắc, animation")})</option>
+                    <option value="srt">.SRT ({t("pipeline:presetStudio.tier5.srtDesc", "SubRip phổ thông")})</option>
                     <option value="vtt">.VTT (WebVTT HTML5)</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1">
-                    Chế độ gắn phụ đề (Burn Mode)
+                    {t("pipeline:presetStudio.tier5.burnMode", "Chế độ gắn phụ đề (Burn Mode)")}
                   </label>
                   <select
                     value={config.subtitles?.burn_mode || "hardcode"}
@@ -1797,15 +1799,15 @@ export default function PresetStudioModal({
                     }
                     className="w-full h-8 rounded border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-xs"
                   >
-                    <option value="hardcode">Hardcode (Gắn chết vào khung hình)</option>
-                    <option value="soft">Soft (Phụ đề mềm tách rời)</option>
-                    <option value="none">Tắt (Không xuất phụ đề)</option>
+                    <option value="hardcode">{t("pipeline:presetStudio.tier5.burnHardcode", "Hardcode (Gắn chết vào khung hình)")}</option>
+                    <option value="soft">{t("pipeline:presetStudio.tier5.burnSoft", "Soft (Phụ đề mềm tách rời)")}</option>
+                    <option value="none">{t("pipeline:presetStudio.tier5.burnNone", "Tắt (Không xuất phụ đề)")}</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1">
-                    Tỷ lệ khung hình (Aspect Ratio)
+                    {t("pipeline:presetStudio.tier5.aspectRatio", "Tỷ lệ khung hình (Aspect Ratio)")}
                   </label>
                   <select
                     value={config.subtitles?.style?.aspect_ratio || "16:9"}
@@ -1821,9 +1823,9 @@ export default function PresetStudioModal({
                     className="w-full h-8 rounded border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-xs"
                   >
                     <option value="16:9">16:9 Ngang (YouTube, TV, Laptop)</option>
-                    <option value="9:16">9:16 Dọc (TikTok, Shorts, Reels)</option>
-                    <option value="1:1">1:1 Vuông (Instagram, Facebook)</option>
-                    <option value="4:3">4:3 Truyền thống</option>
+                    <option value="9:16">{t("pipeline:presetStudio.tier5.aspect916", "9:16 Dọc (TikTok, Shorts, Reels)")}</option>
+                    <option value="1:1">{t("pipeline:presetStudio.tier5.aspect11", "1:1 Vuông (Instagram, Facebook)")}</option>
+                    <option value="4:3">{t("pipeline:presetStudio.tier5.aspect43", "4:3 Truyền thống")}</option>
                   </select>
                 </div>
               </div>
@@ -1836,10 +1838,10 @@ export default function PresetStudioModal({
               <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
                 <div>
                   <h4 className="text-sm font-bold text-[var(--color-text-primary)]">
-                    Tầng 6: Mã Hóa & Xuất Bản Video (Video Export Studio)
+                    {t("pipeline:presetStudio.tier6.title", "Tầng 6: Mã Hóa & Xuất Bản Video (Video Export Studio)")}
                   </h4>
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    Cấu hình chất lượng video, định dạng thùng chứa và bộ mã hóa GPU phần cứng.
+                    {t("pipeline:presetStudio.tier6.desc", "Cấu hình chất lượng video, định dạng thùng chứa và bộ mã hóa GPU phần cứng.")}
                   </p>
                 </div>
                 <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
@@ -1850,7 +1852,7 @@ export default function PresetStudioModal({
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
-                    Độ phân giải (Resolution)
+                    {t("pipeline:presetStudio.tier6.resolution", "Độ phân giải (Resolution)")}
                   </label>
                   <select
                     value={config.export_muxing?.resolution || "1080p"}
@@ -1862,19 +1864,19 @@ export default function PresetStudioModal({
                     }
                     className="w-full h-9 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs text-[var(--color-text-primary)] outline-none focus:border-indigo-500"
                   >
-                    <option value="720p">720p HD (Gói Free & Pro)</option>
+                    <option value="720p">{t("pipeline:presetStudio.tier6.res720p", "720p HD (Gói Free & Pro)")}</option>
                     <option value="1080p" disabled={!isPro}>
-                      1080p Full HD {!isPro ? "(Yeu cau goi Pro)" : "(Chuẩn - Gói Pro)"}
+                      1080p Full HD {!isPro ? t("pipeline:presetStudio.tier1.proRequired", "(Yêu cầu gói Pro)") : t("pipeline:presetStudio.tier6.proStandard", "(Chuẩn - Gói Pro)")}
                     </option>
                     <option value="4K" disabled={!isPro}>
-                      4K Ultra HD {!isPro ? "(Yeu cau goi Pro)" : "(Chất lượng cao - Gói Pro)"}
+                      4K Ultra HD {!isPro ? t("pipeline:presetStudio.tier1.proRequired", "(Yêu cầu gói Pro)") : t("pipeline:presetStudio.tier6.proUltra", "(Chất lượng cao - Gói Pro)")}
                     </option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
-                    Định dạng tệp (Container)
+                    {t("pipeline:presetStudio.tier6.container", "Định dạng tệp (Container)")}
                   </label>
                   <select
                     value={config.export_muxing?.container || "mp4"}
@@ -1886,14 +1888,14 @@ export default function PresetStudioModal({
                     }
                     className="w-full h-9 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs text-[var(--color-text-primary)] outline-none focus:border-indigo-500"
                   >
-                    <option value="mp4">.mp4 (Phổ biến, tương thích mọi thiết bị)</option>
-                    <option value="mkv">.mkv (Matroska đa luồng phụ đề)</option>
+                    <option value="mp4">{t("pipeline:presetStudio.tier6.containerMp4", ".mp4 (Phổ biến, tương thích mọi thiết bị)")}</option>
+                    <option value="mkv">{t("pipeline:presetStudio.tier6.containerMkv", ".mkv (Matroska đa luồng phụ đề)")}</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
-                    Bộ mã hóa (Video Encoder)
+                    {t("pipeline:presetStudio.tier6.encoder", "Bộ mã hóa (Video Encoder)")}
                   </label>
                   <select
                     value={config.export_muxing?.encoder || "h264_nvenc"}
@@ -1905,8 +1907,8 @@ export default function PresetStudioModal({
                     }
                     className="w-full h-9 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs text-[var(--color-text-primary)] outline-none focus:border-indigo-500"
                   >
-                    <option value="h264_nvenc">h264_nvenc (NVIDIA RTX GPU - Siêu tốc)</option>
-                    <option value="libx264">libx264 (Phần mềm CPU - Tương thích)</option>
+                    <option value="h264_nvenc">{t("pipeline:presetStudio.tier6.encoderNvenc", "h264_nvenc (NVIDIA RTX GPU - Siêu tốc)")}</option>
+                    <option value="libx264">{t("pipeline:presetStudio.tier6.encoderCpu", "libx264 (Phần mềm CPU - Tương thích)")}</option>
                   </select>
                 </div>
               </div>
@@ -1921,12 +1923,12 @@ export default function PresetStudioModal({
             onClick={handleResetDefaults}
             className="flex items-center text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition cursor-pointer"
           >
-            Khôi phục mặc định 6 tầng
+            {t("pipeline:presetStudio.restoreDefaults", "Khôi phục mặc định 6 tầng")}
           </button>
 
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={onClose}>
-              Đóng
+              {t("pipeline:presetStudio.close", "Đóng")}
             </Button>
             {onSelectPreset && currentPreset && (
               <Button
@@ -1936,7 +1938,7 @@ export default function PresetStudioModal({
                   onClose();
                 }}
               >
-                Áp dụng Preset này
+                {t("pipeline:presetStudio.applyPreset", "Áp dụng Preset này")}
               </Button>
             )}
           </div>
