@@ -14,6 +14,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
 import { useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom";
 
 // Code splitting pipeline steps with React.lazy
@@ -58,11 +59,12 @@ const STEP_NUM_TO_ID: Record<number, string> = {
 };
 
 function StepLoadingFallback() {
+  const { t } = useTranslation(["pipeline", "common"]);
   return (
     <div className="flex min-h-[420px] w-full flex-col items-center justify-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-[var(--shadow-card)]">
       <Loader2 size={36} className="animate-spin text-[var(--color-primary)]" />
-      <span className="text-sm font-semibold text-[var(--color-text-primary)]">Đang tải tài nguyên bước xử lý...</span>
-      <span className="text-xs text-[var(--color-text-muted)]">Tải mô-đun tối ưu theo yêu cầu (Lazy Loading)</span>
+      <span className="text-sm font-semibold text-[var(--color-text-primary)]">{t("pipeline:header.loadingStepResources", "Đang tải tài nguyên bước xử lý...")}</span>
+      <span className="text-xs text-[var(--color-text-muted)]">{t("pipeline:header.lazyLoadingDesc", "Tải mô-đun tối ưu theo yêu cầu (Lazy Loading)")}</span>
     </div>
   );
 }
@@ -87,16 +89,16 @@ class StepErrorBoundary extends React.Component<
     if (this.state.hasError) {
       return (
         <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 p-8 text-center">
-          <p className="text-base font-bold text-red-500">Đã xảy ra lỗi khi hiển thị bước này</p>
+          <p className="text-base font-bold text-red-500">{i18n.t("pipeline:header.stepErrorTitle", "Đã xảy ra lỗi khi hiển thị bước này")}</p>
           <p className="max-w-md text-xs text-[var(--color-text-secondary)] font-mono">
-            {this.state.error?.message || "Lỗi không xác định khi tải giao diện bước."}
+            {this.state.error?.message || i18n.t("pipeline:header.stepErrorDesc", "Lỗi không xác định khi tải giao diện bước.")}
           </p>
           <button
             type="button"
             onClick={() => this.setState({ hasError: false, error: null })}
             className="mt-3 rounded-xl bg-[var(--color-primary)] px-4 py-2 text-xs font-semibold text-white transition hover:opacity-90"
           >
-            Thử lại bước này
+            {i18n.t("pipeline:header.retryStep", "Thử lại bước này")}
           </button>
         </div>
       );
@@ -221,12 +223,12 @@ function VideoPipelineContent() {
       }
     }
 
-    toast.success(`Đã nạp và áp dụng cấu hình "${preset.name}" cho video.`);
+    toast.success(t("pipeline:header.toastPresetApplied", { name: preset.name, defaultValue: `Đã nạp và áp dụng cấu hình "${preset.name}" cho video.` }));
   };
 
   const handleSaveAsPreset = async () => {
     if (!newPresetName.trim()) {
-      toast.error("Vui lòng nhập tên cho Preset.");
+      toast.error(t("pipeline:header.toastEnterPresetName", "Vui lòng nhập tên cho Preset."));
       return;
     }
     const currentVideoId = state.video?.videoId || (videoId && videoId !== "new" ? parseInt(videoId) : null);
@@ -240,12 +242,12 @@ function VideoPipelineContent() {
         newPresetDesc.trim(),
         state.pipelineConfig
       );
-      toast.success(`Đã lưu cấu hình thành preset "${res.preset?.name || newPresetName}" thành công!`);
+      toast.success(t("pipeline:header.toastPresetSaved", { name: res.preset?.name || newPresetName, defaultValue: `Đã lưu cấu hình thành preset "${res.preset?.name || newPresetName}" thành công!` }));
       setIsSavePresetModalOpen(false);
       setNewPresetName("");
       setNewPresetDesc("");
     } catch (err: any) {
-      toast.error(err?.response?.data?.detail || "Lưu preset thất bại.");
+      toast.error(err?.response?.data?.detail || t("pipeline:header.toastPresetSaveFailed", "Lưu preset thất bại."));
     } finally {
       setIsSavingPreset(false);
     }
@@ -529,7 +531,7 @@ function VideoPipelineContent() {
             // Dispatch global events for Navbar NotificationBell and Quotas
             window.dispatchEvent(new CustomEvent("notifications-updated"));
             window.dispatchEvent(new CustomEvent("subscription-updated"));
-            setSaveSuccessMessage("Tác vụ xử lý ngầm đã hoàn tất thành công!");
+            setSaveSuccessMessage(t("pipeline:header.toastTaskComplete", "Tác vụ xử lý ngầm đã hoàn tất thành công!"));
             setTimeout(() => setSaveSuccessMessage(null), 5000);
           }
         }
@@ -783,7 +785,7 @@ function VideoPipelineContent() {
       setIsEditingTitle(false);
     } catch (err: any) {
       console.error("Failed to update video title:", err);
-      toast.error(err?.response?.data?.detail || "Không thể đổi tên video");
+      toast.error(err?.response?.data?.detail || t("pipeline:header.toastRenameFailed", "Không thể đổi tên video"));
     } finally {
       setIsSavingTitle(false);
     }
@@ -823,7 +825,7 @@ function VideoPipelineContent() {
                     onClick={handleSaveTitle}
                     disabled={isSavingTitle}
                     className="p-1.5 rounded-lg bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] transition"
-                    title="Lưu tên (Enter)"
+                    title={t("pipeline:header.saveNameTip", "Lưu tên (Enter)")}
                   >
                     {isSavingTitle ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
                   </button>
@@ -832,7 +834,7 @@ function VideoPipelineContent() {
                     onClick={() => setIsEditingTitle(false)}
                     disabled={isSavingTitle}
                     className="p-1.5 rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-surface-hover)] text-[var(--color-text-muted)] transition"
-                    title="Hủy (Esc)"
+                    title={t("pipeline:header.cancelNameTip", "Hủy (Esc)")}
                   >
                     <X size={13} />
                   </button>
@@ -842,7 +844,7 @@ function VideoPipelineContent() {
                   <h1
                     onClick={handleStartEditTitle}
                     className="truncate text-base font-bold text-[var(--color-text-primary)] sm:text-lg cursor-pointer hover:text-[var(--color-primary)] transition"
-                    title="Nhấn để đổi tên video"
+                    title={t("pipeline:header.clickToRename", "Nhấn để đổi tên video")}
                   >
                     {videoDisplayName}
                   </h1>
@@ -850,7 +852,7 @@ function VideoPipelineContent() {
                     type="button"
                     onClick={handleStartEditTitle}
                     className="opacity-60 group-hover:opacity-100 p-1 text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition"
-                    title="Đổi tên video"
+                    title={t("pipeline:header.renameVideo", "Đổi tên video")}
                   >
                     <Pencil size={13} />
                   </button>
@@ -896,11 +898,11 @@ function VideoPipelineContent() {
                 ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)] shadow-sm"
                 : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
             }`}
-            title="Mở Preset Studio để nạp hoặc tinh chỉnh cấu hình 6 tầng AI"
+            title={t("pipeline:header.openPresetStudio", "Mở Preset Studio để nạp hoặc tinh chỉnh cấu hình 6 tầng AI")}
           >
             <Sliders size={14} className={state.presetConfig ? "text-[var(--color-primary)] animate-pulse" : ""} />
             <span className="hidden md:inline">
-              {state.presetConfig ? `Preset: ${state.presetConfig.name}` : "Áp dụng Preset"}
+              {state.presetConfig ? t("pipeline:header.presetNamePrefix", { name: state.presetConfig.name, defaultValue: `Preset: ${state.presetConfig.name}` }) : t("pipeline:header.applyPreset", "Áp dụng Preset")}
             </span>
           </button>
 
@@ -908,10 +910,10 @@ function VideoPipelineContent() {
             type="button"
             onClick={() => setIsSavePresetModalOpen(true)}
             className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs font-bold text-[var(--color-text-secondary)] hover:border-emerald-500 hover:text-emerald-500 transition cursor-pointer"
-            title="Lưu cấu hình 6 tầng hiện tại của video thành một Preset mới"
+            title={t("pipeline:header.savePresetTip", "Lưu cấu hình 6 tầng hiện tại của video thành một Preset mới")}
           >
             <BookmarkPlus size={14} />
-            <span className="hidden lg:inline">Lưu Preset</span>
+            <span className="hidden lg:inline">{t("pipeline:header.savePresetBtn", "Lưu Preset")}</span>
           </button>
 
           <button
@@ -1176,7 +1178,7 @@ function VideoPipelineContent() {
                   <div>
                     <div className="flex items-center gap-2">
                       <h4 className="text-xs font-bold text-amber-500 uppercase tracking-wider">
-                        Tác vụ ngầm đang chạy: {state.stepsSummary.active_task.step || state.stepsSummary.active_task.current_step || "Đang xử lý"}
+                        {t("pipeline:header.activeTaskRunning", { step: state.stepsSummary.active_task.step || state.stepsSummary.active_task.current_step || t("pipeline:header.inProgress", "Đang xử lý"), defaultValue: `Tác vụ ngầm đang chạy: ${state.stepsSummary.active_task.step || state.stepsSummary.active_task.current_step || "Đang xử lý"}` })}
                       </h4>
                       {typeof state.stepsSummary.active_task.progress === "number" && (
                         <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-500">
@@ -1185,13 +1187,13 @@ function VideoPipelineContent() {
                       )}
                     </div>
                     <p className="mt-0.5 text-xs text-[var(--color-text-secondary)]">
-                      {state.stepsSummary.active_task.message || "Hệ thống đang xử lý tác vụ trong Celery worker. Thao tác điều hướng và chỉnh sửa đồng thời được bảo vệ để tránh xung đột."}
+                      {state.stepsSummary.active_task.message || t("pipeline:header.activeTaskDesc", "Hệ thống đang xử lý tác vụ trong Celery worker. Thao tác điều khiển tạm thời bị khóa nhằm tránh xung đột dữ liệu.")}
                     </p>
                   </div>
                 </div>
                 <div className="hidden sm:flex items-center gap-2">
                   <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse" />
-                  <span className="text-[11px] font-semibold text-amber-500">Đang đồng bộ</span>
+                  <span className="text-[11px] font-semibold text-amber-500">{t("pipeline:header.syncing", "Đang đồng bộ")}</span>
                 </div>
               </div>
             )}
@@ -1244,7 +1246,7 @@ function VideoPipelineContent() {
                   <BookmarkPlus size={18} />
                 </div>
                 <h3 className="text-base font-bold text-[var(--color-text-primary)]">
-                  Lưu cấu hình thành Preset mới
+                  {t("pipeline:header.modalSavePresetTitle", "Lưu cấu hình thành Preset mới")}
                 </h3>
               </div>
               <button
@@ -1256,30 +1258,30 @@ function VideoPipelineContent() {
               </button>
             </div>
             <p className="text-xs text-[var(--color-text-muted)] mb-4">
-              Preset này sẽ lưu lại toàn bộ các tham số của 6 bước hiện tại (âm thanh, whisper model, LLM dịch, giọng đọc TTS, ASS styling, NVENC encoder) để bạn tái sử dụng cho các video khác hoặc batch upload.
+              {t("pipeline:header.modalSavePresetDesc", "Preset này sẽ lưu lại toàn bộ các tham số của 6 bước hiện tại (âm thanh, whisper model, LLM dịch, giọng đọc AI, phụ đề ASS và NVENC render).")}
             </p>
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1">
-                  Tên Preset *
+                  {t("pipeline:header.presetNameLabel", "Tên Preset *")}
                 </label>
                 <input
                   type="text"
                   value={newPresetName}
                   onChange={(e) => setNewPresetName(e.target.value)}
-                  placeholder="VD: Cấu hình TikTok Voice Clone Vietsub"
+                  placeholder={t("pipeline:header.presetNamePlaceholder", "VD: Cấu hình TikTok Voice Clone Vietsub")}
                   className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
                   autoFocus
                 />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1">
-                  Mô tả
+                  {t("pipeline:header.presetDescLabel", "Mô tả")}
                 </label>
                 <textarea
                   value={newPresetDesc}
                   onChange={(e) => setNewPresetDesc(e.target.value)}
-                  placeholder="Ghi chú chi tiết về mục đích sử dụng, chất lượng âm thanh hoặc subtitle..."
+                  placeholder={t("pipeline:header.presetDescPlaceholder", "Ghi chú chi tiết về mục đích sử dụng, chất lượng âm thanh hoặc subtitle...")}
                   rows={3}
                   className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none resize-none"
                 />
@@ -1291,7 +1293,7 @@ function VideoPipelineContent() {
                 onClick={() => setIsSavePresetModalOpen(false)}
                 className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-muted)]"
               >
-                Hủy
+                {t("pipeline:header.cancel", "Hủy")}
               </button>
               <button
                 type="button"
@@ -1300,7 +1302,7 @@ function VideoPipelineContent() {
                 className="flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
               >
                 {isSavingPreset ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                Lưu Preset
+                {t("pipeline:header.saveConfirm", "Lưu Preset")}
               </button>
             </div>
           </div>
