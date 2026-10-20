@@ -71,7 +71,7 @@ export default function TranscriptPlayer({
             segmentCount > 0 ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-800 text-zinc-400"
           }`}
         >
-          {segmentCount > 0 ? "✓ Đã bóc băng" : "Chưa bóc băng"}
+          {segmentCount > 0 ? t("pipeline:steps.transcript.statusTranscribed", "✓ Đã bóc băng") : t("pipeline:steps.transcript.statusNotTranscribed", "Chưa bóc băng")}
         </span>
       </div>
     </div>

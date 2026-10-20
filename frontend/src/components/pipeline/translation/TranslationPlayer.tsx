@@ -71,7 +71,7 @@ export default function TranslationPlayer({
             segmentCount > 0 ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-800 text-zinc-400"
           }`}
         >
-          {segmentCount > 0 ? "✓ Đã dịch thuật" : "Chưa dịch thuật"}
+          {segmentCount > 0 ? t("pipeline:steps.translation.statusTranslated", "✓ Đã dịch thuật") : t("pipeline:steps.translation.statusNotTranslated", "Chưa dịch thuật")}
         </span>
       </div>
     </div>

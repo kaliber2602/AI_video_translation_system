@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   Search,
   Plus,
@@ -32,6 +33,7 @@ interface SubtitleSegmentListProps {
 }
 
 export default function SubtitleSegmentList({
+
   segments,
   filteredSegments,
   segmentSearch,
@@ -51,6 +53,7 @@ export default function SubtitleSegmentList({
   resynthesizingIndex,
   handleMicroTTS,
 }: SubtitleSegmentListProps) {
+  const { t } = useTranslation(["pipeline", "common"]);
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-1.5">
@@ -60,7 +63,7 @@ export default function SubtitleSegmentList({
             type="text"
             value={segmentSearch}
             onChange={(e) => setSegmentSearch(e.target.value)}
-            placeholder="Tìm câu thoại..."
+            placeholder={t("pipeline:steps.subtitle.searchPlaceholder", "Tìm câu thoại...")}
             className="h-7 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] pl-7 pr-2 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
           />
         </div>
@@ -71,7 +74,7 @@ export default function SubtitleSegmentList({
           className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--color-primary)] text-white text-xs font-bold shadow-xs hover:bg-[var(--color-primary-hover)] transition"
         >
           <Plus size={13} />
-          <span>Thêm</span>
+          <span>{t("pipeline:steps.subtitle.add", "Thêm")}</span>
         </button>
       </div>
 
@@ -102,7 +105,7 @@ export default function SubtitleSegmentList({
                   {isCurrentSpoken && (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[9px] font-bold animate-pulse">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      <span>Đang phát</span>
+                      <span>{t("pipeline:steps.subtitle.nowPlaying", "Đang phát")}</span>
                     </span>
                   )}
                 </div>
@@ -141,7 +144,7 @@ export default function SubtitleSegmentList({
                         ? "text-[var(--color-primary)] font-bold"
                         : "text-[var(--color-text-muted)]"
                     }`}
-                    title="Tua video đến câu này"
+                    title={t("pipeline:steps.subtitle.seekToSegment", "Tua video đến câu này")}
                   >
                     <Eye size={12} />
                   </button>
@@ -152,7 +155,7 @@ export default function SubtitleSegmentList({
                       handleDeleteSegment(originalIndex);
                     }}
                     className="p-1 text-red-400 hover:bg-red-500/10 rounded"
-                    title="Xóa câu này"
+                    title={t("pipeline:steps.subtitle.deleteSegment", "Xóa câu này")}
                   >
                     <Trash2 size={12} />
                   </button>
@@ -164,7 +167,7 @@ export default function SubtitleSegmentList({
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => handleUpdateSegmentText(originalIndex, e.target.value)}
                 rows={2}
-                placeholder="Nội dung phụ đề..."
+                placeholder={t("pipeline:steps.subtitle.subtitleContentPlaceholder", "Nội dung phụ đề...")}
                 className="mt-1.5 w-full resize-none rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] p-1.5 text-xs leading-relaxed text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
               />
 
@@ -181,18 +184,18 @@ export default function SubtitleSegmentList({
                     disabled={rewritingIndex === originalIndex}
                     onClick={() => handleRewriteSegment(originalIndex, "shorter")}
                     className="px-1.5 py-0.5 rounded bg-[var(--color-surface-muted)] hover:bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-white transition disabled:opacity-50"
-                    title="Viết lại ngắn gọn hơn"
+                    title={t("pipeline:steps.subtitle.rewriteShorter", "Viết lại ngắn gọn hơn")}
                   >
-                    {rewritingIndex === originalIndex ? "..." : "Ngắn hơn"}
+                    {rewritingIndex === originalIndex ? "..." : t("pipeline:steps.subtitle.shorterBtn", "Ngắn hơn")}
                   </button>
                   <button
                     type="button"
                     disabled={rewritingIndex === originalIndex}
                     onClick={() => handleRewriteSegment(originalIndex, "casual")}
                     className="px-1.5 py-0.5 rounded bg-[var(--color-surface-muted)] hover:bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-white transition disabled:opacity-50"
-                    title="Viết lại tự nhiên hơn"
+                    title={t("pipeline:steps.subtitle.rewriteNatural", "Viết lại tự nhiên hơn")}
                   >
-                    Tự nhiên
+                    {t("pipeline:steps.subtitle.naturalBtn", "Tự nhiên")}
                   </button>
                 </div>
 
@@ -206,7 +209,7 @@ export default function SubtitleSegmentList({
                         ? "border-emerald-500 bg-emerald-500/20 text-emerald-400"
                         : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:text-[var(--color-primary)]"
                     }`}
-                    title="Nghe thử file âm thanh TTS câu này"
+                    title={t("pipeline:steps.subtitle.listenTtsSegment", "Nghe thử file âm thanh TTS câu này")}
                   >
                     <Volume2 size={11} />
                   </button>
@@ -216,14 +219,14 @@ export default function SubtitleSegmentList({
                     disabled={resynthesizingIndex === originalIndex}
                     onClick={() => handleMicroTTS(originalIndex)}
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--color-primary)]/20 hover:bg-[var(--color-primary)] text-[var(--color-primary)] hover:text-white border border-[var(--color-primary)]/40 text-[9px] font-bold transition disabled:opacity-50"
-                    title="Đọc lại ngay duy nhất câu này trong 0.37s mà không cần chạy lại toàn bộ"
+                    title={t("pipeline:steps.subtitle.reSpeakSegmentTip", "Đọc lại ngay duy nhất câu này trong 0.37s mà không cần chạy lại toàn bộ")}
                   >
                     {resynthesizingIndex === originalIndex ? (
                       <Loader2 size={10} className="animate-spin" />
                     ) : (
                       <Sparkles size={10} className="text-amber-400" />
                     )}
-                    <span>Đọc lại câu này</span>
+                    <span>{t("pipeline:steps.subtitle.reSpeakSegment", "Đọc lại câu này")}</span>
                   </button>
                 </div>
               </div>

@@ -73,7 +73,7 @@ export default function FileDropzone({
             }}
             className="px-3 py-1 rounded-lg border border-red-500/40 bg-red-500/10 text-xs font-semibold text-red-400 hover:bg-red-500/20 transition"
           >
-            Hủy tải lên (Cancel)
+            {t("pipeline:steps.upload.cancelUpload", "Hủy tải lên (Cancel)")}
           </button>
         </div>
       </div>
@@ -90,7 +90,7 @@ export default function FileDropzone({
           Upload Complete! 🎉
         </h3>
         <p className="text-sm text-[var(--color-text-muted)]">
-          {uploadedFilename} đã tải lên thành công và sẵn sàng để xử lý.
+          {t("pipeline:steps.upload.uploadSuccessReady", { filename: uploadedFilename, defaultValue: `${uploadedFilename} đã tải lên thành công và sẵn sàng để xử lý.` })}
         </p>
         <p className="text-xs text-[var(--color-text-muted)] mt-1">
           {uploadedFileSize != null && uploadedFileSize > 0
@@ -102,7 +102,7 @@ export default function FileDropzone({
           onClick={onGoToNextStep}
           className="mt-4 flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-[var(--color-primary)]/20 hover:bg-[var(--color-primary-hover)] transition"
         >
-          <span>Chuyển tới bước Bóc băng (Transcript)</span>
+          <span>{t("pipeline:steps.upload.goToTranscript", "Chuyển tới bước Bóc băng (Transcript)")}</span>
           <ArrowRight size={15} />
         </button>
       </div>
@@ -122,11 +122,11 @@ export default function FileDropzone({
                 {stagedFile.name}
               </h4>
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-500">
-                Chưa tải lên
+                {t("pipeline:steps.upload.notUploaded", "Chưa tải lên")}
               </span>
             </div>
             <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-              Dung lượng: {(stagedFile.size / (1024 * 1024)).toFixed(2)} MB • Tệp đã được chuẩn bị. Bạn có thể tùy chỉnh cấu hình Demucs bên dưới trước khi bấm tải lên.
+              {t("pipeline:steps.upload.stagedFileInfo", { size: (stagedFile.size / (1024 * 1024)).toFixed(2), defaultValue: `Dung lượng: ${(stagedFile.size / (1024 * 1024)).toFixed(2)} MB • Tệp đã được chuẩn bị.` })}
             </p>
           </div>
         </div>
@@ -138,7 +138,7 @@ export default function FileDropzone({
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-xs font-semibold text-[var(--color-text-secondary)] hover:text-red-500 hover:border-red-500/40 transition"
           >
             <Trash2 size={14} />
-            <span>Hủy chọn</span>
+            <span>{t("pipeline:steps.upload.cancelSelection", "Hủy chọn")}</span>
           </button>
           <button
             type="button"
@@ -146,7 +146,7 @@ export default function FileDropzone({
             className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[var(--color-primary)] text-xs font-bold text-white shadow-md shadow-[var(--color-primary)]/20 hover:bg-[var(--color-primary-hover)] transition"
           >
             <FileUp size={14} />
-            <span>Bắt đầu tải lên & Xử lý</span>
+            <span>{t("pipeline:steps.upload.startUploadAndProcess", "Bắt đầu tải lên & Xử lý")}</span>
           </button>
         </div>
       </div>
@@ -175,7 +175,7 @@ export default function FileDropzone({
         {t("pipeline:steps.upload.dropzoneDescription")}
       </p>
       <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">
-        MP4, MOV, AVI, MKV (Hỗ trợ dung lượng tới 2GB)
+        {t("pipeline:steps.upload.supportedFormatsHint", "MP4, MOV, AVI, MKV (Hỗ trợ dung lượng tới 2GB)")}
       </p>
       <button
         type="button"

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Activity, Loader2 } from "lucide-react";
 import type { MediaInfo } from "../../../services/video.service";
 
@@ -10,19 +11,20 @@ export default function MediaInspectorCard({
   mediaInfo,
   isLoading,
 }: MediaInspectorCardProps) {
+  const { t } = useTranslation(["pipeline", "common"]);
   return (
     <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Activity size={16} className="text-[var(--color-primary)]" />
           <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-primary)]">
-            Media Inspector (Thông số kỹ thuật tệp)
+            {t("pipeline:steps.upload.mediaInspectorTitle", "Media Inspector (Thông số kỹ thuật tệp)")}
           </h4>
         </div>
         {isLoading && (
           <span className="flex items-center gap-1 text-[11px] text-[var(--color-text-muted)]">
             <Loader2 size={12} className="animate-spin text-[var(--color-primary)]" />
-            <span>Đang phân tích ffprobe...</span>
+            <span>{t("pipeline:steps.upload.analyzingFfprobe", "Đang phân tích ffprobe...")}</span>
           </span>
         )}
       </div>
@@ -30,7 +32,7 @@ export default function MediaInspectorCard({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="rounded-xl border border-[var(--color-border-muted)] bg-[var(--color-surface)] p-3">
           <span className="text-[10px] uppercase font-semibold text-[var(--color-text-muted)] block">
-            Độ phân giải & FPS
+            {t("pipeline:steps.upload.resAndFps", "Độ phân giải & FPS")}
           </span>
           <span className="font-mono text-xs font-bold text-[var(--color-text-primary)] mt-0.5 block">
             {mediaInfo?.video?.width && mediaInfo?.video?.height
@@ -60,14 +62,14 @@ export default function MediaInspectorCard({
 
         <div className="rounded-xl border border-[var(--color-border-muted)] bg-[var(--color-surface)] p-3">
           <span className="text-[10px] uppercase font-semibold text-[var(--color-text-muted)] block">
-            Kênh âm thanh (Channels)
+            {t("pipeline:steps.upload.audioChannels", "Kênh âm thanh (Channels)")}
           </span>
           <span className="font-mono text-xs font-bold text-[var(--color-text-primary)] mt-0.5 block">
             {mediaInfo?.audio?.channels === 1
-              ? "1 Kênh (Mono)"
+              ? t("pipeline:steps.upload.monoChannel", "1 Kênh (Mono)")
               : mediaInfo?.audio?.channels === 2
-              ? "2 Kênh (Stereo)"
-              : "2 Kênh (Stereo)"}
+              ? t("pipeline:steps.upload.stereoChannel", "2 Kênh (Stereo)")
+              : t("pipeline:steps.upload.stereoChannel", "2 Kênh (Stereo)")}
           </span>
         </div>
       </div>

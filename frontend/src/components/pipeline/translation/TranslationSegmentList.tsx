@@ -111,7 +111,7 @@ function TranslationSegmentRow({
               }}
               disabled={seg.end - seg.start < 2.0}
               className="p-1 text-[var(--color-text-muted)] hover:text-amber-500 hover:bg-[var(--color-surface)] rounded transition disabled:opacity-30 disabled:cursor-not-allowed"
-              title={seg.end - seg.start < 2.0 ? "Đoạn quá ngắn (< 2.0s) để chia đôi thành 2 đoạn >= 1.0s" : "Chia câu thoại (Split)"}
+              title={seg.end - seg.start < 2.0 ? t("pipeline:steps.translation.tooShortToSplit", "Đoạn quá ngắn (< 2.0s) để chia đôi thành 2 đoạn >= 1.0s") : t("pipeline:steps.translation.splitTooltip", "Chia câu thoại (Split)")}
             >
               <Scissors size={12} />
             </button>
@@ -124,7 +124,7 @@ function TranslationSegmentRow({
                   onMergeWithPrev(originalIndex);
                 }}
                 className="p-1 text-[var(--color-text-muted)] hover:text-indigo-500 hover:bg-[var(--color-surface)] rounded transition"
-                title="Gộp với câu phía trên (Merge Up)"
+                title={t("pipeline:steps.translation.mergeUp", "Gộp với câu phía trên (Merge Up)")}
               >
                 <Merge size={12} className="rotate-180" />
               </button>
@@ -138,7 +138,7 @@ function TranslationSegmentRow({
                   onMergeWithNext(originalIndex);
                 }}
                 className="p-1 text-[var(--color-text-muted)] hover:text-indigo-500 hover:bg-[var(--color-surface)] rounded transition"
-                title="Gộp với câu tiếp theo (Merge Down)"
+                title={t("pipeline:steps.translation.mergeDown", "Gộp với câu tiếp theo (Merge Down)")}
               >
                 <Merge size={12} />
               </button>
@@ -280,11 +280,11 @@ export default function TranslationSegmentList({
           </div>
           <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
             {isTranslating ? (
-              <span>Đang tiến hành dịch thuật... Vui lòng chờ ({taskProgress}%)</span>
+              <span>{t("pipeline:steps.translation.translatingWait", { progress: taskProgress, defaultValue: `Đang tiến hành dịch thuật... Vui lòng chờ (${taskProgress}%)` })}</span>
             ) : (
               t(
                 "pipeline:steps.translation.noTranslation",
-                `Chưa có bản dịch. Chọn thẻ 'Tùy chọn dịch thuật' và nhấn 'Bắt đầu dịch' để khởi chạy.`
+                t("pipeline:steps.translation.noTranslationFound", "Chưa có bản dịch. Chọn thẻ 'Tùy chọn dịch thuật' và nhấn 'Bắt đầu dịch' để khởi chạy.")
               )
             )}
           </p>
@@ -328,7 +328,7 @@ export default function TranslationSegmentList({
             })
           ) : (
             <div className="py-6 text-center text-xs text-[var(--color-text-muted)]">
-              Không tìm thấy câu nào phù hợp với từ khóa tìm kiếm
+              {t("pipeline:steps.translation.noMatchingSegments", "Không tìm thấy câu nào phù hợp với từ khóa tìm kiếm")}
             </div>
           )}
         </div>

@@ -24,7 +24,7 @@ export default function UploadStep() {
   // Trigger toast error on upload failure
   useEffect(() => {
     if (uploadError) {
-      toast.error("Lỗi tải lên video", uploadError);
+      toast.error(t("pipeline:steps.upload.toastUploadError", "Lỗi tải lên video"), uploadError);
     }
   }, [uploadError]);
   const [uploadComplete, setUploadComplete] = useState(false);
@@ -67,11 +67,11 @@ export default function UploadStep() {
     const validExtensions = [".mp4", ".mov", ".avi", ".mkv", ".webm"];
     const fileExt = "." + file.name.split(".").pop()?.toLowerCase();
     if (!validExtensions.includes(fileExt)) {
-      setUploadError("Định dạng video không được hỗ trợ. Vui lòng chọn tệp .MP4, .MOV, .AVI, .MKV hoặc .WEBM.");
+      setUploadError(t("pipeline:steps.upload.errFormatUnsupported", "Định dạng video không được hỗ trợ. Vui lòng chọn tệp .MP4, .MOV, .AVI, .MKV."));
       return false;
     }
     if (file.size > 2 * 1024 * 1024 * 1024) {
-      setUploadError("Dung lượng video vượt quá giới hạn 2GB của hệ thống. Vui lòng chọn video khác hoặc nén tệp.");
+      setUploadError(t("pipeline:steps.upload.errSizeLimit", "Dung lượng video vượt quá giới hạn 2GB của hệ thống. Vui lòng nén file hoặc chọn video khác."));
       return false;
     }
     setUploadError(null);
@@ -93,7 +93,7 @@ export default function UploadStep() {
     }
 
     if (file.size > 2 * 1024 * 1024 * 1024) {
-      setUploadError("Dung lượng video vượt quá giới hạn 2GB của hệ thống. Vui lòng chọn video khác hoặc nén tệp.");
+      setUploadError(t("pipeline:steps.upload.errSizeLimit", "Dung lượng video vượt quá giới hạn 2GB của hệ thống. Vui lòng nén file hoặc chọn video khác."));
       return;
     }
 
@@ -150,11 +150,11 @@ export default function UploadStep() {
       let errorMsg = error?.response?.data?.detail || error.message || "Upload failed";
       const status = error?.response?.status;
       if (status === 413) {
-        errorMsg = "Dung lượng video vượt quá giới hạn 2GB của hệ thống. Vui lòng nén file hoặc chọn video khác.";
+        errorMsg = t("pipeline:steps.upload.errSizeLimit", "Dung lượng video vượt quá giới hạn 2GB của hệ thống. Vui lòng nén file hoặc chọn video khác.");
       } else if (status === 415 || status === 422) {
-        errorMsg = "Định dạng video không được hỗ trợ hoặc file bị hỏng. Hỗ trợ: MP4, MOV, MKV, WebM, AVI.";
+        errorMsg = t("pipeline:steps.upload.errFormatUnsupported", "Định dạng video không được hỗ trợ. Vui lòng chọn tệp .MP4, .MOV, .AVI, .MKV.");
       } else if (status === 402) {
-        errorMsg = "Hạn mức dung lượng lưu trữ của bạn đã đầy. Vui lòng nâng cấp gói hoặc dọn bớt video cũ.";
+        errorMsg = t("pipeline:steps.upload.errStorageFull", "Hạn mức dung lượng lưu trữ của bạn đã đầy. Vui lòng nâng cấp gói hoặc dọn bớt dự án cũ.");
       }
       setUploadError(errorMsg);
       dispatch({
@@ -260,7 +260,7 @@ export default function UploadStep() {
           <div className="flex items-center gap-3">
             <CheckCircle2 size={20} className="text-emerald-500 shrink-0" />
             <div className="text-xs">
-              <span className="font-semibold text-[var(--color-text-primary)]">Tệp video đã nạp: </span>
+              <span className="font-semibold text-[var(--color-text-primary)]">{t("pipeline:steps.upload.loadedVideoFile", "Tệp video đã nạp:")} </span>
               <span className="text-[var(--color-text-muted)] truncate max-w-xs inline-block align-bottom">{state.video.filename}</span>
             </div>
           </div>
@@ -278,7 +278,7 @@ export default function UploadStep() {
             }}
             className="flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-[var(--color-primary)]/30 transition hover:bg-[var(--color-primary-hover)] active:scale-95"
           >
-            <span>Tiếp tục: Bóc băng (Transcript)</span>
+            <span>{t("pipeline:steps.upload.continueTranscript", "Tiếp tục: Bóc băng (Transcript)")}</span>
             <ArrowRight size={15} />
           </button>
         </div>

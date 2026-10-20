@@ -119,10 +119,10 @@ export default function TranscriptSegmentList({
             </div>
             <div className="space-y-1">
               <p className="text-xs font-bold text-[var(--color-text-primary)]">
-                Đang bóc băng và nhận dạng giọng nói...
+                {t("pipeline:steps.transcript.transcribingVoice", "Đang bóc băng và nhận dạng giọng nói...")}
               </p>
               <p className="text-[11px] text-[var(--color-text-muted)] font-mono">
-                Tiến trình Celery Worker: {taskProgress}%
+                {t("pipeline:steps.transcript.workerProgress", { progress: taskProgress, defaultValue: `Tiến trình Celery Worker: ${taskProgress}%` })}
               </p>
             </div>
             <div className="w-48 bg-[var(--color-border)] h-1.5 rounded-full overflow-hidden">
@@ -132,7 +132,7 @@ export default function TranscriptSegmentList({
               />
             </div>
             <p className="text-[10px] text-[var(--color-text-muted)] max-w-xs">
-              Tác vụ đang chạy nền trên Celery worker. Bạn có thể tải lại trang (F5) mà không làm gián đoạn tiến trình.
+              {t("pipeline:steps.transcript.workerRunningNote", "Tác vụ đang chạy nền trên Celery worker. Bạn có thể tải lại trang (F5) mà không làm gián đoạn tiến trình.")}
             </p>
           </div>
         ) : (
@@ -226,7 +226,7 @@ export default function TranscriptSegmentList({
                       onClick={() => setSplittingIndex(index)}
                       disabled={seg.end - seg.start < 2.0}
                       className="p-1 text-[var(--color-text-muted)] hover:text-amber-500 hover:bg-[var(--color-surface)] rounded transition disabled:opacity-30 disabled:cursor-not-allowed"
-                      title={seg.end - seg.start < 2.0 ? "Đoạn quá ngắn (< 2.0s) để chia đôi thành 2 đoạn >= 1.0s" : "Chia câu thoại (Split)"}
+                      title={seg.end - seg.start < 2.0 ? t("pipeline:steps.transcript.tooShortToSplit", "Đoạn quá ngắn (< 2.0s) để chia đôi thành 2 đoạn >= 1.0s") : t("pipeline:steps.transcript.splitTooltip", "Chia câu thoại (Split)")}
                     >
                       <Scissors size={12} />
                     </button>
@@ -236,7 +236,7 @@ export default function TranscriptSegmentList({
                         type="button"
                         onClick={() => onMergeWithPrev(index)}
                         className="p-1 text-[var(--color-text-muted)] hover:text-indigo-500 hover:bg-[var(--color-surface)] rounded transition"
-                        title="Gộp với câu phía trên (Merge Up)"
+                        title={t("pipeline:steps.transcript.mergeUp", "Gộp với câu phía trên (Merge Up)")}
                       >
                         <Merge size={12} className="rotate-180" />
                       </button>
@@ -247,7 +247,7 @@ export default function TranscriptSegmentList({
                         type="button"
                         onClick={() => onMergeWithNext(index)}
                         className="p-1 text-[var(--color-text-muted)] hover:text-indigo-500 hover:bg-[var(--color-surface)] rounded transition"
-                        title="Gộp với câu tiếp theo (Merge Down)"
+                        title={t("pipeline:steps.transcript.mergeDown", "Gộp với câu tiếp theo (Merge Down)")}
                       >
                         <Merge size={12} />
                       </button>

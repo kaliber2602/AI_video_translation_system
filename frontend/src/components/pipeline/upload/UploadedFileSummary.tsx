@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { FileVideo, RefreshCw } from "lucide-react";
 import type { ChangeEvent, RefObject } from "react";
 
@@ -10,12 +11,14 @@ interface UploadedFileSummaryProps {
 }
 
 export default function UploadedFileSummary({
+
   filename,
   fileSize,
   duration,
   fileInputRef,
   onFileSelect,
 }: UploadedFileSummaryProps) {
+  const { t } = useTranslation(["pipeline", "common"]);
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[var(--color-primary)]/30 bg-[var(--color-primary-soft)]/20">
       <div className="flex items-center gap-4 min-w-0">
@@ -28,7 +31,7 @@ export default function UploadedFileSummary({
               {filename}
             </h3>
             <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-              ✓ Đã tải lên
+              {t("pipeline:steps.upload.uploadedBadge", "✓ Đã tải lên")}
             </span>
           </div>
           <p className="mt-1 text-xs text-[var(--color-text-muted)]">
@@ -38,7 +41,7 @@ export default function UploadedFileSummary({
             {duration
               ? `${Math.floor(duration / 60)}:${String(Math.floor(duration % 60)).padStart(2, "0")} • `
               : ""}
-            Định dạng MP4/MOV • Sẵn sàng xử lý
+            {t("pipeline:steps.upload.readyForProcessing", "Định dạng MP4/MOV • Sẵn sàng xử lý")}
           </p>
         </div>
       </div>
@@ -50,7 +53,7 @@ export default function UploadedFileSummary({
           className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] active:scale-95 shadow-2xs"
         >
           <RefreshCw size={14} />
-          <span>Thay đổi video</span>
+          <span>{t("pipeline:steps.upload.changeVideo", "Thay đổi video")}</span>
         </button>
         <input
           ref={fileInputRef}

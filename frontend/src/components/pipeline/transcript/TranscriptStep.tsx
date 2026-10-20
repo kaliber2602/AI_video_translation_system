@@ -83,7 +83,7 @@ export default function TranscriptStep() {
       }
       if (hybrid.status === "failed") {
         setIsGenerating(false);
-        setTranscriptionError(hybrid.message || "Bóc băng thất bại");
+        setTranscriptionError(hybrid.message || t("pipeline:steps.transcript.errTranscriptionFailed", "Bóc băng thất bại"));
       }
     }
   }, [hybrid.progress, hybrid.message, hybrid.status, isGenerating]);
@@ -180,7 +180,7 @@ export default function TranscriptStep() {
           if (activeTask.status === "failed") {
             stopPolling();
             setIsGenerating(false);
-            setTranscriptionError(activeTask.error_message || "Bóc băng thất bại trong Celery worker");
+            setTranscriptionError(activeTask.error_message || t("pipeline:steps.transcript.errWorkerFailed", "Bóc băng thất bại trong Celery worker"));
             return;
           }
         }
@@ -222,7 +222,7 @@ export default function TranscriptStep() {
         } else if (transcriptStep?.status === "failed") {
           stopPolling();
           setIsGenerating(false);
-          setTranscriptionError(activeTask?.error_message || "Bóc băng thất bại");
+          setTranscriptionError(activeTask?.error_message || t("pipeline:steps.transcript.errTranscriptionFailed", "Bóc băng thất bại"));
         }
       } catch (err: any) {
         console.warn("Polling transcript status error:", err);
@@ -282,7 +282,7 @@ export default function TranscriptStep() {
     if (!state.video?.videoId) return;
     setIsGenerating(true);
     setTaskProgress(0);
-    setTaskMessage("Đang khởi tạo tác vụ bóc băng...");
+    setTaskMessage(t("pipeline:steps.transcript.taskInitializing", "Đang khởi tạo tác vụ bóc băng..."));
     setTranscriptionError(null);
     setTranscriptionNotice(null);
 

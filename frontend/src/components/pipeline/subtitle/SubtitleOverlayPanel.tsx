@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   Image as ImageIcon,
   Type,
@@ -17,12 +18,14 @@ interface SubtitleOverlayPanelProps {
 }
 
 export default function SubtitleOverlayPanel({
+
   overlayConfig,
   setOverlayConfig,
   logoInputRef,
   isUploadingLogo,
   handleUploadLogo,
 }: SubtitleOverlayPanelProps) {
+  const { t } = useTranslation(["pipeline", "common"]);
   return (
     <div className="space-y-4">
       {/* 1. LOGO WATERMARK SECTION */}
@@ -39,13 +42,13 @@ export default function SubtitleOverlayPanel({
               className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1"
             >
               <Trash2 size={11} />
-              <span>Gỡ Logo</span>
+              <span>{t("pipeline:steps.subtitle.removeLogo", "Gỡ Logo")}</span>
             </button>
           )}
         </div>
 
         <p className="text-[11px] text-zinc-400 leading-relaxed">
-          Chèn logo thương hiệu hoặc hình ảnh PNG trong suốt hiển thị cố định trên video.
+          {t("pipeline:steps.subtitle.logoDesc", "Chèn logo thương hiệu hoặc hình ảnh PNG trong suốt hiển thị cố định trên video.")}
         </p>
 
         <input
@@ -65,8 +68,8 @@ export default function SubtitleOverlayPanel({
                 className="h-10 w-10 object-contain rounded border border-zinc-700 bg-zinc-950 p-1"
               />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-white truncate">Logo đã tải lên</p>
-                <p className="text-[10px] text-zinc-400">Đang hiển thị ở góc khung hình</p>
+                <p className="text-xs font-medium text-white truncate">{t("pipeline:steps.subtitle.uploadedLogo", "Logo đã tải lên")}</p>
+                <p className="text-[10px] text-zinc-400">{t("pipeline:steps.subtitle.showingAtCorner", "Đang hiển thị ở góc khung hình")}</p>
               </div>
               <button
                 type="button"
@@ -74,7 +77,7 @@ export default function SubtitleOverlayPanel({
                 disabled={isUploadingLogo}
                 className="px-2 py-1 rounded bg-zinc-800 text-[10px] text-zinc-300 hover:text-white border border-zinc-700"
               >
-                Đổi ảnh
+                {t("pipeline:steps.subtitle.changeImage", "Đổi ảnh")}
               </button>
             </div>
 
@@ -82,7 +85,7 @@ export default function SubtitleOverlayPanel({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <div className="flex justify-between text-[10px] text-zinc-300 mb-1">
-                  <span>Tỉ lệ:</span>
+                  <span>{t("pipeline:steps.subtitle.scale", "Tỉ lệ:")}</span>
                   <span className="font-mono text-cyan-400 font-bold">{overlayConfig.logo_scale ?? 1}x</span>
                 </div>
                 <input
@@ -111,7 +114,7 @@ export default function SubtitleOverlayPanel({
 
               <div>
                 <div className="flex justify-between text-[10px] text-zinc-300 mb-1">
-                  <span>Độ mờ:</span>
+                  <span>{t("pipeline:steps.subtitle.opacity", "Độ mờ:")}</span>
                   <span className="font-mono text-cyan-400 font-bold">{Math.round((overlayConfig.logo_opacity ?? 1) * 100)}%</span>
                 </div>
                 <input
@@ -147,7 +150,7 @@ export default function SubtitleOverlayPanel({
             className="w-full py-2.5 px-3 rounded-lg border border-dashed border-cyan-500/40 bg-cyan-500/5 hover:bg-cyan-500/10 text-cyan-300 text-xs font-semibold flex items-center justify-center gap-2 transition"
           >
             {isUploadingLogo ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-            <span>{isUploadingLogo ? "Đang tải ảnh lên..." : "Tải lên Logo Watermark (PNG)"}</span>
+            <span>{isUploadingLogo ? t("pipeline:steps.subtitle.uploadingLogo", "Đang tải ảnh lên...") : t("pipeline:steps.subtitle.uploadWatermarkPng", "Tải lên Logo Watermark (PNG)")}</span>
           </button>
         )}
       </div>
@@ -157,7 +160,7 @@ export default function SubtitleOverlayPanel({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Type className="w-4 h-4 text-[var(--color-primary)]" />
-            <span className="text-xs font-bold text-white">Băng chữ tin tức chạy chân trang (Ticker)</span>
+            <span className="text-xs font-bold text-white">{t("pipeline:steps.subtitle.tickerTitle", "Băng chữ tin tức chạy chân trang (Ticker)")}</span>
           </div>
           {overlayConfig?.ticker_text && (
             <button
@@ -165,22 +168,22 @@ export default function SubtitleOverlayPanel({
               onClick={() => setOverlayConfig((prev) => prev ? { ...prev, ticker_text: "" } : undefined)}
               className="text-[10px] text-zinc-400 hover:text-white"
             >
-              Xóa chữ
+              {t("pipeline:steps.subtitle.clearText", "Xóa chữ")}
             </button>
           )}
         </div>
 
         <p className="text-[11px] text-zinc-400 leading-relaxed">
-          Dòng chữ thông báo, tin nóng hoặc link mạng xã hội tự động cuộn ở đáy video.
+          {t("pipeline:steps.subtitle.tickerDesc", "Dòng chữ thông báo, tin nóng hoặc link mạng xã hội tự động cuộn ở đáy video.")}
         </p>
 
         <div>
           <label className="text-[11px] font-medium text-zinc-300 block mb-1">
-            Nội dung tin tức:
+            {t("pipeline:steps.subtitle.newsContent", "Nội dung tin tức:")}
           </label>
           <input
             type="text"
-            placeholder="VD: BẢN TIN ĐẶC BIỆT: THEO DÕI KÊNH ĐỂ CẬP NHẬT KIẾN THỨC MỚI..."
+            placeholder={t("pipeline:steps.subtitle.tickerPlaceholder", "VD: BẢN TIN ĐẶC BIỆT: THEO DÕI KÊNH ĐỂ CẬP NHẬT KIẾN THỨC MỚI...")}
             value={overlayConfig?.ticker_text || ""}
             onChange={(e) =>
               setOverlayConfig((prev) => ({
@@ -204,7 +207,7 @@ export default function SubtitleOverlayPanel({
         {overlayConfig?.ticker_text && (
           <div className="grid grid-cols-2 gap-2 pt-1">
             <div>
-              <label className="text-[10px] text-zinc-400 block mb-1">Màu nền dải tin:</label>
+              <label className="text-[10px] text-zinc-400 block mb-1">{t("pipeline:steps.subtitle.tickerBgColor", "Màu nền dải tin:")}</label>
               <div className="flex items-center gap-1.5">
                 {["rgba(0,0,0,0.75)", "#dc2626", "#2563eb", "#d97706"].map((bg) => (
                   <button
@@ -223,7 +226,7 @@ export default function SubtitleOverlayPanel({
             </div>
 
             <div>
-              <label className="text-[10px] text-zinc-400 block mb-1">Cỡ chữ (Font size):</label>
+              <label className="text-[10px] text-zinc-400 block mb-1">{t("pipeline:steps.subtitle.fontSizeLabel", "Cỡ chữ (Font size):")}</label>
               <select
                 value={overlayConfig.ticker_font_size || 18}
                 onChange={(e) =>
@@ -231,10 +234,10 @@ export default function SubtitleOverlayPanel({
                 }
                 className="w-full h-7 rounded border border-zinc-700 bg-zinc-900 px-1.5 text-xs text-white outline-none"
               >
-                <option value={14}>Nhỏ (14px)</option>
-                <option value={18}>Chuẩn (18px)</option>
-                <option value={22}>Lớn (22px)</option>
-                <option value={26}>Rất lớn (26px)</option>
+                <option value={14}>{t("pipeline:steps.subtitle.sizeSmall", "Nhỏ (14px)")}</option>
+                <option value={18}>{t("pipeline:steps.subtitle.sizeStandard", "Chuẩn (18px)")}</option>
+                <option value={22}>{t("pipeline:steps.subtitle.sizeLarge", "Lớn (22px)")}</option>
+                <option value={26}>{t("pipeline:steps.subtitle.sizeExtraLarge", "Rất lớn (26px)")}</option>
               </select>
             </div>
           </div>

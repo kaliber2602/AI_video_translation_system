@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Layers } from "lucide-react";
 import { useSubscriptionPlan } from "../../../hooks/useSubscriptionPlan";
 
@@ -7,9 +8,11 @@ interface AudioSeparationCardProps {
 }
 
 export default function AudioSeparationCard({
+
   pipelineConfig,
   onUpdateConfig,
 }: AudioSeparationCardProps) {
+  const { t } = useTranslation(["pipeline", "common"]);
   const { isPro } = useSubscriptionPlan();
 
   return (
@@ -18,11 +21,11 @@ export default function AudioSeparationCard({
         <div className="flex items-center gap-2">
           <Layers size={16} className="text-[var(--color-primary)]" />
           <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-primary)]">
-            Tách âm & Tiền xử lý (Audio Separation Studio)
+            {t("pipeline:steps.upload.audioSepTitle", "Tách âm & Tiền xử lý (Audio Separation Studio)")}
           </h4>
         </div>
         <span className="rounded-full bg-[var(--color-primary)]/10 px-2.5 py-0.5 text-[11px] font-bold text-[var(--color-primary)]">
-          Đồng bộ 2 chiều (Auto-saved)
+          {t("pipeline:steps.upload.twoWaySync", "Đồng bộ 2 chiều (Auto-saved)")}
         </span>
       </div>
 
@@ -30,7 +33,7 @@ export default function AudioSeparationCard({
         {/* Demucs Separation Model */}
         <div>
           <label className="text-xs font-bold text-[var(--color-text-primary)] block mb-1.5">
-            Mô hình bóc tách âm thanh (Demucs):
+            {t("pipeline:steps.upload.demucsModelLabel", "Mô hình bóc tách âm thanh (Demucs):")}
           </label>
           <select
             value={pipelineConfig?.audio_separation?.demucs_model || "htdemucs"}
@@ -51,7 +54,7 @@ export default function AudioSeparationCard({
             </option>
           </select>
           <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
-            Demucs trích xuất riêng biệt Vocals (cho nhận diện giọng nói) và Background Music (cho khâu lồng tiếng).
+            {t("pipeline:steps.upload.demucsExplanation", "Demucs trích xuất riêng biệt Vocals (cho nhận diện giọng nói) và Background Music (cho khâu lồng tiếng).")}
           </p>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   Crop,
   Trash2,
@@ -13,19 +14,21 @@ interface SubtitleMaskStudioProps {
 }
 
 export default function SubtitleMaskStudio({
+
   subtitleMask,
   setSubtitleMask,
   isMaskingMode,
   setIsMaskingMode,
   videoDimensions,
 }: SubtitleMaskStudioProps) {
+  const { t } = useTranslation(["pipeline", "common"]);
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-3.5 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Crop className="w-4 h-4 text-rose-400" />
-            <span className="text-xs font-bold text-white">Che phụ đề cũ / Watermark gốc</span>
+            <span className="text-xs font-bold text-white">{t("pipeline:steps.subtitle.maskTitle", "Che phụ đề cũ / Watermark gốc")}</span>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
             <input
@@ -50,7 +53,7 @@ export default function SubtitleMaskStudio({
         </div>
 
         <p className="text-[11px] text-zinc-400 leading-relaxed">
-          Vẽ một vùng hình chữ nhật trên khung hình video để áp dụng bộ lọc Gaussian Blur hoặc Dải màu đơn sắc che đi phụ đề cứng có sẵn của video gốc.
+          {t("pipeline:steps.subtitle.maskDesc", "Vẽ một vùng hình chữ nhật trên khung hình video để áp dụng bộ lọc Gaussian Blur hoặc Dải màu che phụ đề chết có sẵn.")}
         </p>
 
         <button
@@ -63,14 +66,14 @@ export default function SubtitleMaskStudio({
           }`}
         >
           <Crop className="w-3.5 h-3.5" />
-          <span>{isMaskingMode ? "Đang vẽ vùng che (Nhấp & kéo chuột trên video)" : "✏ Nhấn để vẽ vùng che trên Video"}</span>
+          <span>{isMaskingMode ? t("pipeline:steps.subtitle.drawingMask", "Đang vẽ vùng che (Nhấp & kéo chuột trên video)") : t("pipeline:steps.subtitle.clickToDrawMask", "✏ Nhấn để vẽ vùng che trên video")}</span>
         </button>
 
         {subtitleMask?.enabled && (
           <div className="pt-3 border-t border-rose-500/20 space-y-3">
             <div>
               <label className="text-[11px] font-medium text-zinc-300 block mb-1.5">
-                Kiểu che (Mask Effect):
+                {t("pipeline:steps.subtitle.maskEffect", "Kiểu che (Mask Effect):")}
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -83,7 +86,7 @@ export default function SubtitleMaskStudio({
                   }`}
                 >
                   <span className="font-bold block">Gaussian Blur</span>
-                  <span className="text-[10px] opacity-75">Làm mờ phụ đề cũ</span>
+                  <span className="text-[10px] opacity-75">{t("pipeline:steps.subtitle.blurOldSub", "Làm mờ phụ đề cũ")}</span>
                 </button>
 
                 <button
@@ -96,7 +99,7 @@ export default function SubtitleMaskStudio({
                   }`}
                 >
                   <span className="font-bold block">Solid Banner</span>
-                  <span className="text-[10px] opacity-75">Dải màu đơn sắc đè lên</span>
+                  <span className="text-[10px] opacity-75">{t("pipeline:steps.subtitle.solidBanner", "Dải màu đơn sắc đè lên")}</span>
                 </button>
               </div>
             </div>
@@ -104,7 +107,7 @@ export default function SubtitleMaskStudio({
             {subtitleMask.mask_type === "banner" && (
               <div>
                 <label className="text-[11px] font-medium text-zinc-300 block mb-1.5">
-                  Màu dải banner:
+                  {t("pipeline:steps.subtitle.bannerColor", "Màu dải banner:")}
                 </label>
                 <div className="flex items-center gap-2">
                   {["black", "#18181b", "#0f172a", "#3b0764"].map((c) => (
@@ -130,7 +133,7 @@ export default function SubtitleMaskStudio({
 
             <div>
               <div className="flex justify-between text-[11px] font-medium text-zinc-300 mb-1">
-                <span>Độ mờ đục (Opacity):</span>
+                <span>{t("pipeline:steps.subtitle.opacityLabel", "Độ mờ đục (Opacity):")}</span>
                 <span className="font-mono text-rose-400 font-bold">{Math.round((subtitleMask.opacity ?? 0.85) * 100)}%</span>
               </div>
               <input
@@ -147,8 +150,8 @@ export default function SubtitleMaskStudio({
             </div>
 
             <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400 pt-1">
-              <span>Tọa độ: {subtitleMask.x}, {subtitleMask.y}</span>
-              <span>Kích thước: {subtitleMask.width} × {subtitleMask.height} px</span>
+              <span>{t("pipeline:steps.subtitle.coordinates", { x: subtitleMask.x, y: subtitleMask.y, defaultValue: `Tọa độ: ${subtitleMask.x}, ${subtitleMask.y}` })}</span>
+              <span>{t("pipeline:steps.subtitle.dimensions", { w: subtitleMask.width, h: subtitleMask.height, defaultValue: `Kích thước: ${subtitleMask.width} × ${subtitleMask.height} px` })}</span>
             </div>
 
             <button
@@ -157,7 +160,7 @@ export default function SubtitleMaskStudio({
               className="w-full py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-300 text-xs font-medium hover:bg-red-500/20 transition flex items-center justify-center gap-1.5"
             >
               <Trash2 size={12} />
-              <span>Xóa vùng che phụ đề cũ</span>
+              <span>{t("pipeline:steps.subtitle.removeMask", "Xóa vùng che phụ đề cũ")}</span>
             </button>
           </div>
         )}
