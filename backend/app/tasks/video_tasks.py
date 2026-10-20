@@ -2064,7 +2064,7 @@ def task_dub_mux_step(
         else:
             bgm_dir = OUTPUT_DIR / f"audio_{video_id}"
             if bgm_dir.exists():
-                possible_patterns = ["*bgm*.wav", "*no_vocals*.wav", "*background*.wav", "*instrumental*.wav", "*.wav"]
+                possible_patterns = ["*no_vocals*.wav", "*bgm*.wav", "*instrumental*.wav", "*background*.wav"]
                 bgm_files = []
                 for pattern in possible_patterns:
                     bgm_files = list(bgm_dir.glob(pattern))

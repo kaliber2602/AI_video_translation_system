@@ -1,5 +1,6 @@
 import { Download, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useSubscriptionPlan } from "../../../hooks/useSubscriptionPlan";
 
 interface ExportConfigPanelProps {
   selectedFormat: string;
@@ -25,6 +26,7 @@ export default function ExportConfigPanel({
   onExport,
 }: ExportConfigPanelProps) {
   const { t } = useTranslation(["pipeline", "common"]);
+  const { isPro } = useSubscriptionPlan();
 
   return (
     <div className="space-y-3 pb-3 border-b border-[var(--color-border)]">
@@ -66,8 +68,12 @@ export default function ExportConfigPanel({
           className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-medium text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
         >
           <option value="720p">720p HD (Gói Free & Pro)</option>
-          <option value="1080p">1080p Full HD (Chuẩn - Gói Pro)</option>
-          <option value="4K">4K Ultra HD (Chất lượng cao - Gói Pro)</option>
+          <option value="1080p" disabled={!isPro}>
+            1080p Full HD {!isPro ? "(Yeu cau goi Pro)" : "(Gói Pro)"}
+          </option>
+          <option value="4K" disabled={!isPro}>
+            4K Ultra HD {!isPro ? "(Yeu cau goi Pro)" : "(Gói Pro)"}
+          </option>
         </select>
       </div>
 

@@ -32,6 +32,7 @@ import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { usePipeline } from "../../hooks/usePipeline";
 import { useHybridProgress } from "../../hooks/useHybridProgress";
+import { useSubscriptionPlan } from "../../hooks/useSubscriptionPlan";
 import { videoService } from "../../services/video.service";
 import PipelineStepLayout from "./PipelineStepLayout";
 import { toast } from "../../lib/toast";
@@ -41,6 +42,7 @@ import NleTimelineEditor from "../editor/NleTimelineEditor";
 export default function DubbingStep() {
   const { t } = useTranslation(["pipeline", "common"]);
   const { state, dispatch } = usePipeline();
+  const { isPro } = useSubscriptionPlan();
   
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -1420,6 +1422,10 @@ export default function DubbingStep() {
                   value={ttsEngine}
                   onChange={(e) => {
                     const newEngine = e.target.value;
+                    if ((newEngine === "coqui_xtts_v2" || newEngine === "elevenlabs") && !isPro) {
+                      toast.warning("Yêu cầu gói Pro", "Mô hình này chỉ dành cho tài khoản Pro. Vui lòng nâng cấp gói để sử dụng.");
+                      return;
+                    }
                     setTtsEngine(newEngine);
                     if (
                       newEngine === "coqui_xtts_v2" &&
@@ -1434,8 +1440,12 @@ export default function DubbingStep() {
                   className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-semibold text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
                 >
                   <option value="edge_tts">Microsoft Edge-TTS Neural (Free Cloud)</option>
-                  <option value="coqui_xtts_v2">Coqui XTTS-v2 Voice Cloning (Pro)</option>
-                  <option value="elevenlabs">ElevenLabs Multilingual v2 (Pro API)</option>
+                  <option value="coqui_xtts_v2" disabled={!isPro}>
+                    Coqui XTTS-v2 Voice Cloning {!isPro ? "(Yeu cau Pro)" : "(Pro)"}
+                  </option>
+                  <option value="elevenlabs" disabled={!isPro}>
+                    ElevenLabs Multilingual v2 {!isPro ? "(Yeu cau Pro)" : "(Pro API)"}
+                  </option>
                 </select>
               </div>
 

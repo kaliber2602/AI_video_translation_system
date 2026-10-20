@@ -54,6 +54,7 @@ pyannote.audio==3.3.2
 matplotlib>=3.8.0
 edge-tts>=7.0.0
 coqui-tts==0.27.5
+torchcodec>=0.17.0
 coqui-tts-trainer>=0.3.0,<0.4.0
 tensorboard==2.21.0
 coqpit-config==0.2.5

@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Dialog from "../common/Dialog";
 import Button from "../common/Button";
 import { toast } from "../../lib/toast";
+import { useSubscriptionPlan } from "../../hooks/useSubscriptionPlan";
 import {
   getPresets,
   createPreset,
@@ -73,7 +74,7 @@ const DEFAULT_CONFIG: PresetConfigData = {
     },
   },
   export_muxing: {
-    resolution: "1080p",
+    resolution: "720p",
     encoder: "h264_nvenc",
     container: "mp4",
   },
@@ -86,6 +87,7 @@ export default function PresetStudioModal({
   onPresetsChanged,
   onSelectPreset,
 }: PresetStudioModalProps) {
+  const { isPro } = useSubscriptionPlan();
   const [activeTab, setActiveTab] = useState<TabKey>("separation");
   const [presets, setPresets] = useState<PipelinePreset[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<number | null>(null);
@@ -552,7 +554,9 @@ export default function PresetStudioModal({
                   >
                     <option value="htdemucs">Meta Demucs v4 HT (Free - Nhanh, VRAM 1.2GB)</option>
                     <option value="htdemucs_ft">Meta Demucs v4 FT (Free - Khử tạp âm tốt)</option>
-                    <option value="mdx_extra">MDX-Net Extra (Pro - Bảo toàn nhạc nền chi tiết)</option>
+                    <option value="mdx_extra" disabled={!isPro}>
+                      MDX-Net Extra {!isPro ? "(Yeu cau goi Pro)" : "(Pro - Bảo toàn nhạc nền chi tiết)"}
+                    </option>
                   </select>
                   <p className="text-[10px] text-[var(--color-text-muted)] mt-1.5">
                     Demucs trích xuất riêng biệt Vocals (cho nhận diện giọng nói) và Background Music (cho khâu lồng tiếng).
@@ -598,7 +602,9 @@ export default function PresetStudioModal({
                     <option value="whisper-small">OpenAI Whisper Small (Free)</option>
                     <option value="whisper-medium">OpenAI Whisper Medium (Free - Khuyên dùng)</option>
                     <option value="whisperx-large-v3">WhisperX Large v3 (Free - Căn chỉnh thời gian chuẩn xác)</option>
-                    <option value="whisper-large-v3">OpenAI Whisper Large v3 (Pro)</option>
+                    <option value="whisper-large-v3" disabled={!isPro}>
+                      OpenAI Whisper Large v3 {!isPro ? "(Yeu cau goi Pro)" : "(Pro)"}
+                    </option>
                   </select>
                   <p className="text-[10px] text-[var(--color-text-muted)] mt-1.5">
                     Mô hình nhận dạng giọng nói tự động trích xuất lời thoại chính xác theo từng đoạn video.
@@ -671,7 +677,9 @@ export default function PresetStudioModal({
                   >
                     <option value="nllb_200_1.3b">Meta NLLB-200 1.3B (Free)</option>
                     <option value="deepseek_v3">DeepSeek V3 (Free)</option>
-                    <option value="nllb_200_3.3b">Meta NLLB-200 3.3B (Pro)</option>
+                    <option value="nllb_200_3.3b" disabled={!isPro}>
+                      Meta NLLB-200 3.3B {!isPro ? "(Yeu cau goi Pro)" : "(Pro)"}
+                    </option>
                   </select>
                 </div>
               </div>
@@ -726,8 +734,12 @@ export default function PresetStudioModal({
                     }`}
                   >
                     <option value="edge_tts">Microsoft Edge-TTS Neural (Free Cloud)</option>
-                    <option value="coqui_xtts_v2">Coqui XTTS-v2 Voice Cloning (Pro)</option>
-                    <option value="elevenlabs">ElevenLabs Multilingual v2 (Pro API)</option>
+                    <option value="coqui_xtts_v2" disabled={!isPro}>
+                      Coqui XTTS-v2 Voice Cloning {!isPro ? "(Yeu cau goi Pro)" : "(Pro)"}
+                    </option>
+                    <option value="elevenlabs" disabled={!isPro}>
+                      ElevenLabs Multilingual v2 {!isPro ? "(Yeu cau goi Pro)" : "(Pro API)"}
+                    </option>
                   </select>
                   {(config.tts_dubbing?.engine === "coqui_xtts_v2") &&
                     !XTTS_SUPPORTED_LANGS.includes((config.translation?.target_language || "vi").toLowerCase().trim()) && (
@@ -815,7 +827,7 @@ export default function PresetStudioModal({
                       className="px-2 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-indigo-500 text-[10px] font-medium text-[var(--color-text-primary)] flex flex-col items-center gap-0.5 text-center transition cursor-pointer"
                       title="Vocal Gốc 0% (Tắt) + BGM 70% (Bật) + Giọng AI 100%"
                     >
-                      <span>🎙️ Giọng AI</span>
+                      <span>Giọng AI</span>
                       <span className="text-[9px] text-[var(--color-text-muted)]">Pure Dub</span>
                     </button>
 
@@ -838,7 +850,7 @@ export default function PresetStudioModal({
                       className="px-2 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-indigo-500 text-[10px] font-medium text-[var(--color-text-primary)] flex flex-col items-center gap-0.5 text-center transition cursor-pointer"
                       title="Vocal Gốc 30% (Bật) + BGM 50% (Bật) + Giọng AI 70%"
                     >
-                      <span>📻 Truyền hình</span>
+                      <span>Truyền hình</span>
                       <span className="text-[9px] text-[var(--color-text-muted)]">70/30 Mux</span>
                     </button>
 
@@ -1827,8 +1839,12 @@ export default function PresetStudioModal({
                     className="w-full h-9 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs text-[var(--color-text-primary)] outline-none focus:border-indigo-500"
                   >
                     <option value="720p">720p HD (Gói Free & Pro)</option>
-                    <option value="1080p">1080p Full HD (Chuẩn - Gói Pro)</option>
-                    <option value="4K">4K Ultra HD (Chất lượng cao - Gói Pro)</option>
+                    <option value="1080p" disabled={!isPro}>
+                      1080p Full HD {!isPro ? "(Yeu cau goi Pro)" : "(Chuẩn - Gói Pro)"}
+                    </option>
+                    <option value="4K" disabled={!isPro}>
+                      4K Ultra HD {!isPro ? "(Yeu cau goi Pro)" : "(Chất lượng cao - Gói Pro)"}
+                    </option>
                   </select>
                 </div>
 

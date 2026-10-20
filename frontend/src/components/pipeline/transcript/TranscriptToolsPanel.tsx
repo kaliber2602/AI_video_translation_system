@@ -5,6 +5,7 @@ import {
   Check,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useSubscriptionPlan } from "../../../hooks/useSubscriptionPlan";
 
 interface TranscriptToolsPanelProps {
   whisperModel: string;
@@ -40,6 +41,7 @@ export default function TranscriptToolsPanel({
   onExportFormat,
 }: TranscriptToolsPanelProps) {
   const { t } = useTranslation(["pipeline", "common"]);
+  const { isPro } = useSubscriptionPlan();
 
   return (
     <div className="space-y-4">
@@ -60,7 +62,9 @@ export default function TranscriptToolsPanel({
           <option value="whisper-small">OpenAI Whisper Small (Free)</option>
           <option value="whisper-medium">OpenAI Whisper Medium (Free)</option>
           <option value="whisperx-large-v3">WhisperX Large v3 (Free)</option>
-          <option value="whisper-large-v3">OpenAI Whisper Large v3 (Pro)</option>
+          <option value="whisper-large-v3" disabled={!isPro}>
+            OpenAI Whisper Large v3 {!isPro ? "(Yeu cau goi Pro)" : "(Pro)"}
+          </option>
         </select>
       </div>
 

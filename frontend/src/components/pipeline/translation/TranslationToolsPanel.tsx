@@ -6,6 +6,7 @@ import {
   Check,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useSubscriptionPlan } from "../../../hooks/useSubscriptionPlan";
 
 interface SupportedLanguage {
   code: string;
@@ -64,6 +65,7 @@ export default function TranslationToolsPanel({
   onExportFormat,
 }: TranslationToolsPanelProps) {
   const { t } = useTranslation(["pipeline", "common"]);
+  const { isPro } = useSubscriptionPlan();
 
   return (
     <div className="space-y-4">
@@ -100,11 +102,14 @@ export default function TranslationToolsPanel({
           disabled={isTranslating}
           className="w-full h-9 rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs font-semibold text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)]"
         >
-          {supportedTranslationModels.map((m) => (
-            <option key={m.code} value={m.code}>
-              {m.label}
-            </option>
-          ))}
+          {supportedTranslationModels.map((m) => {
+            const isModelLocked = m.requiredPlan === "pro" && !isPro;
+            return (
+              <option key={m.code} value={m.code} disabled={isModelLocked}>
+                {m.label} {isModelLocked ? "(Yeu cau goi Pro)" : ""}
+              </option>
+            );
+          })}
         </select>
       </div>
 

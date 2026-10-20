@@ -481,9 +481,13 @@ async def upload_video(
     except Exception as exc:
         logger.warning(f"Could not auto-extract initial thumbnail for video {video.id}: {exc}")
     
-    # Create pipeline config
+    # Create pipeline config with Free defaults (tier-safe)
     config = VideoPipelineConfig(
         video_id=video.id,
+        separation_model="htdemucs",
+        stt_model="whisper-medium",
+        translation_model="nllb_200_1.3b",
+        tts_model="edge_tts",
         target_language=target_language,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
@@ -926,7 +930,7 @@ async def get_video_pipeline_config(
         if not audio_sep.get("demucs_model"):
             audio_sep["demucs_model"] = config.separation_model or "htdemucs"
         if not transcription.get("model_size"):
-            transcription["model_size"] = config.stt_model or "whisper_medium"
+            transcription["model_size"] = config.stt_model or "whisper-medium"
         if "diarization" not in transcription:
             transcription["diarization"] = bool(config.diarization_model)
         if not translation.get("model_name"):
@@ -934,7 +938,7 @@ async def get_video_pipeline_config(
         if not translation.get("target_language"):
             translation["target_language"] = config.target_language or video.target_language or "vi"
         if not tts_dubbing.get("engine"):
-            tts_dubbing["engine"] = config.tts_model or "coqui_xtts_v2"
+            tts_dubbing["engine"] = config.tts_model or "edge_tts"
         if "speed_rate" not in tts_dubbing:
             tts_dubbing["speed_rate"] = config.voice_speed or 1.0
 
@@ -1003,7 +1007,7 @@ async def get_video_pipeline_config(
                 },
             },
             "export_muxing": {
-                "resolution": export_muxing.get("resolution", "1080p"),
+                "resolution": export_muxing.get("resolution", "720p"),
                 "encoder": export_muxing.get("encoder", "h264_nvenc"),
                 "nvenc_preset": export_muxing.get("nvenc_preset", "p4"),
                 "bitrate": export_muxing.get("bitrate", "8M"),
@@ -1037,12 +1041,16 @@ async def update_video_pipeline_config(
     export_muxing = cfg_data.get("export_muxing") or {}
 
     # Enforce model tiering (Pro only models)
+    if audio_sep.get("demucs_model"):
+        validate_model_access(user_id, audio_sep["demucs_model"])
     if transcription.get("model_size"):
         validate_model_access(user_id, transcription["model_size"])
     if translation.get("model_name"):
         validate_model_access(user_id, translation["model_name"])
     if tts_dubbing.get("engine"):
         validate_model_access(user_id, tts_dubbing["engine"])
+    if export_muxing.get("resolution"):
+        validate_user_export_resolution(user_id, export_muxing["resolution"])
 
     target_lang = translation.get("target_language") or video.target_language or "vi"
     source_lang = translation.get("source_language") or video.source_language or "auto"
@@ -1066,11 +1074,11 @@ async def update_video_pipeline_config(
 
     config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
     sep_model = audio_sep.get("demucs_model", "htdemucs")
-    stt_model = transcription.get("model_size", "whisper_medium")
+    stt_model = transcription.get("model_size", "whisper-medium")
     diar = transcription.get("diarization", True)
     diar_model = "pyannote_3.1" if diar else None
     trans_model = translation.get("model_name", "nllb_200_1.3b")
-    tts_engine = tts_dubbing.get("engine", "coqui_xtts_v2")
+    tts_engine = tts_dubbing.get("engine", "edge_tts")
     speed_rate = float(tts_dubbing.get("speed_rate", 1.0))
     burn_mode = subtitles.get("burn_mode", "hardsub")
     auto_sub = burn_mode != "none"
@@ -1934,10 +1942,20 @@ async def start_processing(
     if not config:
         raise HTTPException(404, "Pipeline config not found")
 
+    # Enforce model tier access on pipeline execution
+    if config.separation_model:
+        validate_model_access(user_id, config.separation_model)
+    if config.stt_model:
+        validate_model_access(user_id, config.stt_model)
+    if config.translation_model:
+        validate_model_access(user_id, config.translation_model)
+    if config.tts_model:
+        validate_model_access(user_id, config.tts_model)
+
     # 2. Enforce Word Quota deduction (Tokenize / Word-based subscription with Model Multipliers)
-    stt_multiplier = get_model_word_multiplier(config.stt_model or "whisperx_large_v3", default_multiplier=1)
+    stt_multiplier = get_model_word_multiplier(config.stt_model or "whisper-medium", default_multiplier=1)
     trans_multiplier = get_model_word_multiplier(config.translation_model or "nllb_200_1.3b", default_multiplier=1)
-    tts_multiplier = get_model_word_multiplier(config.tts_model or "xtts_v2", default_multiplier=1)
+    tts_multiplier = get_model_word_multiplier(config.tts_model or "edge_tts", default_multiplier=1)
     pipeline_word_multiplier = max(1, stt_multiplier + trans_multiplier + tts_multiplier)
 
     raw_words = TokenizerService.estimate_video_words(video.duration or 60.0)
@@ -2409,6 +2427,7 @@ async def start_transcription(
     # Enforce AI credit deduction for STT from ai_models table
     config = db.query(VideoPipelineConfig).filter(VideoPipelineConfig.video_id == video_id).first()
     stt_model = config.stt_model if config and config.stt_model else "whisperx_large_v3"
+    validate_model_access(user_id, stt_model)
     stt_multiplier = get_model_word_multiplier(stt_model, default_multiplier=1)
     raw_words = TokenizerService.estimate_video_words(video.duration or 60.0)
     words_needed = raw_words * stt_multiplier
@@ -3241,6 +3260,7 @@ def start_translation(
         config.translation_model = model
         db.flush()
     trans_model = model or (config.translation_model if config and config.translation_model else "nllb_200_1.3b")
+    validate_model_access(user_id, trans_model)
     # Check word quota before proceeding
     quota = get_user_effective_quota(user_id)
     rem_words = quota.get("words", {}).get("remaining_words", 0)
@@ -4900,6 +4920,7 @@ async def generate_tts(
         config.tts_model = model
         db.commit()
     tts_model = model or (config.tts_model if config and config.tts_model else "xtts_v2")
+    validate_model_access(user_id, tts_model)
     
     # Coqui XTTS-v2 language constraint check
     xtts_supported = {"en", "es", "fr", "de", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh", "zh-cn", "ja", "hu", "ko", "hi"}
@@ -5343,6 +5364,35 @@ async def get_segment_audio(
 
 
 # ============================================================
+
+RESOLUTION_TIER_RANK = {
+    "360p": 1,
+    "480p": 2,
+    "720p": 3,
+    "1080p": 4,
+    "2k": 5,
+    "1440p": 5,
+    "4k": 6,
+    "2160p": 6,
+}
+
+def validate_user_export_resolution(user_id: int, requested_quality: Optional[str]) -> None:
+    """Validate that the requested export quality does not exceed user plan limit."""
+    if not requested_quality:
+        return
+    quota = get_user_effective_quota(user_id)
+    max_res = str(quota.get("limits", {}).get("max_export_resolution", "720p")).lower().strip()
+    req_res = str(requested_quality).lower().strip()
+    
+    req_rank = RESOLUTION_TIER_RANK.get(req_res, 3)
+    max_rank = RESOLUTION_TIER_RANK.get(max_res, 3)
+    if req_rank > max_rank:
+        plan_name = quota.get("plan_name", "Free")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Độ phân giải {requested_quality} vượt quá giới hạn xuất video của gói {plan_name} (Tối đa: {max_res.upper()}). Vui lòng nâng cấp gói Pro để xuất chất lượng cao hơn."
+        )
+
 # VIDEO DUBBING - UPDATED WITH HLS SUPPORT
 # ============================================================
 
@@ -5368,6 +5418,9 @@ async def generate_dubbed_video(
     
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
     
+    # Validate export resolution against user plan
+    validate_user_export_resolution(user_id, quality)
+
     # Enforce AI credit deduction for video dubbing render
     duration_mins = max(1, int(math.ceil((video.duration or 60) / 60.0)))
     # Check word quota before proceeding
@@ -6137,6 +6190,9 @@ async def download_dubbed_video(
     
     video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
     
+    # Validate export resolution against user plan
+    validate_user_export_resolution(user_id, quality)
+
     s3_key_or_path = resolve_or_transcode_video_quality(
         video=video,
         language=language,
@@ -6239,7 +6295,9 @@ async def export_video(
     export_service = ExportService()
     
     if export_type == "final_video":
-        quality_to_use = quality or "1080p"
+        quality_to_use = quality or "720p"
+        # Validate export resolution against user plan
+        validate_user_export_resolution(user_id, quality_to_use)
         s3_key_or_path = resolve_or_transcode_video_quality(
             video=video,
             language=language or "vi",
@@ -6801,6 +6859,7 @@ async def separate_audio(
     selected_model = model_name or (config.demucs_model if config and getattr(config, "demucs_model", None) else "htdemucs")
     if selected_model not in ("htdemucs", "htdemucs_ft", "mdx_extra"):
         selected_model = "htdemucs"
+    validate_model_access(user_id, selected_model)
 
     audio_service = AudioService()
     

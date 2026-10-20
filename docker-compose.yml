@@ -8,11 +8,12 @@ services:
     volumes:
       - ./backend:/app
       - ./model-cache:/opt/model-cache
+      - ./model-cache/tts:/root/.local/share/tts
 
     command:
       - sh
       - -c
-      - python scripts/seed_users.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      - python scripts/prefetch_models.py all && python scripts/seed_users.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
     ports:
       - "8000:8000"
@@ -294,7 +295,10 @@ services:
     command: celery -A app.tasks.celery_app worker -P solo -Q queue_media -n worker_media@%h --loglevel=info
     volumes:
       - ./backend:/app
+      - ./model-cache:/opt/model-cache
+      - ./model-cache/tts:/root/.local/share/tts
     environment:
+      TORCH_HOME: /opt/model-cache/torch
       PYTHONUNBUFFERED: "1"
       DATABASE_URL: "postgresql://ai_video:ai_video@db:5432/ai_video"
       REDIS_URL: "redis://redis:6379/0"
@@ -397,3 +401,5 @@ volumes:
   minio_data:
   redis_data:
   ollama_data:
+
+

@@ -17,6 +17,7 @@ import { useState, useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import { toast } from "../../../lib/toast";
 import { videoService } from "../../../services/video.service";
+import { useSubscriptionPlan } from "../../../hooks/useSubscriptionPlan";
 
 interface DubbingToolsPanelProps {
   ttsEngine: string;
@@ -117,6 +118,7 @@ export default function DubbingToolsPanel({
   dubMessage = "",
   onGoToReviewStep,
 }: DubbingToolsPanelProps) {
+  const { isPro } = useSubscriptionPlan();
   const [elevenVoices, setElevenVoices] = useState<Array<{ id: string; name: string; sample_url: string }>>([
     { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel (Nữ)", sample_url: "/api/videos/elevenlabs/voices/21m00Tcm4TlvDq8ikWAM/sample" },
     { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi (Nữ)", sample_url: "/api/videos/elevenlabs/voices/AZnzlk1XvdvUeBnXmlld/sample" },
@@ -216,8 +218,12 @@ export default function DubbingToolsPanel({
           >
             <option value="edge_tts">Microsoft Edge-TTS Neural (Free)</option>
             <option value="bark">Suno Bark (Free)</option>
-            <option value="coqui_xtts_v2">Coqui XTTS v2 (Pro)</option>
-            <option value="elevenlabs">ElevenLabs Multilingual v2 (Pro)</option>
+            <option value="coqui_xtts_v2" disabled={!isPro}>
+              Coqui XTTS v2 {!isPro ? "(Yeu cau goi Pro)" : "(Pro)"}
+            </option>
+            <option value="elevenlabs" disabled={!isPro}>
+              ElevenLabs Multilingual v2 {!isPro ? "(Yeu cau goi Pro)" : "(Pro)"}
+            </option>
           </select>
         </div>
 

@@ -1,4 +1,5 @@
 import { Layers } from "lucide-react";
+import { useSubscriptionPlan } from "../../../hooks/useSubscriptionPlan";
 
 interface AudioSeparationCardProps {
   pipelineConfig?: any;
@@ -9,6 +10,8 @@ export default function AudioSeparationCard({
   pipelineConfig,
   onUpdateConfig,
 }: AudioSeparationCardProps) {
+  const { isPro } = useSubscriptionPlan();
+
   return (
     <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-5 shadow-sm space-y-4">
       <div className="flex items-center justify-between pb-3 border-b border-[var(--color-border-muted)]">
@@ -43,7 +46,9 @@ export default function AudioSeparationCard({
           >
             <option value="htdemucs">Meta Demucs v4 HT (Free)</option>
             <option value="htdemucs_ft">Meta Demucs v4 FT (Free)</option>
-            <option value="mdx_extra">MDX-Net Extra (Pro)</option>
+            <option value="mdx_extra" disabled={!isPro}>
+              MDX-Net Extra {!isPro ? "(Yeu cau goi Pro)" : "(Pro)"}
+            </option>
           </select>
           <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
             Demucs trích xuất riêng biệt Vocals (cho nhận diện giọng nói) và Background Music (cho khâu lồng tiếng).
