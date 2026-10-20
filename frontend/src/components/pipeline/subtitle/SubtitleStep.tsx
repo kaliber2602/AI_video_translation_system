@@ -1215,7 +1215,7 @@ export default function SubtitleStep() {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 size={32} className="animate-spin text-[var(--color-primary)]" />
-        <span className="ml-3 text-sm text-[var(--color-text-muted)]">Đang tải cấu hình phụ đề...</span>
+        <span className="ml-3 text-sm text-[var(--color-text-muted)]">{t("pipeline:steps.subtitle.loadingConfig", "Đang tải cấu hình phụ đề...")}</span>
       </div>
     );
   }
@@ -1252,7 +1252,7 @@ export default function SubtitleStep() {
       <PipelineStepLayout
         stepBadge={t("pipeline:header.stepBadge", { current: "04", total: "06" })}
         stepCategory="Subtitle Studio"
-        stepTitle="Tùy biến Kiểu dáng & Vị trí Phụ đề"
+        stepTitle={t("pipeline:steps.subtitle.pageTitle", "Tùy biến Kiểu dáng & Vị trí Phụ đề")}
         stepDescription="Kéo thả trực tiếp vị trí trên video, bám sát âm thanh thời gian thực, phông chữ thực tế và căn lề"
         error={subtitleError}
         onDismissError={() => setSubtitleError(null)}
@@ -1286,7 +1286,7 @@ export default function SubtitleStep() {
                   isSubtitleEnabled ? "bg-emerald-400 animate-pulse" : "bg-zinc-500"
                 }`}
               />
-              <span>{isSubtitleEnabled ? "Phụ đề: BẬT" : "Phụ đề: TẮT (Bỏ qua)"}</span>
+              <span>{isSubtitleEnabled ? t("pipeline:steps.subtitle.toggleOn", "Phụ đề: BẬT") : t("pipeline:steps.subtitle.toggleOff", "Phụ đề: TẮT (Bỏ qua)")}</span>
             </button>
 
             {/* Toggle Style Tab */}
@@ -1310,7 +1310,7 @@ export default function SubtitleStep() {
               }`}
             >
               <Palette size={13} />
-              <span>Kiểu dáng</span>
+              <span>{t("pipeline:steps.subtitle.tabStyle", "Kiểu dáng")}</span>
             </button>
 
             {/* Toggle Segments Tab */}
@@ -1334,7 +1334,7 @@ export default function SubtitleStep() {
               }`}
             >
               <Type size={13} />
-              <span>Câu thoại ({segments.length})</span>
+              <span>{t("pipeline:steps.subtitle.tabSegments", { count: segments.length, defaultValue: `Câu thoại (${segments.length})` })}</span>
             </button>
 
             {/* Multi-Format Export Subtitle Dropdown */}
@@ -1343,10 +1343,10 @@ export default function SubtitleStep() {
                 type="button"
                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
                 className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] shadow-2xs"
-                title="Xuất phụ đề đa định dạng"
+                title={t("pipeline:steps.subtitle.exportTitle", "Xuất phụ đề đa định dạng")}
               >
                 <Download size={13} />
-                <span>Xuất phụ đề</span>
+                <span>{t("pipeline:steps.subtitle.exportSub", "Xuất phụ đề")}</span>
                 <ChevronDown size={11} className={`transition-transform ${isExportMenuOpen ? "rotate-180" : ""}`} />
               </button>
 
@@ -1357,7 +1357,7 @@ export default function SubtitleStep() {
                     onClick={() => handleExportSubtitleFormat("ass")}
                     className="w-full flex items-center justify-between px-2.5 py-1.5 text-left text-xs font-medium rounded-lg hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)] transition"
                   >
-                    <span>Tải file .ASS</span>
+                    <span>{t("pipeline:steps.subtitle.downloadAss", "Tải file .ASS")}</span>
                     <span className="text-[10px] opacity-60 font-mono">Đầy đủ style</span>
                   </button>
                   <button
@@ -1365,7 +1365,7 @@ export default function SubtitleStep() {
                     onClick={() => handleExportSubtitleFormat("srt")}
                     className="w-full flex items-center justify-between px-2.5 py-1.5 text-left text-xs font-medium rounded-lg hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)] transition"
                   >
-                    <span>Tải file .SRT</span>
+                    <span>{t("pipeline:steps.subtitle.downloadSrt", "Tải file .SRT")}</span>
                     <span className="text-[10px] opacity-60 font-mono">SubRip</span>
                   </button>
                   <button
@@ -1373,7 +1373,7 @@ export default function SubtitleStep() {
                     onClick={() => handleExportSubtitleFormat("vtt")}
                     className="w-full flex items-center justify-between px-2.5 py-1.5 text-left text-xs font-medium rounded-lg hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)] transition"
                   >
-                    <span>Tải file .VTT</span>
+                    <span>{t("pipeline:steps.subtitle.downloadVtt", "Tải file .VTT")}</span>
                     <span className="text-[10px] opacity-60 font-mono">WebVTT</span>
                   </button>
                   <button
@@ -1381,7 +1381,7 @@ export default function SubtitleStep() {
                     onClick={() => handleExportSubtitleFormat("txt")}
                     className="w-full flex items-center justify-between px-2.5 py-1.5 text-left text-xs font-medium rounded-lg hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)] transition"
                   >
-                    <span>Tải file .TXT</span>
+                    <span>{t("pipeline:steps.subtitle.downloadTxt", "Tải file .TXT")}</span>
                     <span className="text-[10px] opacity-60 font-mono">Văn bản</span>
                   </button>
                   <button
@@ -1389,7 +1389,7 @@ export default function SubtitleStep() {
                     onClick={() => handleExportSubtitleFormat("csv")}
                     className="w-full flex items-center justify-between px-2.5 py-1.5 text-left text-xs font-medium rounded-lg hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)] transition"
                   >
-                    <span>Tải file .CSV</span>
+                    <span>{t("pipeline:steps.subtitle.downloadCsv", "Tải file .CSV")}</span>
                     <span className="text-[10px] opacity-60 font-mono">Bảng tính</span>
                   </button>
                 </div>
@@ -1413,10 +1413,10 @@ export default function SubtitleStep() {
                 </div>
                 <div className="space-y-1">
                   <h5 className="text-sm font-bold text-[var(--color-text-primary)]">
-                    Phụ đề đã được TẮT
+                    {t("pipeline:steps.subtitle.subDisabledTitle", "Phụ đề đã được TẮT")}
                   </h5>
                   <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-                    Bạn đã chọn bỏ qua bước tạo và chỉnh sửa phụ đề. Video xuất ra sẽ không nhúng chữ (Clean video).
+                    {t("pipeline:steps.subtitle.subDisabledDesc", "Bạn đã chọn bỏ qua bước tạo và chỉnh sửa phụ đề. Video xuất ra sẽ không nhúng chữ (Clean video).")}
                   </p>
                 </div>
               </div>
@@ -1518,7 +1518,7 @@ export default function SubtitleStep() {
                 disabled={isGenerating}
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-[var(--color-primary-hover)] active:scale-98 disabled:opacity-50"
               >
-                <span>{isSubtitleEnabled ? "Tiếp tục: Lồng tiếng (Dubbing)" : "Bỏ qua & Tiếp tục: Lồng tiếng (Dubbing)"}</span>
+                <span>{isSubtitleEnabled ? t("pipeline:steps.subtitle.continueDubbing", "Tiếp tục: Lồng tiếng (Dubbing)") : t("pipeline:steps.subtitle.skipAndContinueDubbing", "Bỏ qua & Tiếp tục: Lồng tiếng (Dubbing)")}</span>
                 <ChevronRight size={15} />
               </button>
             </div>

@@ -355,9 +355,9 @@ export default function DubbingStep() {
           engine: ttsEngine,
         }
       );
-      toast.success(`Đã sinh lại giọng đọc cho câu #${segmentIdx + 1}!`);
+      toast.success(t("pipeline:steps.dubbing.toastRegenSuccess", { idx: segmentIdx + 1, defaultValue: `Đã sinh lại giọng đọc cho câu #${segmentIdx + 1}!` }));
     } catch (err: any) {
-      toast.error(err?.response?.data?.detail || "Không thể sinh lại âm thanh câu này.");
+      toast.error(err?.response?.data?.detail || t("pipeline:steps.dubbing.toastRegenFail", "Không thể sinh lại âm thanh câu này."));
     } finally {
       setRegeneratingSegmentIdx(null);
     }
@@ -395,11 +395,11 @@ export default function DubbingStep() {
         speaker: spk,
       });
 
-      toast.success(`⚡ Đã đọc lại câu #${segmentIdx + 1} (${res.elapsed_seconds || 0.37}s)!`);
+      toast.success(t("pipeline:steps.dubbing.toastMicroTtsSuccess", { idx: segmentIdx + 1, time: res.elapsed_seconds || 0.37, defaultValue: `⚡ Đã đọc lại câu #${segmentIdx + 1}!` }));
       handlePlaySegmentChunk(segmentIdx);
     } catch (err: any) {
       console.error("Micro-resynthesize failed:", err);
-      toast.error(err?.response?.data?.detail || "Không thể sinh lại giọng đọc câu này.");
+      toast.error(err?.response?.data?.detail || t("pipeline:steps.dubbing.toastMicroTtsFail", "Không thể sinh lại giọng đọc câu này."));
     } finally {
       setRegeneratingSegmentIdx(null);
     }
@@ -444,7 +444,7 @@ export default function DubbingStep() {
           segmentAudioRef.current.src = URL.createObjectURL(audioBlob);
           segmentAudioRef.current.play();
         }
-        toast.success(`✓ Đã thu âm giọng đọc đè lên câu #${segmentIdx + 1}!`);
+        toast.success(t("pipeline:steps.dubbing.toastRecordSuccess", { idx: segmentIdx + 1, defaultValue: `✓ Đã thu âm giọng đọc đè lên câu #${segmentIdx + 1}!` }));
         setRecordingSegmentIdx(null);
       };
 
@@ -452,7 +452,7 @@ export default function DubbingStep() {
       setRecordingSegmentIdx(segmentIdx);
     } catch (err) {
       console.error("Mic error:", err);
-      toast.error("Không thể kết nối Microphone của trình duyệt.");
+      toast.error(t("pipeline:steps.dubbing.toastMicFail", "Không thể kết nối Microphone của trình duyệt."));
     }
   };
 
@@ -468,7 +468,7 @@ export default function DubbingStep() {
       segmentAudioRef.current.src = URL.createObjectURL(file);
       segmentAudioRef.current.play();
     }
-    toast.success(`Đã nạp file âm thanh riêng cho câu #${segmentIdx + 1}`);
+    toast.success(t("pipeline:steps.dubbing.toastUploadAudioSuccess", { idx: segmentIdx + 1, defaultValue: `Đã nạp file âm thanh riêng cho câu #${segmentIdx + 1}` }));
   };
 
   const handleSegmentSlip = (segmentIdx: number, delta: number) => {
@@ -1190,7 +1190,7 @@ export default function DubbingStep() {
               audioRef.current.src = ttsAudioUrl;
               audioRef.current.load();
             } else {
-              toast.error("Chưa có nguồn âm thanh để phát.");
+              toast.error(t("pipeline:steps.dubbing.toastNoAudio", "Chưa có nguồn âm thanh để phát."));
               return;
             }
           }
@@ -1200,7 +1200,7 @@ export default function DubbingStep() {
       } catch (err: any) {
         if (err.name !== "AbortError") {
           console.warn("Audio playback interrupted or failed:", err);
-          toast.error("Không thể phát file âm thanh. Vui lòng thử lại.");
+          toast.error(t("pipeline:steps.dubbing.toastAudioPlayFail", "Không thể phát file âm thanh. Vui lòng thử lại."));
         }
         setIsPlayingTTSOnly(false);
       }
@@ -1275,7 +1275,7 @@ export default function DubbingStep() {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 size={32} className="animate-spin text-[var(--color-primary)]" />
-        <span className="ml-3 text-[var(--color-text-muted)]">Đang tải trạng thái lồng tiếng...</span>
+        <span className="ml-3 text-[var(--color-text-muted)]">{t("pipeline:steps.dubbing.loadingStatus", "Đang tải trạng thái lồng tiếng...")}</span>
       </div>
     );
   }
@@ -1287,8 +1287,8 @@ export default function DubbingStep() {
     <PipelineStepLayout
       stepBadge={t("pipeline:header.stepBadge", { current: "05", total: "06" })}
       stepCategory="Voice & Dubbing Studio"
-      stepTitle="Lồng Tiếng & Hòa Âm Video"
-      stepDescription="Tạo giọng đọc AI, nhúng phụ đề và hòa âm nền video chất lượng cao"
+      stepTitle={t("pipeline:steps.dubbing.title", "Lồng Tiếng & Hòa Âm Video")}
+      stepDescription={t("pipeline:steps.dubbing.description", "Tạo giọng đọc AI, nhúng phụ đề và hòa âm nền video chất lượng cao")}
       error={dubbingError}
       onDismissError={() => setDubbingError(null)}
       hideDefaultToggle={true}
@@ -1313,7 +1313,7 @@ export default function DubbingStep() {
             }`}
           >
             <Mic size={13} />
-            <span>Lồng Tiếng & Hòa Âm</span>
+            <span>{t("pipeline:steps.dubbing.tabDubbing", "Lồng Tiếng & Hòa Âm")}</span>
             {(isTTSReady || isDubReady) && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 ml-0.5" />}
           </button>
 
@@ -1342,7 +1342,7 @@ export default function DubbingStep() {
               type="button"
               onClick={handleDownload}
               className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-bold text-[var(--color-text-primary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] shadow-2xs"
-              title="Tải video lồng tiếng về máy"
+              title={t("pipeline:steps.dubbing.downloadDubbed", "Tải video lồng tiếng về máy")}
             >
               <Download size={13} />
               <span>.{selectedFormat.toUpperCase()}</span>
@@ -1353,7 +1353,7 @@ export default function DubbingStep() {
       toolPanelTitle={
         activeRightTab === "dubbing"
           ? "Lồng Tiếng & Hòa Âm Video"
-          : `mVoice Studio (${segments.length} câu thoại)`
+          : `mVoice Studio (${t("pipeline:steps.dubbing.segmentsCount", { count: segments.length, defaultValue: `${segments.length} câu` })} thoại)`
       }
       toolPanelIcon={
         activeRightTab === "dubbing" ? (
@@ -1375,7 +1375,7 @@ export default function DubbingStep() {
                     1
                   </span>
                   <span className="text-xs font-bold text-[var(--color-text-primary)]">
-                    Giọng Đọc AI (TTS)
+                    {t("pipeline:steps.dubbing.aiVoiceTitle", "Giọng Đọc AI (TTS)")}
                   </span>
                 </div>
                 <span
@@ -1387,7 +1387,7 @@ export default function DubbingStep() {
                       : "bg-[var(--color-surface-muted)] text-[var(--color-text-muted)]"
                   }`}
                 >
-                  {isTTSReady ? "✓ Đã sẵn sàng" : isGeneratingTTS ? "Đang tạo..." : "Chưa tạo"}
+                  {isTTSReady ? t("pipeline:steps.dubbing.statusReady", "✓ Đã sẵn sàng") : isGeneratingTTS ? t("pipeline:steps.dubbing.statusGenerating", "Đang tạo...") : t("pipeline:steps.dubbing.statusNotCreated", "Chưa tạo")}
                 </span>
               </div>
 
@@ -1396,15 +1396,15 @@ export default function DubbingStep() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] block">
-                      TỔNG SỐ CÂU:
+                      {t("pipeline:steps.dubbing.totalSegments", "TỔNG SỐ CÂU:")}
                     </span>
                     <span className="text-sm font-black font-mono text-[var(--color-text-primary)]">
-                      {segments.length} câu
+                      {t("pipeline:steps.dubbing.segmentsCount", { count: segments.length, defaultValue: `${segments.length} câu` })}
                     </span>
                   </div>
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] block">
-                      CẶP NGÔN NGỮ:
+                      {t("pipeline:steps.dubbing.langPair", "CẶP NGÔN NGỮ:")}
                     </span>
                     <span className="text-sm font-black font-mono text-[var(--color-text-primary)] uppercase">
                       {((state.video as any)?.sourceLanguage || (state.video as any)?.source_language || state.translation?.source_language || "AUTO").toUpperCase()} → {selectedLanguage.toUpperCase()}
@@ -1416,7 +1416,7 @@ export default function DubbingStep() {
               {/* TTS Engine Selector */}
               <div>
                 <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                  Mô hình lồng tiếng AI (TTS Engine):
+                  {t("pipeline:steps.dubbing.ttsEngine", "Mô hình lồng tiếng AI (TTS Engine):")}
                 </label>
                 <select
                   value={ttsEngine}
@@ -1453,7 +1453,7 @@ export default function DubbingStep() {
               {ttsEngine === "elevenlabs" ? (
                 <div>
                   <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                    Giọng đọc ElevenLabs Pro:
+                    {t("pipeline:steps.dubbing.elevenVoices", "Giọng đọc ElevenLabs Pro:")}
                   </label>
                   <div className="flex items-center gap-1.5">
                     <select
@@ -1483,14 +1483,14 @@ export default function DubbingStep() {
                       ) : (
                         <Volume2 size={12} />
                       )}
-                      <span>{playingVoiceId === selectedVoiceId ? "Dừng" : "Thử"}</span>
+                      <span>{playingVoiceId === selectedVoiceId ? t("pipeline:steps.dubbing.stopPreview", "Dừng") : t("pipeline:steps.dubbing.previewVoice", "Thử")}</span>
                     </button>
                   </div>
                 </div>
               ) : ttsEngine === "edge_tts" ? (
                 <div>
                   <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                    Giọng đọc Microsoft Edge-TTS Neural:
+                    {t("pipeline:steps.dubbing.edgeVoices", "Giọng đọc Microsoft Edge-TTS Neural:")}
                   </label>
                   <div className="flex items-center gap-1.5">
                     <select
@@ -1529,7 +1529,7 @@ export default function DubbingStep() {
                       ) : (
                         <Volume2 size={12} />
                       )}
-                      <span>{playingEdgeVoiceId === selectedEdgeVoiceId ? "Dừng" : "Thử"}</span>
+                      <span>{playingEdgeVoiceId === selectedEdgeVoiceId ? t("pipeline:steps.dubbing.stopPreview", "Dừng") : t("pipeline:steps.dubbing.previewVoice", "Thử")}</span>
                     </button>
                   </div>
                 </div>
@@ -1538,7 +1538,7 @@ export default function DubbingStep() {
               {/* SPEED SLIDER */}
               <div>
                 <div className="flex items-center justify-between text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">
-                  <span>Tốc độ đọc:</span>
+                  <span>{t("pipeline:steps.dubbing.speechRate", "Tốc độ đọc:")}</span>
                   <span className="font-mono text-xs font-bold text-[var(--color-primary)]">{ttsSpeed}x</span>
                 </div>
                 <input
@@ -1596,7 +1596,7 @@ export default function DubbingStep() {
                     />
                   </div>
                   <p className="text-[10px] text-[var(--color-text-muted)]">
-                    Tiến độ lồng tiếng được tính toán trực tiếp trên số lượng câu AI đã đọc.
+                    {t("pipeline:steps.dubbing.ttsProgressNote", "Tiến độ lồng tiếng được tính toán trực tiếp trên số lượng câu AI đã đọc.")}
                   </p>
                 </div>
               )}
@@ -1609,7 +1609,7 @@ export default function DubbingStep() {
                       <Waves size={13} />
                     </div>
                     <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-primary)]">
-                      Rãnh Âm Thanh Lồng Tiếng (TTS)
+                      {t("pipeline:steps.dubbing.ttsAudioTrack", "Rãnh Âm Thanh Lồng Tiếng (TTS)")}
                     </span>
                   </div>
 
@@ -1669,7 +1669,7 @@ export default function DubbingStep() {
                         href={ttsAudioUrl}
                         download={`tts_${selectedLanguage}.wav`}
                         className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition"
-                        title="Tải tệp âm thanh wav"
+                        title={t("pipeline:steps.dubbing.downloadWav", "Tải tệp âm thanh wav")}
                       >
                         <Download size={14} />
                       </a>
@@ -1677,7 +1677,7 @@ export default function DubbingStep() {
                   </div>
                 ) : (
                   <div className="text-[10px] text-[var(--color-text-muted)] py-0.5 italic">
-                    Chưa có tệp âm thanh xem trước. Hãy nhấn nút tạo ở trên.
+                    {t("pipeline:steps.dubbing.noAudioPreview", "Chưa có tệp âm thanh xem trước. Hãy nhấn nút tạo ở trên.")}
                   </div>
                 )}
               </div>
@@ -1688,7 +1688,7 @@ export default function DubbingStep() {
                   <div className="flex items-center gap-1.5">
                     <Sliders size={13} className="text-[var(--color-primary)]" />
                     <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-primary)]">
-                      Bàn Trộn 3 Rãnh (Virtual Mixer)
+                      {t("pipeline:steps.dubbing.mixerTitle", "Bàn Trộn 3 Rãnh (Virtual Mixer)")}
                     </span>
                   </div>
                   <span className="text-[9px] font-bold text-[var(--color-primary)] bg-[var(--color-primary)]/10 px-1.5 py-0.2 rounded">
@@ -1699,7 +1699,7 @@ export default function DubbingStep() {
                 {/* 1-Click Audio Presets */}
                 <div className="space-y-1">
                   <span className="text-[10px] font-semibold text-[var(--color-text-muted)] block">
-                    Bộ Preset Hòa Âm 1-Click:
+                    {t("pipeline:steps.dubbing.mixerPresets", "Bộ Preset Hòa Âm 1-Click:")}
                   </span>
                   <div className="grid grid-cols-3 gap-1.5">
                     <button
@@ -1717,7 +1717,7 @@ export default function DubbingStep() {
                       className="px-2 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-primary)] text-[10px] font-medium text-[var(--color-text-primary)] flex flex-col items-center gap-0.5 text-center transition"
                       title="Vocal Gốc 0% (Tắt) + BGM 70% (Bật) + Giọng AI 100%"
                     >
-                      <span>🎙️ Giọng AI</span>
+                      <span>🎙️ {t("pipeline:steps.dubbing.presetAiVoice", "Giọng AI")}</span>
                       <span className="text-[9px] text-[var(--color-text-muted)]">Pure Dub</span>
                     </button>
 
@@ -1737,7 +1737,7 @@ export default function DubbingStep() {
                       className="px-2 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-primary)] text-[10px] font-medium text-[var(--color-text-primary)] flex flex-col items-center gap-0.5 text-center transition"
                       title="Vocal Gốc 30% (Bật) + BGM 50% (Bật) + Giọng AI 70%"
                     >
-                      <span>📻 Truyền hình</span>
+                      <span>📻 {t("pipeline:steps.dubbing.presetBroadcast", "Truyền hình")}</span>
                       <span className="text-[9px] text-[var(--color-text-muted)]">70/30 Mux</span>
                     </button>
 
@@ -1755,7 +1755,7 @@ export default function DubbingStep() {
                       className="px-2 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-primary)] text-[10px] font-medium text-[var(--color-text-primary)] flex flex-col items-center gap-0.5 text-center transition"
                       title="Vocal Gốc 0% (Tắt) + BGM 0% (Tắt) + Giọng AI 100%"
                     >
-                      <span>🗣️ Chỉ lời nói</span>
+                      <span>🗣️ {t("pipeline:steps.dubbing.presetSpeechOnly", "Chỉ lời nói")}</span>
                       <span className="text-[9px] text-[var(--color-text-muted)]">Clean Speech</span>
                     </button>
                   </div>
@@ -1766,7 +1766,7 @@ export default function DubbingStep() {
                   <div className="flex items-center justify-between text-[10px]">
                     <span className="flex items-center gap-1 font-semibold text-[var(--color-text-secondary)]">
                       <Mic size={11} className="text-zinc-400" />
-                      Vocal Gốc (Original)
+                      {t("pipeline:steps.dubbing.originalTrack", "Vocal Gốc (Original)")}
                     </span>
                     <div className="flex items-center gap-1.5 font-mono">
                       <button
@@ -1812,7 +1812,7 @@ export default function DubbingStep() {
                   <div className="flex items-center justify-between text-[10px]">
                     <span className="flex items-center gap-1 font-semibold text-[var(--color-text-secondary)]">
                       <Waves size={11} className="text-indigo-400" />
-                      Nhạc nền (BGM)
+                      {t("pipeline:steps.dubbing.bgmTrack", "Nhạc nền (BGM)")}
                     </span>
                     <div className="flex items-center gap-1.5 font-mono">
                       <button
@@ -1858,7 +1858,7 @@ export default function DubbingStep() {
                   <div className="flex items-center justify-between text-[10px]">
                     <span className="flex items-center gap-1 font-semibold text-[var(--color-text-secondary)]">
                       <Volume2 size={11} className="text-emerald-400" />
-                      Giọng AI Dubbing
+                      {t("pipeline:steps.dubbing.dubTrack", "Giọng AI Dubbing")}
                     </span>
                     <div className="flex items-center gap-1.5 font-mono">
                       <button
@@ -1907,7 +1907,7 @@ export default function DubbingStep() {
                 <div className="flex items-center gap-1.5">
                   <Film size={14} className="text-[var(--color-primary)]" />
                   <span className="text-xs font-bold text-[var(--color-text-primary)]">
-                    Kết Xuất Video Lồng Tiếng
+                    {t("pipeline:steps.dubbing.exportDubTitle", "Kết Xuất Video Lồng Tiếng")}
                   </span>
                 </div>
                 <span
@@ -1919,7 +1919,7 @@ export default function DubbingStep() {
                       : "bg-[var(--color-surface-muted)] text-[var(--color-text-muted)]"
                   }`}
                 >
-                  {isDubReady ? "✓ Đã xong" : isGeneratingDub ? "Đang render..." : "Chờ TTS"}
+                  {isDubReady ? t("pipeline:steps.dubbing.statusRendered", "✓ Đã xong") : isGeneratingDub ? t("pipeline:steps.dubbing.statusRendering", "Đang render...") : t("pipeline:steps.dubbing.statusWaiting", "Chờ TTS")}
                 </span>
               </div>
 
@@ -1927,7 +1927,7 @@ export default function DubbingStep() {
               {!isTTSReady && (
                 <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-300 flex items-start gap-2">
                   <Lock size={14} className="shrink-0 mt-0.5" />
-                  <span>Cần tạo giọng đọc AI (TTS) trước khi kết xuất video hoàn chỉnh.</span>
+                  <span>{t("pipeline:steps.dubbing.needTtsFirst", "Cần tạo giọng đọc AI (TTS) trước khi kết xuất video hoàn chỉnh.")}</span>
                 </div>
               )}
 
@@ -1939,7 +1939,7 @@ export default function DubbingStep() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--color-text-primary)]">
                     <Captions size={14} className="text-[var(--color-primary)]" />
-                    <span>Nhúng phụ đề cứng (Hardsub)</span>
+                    <span>{t("pipeline:steps.dubbing.hardsubToggle", "Nhúng phụ đề cứng (Hardsub)")}</span>
                   </div>
                   <div
                     className={`w-8 h-4 rounded-full transition-colors relative flex items-center p-0.5 ${
@@ -1955,8 +1955,8 @@ export default function DubbingStep() {
                 </div>
                 <p className="mt-1 text-[10px] text-[var(--color-text-muted)] leading-normal">
                   {burnSubtitles
-                    ? "✓ Bật: Cắt khung hình & nung phụ đề đúng kiểu dáng đã chọn ở Bước 4"
-                    : "✗ Tắt: Giữ video sạch không chữ (Clean export)"}
+                    ? t("pipeline:steps.dubbing.hardsubOnDesc", "✓ Bật: Cắt khung hình & nung phụ đề đúng kiểu dáng đã chọn ở Bước 4")
+                    : t("pipeline:steps.dubbing.hardsubOffDesc", "✗ Tắt: Giữ video sạch không chữ (Clean export)")}
                 </p>
               </div>
 
@@ -1998,7 +1998,7 @@ export default function DubbingStep() {
                     />
                   </div>
                   <p className="text-[10px] text-[var(--color-text-muted)]">
-                    Tiến độ encode FFmpeg / hòa âm âm thanh được cập nhật thời gian thực từ worker.
+                    {t("pipeline:steps.dubbing.renderProgressNote", "Tiến độ encode FFmpeg / hòa âm âm thanh được cập nhật thời gian thực từ worker.")}
                   </p>
                 </div>
               )}
@@ -2010,7 +2010,7 @@ export default function DubbingStep() {
               onClick={() => dispatch({ type: "SET_STEP", payload: 6 })}
               className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-xs font-bold text-[var(--color-text-primary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition active:scale-98 shadow-xs"
             >
-              <span>Tiếp tục: Kiểm duyệt & Xuất (Bước 6)</span>
+              <span>{t("pipeline:steps.dubbing.nextStepReview", "Tiếp tục: Kiểm duyệt & Xuất (Bước 6)")}</span>
               <ChevronRight size={15} />
             </button>
           </div>
@@ -2045,11 +2045,11 @@ export default function DubbingStep() {
                 <div className="flex items-center gap-1.5">
                   <Sparkles size={13} className="text-[var(--color-primary)]" />
                   <span className="text-xs font-bold text-[var(--color-text-primary)]">
-                    Bộ Biên Tập Vi Âm Từng Câu
+                    {t("pipeline:steps.dubbing.segmentEditorTitle", "Bộ Biên Tập Vi Âm Từng Câu")}
                   </span>
                 </div>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--color-primary-soft)] text-[var(--color-primary)] font-bold">
-                  {filteredSegments.length} / {segments.length} câu
+                  {filteredSegments.length} / {t("pipeline:steps.dubbing.segmentsCount", { count: segments.length, defaultValue: `${segments.length} câu` })}
                 </span>
               </div>
 
@@ -2058,7 +2058,7 @@ export default function DubbingStep() {
                 <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
                 <input
                   type="text"
-                  placeholder="Tìm kiếm nội dung câu thoại..."
+                  placeholder={t("pipeline:steps.dubbing.searchPlaceholder", "Tìm kiếm nội dung câu thoại...")}
                   value={segmentSearch}
                   onChange={(e) => setSegmentSearch(e.target.value)}
                   className="w-full h-8 pl-8 pr-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] placeholder:text-[var(--color-text-muted)]"
@@ -2070,7 +2070,7 @@ export default function DubbingStep() {
             <div className="space-y-2.5 max-h-[calc(100vh-300px)] overflow-y-auto pr-1">
               {filteredSegments.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-[var(--color-border)] p-6 text-center text-xs text-[var(--color-text-muted)]">
-                  Không tìm thấy câu thoại phù hợp với từ khóa "{segmentSearch}"
+                  {t("pipeline:steps.dubbing.noSegmentsFound", { keyword: segmentSearch, defaultValue: `Không tìm thấy câu thoại phù hợp với từ khóa "${segmentSearch}"` })}
                 </div>
               ) : (
                 filteredSegments.map(({ seg, originalIndex: idx }) => {
@@ -2138,7 +2138,7 @@ export default function DubbingStep() {
                         onChange={(e) => handleUpdateSegmentText(idx, e.target.value)}
                         rows={2}
                         className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] p-2 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] resize-none"
-                        placeholder="Nhập nội dung lời thoại..."
+                        placeholder={t("pipeline:steps.dubbing.enterTextPlaceholder", "Nhập nội dung lời thoại...")}
                         onClick={(e) => e.stopPropagation()}
                       />
 
@@ -2156,7 +2156,7 @@ export default function DubbingStep() {
                           title="Nghe thử file audio riêng của câu này (< 50ms)"
                         >
                           {isPlaying ? <Pause size={11} /> : <Play size={11} />}
-                          <span>{isPlaying ? "Dừng" : "Nghe chunk"}</span>
+                          <span>{isPlaying ? t("pipeline:steps.dubbing.stopPreview", "Dừng") : t("pipeline:steps.dubbing.listenChunk", "Nghe chunk")}</span>
                         </button>
 
                         {/* Micro-TTS Resynthesize (~0.37s) */}
@@ -2179,7 +2179,7 @@ export default function DubbingStep() {
                           title="Tự động co giãn tốc độ đọc để khớp khít thời lượng khung hình"
                         >
                           <Clock size={11} />
-                          <span>Tự khớp nhịp</span>
+                          <span>{t("pipeline:steps.dubbing.autoFit", "Tự khớp nhịp")}</span>
                         </button>
 
                         {/* Record Voiceover */}
@@ -2200,7 +2200,7 @@ export default function DubbingStep() {
                           title={isRecording ? "Dừng thu âm" : "Thu âm trực tiếp từ micro đè lên câu thoại này"}
                         >
                           {isRecording ? <Square size={11} /> : <Mic size={11} />}
-                          <span>{isRecording ? "Dừng thu" : "Mic"}</span>
+                          <span>{isRecording ? t("pipeline:steps.dubbing.micStop", "Dừng thu") : t("pipeline:steps.dubbing.micRecord", "Mic")}</span>
                         </button>
 
                         {/* Upload custom audio file */}
@@ -2214,7 +2214,7 @@ export default function DubbingStep() {
                           title="Tải lên tệp âm thanh WAV/MP3 riêng cho câu này"
                         >
                           <Upload size={11} />
-                          <span>Tải file</span>
+                          <span>{t("pipeline:steps.dubbing.uploadAudio", "Tải file")}</span>
                         </button>
                       </div>
 
@@ -2222,7 +2222,7 @@ export default function DubbingStep() {
                       <div className="pt-2 border-t border-[var(--color-border)]/60 flex items-center justify-between gap-3 text-[10px]" onClick={(e) => e.stopPropagation()}>
                         {/* Speed adjustment slider */}
                         <div className="flex-1 flex items-center gap-1.5">
-                          <span className="text-[var(--color-text-muted)] whitespace-nowrap">Tốc độ:</span>
+                          <span className="text-[var(--color-text-muted)] whitespace-nowrap">{t("pipeline:steps.dubbing.speed", "Tốc độ:")}</span>
                           <input
                             type="range"
                             min="0.75"
@@ -2250,7 +2250,7 @@ export default function DubbingStep() {
                             type="button"
                             onClick={() => handleSegmentSlip(idx, -0.05)}
                             className="px-1.5 py-0.5 rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] hover:border-[var(--color-primary)] active:scale-95 font-mono text-[9px] font-bold"
-                            title="Lùi thời điểm phát 50ms"
+                            title={t("pipeline:steps.dubbing.nudgeBack", "Lùi thời điểm phát 50ms")}
                           >
                             -50ms
                           </button>
@@ -2258,7 +2258,7 @@ export default function DubbingStep() {
                             type="button"
                             onClick={() => handleSegmentSlip(idx, 0.05)}
                             className="px-1.5 py-0.5 rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] hover:border-[var(--color-primary)] active:scale-95 font-mono text-[9px] font-bold"
-                            title="Tiến thời điểm phát 50ms"
+                            title={t("pipeline:steps.dubbing.nudgeForward", "Tiến thời điểm phát 50ms")}
                           >
                             +50ms
                           </button>
@@ -2275,7 +2275,7 @@ export default function DubbingStep() {
                                 });
                               }}
                               className="p-1 text-[var(--color-text-muted)] hover:text-red-400"
-                              title="Đặt lại slip về 0"
+                              title={t("pipeline:steps.dubbing.resetSlip", "Đặt lại slip về 0")}
                             >
                               <Trash2 size={10} />
                             </button>
@@ -2333,11 +2333,11 @@ export default function DubbingStep() {
               </span>
               {isDubbed ? (
                 <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/85 backdrop-blur-md text-[9px] font-bold text-white shadow-xs">
-                  ✓ Đã Lồng Tiếng
+                  {t("pipeline:steps.dubbing.statusRendered", "✓ Đã Lồng Tiếng")}
                 </span>
               ) : isGeneratingDub ? (
                 <span className="px-2.5 py-0.5 rounded-md bg-amber-500/85 backdrop-blur-md text-[9px] font-bold text-white shadow-xs animate-pulse">
-                  Đang render...
+                  {t("pipeline:steps.dubbing.statusRendering", "Đang render...")}
                 </span>
               ) : null}
             </div>
@@ -2370,9 +2370,9 @@ export default function DubbingStep() {
                 <div className="flex flex-col items-center justify-center gap-3 p-8 text-zinc-300 text-center z-10">
                   <Loader2 size={36} className="animate-spin text-[var(--color-primary)]" />
                   <div>
-                    <p className="text-xs font-bold text-white">Đang hòa âm nền & kết xuất video lồng tiếng...</p>
+                    <p className="text-xs font-bold text-white">{t("pipeline:steps.dubbing.renderingWait", "Đang hòa âm nền & kết xuất video lồng tiếng...")}</p>
                     <p className="text-[11px] text-zinc-400 mt-1 max-w-xs">
-                      Quá trình cắt tỉa khung hình và nhúng âm thanh thường mất từ 30-90 giây.
+                      {t("pipeline:steps.dubbing.renderingWaitNote", "Quá trình cắt tỉa khung hình và nhúng âm thanh thường mất từ 30-90 giây.")}
                     </p>
                   </div>
                 </div>
@@ -2380,9 +2380,9 @@ export default function DubbingStep() {
                 <div className="flex flex-col items-center justify-center gap-2.5 p-8 text-center text-red-400 z-10">
                   <AlertTriangle size={36} className="text-red-400" />
                   <div>
-                    <p className="text-xs font-bold text-red-300">Kết xuất video thất bại</p>
+                    <p className="text-xs font-bold text-red-300">{t("pipeline:steps.dubbing.renderFailed", "Kết xuất video thất bại")}</p>
                     <p className="text-[11px] text-zinc-400 mt-1 max-w-xs">
-                      {dubbingError || "Đã xảy ra lỗi trong quá trình kết xuất. Vui lòng thử lại."}
+                      {dubbingError || t("pipeline:steps.dubbing.renderFailedDesc", "Đã xảy ra lỗi trong quá trình kết xuất. Vui lòng thử lại.")}
                     </p>
                   </div>
                   <button
@@ -2392,13 +2392,13 @@ export default function DubbingStep() {
                     className="mt-1 flex items-center gap-1.5 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-300 hover:bg-red-500/20 transition"
                   >
                     <RefreshCw size={12} />
-                    <span>Thử lại ngay</span>
+                    <span>{t("pipeline:steps.dubbing.retryNow", "Thử lại ngay")}</span>
                   </button>
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center gap-2 p-8 text-zinc-400 text-center z-10">
                   <FileVideo size={40} className="text-zinc-600" />
-                  <p className="text-xs font-medium text-zinc-300">Không thể tải luồng video xem trước</p>
+                  <p className="text-xs font-medium text-zinc-300">{t("pipeline:steps.dubbing.cannotLoadPreview", "Không thể tải luồng video xem trước")}</p>
                 </div>
               )}
 
@@ -2512,12 +2512,12 @@ export default function DubbingStep() {
                     title="Bật/Tắt xem trước phụ đề"
                   >
                     {showSubtitleOverlay ? <Eye size={12} /> : <EyeOff size={12} />}
-                    <span>{showSubtitleOverlay ? "Phụ đề: Bật" : "Phụ đề: Tắt"}</span>
+                    <span>{showSubtitleOverlay ? t("pipeline:steps.dubbing.subOverlayOn", "Phụ đề: Bật") : t("pipeline:steps.dubbing.subOverlayOff", "Phụ đề: Tắt")}</span>
                   </button>
                 ) : (
                   <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
                     <CheckCircle2 size={11} />
-                    <span>Video đã render hoàn chỉnh</span>
+                    <span>{t("pipeline:steps.dubbing.videoRenderedComplete", "Video đã render hoàn chỉnh")}</span>
                   </span>
                 )}
 
@@ -2540,7 +2540,7 @@ export default function DubbingStep() {
                         ) : (
                           <RefreshCw size={10} />
                         )}
-                        <span>TTS Câu #{activeSegmentIndex + 1}</span>
+                        <span>{t("pipeline:steps.dubbing.ttsSegmentAction", { idx: activeSegmentIndex + 1, defaultValue: `TTS Câu #${activeSegmentIndex + 1}` })}</span>
                       </button>
                     )}
                   </div>
@@ -2549,7 +2549,7 @@ export default function DubbingStep() {
 
               {/* Status note */}
               <div className="text-[10px] text-zinc-500">
-                {!isDubbed ? "Đang phát video với âm thanh gốc" : "Đang phát video lồng tiếng đã kết xuất"}
+                {!isDubbed ? t("pipeline:steps.dubbing.playingOriginal", "Đang phát video với âm thanh gốc") : t("pipeline:steps.dubbing.playingDubbed", "Đang phát video lồng tiếng đã kết xuất")}
               </div>
             </div>
           </div>
