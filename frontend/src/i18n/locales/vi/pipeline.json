@@ -497,5 +497,28 @@
       "encoderNvenc": "h264_nvenc (NVIDIA RTX GPU - Siêu tốc)",
       "encoderCpu": "libx264 (Phần mềm CPU - Tương thích)"
     }
+  },
+  "splitModal": {
+    "title": "Tách câu thoại #{{idx}}",
+    "subtitle": "Nhấp chuột giữa các từ hoặc kéo thanh trượt để chia đôi câu thoại chính xác",
+    "start": "Bắt đầu: {{time}}",
+    "splitPoint": "Điểm cắt: {{time}}",
+    "end": "Kết thúc: {{time}}",
+    "middle": "Giữa",
+    "breakWordsLabel": "Điểm ngắt câu theo từ:",
+    "tabTranslation": "Bản dịch ({{count}} từ)",
+    "tabSource": "Lời thoại gốc ({{count}} từ)",
+    "splitAtTooltip": "Tách tại đây: {{time}}s",
+    "cut": "CẮT",
+    "part1": "Phần 1",
+    "part2": "Phần 2",
+    "sourceSpeech": "Lời thoại gốc:",
+    "translationSpeech": "Bản dịch:",
+    "empty": "(Trống)",
+    "minDurationRule": "Quy tắc kiểm soát thời lượng tối thiểu (tối thiểu 1.0 giây):",
+    "minDurationRuleDesc": "Mỗi đoạn sau khi tách phải dài ít nhất 1.0 giây để bảo toàn chất lượng âm thanh khi lồng tiếng TTS và hiển thị phụ đề.",
+    "autoSync": "Đồng bộ tự động thời lượng & vị trí từ",
+    "cancel": "Hủy bỏ",
+    "confirmSplit": "Xác nhận chia câu"
   }
 }

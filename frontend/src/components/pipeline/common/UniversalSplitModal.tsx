@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Scissors, AlertCircle, X, Check, Clock, Sparkles } from "lucide-react";
 
 export interface SplitSegmentData {
@@ -34,6 +35,8 @@ export default function UniversalSplitModal({
   onConfirmSplit,
   mode = "transcript",
 }: UniversalSplitModalProps) {
+  const { t } = useTranslation(["pipeline", "common"]);
+
   if (!isOpen) return null;
 
   const duration = segment.end - segment.start;
@@ -183,14 +186,14 @@ export default function UniversalSplitModal({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-[var(--color-text-primary)]">
-                  Tách câu thoại #{segmentIndex + 1}
+                  {t("pipeline:splitModal.title", { idx: segmentIndex + 1, defaultValue: `Tách câu thoại #${segmentIndex + 1}` })}
                 </h3>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                   {duration.toFixed(2)}s
                 </span>
               </div>
               <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                Nhấp chuột giữa các từ hoặc kéo thanh trượt để chia đôi câu thoại chính xác
+                {t("pipeline:splitModal.subtitle", "Nhấp chuột giữa các từ hoặc kéo thanh trượt để chia đôi câu thoại chính xác")}
               </p>
             </div>
           </div>
@@ -210,12 +213,12 @@ export default function UniversalSplitModal({
             <div className="flex items-center justify-between text-xs text-[var(--color-text-muted)] font-mono">
               <span className="flex items-center gap-1">
                 <Clock size={12} className="text-[var(--color-primary)]" />
-                <span>Bắt đầu: {formatSec(segment.start)}</span>
+                <span>{t("pipeline:splitModal.start", { time: formatSec(segment.start), defaultValue: `Bắt đầu: ${formatSec(segment.start)}` })}</span>
               </span>
               <span className="font-bold text-amber-500">
-                Điểm cắt: {formatSec(splitTime)}
+                {t("pipeline:splitModal.splitPoint", { time: formatSec(splitTime), defaultValue: `Điểm cắt: ${formatSec(splitTime)}` })}
               </span>
-              <span>Kết thúc: {formatSec(segment.end)}</span>
+              <span>{t("pipeline:splitModal.end", { time: formatSec(segment.end), defaultValue: `Kết thúc: ${formatSec(segment.end)}` })}</span>
             </div>
 
             {/* Slider */}
@@ -231,7 +234,7 @@ export default function UniversalSplitModal({
               />
               <div className="flex justify-between text-[10px] text-zinc-500 mt-1 font-mono">
                 <span>0.00s</span>
-                <span>{(duration / 2).toFixed(2)}s (Giữa)</span>
+                <span>{(duration / 2).toFixed(2)}s ({t("pipeline:splitModal.middle", "Giữa")})</span>
                 <span>{duration.toFixed(2)}s</span>
               </div>
             </div>
@@ -241,7 +244,7 @@ export default function UniversalSplitModal({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-                Điểm ngắt câu theo từ:
+                {t("pipeline:splitModal.breakWordsLabel", "Điểm ngắt câu theo từ:")}
               </label>
 
               {isTranslation && transWords.length > 0 && (
@@ -255,7 +258,7 @@ export default function UniversalSplitModal({
                         : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                     }`}
                   >
-                    Bản dịch ({transWords.length} từ)
+                    {t("pipeline:splitModal.tabTranslation", { count: transWords.length, defaultValue: `Bản dịch (${transWords.length} từ)` })}
                   </button>
                   <button
                     type="button"
@@ -266,7 +269,7 @@ export default function UniversalSplitModal({
                         : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                     }`}
                   >
-                    Lời thoại gốc ({sourceWords.length} từ)
+                    {t("pipeline:splitModal.tabSource", { count: sourceWords.length, defaultValue: `Lời thoại gốc (${sourceWords.length} từ)` })}
                   </button>
                 </div>
               )}
@@ -287,12 +290,12 @@ export default function UniversalSplitModal({
                             ? "bg-amber-500 text-white font-bold shadow-md ring-2 ring-amber-500/30 scale-105 z-10"
                             : "text-zinc-500 hover:text-amber-500 hover:bg-amber-500/10"
                         }`}
-                        title={`Tách tại đây: ${(segment.start + (duration * idx) / activeWords.length).toFixed(2)}s`}
+                        title={t("pipeline:splitModal.splitAtTooltip", { time: (segment.start + (duration * idx) / activeWords.length).toFixed(2), defaultValue: `Tách tại đây: ${(segment.start + (duration * idx) / activeWords.length).toFixed(2)}s` })}
                       >
                         {isCutPoint ? (
                           <>
                             <Scissors size={10} className="stroke-[2.5]" />
-                            <span>CẮT</span>
+                            <span>{t("pipeline:splitModal.cut", "CẮT")}</span>
                           </>
                         ) : (
                           <span className="opacity-40 group-hover:opacity-100 font-bold">|</span>
@@ -320,7 +323,7 @@ export default function UniversalSplitModal({
             <div className="rounded-xl border border-[var(--color-primary)]/40 bg-[var(--color-surface-muted)] p-3 space-y-2 relative">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-primary)] flex items-center gap-1">
-                  <span>Phần 1</span>
+                  <span>{t("pipeline:splitModal.part1", "Phần 1")}</span>
                   <span className="font-mono text-zinc-400">({part1Duration.toFixed(2)}s)</span>
                 </span>
                 <span className="text-[10px] font-mono text-zinc-400">
@@ -330,16 +333,16 @@ export default function UniversalSplitModal({
 
               {isTranslation && (
                 <div>
-                  <span className="text-[9px] uppercase font-bold text-zinc-500 block">Lời thoại gốc:</span>
+                  <span className="text-[9px] uppercase font-bold text-zinc-500 block">{t("pipeline:splitModal.sourceSpeech", "Lời thoại gốc:")}</span>
                   <p className="text-[11px] text-[var(--color-text-secondary)] line-clamp-2 italic">
-                    {customPart1Text || "(Trống)"}
+                    {customPart1Text || t("pipeline:splitModal.empty", "(Trống)")}
                   </p>
                 </div>
               )}
 
               <div>
                 {isTranslation && (
-                  <span className="text-[9px] uppercase font-bold text-[var(--color-primary)] block">Bản dịch:</span>
+                  <span className="text-[9px] uppercase font-bold text-[var(--color-primary)] block">{t("pipeline:splitModal.translationSpeech", "Bản dịch:")}</span>
                 )}
                 <textarea
                   value={isTranslation ? customPart1Trans : customPart1Text}
@@ -356,7 +359,7 @@ export default function UniversalSplitModal({
             <div className="rounded-xl border border-amber-500/40 bg-[var(--color-surface-muted)] p-3 space-y-2 relative">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500 flex items-center gap-1">
-                  <span>Phần 2</span>
+                  <span>{t("pipeline:splitModal.part2", "Phần 2")}</span>
                   <span className="font-mono text-zinc-400">({part2Duration.toFixed(2)}s)</span>
                 </span>
                 <span className="text-[10px] font-mono text-zinc-400">
@@ -366,16 +369,16 @@ export default function UniversalSplitModal({
 
               {isTranslation && (
                 <div>
-                  <span className="text-[9px] uppercase font-bold text-zinc-500 block">Lời thoại gốc:</span>
+                  <span className="text-[9px] uppercase font-bold text-zinc-500 block">{t("pipeline:splitModal.sourceSpeech", "Lời thoại gốc:")}</span>
                   <p className="text-[11px] text-[var(--color-text-secondary)] line-clamp-2 italic">
-                    {customPart2Text || "(Trống)"}
+                    {customPart2Text || t("pipeline:splitModal.empty", "(Trống)")}
                   </p>
                 </div>
               )}
 
               <div>
                 {isTranslation && (
-                  <span className="text-[9px] uppercase font-bold text-amber-500 block">Bản dịch:</span>
+                  <span className="text-[9px] uppercase font-bold text-amber-500 block">{t("pipeline:splitModal.translationSpeech", "Bản dịch:")}</span>
                 )}
                 <textarea
                   value={isTranslation ? customPart2Trans : customPart2Text}
@@ -394,9 +397,9 @@ export default function UniversalSplitModal({
             <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400 flex items-start gap-2.5">
               <AlertCircle size={16} className="shrink-0 mt-0.5 text-red-500" />
               <div className="space-y-0.5">
-                <p className="font-bold">Quy tắc kiểm soát thời lượng tối thiểu (tối thiểu 1.0 giây):</p>
+                <p className="font-bold">{t("pipeline:splitModal.minDurationRule", "Quy tắc kiểm soát thời lượng tối thiểu (tối thiểu 1.0 giây):")}</p>
                 <p className="text-[11px] leading-relaxed text-red-500/90">
-                  Mỗi đoạn sau khi tách phải dài ít nhất 1.0 giây để bảo toàn chất lượng âm thanh khi lồng tiếng TTS và hiển thị phụ đề. Hiện tại: Phần 1 ({part1Duration.toFixed(2)}s), Phần 2 ({part2Duration.toFixed(2)}s).
+                  {t("pipeline:splitModal.minDurationRuleDesc", "Mỗi đoạn sau khi tách phải dài ít nhất 1.0 giây để bảo toàn chất lượng âm thanh khi lồng tiếng TTS và hiển thị phụ đề.")} Hiện tại: Phần 1 ({part1Duration.toFixed(2)}s), Phần 2 ({part2Duration.toFixed(2)}s).
                 </p>
               </div>
             </div>
@@ -407,7 +410,7 @@ export default function UniversalSplitModal({
         <div className="flex items-center justify-between border-t border-[var(--color-border)] px-5 py-3.5 bg-[var(--color-surface-muted)]/30">
           <div className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1.5">
             <Sparkles size={12} className="text-amber-500" />
-            <span>Đồng bộ tự động thời lượng & vị trí từ</span>
+            <span>{t("pipeline:splitModal.autoSync", "Đồng bộ tự động thời lượng & vị trí từ")}</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -416,7 +419,7 @@ export default function UniversalSplitModal({
               onClick={onClose}
               className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-text-primary)] transition"
             >
-              Hủy bỏ
+              {t("pipeline:splitModal.cancel", "Hủy bỏ")}
             </button>
             <button
               type="button"
@@ -425,7 +428,7 @@ export default function UniversalSplitModal({
               className="flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition active:scale-98"
             >
               <Check size={14} />
-              <span>Xác nhận chia câu</span>
+              <span>{t("pipeline:splitModal.confirmSplit", "Xác nhận chia câu")}</span>
             </button>
           </div>
         </div>

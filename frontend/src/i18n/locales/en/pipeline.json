@@ -497,5 +497,28 @@
       "encoderNvenc": "h264_nvenc (NVIDIA RTX GPU - Ultra Fast)",
       "encoderCpu": "libx264 (CPU Software - High Compatibility)"
     }
+  },
+  "splitModal": {
+    "title": "Split Dialogue Segment #{{idx}}",
+    "subtitle": "Click between words or drag the slider to split the dialogue segment accurately",
+    "start": "Start: {{time}}",
+    "splitPoint": "Split point: {{time}}",
+    "end": "End: {{time}}",
+    "middle": "Center",
+    "breakWordsLabel": "Word boundary split points:",
+    "tabTranslation": "Translation ({{count}} words)",
+    "tabSource": "Original Speech ({{count}} words)",
+    "splitAtTooltip": "Split here: {{time}}s",
+    "cut": "CUT",
+    "part1": "Part 1",
+    "part2": "Part 2",
+    "sourceSpeech": "Original Speech:",
+    "translationSpeech": "Translation:",
+    "empty": "(Empty)",
+    "minDurationRule": "Minimum duration rule (at least 1.0s):",
+    "minDurationRuleDesc": "Each segment after splitting must be at least 1.0 second long to ensure audio quality during AI TTS dubbing and subtitle display.",
+    "autoSync": "Auto-sync duration & word positions",
+    "cancel": "Cancel",
+    "confirmSplit": "Confirm Split"
   }
 }
