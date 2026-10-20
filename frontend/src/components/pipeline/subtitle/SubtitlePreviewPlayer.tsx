@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   ShieldCheck,
   Undo,
@@ -72,6 +73,8 @@ interface SubtitlePreviewPlayerProps {
 }
 
 export default function SubtitlePreviewPlayer({
+  // i18n
+
   videoRef,
   videoContainerRef,
   videoPreviewUrl,
@@ -129,6 +132,7 @@ export default function SubtitlePreviewPlayer({
   setPlayingChunkIndex,
   formatSeconds,
 }: SubtitlePreviewPlayerProps) {
+  const { t } = useTranslation(["pipeline", "common"]);
   return (
     <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-5 shadow-[var(--shadow-card)]">
       {/* Canvas Header Toolbar */}
@@ -156,7 +160,7 @@ export default function SubtitlePreviewPlayer({
               disabled={historyStack.length === 0}
               onClick={handleUndo}
               className="p-1 rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] disabled:opacity-30 disabled:hover:bg-transparent transition"
-              title="Hoàn tác (Ctrl+Z)"
+              title={t("pipeline:steps.subtitle.preview.undo", "Hoàn tác (Ctrl+Z)")}
             >
               <Undo size={12} />
             </button>
@@ -165,7 +169,7 @@ export default function SubtitlePreviewPlayer({
               disabled={redoStack.length === 0}
               onClick={handleRedo}
               className="p-1 rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] disabled:opacity-30 disabled:hover:bg-transparent transition"
-              title="Làm lại (Ctrl+Y)"
+              title={t("pipeline:steps.subtitle.preview.redo", "Làm lại (Ctrl+Y)")}
             >
               <Redo size={12} />
             </button>
@@ -180,10 +184,10 @@ export default function SubtitlePreviewPlayer({
                 ? "border-emerald-500 bg-emerald-500/15 text-emerald-400"
                 : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
             }`}
-            title="Hiển thị vùng an toàn giao diện TikTok / Reels tránh che chữ"
+            title={t("pipeline:steps.subtitle.preview.safeZoneTip", "Hiển thị vùng an toàn giao diện TikTok / Reels tránh che chữ")}
           >
             <ShieldCheck size={12} />
-            <span>Vùng an toàn</span>
+            <span>{t("pipeline:steps.subtitle.preview.safeZone", "Vùng an toàn")}</span>
           </button>
 
           {/* Aspect Ratio Switcher */}
@@ -243,10 +247,10 @@ export default function SubtitlePreviewPlayer({
             type="button"
             onClick={replayAnimation}
             className="flex items-center gap-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-1 text-[10px] font-semibold text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition"
-            title="Chạy lại hiệu ứng chuyển động"
+            title={t("pipeline:steps.subtitle.preview.replayFxTip", "Chạy lại hiệu ứng chuyển động")}
           >
             <RefreshCw size={11} />
-            <span>Thử hiệu ứng</span>
+            <span>{t("pipeline:steps.subtitle.preview.testFx", "Thử hiệu ứng")}</span>
           </button>
         </div>
       </div>
@@ -311,28 +315,28 @@ export default function SubtitlePreviewPlayer({
           {snapActive === "centerX" && (
             <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 border-l-2 border-dashed border-cyan-400 z-30 pointer-events-none flex items-center justify-center">
               <span className="bg-cyan-500 text-white text-[9px] font-mono px-2 py-0.5 rounded shadow">
-                Tâm dọc (X: 50%)
+                {t("pipeline:steps.subtitle.preview.centerVertical", "Tâm dọc (X: 50%)")}
               </span>
             </div>
           )}
           {snapActive === "center" && (
             <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 border-t-2 border-dashed border-cyan-400 z-30 pointer-events-none flex items-center justify-center">
               <span className="bg-cyan-500 text-white text-[9px] font-mono px-2 py-0.5 rounded shadow">
-                Tâm ngang (Y: 50%)
+                {t("pipeline:steps.subtitle.preview.centerHorizontal", "Tâm ngang (Y: 50%)")}
               </span>
             </div>
           )}
           {snapActive === "bottom" && (
             <div className="absolute left-0 right-0 top-[84%] -translate-y-1/2 border-t-2 border-dashed border-emerald-400 z-30 pointer-events-none flex items-center justify-center">
               <span className="bg-emerald-600 text-white text-[9px] font-mono px-2 py-0.5 rounded shadow">
-                Lề an toàn dưới (84%)
+                {t("pipeline:steps.subtitle.preview.bottomSafeMargin", "Lề an toàn dưới (84%)")}
               </span>
             </div>
           )}
           {snapActive === "top" && (
             <div className="absolute left-0 right-0 top-[14%] -translate-y-1/2 border-t-2 border-dashed border-amber-400 z-30 pointer-events-none flex items-center justify-center">
               <span className="bg-amber-600 text-white text-[9px] font-mono px-2 py-0.5 rounded shadow">
-                Lề an toàn trên (14%)
+                {t("pipeline:steps.subtitle.preview.topSafeMargin", "Lề an toàn trên (14%)")}
               </span>
             </div>
           )}
@@ -375,7 +379,7 @@ export default function SubtitlePreviewPlayer({
 
               <div className="h-10 w-full border-t border-dashed border-cyan-400/30 flex items-center justify-between px-2">
                 <span className="text-[8px] font-mono text-cyan-300">Safe Margin Bottom (Progress Bar)</span>
-                <span className="text-[8px] text-emerald-400 font-bold">✓ Vùng phụ đề chuẩn 84%</span>
+                <span className="text-[8px] text-emerald-400 font-bold">{t("pipeline:steps.subtitle.preview.safeZoneCaptionTitle", "✓ Vùng phụ đề chuẩn 84%")}</span>
               </div>
             </div>
           )}
@@ -616,7 +620,7 @@ export default function SubtitlePreviewPlayer({
                     rows={2}
                   />
                   <div className="flex items-center justify-between mt-1 text-[9px] text-zinc-400">
-                    <span>Nhấn Enter để lưu · Esc để hủy</span>
+                    <span>{t("pipeline:steps.subtitle.preview.pressEnterToSave", "Nhấn Enter để lưu · Esc để hủy")}</span>
                     <button
                       type="button"
                       onClick={() => {
@@ -641,7 +645,7 @@ export default function SubtitlePreviewPlayer({
                     setInlineEditText(currentSeg?.translated_text || displayedPreviewText);
                     setIsEditingInline(true);
                   }}
-                  title="Nhấp đúp chuột để chỉnh sửa văn bản trực tiếp trên khung hình"
+                  title={t("pipeline:steps.subtitle.preview.doubleClickEditTip", "Nhấp đúp chuột để chỉnh sửa văn bản trực tiếp trên khung hình")}
                 >
                   {/* Rendered Subtitle Text */}
                   <div
@@ -708,7 +712,7 @@ export default function SubtitlePreviewPlayer({
                               : "0 2px 8px rgba(0,0,0,0.8)",
                         }}
                       >
-                        {displayedPreviewText || (isDragging ? "Kéo phụ đề đến vị trí mong muốn" : "")}
+                        {displayedPreviewText || (isDragging ? t("pipeline:steps.subtitle.preview.dragTip", "Kéo phụ đề đến vị trí mong muốn") : "")}
                       </p>
                     )}
                   </div>
@@ -723,7 +727,7 @@ export default function SubtitlePreviewPlayer({
               <span className="flex items-center gap-1.5">
                 {isPlaying && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
                 <span>
-                  Đoạn #{segments.indexOf(currentSegment) + 1}/{segments.length}:{" "}
+                  {t("pipeline:steps.subtitle.preview.segmentIndex", { current: segments.indexOf(currentSegment) + 1, total: segments.length, defaultValue: `Đoạn #${segments.indexOf(currentSegment) + 1}/${segments.length}:` })}{" "}
                   {formatSeconds(currentSegment.start)} → {formatSeconds(currentSegment.end)}
                 </span>
               </span>
@@ -764,7 +768,7 @@ export default function SubtitlePreviewPlayer({
               className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[var(--color-primary)] text-white text-xs font-bold shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-95 transition"
             >
               {isPlaying ? <Pause size={12} /> : <Play size={12} />}
-              <span>{isPlaying ? "Tạm dừng" : "Phát video"}</span>
+              <span>{isPlaying ? t("pipeline:steps.subtitle.preview.pauseVideo", "Tạm dừng") : t("pipeline:steps.subtitle.preview.playVideo", "Phát video")}</span>
             </button>
 
             {/* Mute/Unmute */}
@@ -776,7 +780,7 @@ export default function SubtitlePreviewPlayer({
                   ? "border-red-400/50 bg-red-500/10 text-red-400"
                   : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
               }`}
-              title={isMuted ? "Bật âm thanh" : "Tắt âm thanh"}
+              title={isMuted ? t("pipeline:steps.subtitle.preview.unmuteAudio", "Bật âm thanh") : t("pipeline:steps.subtitle.preview.muteAudio", "Tắt âm thanh")}
             >
               {isMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
             </button>
@@ -803,9 +807,9 @@ export default function SubtitlePreviewPlayer({
               }}
               disabled={segments.length === 0}
               className="px-2.5 py-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-muted)] text-[11px] font-semibold text-[var(--color-text-secondary)] disabled:opacity-30 transition"
-              title="Nhảy đến câu thoại trước"
+              title={t("pipeline:steps.subtitle.preview.prevSegmentTip", "Nhảy đến câu thoại trước")}
             >
-              ← Câu trước
+              {t("pipeline:steps.subtitle.preview.prevSegment", "← Câu trước")}
             </button>
 
             <button
@@ -819,9 +823,9 @@ export default function SubtitlePreviewPlayer({
               }}
               disabled={segments.length === 0}
               className="px-2.5 py-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-muted)] text-[11px] font-semibold text-[var(--color-text-secondary)] disabled:opacity-30 transition"
-              title="Nhảy đến câu thoại kế tiếp"
+              title={t("pipeline:steps.subtitle.preview.nextSegmentTip", "Nhảy đến câu thoại kế tiếp")}
             >
-              Câu sau →
+              {t("pipeline:steps.subtitle.preview.nextSegment", "Câu sau →")}
             </button>
           </div>
         </div>

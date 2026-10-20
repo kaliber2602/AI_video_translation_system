@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   Type,
   AlignLeft,
@@ -62,6 +63,7 @@ interface SubtitleStylePanelProps {
 }
 
 export default function SubtitleStylePanel({
+
   primaryColor,
   setPrimaryColor,
   outlineColor,
@@ -93,12 +95,13 @@ export default function SubtitleStylePanel({
   fontCards,
   effectCards,
 }: SubtitleStylePanelProps) {
+  const { t } = useTranslation(["pipeline", "common"]);
   return (
     <div className="space-y-3.5">
       {/* 1-CLICK QUICK PRESETS */}
       <div>
         <label className="text-[11px] font-bold text-[var(--color-text-secondary)] block mb-1.5 uppercase tracking-wider">
-          Kiểu mẫu xu hướng 1-Click (Trending Presets):
+          {t("pipeline:steps.subtitle.style.trendingPresets", "Kiểu mẫu xu hướng 1-Click (Trending Presets):")}
         </label>
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           <button
@@ -111,7 +114,7 @@ export default function SubtitleStylePanel({
             }`}
           >
             <span className="font-bold text-xs">None</span>
-            <span className="text-[9px] text-[var(--color-text-muted)] mt-0.5">Mặc định</span>
+            <span className="text-[9px] text-[var(--color-text-muted)] mt-0.5">{t("pipeline:steps.subtitle.style.defaultPreset", "Mặc định")}</span>
           </button>
 
           <button
@@ -159,7 +162,7 @@ export default function SubtitleStylePanel({
                 : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:border-blue-400/60 hover:bg-[var(--color-surface)]"
             }`}
           >
-            <span className="font-bold text-xs">YouTube Chuẩn</span>
+            <span className="font-bold text-xs">{t("pipeline:steps.subtitle.style.youtubePreset", "YouTube Chuẩn")}</span>
           </button>
         </div>
 
@@ -167,10 +170,10 @@ export default function SubtitleStylePanel({
         <div className="mt-2.5 p-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-[var(--color-text-primary)] block">
-              Phụ đề song ngữ (Bilingual)
+              {t("pipeline:steps.subtitle.style.bilingual", "Phụ đề song ngữ (Bilingual)")}
             </span>
             <span className="text-[10px] text-[var(--color-text-muted)]">
-              Dòng 1 câu gốc, Dòng 2 câu dịch
+              {t("pipeline:steps.subtitle.style.bilingualDesc", "Dòng 1 câu gốc, Dòng 2 câu dịch")}
             </span>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
@@ -194,7 +197,7 @@ export default function SubtitleStylePanel({
         >
           <div className="flex items-center gap-1.5">
             <Type size={13} className="text-[var(--color-primary)]" />
-            <span>Phông chữ & Kiểu dáng (Typography)</span>
+            <span>{t("pipeline:steps.subtitle.style.typography", "Phông chữ & Kiểu dáng (Typography)")}</span>
           </div>
           {openSections.typography ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
         </button>
@@ -205,7 +208,7 @@ export default function SubtitleStylePanel({
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-[11px] font-semibold text-[var(--color-text-secondary)]">
-                  Kiểu phông chữ thực tế:
+                  {t("pipeline:steps.subtitle.style.fontPreview", "Kiểu phông chữ thực tế:")}
                 </label>
                 <span className="text-[10px] font-mono text-[var(--color-primary)] font-bold">
                   {fontName}
@@ -251,12 +254,12 @@ export default function SubtitleStylePanel({
               {/* HÀNG 1: Cỡ chữ + Màu chữ + Màu viền */}
               <div>
                 <div className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">
-                  Hàng 1 · Cỡ chữ & Màu sắc:
+                  {t("pipeline:steps.subtitle.style.row1", "Hàng 1 · Cỡ chữ & Màu sắc:")}
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div>
                     <label className="text-[10px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                      Cỡ chữ:
+                      {t("pipeline:steps.subtitle.style.fontSize", "Cỡ chữ:")}
                     </label>
                     <select
                       value={fontSize}
@@ -275,7 +278,7 @@ export default function SubtitleStylePanel({
 
                   <div>
                     <label className="text-[10px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                      Màu chữ:
+                      {t("pipeline:steps.subtitle.style.fontColor", "Màu chữ:")}
                     </label>
                     <div className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] p-1 h-8">
                       <input
@@ -293,7 +296,7 @@ export default function SubtitleStylePanel({
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-[10px] font-medium text-[var(--color-text-secondary)]">
-                        Viền:
+                        {t("pipeline:steps.subtitle.style.outline", "Viền:")}
                       </label>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -316,7 +319,7 @@ export default function SubtitleStylePanel({
                         className="h-5 w-5 cursor-pointer rounded border-0 bg-transparent shrink-0 disabled:opacity-40"
                       />
                       <span className="font-mono text-[9px] text-[var(--color-text-muted)] uppercase truncate">
-                        {outlineColor === "transparent" ? "Tắt" : outlineColor}
+                        {outlineColor === "transparent" ? t("pipeline:steps.subtitle.style.outlineOff", "Tắt") : outlineColor}
                       </span>
                     </div>
                   </div>
@@ -326,12 +329,12 @@ export default function SubtitleStylePanel({
               {/* HÀNG 2: Căn lề + Số dòng + Khoảng cách */}
               <div className="pt-2 border-t border-[var(--color-border)]/40 space-y-1.5">
                 <div className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
-                  Hàng 2 · Căn lề & Số dòng:
+                  {t("pipeline:steps.subtitle.style.row2", "Hàng 2 · Căn lề & Số dòng:")}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
                     <label className="text-[10px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                      Căn lề:
+                      {t("pipeline:steps.subtitle.style.alignment", "Căn lề:")}
                     </label>
                     <div className="grid grid-cols-4 gap-0.5 bg-[var(--color-surface)] p-0.5 rounded-lg border border-[var(--color-border)]">
                       <button
@@ -342,7 +345,7 @@ export default function SubtitleStylePanel({
                             ? "bg-[var(--color-primary)] text-white"
                             : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                         }`}
-                        title="Trái"
+                        title={t("pipeline:steps.subtitle.style.alignLeft", "Trái")}
                       >
                         <AlignLeft size={12} />
                       </button>
@@ -354,7 +357,7 @@ export default function SubtitleStylePanel({
                             ? "bg-[var(--color-primary)] text-white"
                             : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                         }`}
-                        title="Giữa"
+                        title={t("pipeline:steps.subtitle.style.alignCenter", "Giữa")}
                       >
                         <AlignCenter size={12} />
                       </button>
@@ -366,7 +369,7 @@ export default function SubtitleStylePanel({
                             ? "bg-[var(--color-primary)] text-white"
                             : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                         }`}
-                        title="Phải"
+                        title={t("pipeline:steps.subtitle.style.alignRight", "Phải")}
                       >
                         <AlignRight size={12} />
                       </button>
@@ -378,7 +381,7 @@ export default function SubtitleStylePanel({
                             ? "bg-[var(--color-primary)] text-white"
                             : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                         }`}
-                        title="Đều"
+                        title={t("pipeline:steps.subtitle.style.alignJustify", "Đều")}
                       >
                         <AlignJustify size={12} />
                       </button>
@@ -387,7 +390,7 @@ export default function SubtitleStylePanel({
 
                   <div>
                     <label className="text-[10px] font-medium text-[var(--color-text-secondary)] block mb-1">
-                      Số dòng tối đa:
+                      {t("pipeline:steps.subtitle.style.maxLines", "Số dòng tối đa:")}
                     </label>
                     <div className="grid grid-cols-3 gap-0.5 bg-[var(--color-surface)] p-0.5 rounded-lg border border-[var(--color-border)]">
                       {[1, 2, 3].map((lines) => (
@@ -401,7 +404,7 @@ export default function SubtitleStylePanel({
                               : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                           }`}
                         >
-                          {lines} dòng
+                          {t("pipeline:steps.subtitle.style.linesCount", { count: lines, defaultValue: `${lines} dòng` })}
                         </button>
                       ))}
                     </div>
@@ -410,7 +413,7 @@ export default function SubtitleStylePanel({
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-[10px] font-medium text-[var(--color-text-secondary)]">
-                        Khoảng cách:
+                        {t("pipeline:steps.subtitle.style.lineSpacing", "Khoảng cách:")}
                       </label>
                       <span className="text-[9px] font-mono font-bold text-[var(--color-primary)]">
                         {lineSpacing.toFixed(1)}x
@@ -421,11 +424,11 @@ export default function SubtitleStylePanel({
                       onChange={(e) => setLineSpacing(parseFloat(e.target.value))}
                       className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2 text-xs font-medium text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
                     >
-                      <option value="1.0">1.0x (Sát)</option>
-                      <option value="1.2">1.2x (Chuẩn)</option>
-                      <option value="1.3">1.3x (Thoáng)</option>
-                      <option value="1.4">1.4x (Rộng)</option>
-                      <option value="1.6">1.6x (Rất rộng)</option>
+                      <option value="1.0">1.0x ({t("pipeline:steps.subtitle.style.tight", "Sát")})</option>
+                      <option value="1.2">1.2x ({t("pipeline:steps.subtitle.style.standard", "Chuẩn")})</option>
+                      <option value="1.3">1.3x ({t("pipeline:steps.subtitle.style.relaxed", "Thoáng")})</option>
+                      <option value="1.4">1.4x ({t("pipeline:steps.subtitle.style.wide", "Rộng")})</option>
+                      <option value="1.6">1.6x ({t("pipeline:steps.subtitle.style.extraWide", "Rất rộng")})</option>
                     </select>
                   </div>
                 </div>
@@ -435,7 +438,7 @@ export default function SubtitleStylePanel({
               <div className="pt-2 border-t border-[var(--color-border)]/40 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
-                    Hàng 3 · Vị trí Y:
+                    {t("pipeline:steps.subtitle.style.row3", "Hàng 3 · Vị trí Y:")}
                   </span>
                   <span className="text-[10px] font-mono text-[var(--color-primary)] font-bold">
                     {Math.round(positionY)}%
@@ -454,7 +457,7 @@ export default function SubtitleStylePanel({
                         : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                     }`}
                   >
-                    Đỉnh (14%)
+                    {t("pipeline:steps.subtitle.style.posTop", "Đỉnh (14%)")}
                   </button>
                   <button
                     type="button"
@@ -468,7 +471,7 @@ export default function SubtitleStylePanel({
                         : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                     }`}
                   >
-                    Giữa (50%)
+                    {t("pipeline:steps.subtitle.style.posMiddle", "Giữa (50%)")}
                   </button>
                   <button
                     type="button"
@@ -482,7 +485,7 @@ export default function SubtitleStylePanel({
                         : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
                     }`}
                   >
-                    Đáy (84%)
+                    {t("pipeline:steps.subtitle.style.posBottom", "Đáy (84%)")}
                   </button>
                 </div>
                 <div className="flex items-center gap-2 pt-0.5">
@@ -519,7 +522,7 @@ export default function SubtitleStylePanel({
         >
           <div className="flex items-center gap-1.5">
             <Sparkles size={13} className="text-[var(--color-primary)]" />
-            <span>Hiệu ứng chuyển động (Motion Effects)</span>
+            <span>{t("pipeline:steps.subtitle.style.motionEffects", "Hiệu ứng chuyển động (Motion Effects)")}</span>
           </div>
           {openSections.animation ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
         </button>
@@ -563,7 +566,7 @@ export default function SubtitleStylePanel({
         >
           <div className="flex items-center gap-1.5">
             <FileCode size={13} className="text-[var(--color-primary)]" />
-            <span>Định dạng tệp phụ đề (Format)</span>
+            <span>{t("pipeline:steps.subtitle.style.fileFormat", "Định dạng tệp phụ đề (Format)")}</span>
           </div>
           {openSections.file_format ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
         </button>
@@ -575,9 +578,9 @@ export default function SubtitleStylePanel({
               onChange={(e) => setSelectedFormat(e.target.value)}
               className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-medium text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
             >
-              <option value="ass">.ASS (Gốc - Hiệu ứng màu sắc, animation, vị trí chuẩn xác)</option>
-              <option value="srt">.SRT (SubRip phổ thông - Tương thích mọi nền tảng)</option>
-              <option value="vtt">.VTT (WebVTT - Chuẩn trình phát HTML5)</option>
+              <option value="ass">{t("pipeline:steps.subtitle.style.assDesc", ".ASS (Gốc - Hiệu ứng màu sắc, animation, vị trí chuẩn xác)")}</option>
+              <option value="srt">{t("pipeline:steps.subtitle.style.srtDesc", ".SRT (SubRip phổ thông - Tương thích mọi nền tảng)")}</option>
+              <option value="vtt">{t("pipeline:steps.subtitle.style.vttDesc", ".VTT (WebVTT - Chuẩn trình phát HTML5)")}</option>
             </select>
           </div>
         )}
