@@ -1,6 +1,7 @@
 import api from "./api/axios";
 
 export interface AudioSeparationConfig {
+  model?: string;
   demucs_model?: string;
   vocal_volume?: number;
   bgm_volume?: number;

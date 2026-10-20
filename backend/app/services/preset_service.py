@@ -115,9 +115,30 @@ class PresetService:
     @staticmethod
     def create_preset(user_id: int, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Create a custom preset owned by user."""
+        config_data = data.get("config_data") or {}
+        if isinstance(config_data, str):
+            try:
+                config_data = json.loads(config_data)
+            except Exception:
+                config_data = {}
+
+        sep_model = config_data.get("audio_separation", {}).get("model") or data.get("separation_model")
+        stt_model = config_data.get("transcription", {}).get("model_size") or data.get("stt_model")
+        trans_model = config_data.get("translation", {}).get("model_name") or data.get("translation_model")
+        tts_model = config_data.get("tts_dubbing", {}).get("engine") or data.get("tts_model")
+
+        from app.services.subscription_service import validate_model_access
+        if sep_model and sep_model != "none":
+            validate_model_access(user_id, sep_model)
+        if stt_model and stt_model != "none":
+            validate_model_access(user_id, stt_model)
+        if trans_model and trans_model != "none":
+            validate_model_access(user_id, trans_model)
+        if tts_model and tts_model != "none":
+            validate_model_access(user_id, tts_model)
+
         conn = get_connection()
         try:
-            config_data = data.get("config_data") or {}
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -170,6 +191,28 @@ class PresetService:
     @staticmethod
     def update_preset(preset_id: int, user_id: int, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Update an existing custom preset owned by user."""
+        config_data = data.get("config_data") or {}
+        if isinstance(config_data, str):
+            try:
+                config_data = json.loads(config_data)
+            except Exception:
+                config_data = {}
+
+        sep_model = config_data.get("audio_separation", {}).get("model") or data.get("separation_model")
+        stt_model = config_data.get("transcription", {}).get("model_size") or data.get("stt_model")
+        trans_model = config_data.get("translation", {}).get("model_name") or data.get("translation_model")
+        tts_model = config_data.get("tts_dubbing", {}).get("engine") or data.get("tts_model")
+
+        from app.services.subscription_service import validate_model_access
+        if sep_model and sep_model != "none":
+            validate_model_access(user_id, sep_model)
+        if stt_model and stt_model != "none":
+            validate_model_access(user_id, stt_model)
+        if trans_model and trans_model != "none":
+            validate_model_access(user_id, trans_model)
+        if tts_model and tts_model != "none":
+            validate_model_access(user_id, tts_model)
+
         conn = get_connection()
         try:
             with conn.cursor() as cur:

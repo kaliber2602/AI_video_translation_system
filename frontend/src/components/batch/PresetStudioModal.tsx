@@ -194,6 +194,18 @@ export default function PresetStudioModal({
   const XTTS_SUPPORTED_LANGS = ["en", "es", "fr", "de", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh", "ja", "hu", "ko", "hi"];
 
   const handleSaveExisting = async () => {
+    if (!isPro) {
+      const sep = config.audio_separation?.model;
+      const stt = config.transcription?.model_size;
+      const trans = config.translation?.model_name;
+      const tts = config.tts_dubbing?.engine;
+      const res = config.export_muxing?.resolution;
+      const proModels = ["mdx_extra", "mdx_net_karaoke", "whisper-large-v3", "whisper_large_v3", "nllb_200_3.3b", "coqui_xtts_v2", "xtts_v2", "elevenlabs"];
+      if ([sep, stt, trans, tts].some(m => m && proModels.some(p => String(m).toLowerCase().includes(p))) || res === "1080p" || res === "4K") {
+        toast.error("Cấu hình chứa tính năng hoặc mô hình AI thuộc gói Pro. Vui lòng nâng cấp tài khoản để lưu cấu hình này.");
+        return;
+      }
+    }
     if (!selectedPresetId || isSystemPreset) return;
 
     const ttsEngine = (config.tts_dubbing?.engine || "").toLowerCase();
@@ -240,6 +252,18 @@ export default function PresetStudioModal({
   };
 
   const handleSaveAsNew = async () => {
+    if (!isPro) {
+      const sep = config.audio_separation?.model;
+      const stt = config.transcription?.model_size;
+      const trans = config.translation?.model_name;
+      const tts = config.tts_dubbing?.engine;
+      const res = config.export_muxing?.resolution;
+      const proModels = ["mdx_extra", "mdx_net_karaoke", "whisper-large-v3", "whisper_large_v3", "nllb_200_3.3b", "coqui_xtts_v2", "xtts_v2", "elevenlabs"];
+      if ([sep, stt, trans, tts].some(m => m && proModels.some(p => String(m).toLowerCase().includes(p))) || res === "1080p" || res === "4K") {
+        toast.error("Cấu hình chứa tính năng hoặc mô hình AI thuộc gói Pro. Vui lòng nâng cấp tài khoản để lưu cấu hình này.");
+        return;
+      }
+    }
     if (!newSaveName.trim()) {
       toast.error("Vui lòng nhập tên cho cấu hình mới");
       return;
@@ -374,7 +398,7 @@ export default function PresetStudioModal({
             >
               {presets.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} {p.is_system ? "(Hệ thống 🔒)" : "(Tùy chỉnh ✏️)"}
+                  {p.name} {p.is_system ? "(Hệ thống)" : "(Tùy chỉnh)"}
                 </option>
               ))}
             </select>

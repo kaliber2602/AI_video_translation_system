@@ -43,12 +43,12 @@ class BatchService:
             "stt_model": "whisper-medium",
             "enable_diarization": True,
             "translation_model": "nllb_200_1.3b",
-            "tts_model": "coqui_xtts_v2",
-            "voice_id": "1",
+            "tts_model": "edge_tts",
+            "voice_id": "vi-VN-HoaiMyNeural",
             "voice_speed": 1.0,
             "subtitle_format": "ass",
             "burn_subtitles": True,
-            "video_quality": "1080p",
+            "video_quality": "720p",
             "video_format": "mp4",
         }
 
@@ -100,9 +100,21 @@ class BatchService:
                     except Exception:
                         cfg_data = {}
 
+                sep_model = cfg_data.get("audio_separation", {}).get("model") or snapshot.get("separation_model") or "htdemucs"
                 stt_model = cfg_data.get("transcription", {}).get("model_size") or snapshot.get("stt_model", "whisper_medium")
                 trans_model = cfg_data.get("translation", {}).get("model_name") or snapshot.get("translation_model", "nllb_200_1.3b")
-                tts_model = cfg_data.get("tts_dubbing", {}).get("engine") or snapshot.get("tts_model", "coqui_xtts_v2")
+                tts_model = cfg_data.get("tts_dubbing", {}).get("engine") or snapshot.get("tts_model", "edge_tts")
+
+                # Validate AI Model subscription tier before queueing or deducting quota
+                from app.services.subscription_service import validate_model_access
+                if sep_model and sep_model != "none":
+                    validate_model_access(user_id, sep_model)
+                if stt_model and stt_model != "none":
+                    validate_model_access(user_id, stt_model)
+                if trans_model and trans_model != "none":
+                    validate_model_access(user_id, trans_model)
+                if tts_model and tts_model != "none":
+                    validate_model_access(user_id, tts_model)
 
                 stt_multiplier = get_model_word_multiplier(stt_model, default_multiplier=1)
                 trans_multiplier = get_model_word_multiplier(trans_model, default_multiplier=1)

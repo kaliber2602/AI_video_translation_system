@@ -17,6 +17,8 @@ import { videoService } from "../../services/video.service";
 import { getPresets, type PipelinePreset } from "../../services/preset.service";
 import { createBatchJob, type BatchJobDetail } from "../../services/batch.service";
 import type { ProjectFolder } from "../../types/project";
+import { useSubscriptionPlan } from "../../hooks/useSubscriptionPlan";
+import { isPresetProTier } from "./BatchProcessModal";
 
 export interface BatchUploadModalProps {
   isOpen: boolean;
@@ -68,6 +70,7 @@ export default function BatchUploadModal({
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
   const [isCreatingBatch, setIsCreatingBatch] = useState(false);
+  const { isPro } = useSubscriptionPlan();
 
   // Settings
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(defaultFolderId);
@@ -338,6 +341,13 @@ export default function BatchUploadModal({
           batchName.trim() ||
           `Batch (${videoIds.length} video) - ${new Date().toLocaleDateString()}`;
 
+        const chosenPreset = presets.find((p) => p.id === selectedPresetId);
+        if (!isPro && chosenPreset && isPresetProTier(chosenPreset)) {
+          toast.error("Preset đã chọn thuộc gói Pro. Vui lòng chọn Preset phù hợp gói Free hoặc nâng cấp tài khoản.");
+          if (onUploadCompleted) onUploadCompleted(videoIds);
+          setIsCreatingBatch(false);
+          return;
+        }
         const batch = await createBatchJob(projectId, {
           name: finalBatchName,
           video_ids: videoIds,
@@ -440,11 +450,15 @@ export default function BatchUploadModal({
               disabled={isProcessingQueue}
               className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2 text-xs text-[var(--color-text-primary)] outline-none focus:border-indigo-500 cursor-pointer"
             >
-              {presets.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} {p.is_system ? "🔒" : "✏️"}
-                </option>
-              ))}
+              {presets.map((p) => {
+                const isProPreset = isPresetProTier(p);
+                const isLocked = !isPro && isProPreset;
+                return (
+                  <option key={p.id} value={p.id} disabled={isLocked}>
+                    {p.name} {isProPreset ? "(Gói Pro)" : ""} {p.is_system ? "(Hệ thống)" : "(Tùy chỉnh)"}
+                  </option>
+                );
+              })}
             </select>
           </div>
 

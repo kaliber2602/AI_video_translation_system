@@ -10,10 +10,12 @@ import {
   Loader2,
   ShieldCheck,
   BookmarkPlus,
+  Lock,
 } from "lucide-react";
 import Dialog from "../common/Dialog";
 import Button from "../common/Button";
 import { toast } from "../../lib/toast";
+import { useSubscriptionPlan } from "../../hooks/useSubscriptionPlan";
 import {
   getPresets,
   createPreset,
@@ -32,6 +34,40 @@ interface BatchProcessModalProps {
   onBatchStarted: (batch: BatchJobDetail) => void;
 }
 
+const PRO_TIER_MODELS = [
+  "mdx_extra",
+  "mdx_net_karaoke",
+  "whisper_large_v3",
+  "whisper-large-v3",
+  "nllb_200_3.3b",
+  "nllb-200-3.3b",
+  "xtts_v2",
+  "coqui_xtts_v2",
+  "elevenlabs",
+  "elevenlabs_multilingual_v2",
+  "qwen3_tts",
+  "qwen_2.5_72b",
+  "bge_m3",
+];
+
+export function isPresetProTier(preset: PipelinePreset): boolean {
+  const modelsToCheck = [
+    preset.stt_model,
+    preset.translation_model,
+    preset.tts_model,
+    preset.config_data?.audio_separation?.model,
+    preset.config_data?.transcription?.model_size,
+    preset.config_data?.translation?.model_name,
+    preset.config_data?.tts_dubbing?.engine,
+  ];
+
+  return modelsToCheck.some((m) => {
+    if (!m) return false;
+    const clean = String(m).toLowerCase().trim();
+    return PRO_TIER_MODELS.some((pro) => clean === pro || clean.includes(pro));
+  });
+}
+
 export default function BatchProcessModal({
   isOpen,
   onClose,
@@ -39,6 +75,7 @@ export default function BatchProcessModal({
   projectId,
   onBatchStarted,
 }: BatchProcessModalProps) {
+  const { isPro } = useSubscriptionPlan();
   const [presets, setPresets] = useState<PipelinePreset[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<number | null>(null);
   const [isLoadingPresets, setIsLoadingPresets] = useState(true);
@@ -69,7 +106,9 @@ export default function BatchProcessModal({
         const list = await getPresets();
         setPresets(list);
         if (list.length > 0) {
-          const defaultPreset = list.find((p) => p.is_default) || list[0];
+          // If user is Free, default to a free-compatible preset first
+          const freeCompatible = list.find((p) => isPro || !isPresetProTier(p));
+          const defaultPreset = list.find((p) => p.is_default && (isPro || !isPresetProTier(p))) || freeCompatible || list[0];
           setSelectedPresetId(defaultPreset.id);
           setTargetLang(defaultPreset.target_language || "vi");
           setBurnSubtitles(defaultPreset.burn_subtitles ?? true);
@@ -83,11 +122,17 @@ export default function BatchProcessModal({
     }
 
     loadPresets();
-  }, [isOpen, selectedVideoIds.length]);
+  }, [isOpen, selectedVideoIds.length, isPro]);
 
   const selectedPreset = presets.find((p) => p.id === selectedPresetId);
 
   const handleSelectPreset = (preset: PipelinePreset) => {
+    if (!isPro && isPresetProTier(preset)) {
+      toast.warning(
+        "Mẫu cấu hình yêu cầu gói Pro. Vui lòng nâng cấp tài khoản hoặc chọn mẫu cấu hình tiêu chuẩn dành cho gói Free."
+      );
+      return;
+    }
     setSelectedPresetId(preset.id);
     setTargetLang(preset.target_language || "vi");
     setBurnSubtitles(preset.burn_subtitles ?? true);
@@ -100,33 +145,40 @@ export default function BatchProcessModal({
       return;
     }
 
+    // Validation for Free plan
+    if (!isPro && selectedPreset && isPresetProTier(selectedPreset)) {
+      toast.error("Không thể lưu cấu hình chứa mô hình AI thuộc gói Pro. Vui lòng nâng cấp tài khoản.");
+      return;
+    }
+
     try {
       setIsSavingPreset(true);
       const created = await createPreset({
         name: newPresetName.trim(),
         description: newPresetDesc.trim() || "Cấu hình tùy chỉnh cho xử lý hàng loạt",
-        target_language: targetLang || "vi",
+        target_language: targetLang,
         source_language: selectedPreset?.source_language || "auto",
         stt_model: selectedPreset?.stt_model || "whisper-medium",
         enable_diarization: selectedPreset?.enable_diarization ?? true,
         translation_model: selectedPreset?.translation_model || "nllb_200_1.3b",
-        tts_model: selectedPreset?.tts_model || "coqui_xtts_v2",
-        voice_id: String(selectedPreset?.voice_id || "1"),
-        voice_speed: Number(voiceSpeed || 1.0),
+        tts_model: selectedPreset?.tts_model || "edge_tts",
+        voice_id: String(selectedPreset?.voice_id || "vi-VN-HoaiMyNeural"),
+        voice_speed: voiceSpeed,
         subtitle_format: selectedPreset?.subtitle_format || "ass",
-        burn_subtitles: Boolean(burnSubtitles),
-        video_quality: selectedPreset?.video_quality || "1080p",
+        burn_subtitles: burnSubtitles,
+        video_quality: selectedPreset?.video_quality || "720p",
         video_format: selectedPreset?.video_format || "mp4",
         config_data: selectedPreset?.config_data || undefined,
       });
 
+      toast.success("Đã lưu cấu hình mới thành công!");
       setPresets((prev) => [created, ...prev]);
       setSelectedPresetId(created.id);
       setNewPresetName("");
       setNewPresetDesc("");
-      toast.success(`Đã lưu mẫu cấu hình "${created.name}"`);
+      setShowAdvanced(false);
     } catch (err: any) {
-      toast.error("Không thể lưu cấu hình mẫu mới");
+      toast.error(err.response?.data?.detail || "Lỗi khi lưu cấu hình");
     } finally {
       setIsSavingPreset(false);
     }
@@ -142,7 +194,13 @@ export default function BatchProcessModal({
       return;
     }
 
-    // Validate Model Responsibilities & Capabilities (Strict Singleton Responsibility)
+    // Validate Pro subscription tier
+    if (!isPro && selectedPreset && isPresetProTier(selectedPreset)) {
+      toast.error("Preset đã chọn chứa mô hình thuộc gói Pro. Vui lòng nâng cấp tài khoản hoặc chọn Preset khác.");
+      return;
+    }
+
+    // Validate Model Responsibilities & Capabilities
     const effectiveTtsModel = (selectedPreset?.tts_model || selectedPreset?.config_data?.tts_dubbing?.engine || "").toLowerCase();
     const isXttsEngine = effectiveTtsModel.includes("xtts") || effectiveTtsModel.includes("coqui");
     const cleanTargetLang = (targetLang || "").toLowerCase().trim();
@@ -181,31 +239,24 @@ export default function BatchProcessModal({
   return (
     <Dialog
       isOpen={isOpen}
-      onClose={onClose}
-      title={
-        <div className="flex items-center gap-2 text-lg font-bold text-[var(--color-text-primary)]">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
-            <Sparkles size={20} />
-          </div>
-          <span>Xử lý hàng loạt AI (Batch Pipeline)</span>
-        </div>
-      }
-      description={`Cấu hình và tự động hóa quy trình dịch thuật cho ${selectedVideoIds.length} video được chọn.`}
-      maxWidth="xl"
+      onClose={isSubmitting ? () => {} : onClose}
+      maxWidth="2xl"
+      title="Xử lý hàng loạt (Batch Processing)"
+      description={`Cấu hình và áp dụng quy trình AI tự động đồng loạt cho ${selectedVideoIds.length} video đã chọn.`}
     >
-      <form onSubmit={handleSubmit} className="space-y-6 pt-2">
+      <form onSubmit={handleSubmit} className="space-y-6">
         {/* Batch Name */}
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)] mb-1.5">
-            Tên tiến trình hàng loạt
+          <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
+            Tên tiến trình hàng loạt:
           </label>
           <input
             type="text"
             value={batchName}
             onChange={(e) => setBatchName(e.target.value)}
-            required
-            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2.5 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] transition focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20"
-            placeholder="VD: Batch dịch anime tập 1-10..."
+            disabled={isSubmitting}
+            placeholder="Đặt tên cho đợt xử lý..."
+            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2 text-sm text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
           />
         </div>
 
@@ -230,14 +281,23 @@ export default function BatchProcessModal({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {presets.map((preset) => {
                 const isSelected = preset.id === selectedPresetId;
+                const isProPreset = isPresetProTier(preset);
+                const isLocked = !isPro && isProPreset;
+
                 return (
                   <div
                     key={preset.id}
                     onClick={() => handleSelectPreset(preset)}
-                    className={`group relative flex cursor-pointer flex-col justify-between rounded-xl border p-3.5 transition-all ${
+                    className={`group relative flex flex-col justify-between rounded-xl border p-3.5 transition-all ${
+                      isLocked
+                        ? "cursor-not-allowed border-amber-500/20 bg-amber-500/5 opacity-70"
+                        : "cursor-pointer"
+                    } ${
                       isSelected
                         ? "border-[var(--color-primary)] bg-[var(--color-primary)]/5 ring-2 ring-[var(--color-primary)]/20 shadow-sm"
-                        : "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-primary)]/50 hover:bg-[var(--color-surface-muted)]"
+                        : !isLocked
+                        ? "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-primary)]/50 hover:bg-[var(--color-surface-muted)]"
+                        : ""
                     }`}
                   >
                     <div>
@@ -248,6 +308,11 @@ export default function BatchProcessModal({
                         {isSelected && (
                           <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)] text-white">
                             <Check size={12} strokeWidth={3} />
+                          </div>
+                        )}
+                        {isLocked && !isSelected && (
+                          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                            <Lock size={11} />
                           </div>
                         )}
                       </div>
@@ -279,17 +344,24 @@ export default function BatchProcessModal({
                     </div>
 
                     <div className="mt-2 flex items-center justify-between pt-1">
-                      {preset.is_system ? (
-                        <span className="inline-flex items-center rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
-                          Hệ thống
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-md bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-purple-600 dark:text-purple-400">
-                          Tùy chỉnh
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {preset.is_system ? (
+                          <span className="inline-flex items-center rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
+                            Hệ thống
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-md bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-purple-600 dark:text-purple-400">
+                            Tùy chỉnh
+                          </span>
+                        )}
+                        {isProPreset && (
+                          <span className="inline-flex items-center rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                            Gói Pro
+                          </span>
+                        )}
+                      </div>
                       {preset.is_default && (
-                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
                           Mặc định
                         </span>
                       )}
@@ -304,14 +376,14 @@ export default function BatchProcessModal({
         {/* Quick Customization Options */}
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/50 p-4 space-y-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)] flex items-center gap-1.5">
-              <Settings2 size={14} />
-              Tùy chỉnh nhanh cho Batch này
+            <span className="text-xs font-bold text-[var(--color-text-primary)] flex items-center gap-1.5">
+              <Settings2 size={14} className="text-[var(--color-primary)]" />
+              Tùy chỉnh nhanh cho đợt xử lý này
             </span>
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="text-xs font-semibold text-[var(--color-primary)] hover:underline cursor-pointer"
+              className="text-xs font-medium text-[var(--color-primary)] hover:underline cursor-pointer"
             >
               {showAdvanced ? "Thu gọn" : "Lưu Preset mới"}
             </button>
@@ -321,99 +393,98 @@ export default function BatchProcessModal({
             {/* Target Language */}
             <div>
               <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1 flex items-center gap-1">
-                <Globe size={13} />
-                Ngôn ngữ đích
+                <Globe size={12} /> Ngôn ngữ dịch đích
               </label>
               <select
                 value={targetLang}
                 onChange={(e) => setTargetLang(e.target.value)}
-                className={`w-full rounded-lg border px-3 py-2 text-xs font-medium text-[var(--color-text-primary)] focus:outline-none ${
-                  (selectedPreset?.tts_model || selectedPreset?.config_data?.tts_dubbing?.engine || "").toLowerCase().includes("xtts") &&
-                  !XTTS_SUPPORTED_LANGS.includes((targetLang || "").toLowerCase().trim())
-                    ? "border-rose-500 bg-rose-500/5 focus:border-rose-500"
-                    : "border-[var(--color-border)] bg-[var(--color-surface)] focus:border-[var(--color-primary)]"
-                }`}
+                disabled={isSubmitting}
+                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] cursor-pointer"
               >
                 <option value="vi">Tiếng Việt (vi)</option>
                 <option value="en">Tiếng Anh (en)</option>
                 <option value="ja">Tiếng Nhật (ja)</option>
                 <option value="ko">Tiếng Hàn (ko)</option>
                 <option value="zh">Tiếng Trung (zh)</option>
-                <option value="fr">Tiếng Pháp (fr)</option>
                 <option value="es">Tiếng Tây Ban Nha (es)</option>
+                <option value="fr">Tiếng Pháp (fr)</option>
                 <option value="de">Tiếng Đức (de)</option>
               </select>
               {(selectedPreset?.tts_model || selectedPreset?.config_data?.tts_dubbing?.engine || "").toLowerCase().includes("xtts") &&
-                !XTTS_SUPPORTED_LANGS.includes((targetLang || "").toLowerCase().trim()) && (
-                  <p className="mt-1 text-[11px] font-semibold text-rose-500">
-                    Mô hình Coqui XTTS-v2 không hỗ trợ ngôn ngữ này.
+                !XTTS_SUPPORTED_LANGS.includes(targetLang.toLowerCase()) && (
+                  <p className="mt-1 text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                    XTTS không hỗ trợ ngôn ngữ này. Vui lòng chọn Preset khác.
                   </p>
                 )}
             </div>
 
-            {/* Voice Speed */}
+            {/* Subtitle Mode */}
             <div>
               <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1 flex items-center gap-1">
-                <Volume2 size={13} />
-                Tốc độ giọng ({voiceSpeed}x)
+                <Subtitles size={12} /> Chế độ phụ đề
               </label>
+              <select
+                value={burnSubtitles ? "hardsub" : "softsub"}
+                onChange={(e) => setBurnSubtitles(e.target.value === "hardsub")}
+                disabled={isSubmitting}
+                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] cursor-pointer"
+              >
+                <option value="hardsub">Hardsub (Ghi đè trực tiếp lên video)</option>
+                <option value="softsub">Softsub (Tách tệp phụ đề riêng)</option>
+              </select>
+            </div>
+
+            {/* Voice Speed */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-[var(--color-text-secondary)] flex items-center gap-1">
+                  <Volume2 size={12} /> Tốc độ giọng đọc
+                </label>
+                <span className="text-xs font-bold text-[var(--color-primary)]">{voiceSpeed}x</span>
+              </div>
               <input
                 type="range"
-                min="0.8"
+                min="0.75"
                 max="1.5"
                 step="0.05"
                 value={voiceSpeed}
                 onChange={(e) => setVoiceSpeed(parseFloat(e.target.value))}
-                className="w-full cursor-pointer accent-[var(--color-primary)]"
+                disabled={isSubmitting}
+                className="w-full accent-[var(--color-primary)] cursor-pointer"
               />
-            </div>
-
-            {/* Burn Subtitles Toggle */}
-            <div>
-              <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1 flex items-center gap-1">
-                <Subtitles size={13} />
-                Ghép phụ đề (Hardsub)
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer mt-1.5">
-                <input
-                  type="checkbox"
-                  checked={burnSubtitles}
-                  onChange={(e) => setBurnSubtitles(e.target.checked)}
-                  className="h-4 w-4 rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]/30"
-                />
-                <span className="text-xs text-[var(--color-text-primary)]">
-                  {burnSubtitles ? "In phụ đề vào video" : "Chỉ xuất file phụ đề"}
-                </span>
-              </label>
             </div>
           </div>
 
           {/* Advanced Save As Preset Form */}
           {showAdvanced && (
-            <div className="border-t border-[var(--color-border)] pt-3 mt-3 space-y-3">
-              <div className="flex items-center gap-2 text-xs font-semibold text-[var(--color-text-primary)]">
-                <BookmarkPlus size={14} className="text-purple-500" />
+            <div className="pt-3 border-t border-[var(--color-border)]/60 space-y-3">
+              <div className="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5">
+                <BookmarkPlus size={13} className="text-[var(--color-primary)]" />
                 <span>Lưu cấu hình hiện tại thành Preset riêng:</span>
               </div>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
                   type="text"
                   placeholder="Tên Preset mới..."
                   value={newPresetName}
                   onChange={(e) => setNewPresetName(e.target.value)}
-                  className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                  disabled={isSavingPreset}
+                  className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
                 />
                 <input
                   type="text"
-                  placeholder="Mô tả ngắn..."
+                  placeholder="Mô tả ngắn gọn..."
                   value={newPresetDesc}
                   onChange={(e) => setNewPresetDesc(e.target.value)}
-                  className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                  disabled={isSavingPreset}
+                  className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
                 />
+              </div>
+              <div className="flex justify-end">
                 <Button
                   type="button"
-                  variant="secondary"
                   size="sm"
+                  variant="secondary"
                   onClick={handleSaveAsPreset}
                   disabled={isSavingPreset || !newPresetName.trim()}
                   icon={isSavingPreset ? <Loader2 size={12} className="animate-spin" /> : <BookmarkPlus size={12} />}
