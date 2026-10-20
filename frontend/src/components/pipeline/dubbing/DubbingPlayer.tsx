@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import {
@@ -59,6 +60,7 @@ interface DubbingPlayerProps {
 }
 
 export default function DubbingPlayer({
+
   videoRef,
   videoUrl,
   isVideoPlaying,
@@ -100,6 +102,7 @@ export default function DubbingPlayer({
   isBgmMuted = false,
   isDubMuted = false,
 }: DubbingPlayerProps) {
+  const { t } = useTranslation(["pipeline", "common"]);
   // Stem audio elements for real-time 3-track mixing
   const vocalAudioRef = useRef<HTMLAudioElement | null>(null);
   const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -242,8 +245,8 @@ export default function DubbingPlayer({
                 <CheckCircle2 size={28} />
               </div>
               <div>
-                <p className="text-sm font-bold text-white">Video đã được lồng tiếng thành công</p>
-                <p className="text-xs text-zinc-400 mt-0.5">Nhấn để tải lại luồng phát video</p>
+                <p className="text-sm font-bold text-white">{t("pipeline:steps.dubbing.videoDubbedSuccess", "Video đã được lồng tiếng thành công")}</p>
+                <p className="text-xs text-zinc-400 mt-0.5">{t("pipeline:steps.dubbing.clickToReloadVideo", "Nhấn để tải lại luồng phát video")}</p>
               </div>
               <button
                 type="button"
@@ -252,13 +255,13 @@ export default function DubbingPlayer({
                 className="mt-1 flex items-center gap-1.5 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-300 hover:bg-red-500/20 transition"
               >
                 <RefreshCw size={12} />
-                <span>Thử lại ngay</span>
+                <span>{t("pipeline:steps.dubbing.retryNow", "Thử lại ngay")}</span>
               </button>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center gap-2 p-8 text-zinc-400 text-center z-10">
               <FileVideo size={40} className="text-zinc-600" />
-              <p className="text-xs font-medium text-zinc-300">Không thể tải luồng video xem trước</p>
+              <p className="text-xs font-medium text-zinc-300">{t("pipeline:steps.dubbing.cannotLoadPreview", "Không thể tải luồng video xem trước")}</p>
             </div>
           )}
 
@@ -350,7 +353,7 @@ export default function DubbingPlayer({
             type="button"
             onClick={toggleMute}
             className="p-2 text-zinc-400 hover:text-white transition rounded-lg hover:bg-zinc-800/60"
-            title={isMuted ? "Bật âm thanh" : "Tắt tiếng"}
+            title={isMuted ? t("pipeline:steps.dubbing.toggleMute", "Bật âm thanh") : t("pipeline:steps.dubbing.toggleMute", "Tắt tiếng")}
           >
             {isMuted ? <VolumeX size={16} className="text-red-400" /> : <Volume2 size={16} />}
           </button>
@@ -372,12 +375,12 @@ export default function DubbingPlayer({
                 title="Bật/Tắt xem trước phụ đề"
               >
                 {showSubtitleOverlay ? <Eye size={12} /> : <EyeOff size={12} />}
-                <span>{showSubtitleOverlay ? "Phụ đề: Bật" : "Phụ đề: Tắt"}</span>
+                <span>{showSubtitleOverlay ? t("pipeline:steps.dubbing.subOverlayOn", "Phụ đề: Bật") : t("pipeline:steps.dubbing.subOverlayOff", "Phụ đề: Tắt")}</span>
               </button>
             ) : (
               <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
                 <CheckCircle2 size={11} />
-                <span>Video đã render hoàn chỉnh</span>
+                <span>{t("pipeline:steps.dubbing.videoRenderedComplete", "Video đã render hoàn chỉnh")}</span>
               </span>
             )}
 
@@ -400,7 +403,7 @@ export default function DubbingPlayer({
                     ) : (
                       <RefreshCw size={10} />
                     )}
-                    <span>TTS Câu #{activeSegmentIndex + 1}</span>
+                    <span>{t("pipeline:steps.dubbing.ttsSegmentAction", { idx: activeSegmentIndex + 1, defaultValue: `TTS Câu #${activeSegmentIndex + 1}` })}</span>
                   </button>
                 )}
               </div>
@@ -409,7 +412,7 @@ export default function DubbingPlayer({
 
           {/* Status note */}
           <div className="text-[10px] text-zinc-500">
-            {!isDubbed ? "Đang phát video với âm thanh gốc" : "Đang phát video lồng tiếng đã kết xuất"}
+            {!isDubbed ? t("pipeline:steps.dubbing.playingOriginal", "Đang phát video với âm thanh gốc") : t("pipeline:steps.dubbing.playingDubbed", "Đang phát video lồng tiếng đã kết xuất")}
           </div>
         </div>
       </div>

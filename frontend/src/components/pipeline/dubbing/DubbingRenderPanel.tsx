@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   Captions,
   Film,
@@ -23,6 +24,7 @@ interface DubbingRenderPanelProps {
 }
 
 export default function DubbingRenderPanel({
+
   isDubReady,
   isGeneratingDub,
   isTTSReady,
@@ -36,6 +38,7 @@ export default function DubbingRenderPanel({
   onGoToTtsTab,
   onGoToReviewStep,
 }: DubbingRenderPanelProps) {
+  const { t } = useTranslation(["pipeline", "common"]);
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 space-y-3.5">
@@ -45,7 +48,7 @@ export default function DubbingRenderPanel({
               2
             </span>
             <span className="text-xs font-bold text-[var(--color-text-primary)]">
-              Hòa Âm & Render Video
+              {t("pipeline:steps.dubbing.renderDubTitle", "Hòa Âm & Render Video")}
             </span>
           </div>
           <span
@@ -57,7 +60,7 @@ export default function DubbingRenderPanel({
                 : "bg-[var(--color-surface-muted)] text-[var(--color-text-muted)]"
             }`}
           >
-            {isDubReady ? "✓ Đã xong" : isGeneratingDub ? "Đang render..." : "Chờ TTS"}
+            {isDubReady ? t("pipeline:steps.dubbing.statusRendered", "✓ Đã xong") : isGeneratingDub ? t("pipeline:steps.dubbing.statusRendering", "Đang render...") : t("pipeline:steps.dubbing.statusWaiting", "Chờ TTS")}
           </span>
         </div>
 
@@ -66,7 +69,7 @@ export default function DubbingRenderPanel({
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-300 space-y-2">
             <div className="flex items-start gap-2">
               <Lock size={14} className="shrink-0 mt-0.5" />
-              <span>Cần tạo giọng đọc AI (TTS) trước khi kết xuất video hoàn chỉnh.</span>
+              <span>{t("pipeline:steps.dubbing.needTtsFirst", "Cần tạo giọng đọc AI (TTS) trước khi kết xuất video hoàn chỉnh.")}</span>
             </div>
             <button
               type="button"
@@ -74,7 +77,7 @@ export default function DubbingRenderPanel({
               className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-500 text-black font-bold text-[11px] hover:bg-amber-400 transition"
             >
               <Mic size={12} />
-              <span>← Thiết lập Giọng Đọc AI ngay</span>
+              <span>{t("pipeline:steps.dubbing.setupAiVoiceNow", "← Thiết lập Giọng Đọc AI ngay")}</span>
             </button>
           </div>
         )}
@@ -87,7 +90,7 @@ export default function DubbingRenderPanel({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--color-text-primary)]">
               <Captions size={14} className="text-[var(--color-primary)]" />
-              <span>Nhúng phụ đề cứng (Hardsub)</span>
+              <span>{t("pipeline:steps.dubbing.hardsubToggle", "Nhúng phụ đề cứng (Hardsub)")}</span>
             </div>
             <div
               className={`w-8 h-4 rounded-full transition-colors relative flex items-center p-0.5 ${
@@ -146,7 +149,7 @@ export default function DubbingRenderPanel({
               />
             </div>
             <p className="text-[10px] text-[var(--color-text-muted)]">
-              Tiến độ encode FFmpeg / hòa âm âm thanh được cập nhật thời gian thực từ worker.
+              {t("pipeline:steps.dubbing.renderProgressNote", "Tiến độ encode FFmpeg / hòa âm âm thanh được cập nhật thời gian thực từ worker.")}
             </p>
           </div>
         )}
@@ -160,7 +163,7 @@ export default function DubbingRenderPanel({
       >
         <div className="flex items-center gap-1.5">
           <Mic size={13} />
-          <span>← Tùy chỉnh lại Giọng đọc AI</span>
+          <span>{t("pipeline:steps.dubbing.adjustAiVoice", "← Tùy chỉnh lại Giọng đọc AI")}</span>
         </div>
       </button>
 
@@ -170,7 +173,7 @@ export default function DubbingRenderPanel({
         onClick={onGoToReviewStep}
         className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-xs font-bold text-[var(--color-text-primary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition active:scale-98 shadow-xs"
       >
-        <span>Tiếp tục: Kiểm duyệt & Xuất (Bước 6)</span>
+        <span>{t("pipeline:steps.dubbing.nextStepReview", "Tiếp tục: Kiểm duyệt & Xuất (Bước 6)")}</span>
         <ChevronRight size={15} />
       </button>
     </div>

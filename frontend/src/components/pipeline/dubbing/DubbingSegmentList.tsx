@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   Sparkles,
   Search,
@@ -36,6 +37,7 @@ interface DubbingSegmentListProps {
 }
 
 export default function DubbingSegmentList({
+
   segmentAudioRef,
   playingSegmentAudioIdx,
   setPlayingSegmentAudioIdx,
@@ -56,6 +58,7 @@ export default function DubbingSegmentList({
   handleSegmentSlip,
   formatTime,
 }: DubbingSegmentListProps) {
+  const { t } = useTranslation(["pipeline", "common"]);
   return (
     <div className="space-y-3">
       {/* Hidden audio element for segment chunk playback */}
@@ -71,11 +74,11 @@ export default function DubbingSegmentList({
           <div className="flex items-center gap-1.5">
             <Sparkles size={13} className="text-[var(--color-primary)]" />
             <span className="text-xs font-bold text-[var(--color-text-primary)]">
-              Bộ Biên Tập Vi Âm Từng Câu
+              {t("pipeline:steps.dubbing.segmentEditorTitle", "Bộ Biên Tập Vi Âm Từng Câu")}
             </span>
           </div>
           <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--color-primary-soft)] text-[var(--color-primary)] font-bold">
-            {filteredSegments.length} / {segments.length} câu
+            {filteredSegments.length} / {segments.length} {t("pipeline:steps.dubbing.segmentsCount", { count: segments.length, defaultValue: "câu" })}
           </span>
         </div>
 
@@ -84,7 +87,7 @@ export default function DubbingSegmentList({
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
           <input
             type="text"
-            placeholder="Tìm kiếm nội dung câu thoại..."
+            placeholder={t("pipeline:steps.dubbing.searchPlaceholder", "Tìm kiếm nội dung câu thoại...")}
             value={segmentSearch}
             onChange={(e) => setSegmentSearch(e.target.value)}
             className="w-full h-8 pl-8 pr-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] placeholder:text-[var(--color-text-muted)]"
@@ -96,7 +99,7 @@ export default function DubbingSegmentList({
       <div className="space-y-2.5 max-h-[calc(100vh-300px)] overflow-y-auto pr-1">
         {filteredSegments.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[var(--color-border)] p-6 text-center text-xs text-[var(--color-text-muted)]">
-            Không tìm thấy câu thoại phù hợp với từ khóa "{segmentSearch}"
+            {t("pipeline:steps.dubbing.noSegmentsFound", { keyword: segmentSearch, defaultValue: `Không tìm thấy câu thoại phù hợp với từ khóa "${segmentSearch}"` })}
           </div>
         ) : (
           filteredSegments.map(({ seg, originalIndex: idx }) => {
@@ -160,7 +163,7 @@ export default function DubbingSegmentList({
                   onChange={(e) => handleUpdateSegmentText(idx, e.target.value)}
                   rows={2}
                   className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] p-2 text-xs leading-relaxed text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] resize-none"
-                  placeholder="Nhập nội dung lời thoại..."
+                  placeholder={t("pipeline:steps.dubbing.enterTextPlaceholder", "Nhập nội dung lời thoại...")}
                   onClick={(e) => e.stopPropagation()}
                 />
 
@@ -176,10 +179,10 @@ export default function DubbingSegmentList({
                           ? "border-emerald-500 bg-emerald-500 text-white"
                           : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] hover:border-emerald-500/50 hover:text-emerald-400"
                       }`}
-                      title="Nghe thử câu thoại này"
+                      title={t("pipeline:steps.dubbing.listenLine", "Nghe thử câu thoại này")}
                     >
                       {isPlaying ? <Pause size={11} /> : <Play size={11} />}
-                      <span>{isPlaying ? "Dừng" : "Nghe câu"}</span>
+                      <span>{isPlaying ? t("pipeline:steps.dubbing.stopPreview", "Dừng") : t("pipeline:steps.dubbing.listenLine", "Nghe câu")}</span>
                     </button>
 
                     {/* Quick Regenerate TTS */}
@@ -188,16 +191,16 @@ export default function DubbingSegmentList({
                       onClick={() => handleMicroResynthesize(idx)}
                       disabled={isRegenerating}
                       className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 transition disabled:opacity-50"
-                      title="Tạo lại giọng câu này (~0.5s)"
+                      title={t("pipeline:steps.dubbing.regenerateVoiceLine", "Tạo lại giọng câu này (~0.5s)")}
                     >
                       {isRegenerating ? <Loader2 size={11} className="animate-spin" /> : <Zap size={11} />}
-                      <span>⚡ Tạo lại giọng câu này</span>
+                      <span>{t("pipeline:steps.dubbing.regenerateVoiceLine", "⚡ Tạo lại giọng câu này")}</span>
                     </button>
                   </div>
 
                   {/* Speed Dropdown */}
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-[var(--color-text-muted)] whitespace-nowrap">Tốc độ:</span>
+                    <span className="text-[10px] text-[var(--color-text-muted)] whitespace-nowrap">{t("pipeline:steps.dubbing.speed", "Tốc độ:")}</span>
                     <select
                       value={currentSpeed}
                       onChange={(e) => {
@@ -209,9 +212,9 @@ export default function DubbingSegmentList({
                       }}
                       className="h-6 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 text-[10px] font-semibold text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] font-mono"
                     >
-                      <option value={0.8}>0.8x (Chậm)</option>
+                      <option value={0.8}>0.8x ({t("pipeline:toolPanel.speedSlow", "Chậm")})</option>
                       <option value={0.9}>0.9x</option>
-                      <option value={1.0}>1.0x (Chuẩn)</option>
+                      <option value={1.0}>1.0x ({t("pipeline:toolPanel.speedStandard", "Chuẩn")})</option>
                       <option value={1.1}>1.1x</option>
                       <option value={1.2}>1.2x (Nhanh)</option>
                     </select>
@@ -220,13 +223,13 @@ export default function DubbingSegmentList({
 
                 {/* Slip Timing Nudge buttons (-50ms / +50ms) */}
                 <div className="flex items-center justify-between text-[10px] text-[var(--color-text-muted)] pt-0.5" onClick={(e) => e.stopPropagation()}>
-                  <span>Đồng bộ khẩu hình (Audio Slip):</span>
+                  <span>{t("pipeline:steps.dubbing.audioSlip", "Đồng bộ khẩu hình (Audio Slip):")}</span>
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       type="button"
                       onClick={() => handleSegmentSlip(idx, -0.05)}
                       className="px-1.5 py-0.5 rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] hover:border-[var(--color-primary)] active:scale-95 font-mono text-[9px] font-bold"
-                      title="Lùi thời điểm phát 50ms"
+                      title={t("pipeline:steps.dubbing.nudgeBack", "Lùi thời điểm phát 50ms")}
                     >
                       -50ms
                     </button>
@@ -234,7 +237,7 @@ export default function DubbingSegmentList({
                       type="button"
                       onClick={() => handleSegmentSlip(idx, 0.05)}
                       className="px-1.5 py-0.5 rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] hover:border-[var(--color-primary)] active:scale-95 font-mono text-[9px] font-bold"
-                      title="Tiến thời điểm phát 50ms"
+                      title={t("pipeline:steps.dubbing.nudgeForward", "Tiến thời điểm phát 50ms")}
                     >
                       +50ms
                     </button>
@@ -251,7 +254,7 @@ export default function DubbingSegmentList({
                           });
                         }}
                         className="p-1 text-[var(--color-text-muted)] hover:text-red-400"
-                        title="Đặt lại slip về 0"
+                        title={t("pipeline:steps.dubbing.resetSlip", "Đặt lại slip về 0")}
                       >
                         <Trash2 size={10} />
                       </button>

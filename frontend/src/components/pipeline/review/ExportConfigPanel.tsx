@@ -31,13 +31,13 @@ export default function ExportConfigPanel({
   return (
     <div className="space-y-3 pb-3 border-b border-[var(--color-border)]">
       <span className="text-[11px] font-bold text-[var(--color-text-secondary)] uppercase tracking-wider block">
-        Khu vực 1: Xuất Video Thành Phẩm (Rendered Video)
+        {t("pipeline:steps.reviewExport.section1Title", "Khu vực 1: Xuất Video Thành Phẩm (Rendered Video)")}
       </span>
 
       {/* FORMAT SELECTION (.MP4 | .MKV) */}
       <div>
         <label className="text-xs font-bold text-[var(--color-text-primary)] block mb-1">
-          Định dạng tệp video:
+          {t("pipeline:steps.reviewExport.videoFormatLabel", "Định dạng tệp video:")}
         </label>
         <div className="grid grid-cols-2 gap-2">
           {["mp4", "mkv"].map((fmt) => (
@@ -60,19 +60,19 @@ export default function ExportConfigPanel({
       {/* RESOLUTION SELECTION */}
       <div>
         <label className="text-xs font-bold text-[var(--color-text-primary)] block mb-1">
-          Độ phân giải video (Resolution):
+          {t("pipeline:steps.reviewExport.resolutionLabel", "Độ phân giải video (Resolution):")}
         </label>
         <select
           value={selectedQuality}
           onChange={(e) => setSelectedQuality(e.target.value)}
           className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-medium text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
         >
-          <option value="720p">720p HD (Gói Free & Pro)</option>
+          <option value="720p">{t("pipeline:steps.reviewExport.res720p", "720p HD (Gói Free & Pro)")}</option>
           <option value="1080p" disabled={!isPro}>
-            1080p Full HD {!isPro ? "(Yeu cau goi Pro)" : "(Gói Pro)"}
+            1080p Full HD {!isPro ? t("pipeline:steps.reviewExport.proRequired", "(Yêu cầu gói Pro)") : t("pipeline:steps.reviewExport.proPlanBadge", "(Gói Pro)")}
           </option>
           <option value="4K" disabled={!isPro}>
-            4K Ultra HD {!isPro ? "(Yeu cau goi Pro)" : "(Gói Pro)"}
+            4K Ultra HD {!isPro ? t("pipeline:steps.reviewExport.proRequired", "(Yêu cầu gói Pro)") : t("pipeline:steps.reviewExport.proPlanBadge", "(Gói Pro)")}
           </option>
         </select>
       </div>
@@ -80,14 +80,14 @@ export default function ExportConfigPanel({
       {/* CUSTOM EXPORT FILENAME */}
       <div>
         <label className="text-xs font-bold text-[var(--color-text-primary)] block mb-1">
-          Tên tệp xuất bản (Filename):
+          {t("pipeline:steps.reviewExport.filenameLabel", "Tên tệp xuất bản (Filename):")}
         </label>
         <div className="flex items-center gap-2">
           <input
             type="text"
             value={customExportFilename}
             onChange={(e) => setCustomExportFilename(e.target.value)}
-            placeholder="Nhập tên tệp xuất..."
+            placeholder={t("pipeline:steps.reviewExport.filenamePlaceholder", "Nhập tên tệp xuất...")}
             className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-medium text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] font-mono"
           />
           <span className="text-xs font-mono text-[var(--color-text-muted)] shrink-0">
@@ -108,7 +108,7 @@ export default function ExportConfigPanel({
         <span>
           {isExporting
             ? t("pipeline:steps.reviewExport.exporting")
-            : `Tải Video Hoàn Chỉnh (.${selectedFormat.toUpperCase()})`}
+            : t("pipeline:steps.reviewExport.downloadFinalVideo", { format: selectedFormat.toUpperCase(), defaultValue: `Tải Video Hoàn Chỉnh (.${selectedFormat.toUpperCase()})` })}
         </span>
       </button>
       {!hasFinishedVideo && (

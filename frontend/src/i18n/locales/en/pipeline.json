@@ -496,7 +496,18 @@
       "toastUploadAudioSuccess": "Loaded audio file for line #{{idx}}",
       "toastProRequired": "This model is only available for Pro accounts. Please upgrade your plan.",
       "toastNoAudio": "No audio source to play.",
-      "toastAudioPlayFail": "Failed to play audio file. Please try again."
+      "toastAudioPlayFail": "Failed to play audio file. Please try again.",
+      "tabVoiceAndRender": "AI Voice & Render",
+      "setupAiVoiceNow": "← Setup AI Voice Now",
+      "adjustAiVoice": "← Adjust AI Voice",
+      "renderDubTitle": "Mix Audio & Render Video",
+      "videoDubbedSuccess": "Video dubbed successfully",
+      "clickToReloadVideo": "Click to reload video stream",
+      "listenLine": "Listen",
+      "regenerateVoiceLine": "⚡ Regenerate voice for this line",
+      "audioSlip": "Lip-sync Audio Slip:",
+      "stepLayoutErrorPrefix": "Error: {{title}}",
+      "stepLayoutErrorDefault": "Processing Error"
     },
     "reviewExport": {
       "title": "Review & Export",
@@ -579,7 +590,26 @@
       "executiveSummary": "Executive Summary",
       "executiveSummaryPlaceholder": "Click generate above to view executive summary and key takeaways.",
       "zipEmptyError": "ZIP archive is empty or contains no downloadable data.",
-      "zipDownloadFailed": "Failed to download ZIP bundle. Please try again later."
+      "zipDownloadFailed": "Failed to download ZIP bundle. Please try again later.",
+      "section1Title": "Section 1: Export Final Rendered Video",
+      "videoFormatLabel": "Video file format:",
+      "resolutionLabel": "Video Resolution:",
+      "res720p": "720p HD (Free & Pro Plan)",
+      "res1080p": "1080p Full HD",
+      "res4k": "4K Ultra HD",
+      "proPlanBadge": "(Pro Plan)",
+      "proRequired": "(Pro Plan required)",
+      "filenameLabel": "Export Filename:",
+      "filenamePlaceholder": "Enter export filename...",
+      "downloadFinalVideo": "Download Final Video (.{{format}})",
+      "zipSectionTitle": "Bundle ZIP Package (Select Resources):",
+      "renderedVideoAsset": "Rendered Video",
+      "subtitlesAndTranslationAsset": "Subtitles & Translation",
+      "dubbedAudioAsset": "Dubbed Audio",
+      "originalVideoAsset": "Original Video (Large)",
+      "downloadZipTooltip": "Download all assets of this video as a compressed .ZIP package",
+      "packagingZip": "Packaging ZIP file...",
+      "downloadSelectedZip": "Download Selected Package (ZIP)"
     }
   },
   "batch": {

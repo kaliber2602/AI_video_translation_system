@@ -496,7 +496,18 @@
       "toastUploadAudioSuccess": "Đã nạp file âm thanh riêng cho câu #{{idx}}",
       "toastProRequired": "Mô hình này chỉ dành cho tài khoản Pro. Vui lòng nâng cấp gói để sử dụng.",
       "toastNoAudio": "Chưa có nguồn âm thanh để phát.",
-      "toastAudioPlayFail": "Không thể phát file âm thanh. Vui lòng thử lại."
+      "toastAudioPlayFail": "Không thể phát file âm thanh. Vui lòng thử lại.",
+      "tabVoiceAndRender": "Giọng đọc AI & Render",
+      "setupAiVoiceNow": "← Thiết lập Giọng Đọc AI ngay",
+      "adjustAiVoice": "← Tùy chỉnh lại Giọng đọc AI",
+      "renderDubTitle": "Hòa Âm & Render Video",
+      "videoDubbedSuccess": "Video đã được lồng tiếng thành công",
+      "clickToReloadVideo": "Nhấn để tải lại luồng phát video",
+      "listenLine": "Nghe câu",
+      "regenerateVoiceLine": "⚡ Tạo lại giọng câu này",
+      "audioSlip": "Đồng bộ khẩu hình (Audio Slip):",
+      "stepLayoutErrorPrefix": "Lỗi: {{title}}",
+      "stepLayoutErrorDefault": "Lỗi xử lý"
     },
     "reviewExport": {
       "title": "Duyệt & Xuất tệp",
@@ -579,7 +590,26 @@
       "executiveSummary": "Bản tóm tắt tổng quan (Executive Summary)",
       "executiveSummaryPlaceholder": "Nhấn nút tạo phía trên để xem bản tóm tắt điều hành và các điểm chính (Key Takeaways).",
       "zipEmptyError": "Tệp ZIP rỗng hoặc không có dữ liệu tải về.",
-      "zipDownloadFailed": "Tải gói tệp ZIP thất bại. Vui lòng thử lại sau."
+      "zipDownloadFailed": "Tải gói tệp ZIP thất bại. Vui lòng thử lại sau.",
+      "section1Title": "Khu vực 1: Xuất Video Thành Phẩm (Rendered Video)",
+      "videoFormatLabel": "Định dạng tệp video:",
+      "resolutionLabel": "Độ phân giải video (Resolution):",
+      "res720p": "720p HD (Gói Free & Pro)",
+      "res1080p": "1080p Full HD",
+      "res4k": "4K Ultra HD",
+      "proPlanBadge": "(Gói Pro)",
+      "proRequired": "(Yêu cầu gói Pro)",
+      "filenameLabel": "Tên tệp xuất bản (Filename):",
+      "filenamePlaceholder": "Nhập tên tệp xuất...",
+      "downloadFinalVideo": "Tải Video Hoàn Chỉnh (.{{format}})",
+      "zipSectionTitle": "Đóng gói tệp ZIP (Tùy chọn tài nguyên):",
+      "renderedVideoAsset": "Video kết xuất",
+      "subtitlesAndTranslationAsset": "Phụ đề & Dịch",
+      "dubbedAudioAsset": "Âm thanh lồng tiếng",
+      "originalVideoAsset": "Video gốc (Nặng)",
+      "downloadZipTooltip": "Tải toàn bộ tài nguyên video này dưới dạng một tệp nén .ZIP",
+      "packagingZip": "Đang đóng gói tệp ZIP...",
+      "downloadSelectedZip": "Tải gói tệp đã chọn (ZIP)"
     }
   },
   "batch": {

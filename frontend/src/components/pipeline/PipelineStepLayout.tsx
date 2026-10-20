@@ -50,7 +50,7 @@ export default function PipelineStepLayout({
   // Automatically show toast.error when an error occurs across all pipeline steps
   useEffect(() => {
     if (error) {
-      toast.error(stepTitle ? `Lỗi: ${stepTitle}` : "Lỗi xử lý", error);
+      toast.error(stepTitle ? t("pipeline:steps.dubbing.stepLayoutErrorPrefix", { title: stepTitle, defaultValue: `Lỗi: ${stepTitle}` }) : t("pipeline:steps.dubbing.stepLayoutErrorDefault", "Lỗi xử lý"), error);
       if (onDismissError) {
         onDismissError();
       }
