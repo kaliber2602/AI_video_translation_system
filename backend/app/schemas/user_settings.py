@@ -7,7 +7,7 @@ SUPPORTED_LANGUAGES = {"en", "vi"}
 
 
 class UserSettingsUpdate(BaseModel):
-    theme: Optional[str] = "dark"
+    theme: Optional[str] = "default_theme"
     language: Optional[str] = "vi"
     preferences: Optional[Dict[str, Any]] = None
 
@@ -44,7 +44,7 @@ class UserSettingsPatch(BaseModel):
 class UserSettingsResponse(BaseModel):
     id: int
     user_id: int
-    theme: str = "dark"
+    theme: str = "default_theme"
     language: str = "vi"
     preferences: Optional[Dict[str, Any]] = None
 

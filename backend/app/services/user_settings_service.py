@@ -8,7 +8,7 @@ from app.schemas.user_settings import (
 
 
 DEFAULT_SETTINGS = {
-    "theme": "dark",
+    "theme": "default_theme",
     "language": "vi",
 }
 
