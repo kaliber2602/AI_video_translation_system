@@ -74,7 +74,7 @@ export default function TranslationStep() {
       }
       if (hybrid.status === "failed") {
         setIsTranslating(false);
-        setTranslationError(hybrid.message || "Dịch thuật thất bại");
+        setTranslationError(hybrid.message || t("pipeline:steps.translation.errorFailed", "Dịch thuật thất bại"));
       }
     }
   }, [hybrid.progress, hybrid.message, hybrid.status, isTranslating]);
@@ -224,7 +224,7 @@ export default function TranslationStep() {
           if (activeTask.status === "failed") {
             stopPolling();
             setIsTranslating(false);
-            setTranslationError(activeTask.error_message || "Dịch thuật thất bại trong Celery worker");
+            setTranslationError(activeTask.error_message || t("pipeline:steps.translation.errorWorkerFailed", "Dịch thuật thất bại trong Celery worker"));
             return;
           }
         }
@@ -267,7 +267,7 @@ export default function TranslationStep() {
         } else if (transStep?.status === "failed") {
           stopPolling();
           setIsTranslating(false);
-          setTranslationError(activeTask?.error_message || "Dịch thuật thất bại");
+          setTranslationError(activeTask?.error_message || t("pipeline:steps.translation.errorFailed", "Dịch thuật thất bại"));
         }
       } catch (err) {
         console.warn("Polling translation status error:", err);
@@ -372,7 +372,7 @@ export default function TranslationStep() {
     setIsTranslating(true);
     setTranslationError(null);
     setTaskProgress(0);
-    setTaskMessage("Đang khởi tạo tiến trình dịch thuật...");
+    setTaskMessage(t("pipeline:steps.translation.initTask", "Đang khởi tạo tiến trình dịch thuật..."));
 
     try {
       const targetLang = selectedTargetLang || state.targetLanguage || "vi";
@@ -667,7 +667,7 @@ export default function TranslationStep() {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 size={32} className="animate-spin text-[var(--color-primary)]" />
-        <span className="ml-3 text-[var(--color-text-muted)]">Đang tải bản dịch...</span>
+        <span className="ml-3 text-[var(--color-text-muted)]">{t("pipeline:steps.translation.loading", "Đang tải bản dịch...")}</span>
       </div>
     );
   }
@@ -819,10 +819,10 @@ export default function TranslationStep() {
 
       <ConfirmationDialog
         isOpen={isRetranslateConfirmOpen}
-        title="Dịch lại toàn bộ video?"
-        message="Hành động này sẽ gửi toàn bộ lời thoại sang mô hình AI để dịch lại từ đầu. Các câu bạn đã tự chỉnh sửa tay hoặc AI Rewrite trước đó trong bản dịch này sẽ bị ghi đè. Bạn có chắc chắn muốn tiếp tục?"
-        confirmLabel="Tiến hành dịch lại"
-        cancelLabel="Hủy bỏ"
+        title={t("pipeline:steps.translation.retranslateTitle", "Dịch lại toàn bộ video?")}
+        message={t("pipeline:steps.translation.retranslateMessage", "Hành động này sẽ gửi toàn bộ lời thoại sang mô hình AI để dịch lại từ đầu. Các câu bạn đã tự chỉnh sửa tay hoặc AI Rewrite trước đó trong bản dịch này sẽ bị ghi đè. Bạn có chắc chắn muốn tiếp tục?")}
+        confirmLabel={t("pipeline:steps.translation.retranslateConfirm", "Tiến hành dịch lại")}
+        cancelLabel={t("pipeline:steps.translation.retranslateCancel", "Hủy bỏ")}
         isDestructive={true}
         onConfirm={() => {
           setIsRetranslateConfirmOpen(false);
