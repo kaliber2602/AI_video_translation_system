@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt ./
 
 RUN pip install --no-cache-dir --default-timeout=120 --retries 5 \
-    torch==2.5.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124 && \
+    torch torchaudio --index-url https://download.pytorch.org/whl/cu124 && \
     pip install --no-cache-dir --default-timeout=120 --retries 5 \
     -r requirements.txt
 
