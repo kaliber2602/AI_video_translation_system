@@ -7,6 +7,11 @@ import urllib.error
 from typing import List, Dict, Any, Optional
 from abc import ABC, abstractmethod
 
+from langdetect import detect, DetectorFactory
+
+# Enforce deterministic language detection across threads
+DetectorFactory.seed = 0
+
 from app.core.config import (
     OLLAMA_BASE_URL,
     OLLAMA_MODEL,
@@ -94,20 +99,20 @@ class LLMService:
 
     def _detect_language(self, text: str) -> str:
         """
-        Phát hiện ngôn ngữ của câu hỏi để trả lời đúng ngôn ngữ đó.
+        Phát hiện ngôn ngữ của câu hỏi bằng thư viện chuẩn quốc tế `langdetect`.
+        Hỗ trợ nhận diện chính xác tiếng Việt ('vi'), tiếng Anh ('en'), tiếng Nhật ('ja'),
+        tiếng Pháp ('fr'), tiếng Trung ('zh-cn'), v.v.
         """
-        vietnamese_marks = set("àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđĐ")
-        if any(c in vietnamese_marks for c in text):
+        clean_text = (text or "").strip()
+        if not clean_text:
             return "vi"
-        # Các từ đặc trưng tiếng Việt không dấu (loại bỏ 'the' vì trùng mạo từ tiếng Anh)
-        common_vi_words = {"la", "là", "gi", "gì", "sao", "nao", "nào", "duoc", "cho", "tai", "doan", "hay", "tom", "tat", "giai", "thich", "trong", "giup"}
-        words = set(re.findall(r"\w+", text.lower()))
-        common_en_words = {"the", "is", "are", "what", "how", "why", "when", "where", "who", "which", "about", "this", "video", "explain", "summarize"}
-        if len(words & common_en_words) >= 2:
-            return "en"
-        if len(words & common_vi_words) >= 1:
+
+        try:
+            detected_lang = detect(clean_text)
+            return detected_lang.lower()
+        except Exception as e:
+            logger.debug(f"[LLMService] langdetect error for '{clean_text}': {e}")
             return "vi"
-        return "en"
 
     def generate_chat_answer(
         self,
@@ -149,13 +154,16 @@ class LLMService:
         if tone:
             tone_instruction = f"\n4. Phong cách / Giọng điệu yêu cầu: Áp dụng phong cách '{tone}' (ví dụ: giải thích dễ hiểu, chuyên sâu, hoặc trang trọng tuỳ theo yêu cầu này)."
 
-        lang = self._detect_language(question)
-        if lang == "vi":
+        detected_lang = self._detect_language(question)
+        if detected_lang == "vi":
             lang_instruction = "NGÔN NGỮ BẮT BUỘC: Bạn PHẢI trả lời hoàn toàn bằng tiếng Việt tự nhiên, súc tích và đúng trọng tâm."
             answer_prefix = "Trả lời bằng tiếng Việt:"
-        else:
-            lang_instruction = "MANDATORY LANGUAGE: The user asked in English or a non-Vietnamese language. You MUST reply 100% in English (the language of the user). Do NOT speak Vietnamese."
+        elif detected_lang == "en":
+            lang_instruction = "MANDATORY LANGUAGE: The user asked in English. You MUST reply 100% in fluent English. Do NOT speak Vietnamese."
             answer_prefix = "Answer in English:"
+        else:
+            lang_instruction = f"MANDATORY LANGUAGE: Match the user inquiry language code '{detected_lang}' precisely. Do NOT fallback to Vietnamese if the user asked in another language."
+            answer_prefix = f"Answer in {detected_lang}:"
 
         system_prompt = (
             "You are VidNova AI, an intelligent video analysis and translation assistant.\n"
