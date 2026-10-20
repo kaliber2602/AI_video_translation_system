@@ -72,5 +72,29 @@
     "toastRemoveSuccessDesc": "Restored to original default.",
     "toastRemoveError": "Remove failed",
     "toastRemoveErrorDesc": "Failed to remove thumbnail."
+  },
+  "detail": {
+    "toastDeleteBatchFailed": "Failed to delete selected videos",
+    "openPresetStudio": "Open Preset Studio to customize 6-tier AI",
+    "viewBatchProgress": "View batch processing history and progress",
+    "batchProgress": "Batch Progress",
+    "batchUploadTip": "Upload multiple videos at once & auto run batch pipeline",
+    "batchUploadBtn": "Batch Upload",
+    "statusFilterAll": "All Statuses",
+    "statusFilterCompleted": "Completed",
+    "statusFilterProcessing": "Processing",
+    "statusFilterEditing": "Editing",
+    "statusFilterDraft": "Draft",
+    "statusFilterUploaded": "Uploaded",
+    "statusFilterFailed": "Failed",
+    "openFolderAria": "Open folder {{name}}",
+    "deselectAll": "Deselect All",
+    "selectAll": "Select All",
+    "selectedCount": "Selected {{count}} videos",
+    "batchProcessBtn": "Batch AI Process",
+    "deleteSelectedBtn": "Delete ({{count}}) videos",
+    "deleteBatchTitle": "Delete Selected Videos",
+    "deleteBatchMessage": "Are you sure you want to delete {{count}} selected videos? All associated audio, subtitles, and rendered files will be permanently deleted.",
+    "deleteBatchConfirm": "Delete {{count}} videos"
   }
 }

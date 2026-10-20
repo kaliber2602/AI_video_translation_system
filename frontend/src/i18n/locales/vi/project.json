@@ -72,5 +72,29 @@
     "toastRemoveSuccessDesc": "Khôi phục về trạng thái ban đầu.",
     "toastRemoveError": "Lỗi xóa Thumbnail",
     "toastRemoveErrorDesc": "Không thể xóa Thumbnail."
+  },
+  "detail": {
+    "toastDeleteBatchFailed": "Không thể xóa các video đã chọn",
+    "openPresetStudio": "Mở Preset Studio tùy chỉnh 6 tầng AI",
+    "viewBatchProgress": "Xem lịch sử và tiến độ xử lý hàng loạt",
+    "batchProgress": "Tiến độ Batch",
+    "batchUploadTip": "Tải lên nhiều video cùng lúc & tự động chạy batch pipeline",
+    "batchUploadBtn": "Upload Hàng Loạt",
+    "statusFilterAll": "Tất cả trạng thái (All)",
+    "statusFilterCompleted": "Completed (Đã xong)",
+    "statusFilterProcessing": "Processing (Đang xử lý)",
+    "statusFilterEditing": "Editing (Đang biên tập)",
+    "statusFilterDraft": "Draft (Bản nháp)",
+    "statusFilterUploaded": "Uploaded (Đã tải lên)",
+    "statusFilterFailed": "Failed (Thất bại)",
+    "openFolderAria": "Mở thư mục {{name}}",
+    "deselectAll": "Bỏ chọn tất cả",
+    "selectAll": "Chọn tất cả",
+    "selectedCount": "Đã chọn {{count}} video",
+    "batchProcessBtn": "Xử lý hàng loạt (Batch AI)",
+    "deleteSelectedBtn": "Xóa ({{count}}) video",
+    "deleteBatchTitle": "Xóa nhiều video đã chọn",
+    "deleteBatchMessage": "Bạn có chắc chắn muốn xóa {{count}} video đã chọn? Toàn bộ file âm thanh, phụ đề và video kết xuất sẽ bị xóa vĩnh viễn.",
+    "deleteBatchConfirm": "Xóa {{count}} video"
   }
 }

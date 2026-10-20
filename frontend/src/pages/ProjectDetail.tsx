@@ -442,7 +442,7 @@ export default function ProjectDetail() {
       toast.success(t("common:success", "Thành công"), `Đã xóa ${selectedVideoIds.length} video thành công`);
     } catch (err: any) {
       console.error("[ProjectDetail] Bulk delete videos failed:", err);
-      toast.error(err?.response?.data?.detail || "Không thể xóa các video đã chọn");
+      toast.error(err?.response?.data?.detail || t("project:detail.toastDeleteBatchFailed", "Không thể xóa các video đã chọn"));
     } finally {
       setIsBulkDeletingVideos(false);
     }
@@ -587,7 +587,7 @@ export default function ProjectDetail() {
               type="button"
               onClick={() => setIsPresetStudioOpen(true)}
               className="flex h-11 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] cursor-pointer"
-              title="Mở Preset Studio tùy chỉnh 6 tầng AI"
+              title={t("project:detail.openPresetStudio", "Mở Preset Studio tùy chỉnh 6 tầng AI")}
             >
               <Sliders size={16} />
               Preset Studio
@@ -597,10 +597,10 @@ export default function ProjectDetail() {
               type="button"
               onClick={() => setIsBatchDrawerOpen(true)}
               className="flex h-11 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] cursor-pointer"
-              title="Xem lịch sử và tiến độ xử lý hàng loạt"
+              title={t("project:detail.viewBatchProgress", "Xem lịch sử và tiến độ xử lý hàng loạt")}
             >
               <Layers size={16} />
-              Tiến độ Batch
+              {t("project:detail.batchProgress", "Tiến độ Batch")}
             </button>
 
             {!isViewOnly && (
@@ -618,7 +618,7 @@ export default function ProjectDetail() {
                   type="button"
                   onClick={() => setIsBatchUploadOpen(true)}
                   className="flex h-11 items-center gap-2 rounded-xl border border-indigo-500/30 bg-indigo-50/10 px-4 text-sm font-semibold text-indigo-400 transition hover:bg-indigo-500/20 hover:border-indigo-400 cursor-pointer"
-                  title="Tải lên nhiều video cùng lúc & tự động chạy batch pipeline"
+                  title={t("project:detail.batchUploadTip", "Tải lên nhiều video cùng lúc & tự động chạy batch pipeline")}
                 >
                   <UploadCloud size={17} />
                   Batch Upload
@@ -726,13 +726,13 @@ export default function ProjectDetail() {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="h-11 rounded-xl border border-[var(--color-border)] bg-[var(--color-input-background)] px-4 text-sm text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)] cursor-pointer"
             >
-              <option value="all">Tất cả trạng thái (All)</option>
-              <option value="completed">Completed (Đã xong)</option>
-              <option value="processing">Processing (Đang xử lý)</option>
-              <option value="editing">Editing (Đang biên tập)</option>
-              <option value="draft">Draft (Bản nháp)</option>
-              <option value="uploaded">Uploaded (Đã tải lên)</option>
-              <option value="failed">Failed (Thất bại)</option>
+              <option value="all">{t("project:detail.statusFilterAll", "Tất cả trạng thái (All)")}</option>
+              <option value="completed">{t("project:detail.statusFilterCompleted", "Completed (Đã xong)")}</option>
+              <option value="processing">{t("project:detail.statusFilterProcessing", "Processing (Đang xử lý)")}</option>
+              <option value="editing">{t("project:detail.statusFilterEditing", "Editing (Đang biên tập)")}</option>
+              <option value="draft">{t("project:detail.statusFilterDraft", "Draft (Bản nháp)")}</option>
+              <option value="uploaded">{t("project:detail.statusFilterUploaded", "Uploaded (Đã tải lên)")}</option>
+              <option value="failed">{t("project:detail.statusFilterFailed", "Failed (Thất bại)")}</option>
             </select>
           </div>
         </section>
@@ -751,7 +751,7 @@ export default function ProjectDetail() {
                     key={folder.id}
                     role="button"
                     tabIndex={0}
-                    aria-label={`Mở thư mục ${folder.name}`}
+                    aria-label={t("project:detail.openFolderAria", { name: folder.name, defaultValue: `Mở thư mục ${folder.name}` })}
                     onClick={() => setActiveFolderId(folder.id)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
@@ -827,7 +827,7 @@ export default function ProjectDetail() {
                   }}
                   className="text-xs font-semibold text-[var(--color-primary)] hover:underline cursor-pointer"
                 >
-                  {selectedVideoIds.length === filteredVideos.length ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+                  {selectedVideoIds.length === filteredVideos.length ? t("project:detail.deselectAll", "Bỏ chọn tất cả") : t("project:detail.selectAll", "Chọn tất cả")}
                 </button>
               )}
             </div>
@@ -835,7 +835,7 @@ export default function ProjectDetail() {
             {selectedVideoIds.length > 0 && !isViewOnly && (
               <div className="flex items-center gap-2.5 animate-fade-in">
                 <span className="text-xs text-[var(--color-text-muted)] font-medium">
-                  Đã chọn {selectedVideoIds.length} video
+                  {t("project:detail.selectedCount", { count: selectedVideoIds.length, defaultValue: `Đã chọn ${selectedVideoIds.length} video` })}
                 </span>
                 <Button
                   variant="primary"
@@ -843,7 +843,7 @@ export default function ProjectDetail() {
                   onClick={() => setIsBatchModalOpen(true)}
                   icon={<Sparkles size={14} />}
                 >
-                  Xử lý hàng loạt (Batch AI)
+                  {t("project:detail.batchProcessBtn", "Xử lý hàng loạt (Batch AI)")}
                 </Button>
                 <Button
                   variant="danger"
@@ -851,7 +851,7 @@ export default function ProjectDetail() {
                   onClick={() => setIsBulkVideoDeleteOpen(true)}
                   icon={<Trash2 size={14} />}
                 >
-                  Xóa ({selectedVideoIds.length}) video
+                  {t("project:detail.deleteSelectedBtn", { count: selectedVideoIds.length, defaultValue: `Xóa (${selectedVideoIds.length}) video` })}
                 </Button>
               </div>
             )}
@@ -1121,9 +1121,9 @@ export default function ProjectDetail() {
           isOpen={isBulkVideoDeleteOpen}
           onClose={() => setIsBulkVideoDeleteOpen(false)}
           onConfirm={handleBulkDeleteVideos}
-          title="Xóa nhiều video đã chọn"
-          message={`Bạn có chắc chắn muốn xóa ${selectedVideoIds.length} video đã chọn? Toàn bộ file âm thanh, phụ đề và dữ liệu phân tích liên quan sẽ bị xóa vĩnh viễn.`}
-          confirmLabel={`Xóa ${selectedVideoIds.length} video`}
+          title={t("project:detail.deleteBatchTitle", "Xóa nhiều video đã chọn")}
+          message={t("project:detail.deleteBatchMessage", { count: selectedVideoIds.length, defaultValue: `Bạn có chắc chắn muốn xóa ${selectedVideoIds.length} video đã chọn? Toàn bộ file âm thanh, phụ đề và dữ liệu phân tích liên quan sẽ bị xóa vĩnh viễn.` })}
+          confirmLabel={t("project:detail.deleteBatchConfirm", { count: selectedVideoIds.length, defaultValue: `Xóa ${selectedVideoIds.length} video` })}
           isDestructive
           isLoading={isBulkDeletingVideos}
         />
