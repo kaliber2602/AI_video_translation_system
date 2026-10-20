@@ -5418,8 +5418,14 @@ async def generate_dubbed_video(
     
     video, project = get_video_with_access(video_id, user_id, db, required_role="editor")
     
-    # Validate export resolution against user plan
-    validate_user_export_resolution(user_id, quality)
+    # Enforce resolution validation: if user plan max resolution is lower, automatically clamp quality for playback
+    quota = get_user_effective_quota(user_id)
+    max_res = str(quota.get("limits", {}).get("max_export_resolution", "720p")).lower().strip()
+    req_rank = RESOLUTION_TIER_RANK.get(str(quality).lower().strip(), 3)
+    max_rank = RESOLUTION_TIER_RANK.get(max_res, 3)
+    if req_rank > max_rank:
+        logger.info(f"[Dubbing] Quality {quality} exceeds plan limit ({max_res}). Automatically clamped to {max_res} for rendering.")
+        quality = max_res
 
     # Enforce AI credit deduction for video dubbing render
     duration_mins = max(1, int(math.ceil((video.duration or 60) / 60.0)))
@@ -6190,8 +6196,9 @@ async def download_dubbed_video(
     
     video, project = get_video_with_access(video_id, user_id, db, required_role="viewer")
     
-    # Validate export resolution against user plan
-    validate_user_export_resolution(user_id, quality)
+    # Enforce resolution validation: allow preview within system, block when downloading to local file if exceeding plan
+    if not preview:
+        validate_user_export_resolution(user_id, quality)
 
     s3_key_or_path = resolve_or_transcode_video_quality(
         video=video,

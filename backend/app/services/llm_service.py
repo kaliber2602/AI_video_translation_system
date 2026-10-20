@@ -36,13 +36,17 @@ class OllamaLocalProvider(BaseLLMProvider):
         self.model = model
 
     def is_available(self) -> bool:
-        for candidate_url in [self.base_url, "http://localhost:11434", "http://127.0.0.1:11434", "http://172.18.0.1:11434"]:
+        for candidate_url in [self.base_url, "http://ollama:11434", "http://localhost:11434", "http://127.0.0.1:11434", "http://172.18.0.1:11434"]:
             try:
                 req = urllib.request.Request(f"{candidate_url}/api/tags", headers={"User-Agent": "VidNova"})
                 with urllib.request.urlopen(req, timeout=1.5) as resp:
                     if resp.status == 200:
-                        self.base_url = candidate_url
-                        return True
+                        data = json.loads(resp.read().decode("utf-8"))
+                        model_names = [m.get("name", "") for m in data.get("models", [])]
+                        target_model = self.model.lower().strip()
+                        if any(target_model in m.lower() for m in model_names):
+                            self.base_url = candidate_url
+                            return True
             except Exception:
                 continue
         return False
@@ -86,11 +90,15 @@ class HermesLLMProvider(BaseLLMProvider):
                 req = urllib.request.Request(f"{candidate_url}/api/tags", headers={"User-Agent": "VidNova"})
                 with urllib.request.urlopen(req, timeout=1.5) as resp:
                     if resp.status == 200:
-                        self.base_url = candidate_url
-                        return True
+                        data = json.loads(resp.read().decode("utf-8"))
+                        model_names = [m.get("name", "") for m in data.get("models", [])]
+                        target_model = self.model.lower().strip()
+                        if any(target_model in m.lower() for m in model_names):
+                            self.base_url = candidate_url
+                            return True
             except Exception:
                 continue
-        return bool(self.token and len(self.token) > 10)
+        return False
 
     def generate_response(self, prompt: str, system_prompt: Optional[str] = None) -> Optional[str]:
         # 1. Primary: Query local GPU Ollama Hermes-3-8b
