@@ -89,6 +89,82 @@ def prefetch_xtts():
         print(f"[prefetch] Coqui XTTS error: {e}", flush=True)
 
 
+def prefetch_ollama_models(models=None):
+    """
+    Tự động pull và kiểm tra các mô hình LLM vào Ollama container khi khởi chạy.
+    Đảm bảo 100% các model trên frontend khả dụng, không để người dùng chờ khi gọi.
+    """
+    if models is None:
+        models = ["qwen2.5:3b"]
+
+    ollama_urls = [
+        os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434").rstrip("/"),
+        "http://ollama:11434",
+        "http://127.0.0.1:11434",
+        "http://localhost:11434",
+    ]
+
+    import urllib.request
+    import json
+
+    # 1. Tìm endpoint Ollama đang sống
+    alive_url = None
+    for base_url in ollama_urls:
+        for _ in range(3):
+            try:
+                req = urllib.request.Request(f"{base_url}/api/tags", headers={"User-Agent": "VidNova-Prefetch"})
+                with urllib.request.urlopen(req, timeout=3) as resp:
+                    if resp.status == 200:
+                        alive_url = base_url
+                        break
+            except Exception:
+                time.sleep(1)
+        if alive_url:
+            break
+
+    if not alive_url:
+        print("[prefetch] CẢNH BÁO: Không kết nối được đến Ollama server để prefetch LLM models.", flush=True)
+        return
+
+    print(f"[prefetch] Kết nối thành công Ollama server tại: {alive_url}", flush=True)
+
+    # 2. Lấy danh sách model hiện có
+    existing_models = []
+    try:
+        req = urllib.request.Request(f"{alive_url}/api/tags", headers={"User-Agent": "VidNova-Prefetch"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            existing_models = [m.get("name", "").lower() for m in data.get("models", [])]
+    except Exception as e:
+        print(f"[prefetch] Không thể đọc danh sách model hiện tại của Ollama: {e}", flush=True)
+
+    # 3. Pull từng model nếu chưa có
+    for m in models:
+        clean_name = m.strip()
+        matched = any(clean_name.lower() in em or em in clean_name.lower() for em in existing_models)
+        if matched:
+            print(f"[prefetch] Ollama model '{clean_name}' đã tồn tại sẵn trong cache. Bỏ qua pull.", flush=True)
+            continue
+
+        def _pull_model(mn=clean_name):
+            print(f"[prefetch] Đang pull model LLM '{mn}' về Ollama...", flush=True)
+            pull_url = f"{alive_url}/api/pull"
+            payload = json.dumps({"name": mn, "stream": False}).encode("utf-8")
+            pull_req = urllib.request.Request(
+                pull_url,
+                data=payload,
+                headers={"Content-Type": "application/json", "User-Agent": "VidNova-Prefetch"},
+            )
+            # LLM pull có thể mất vài phút tuỳ mạng
+            with urllib.request.urlopen(pull_req, timeout=600) as pull_resp:
+                res = json.loads(pull_resp.read().decode("utf-8"))
+                if res.get("status") != "success" and "error" in res:
+                    raise RuntimeError(f"Ollama pull returned: {res}")
+            print(f"[prefetch] Pull thành công Ollama model '{mn}'!", flush=True)
+
+        _with_retries(f"Ollama Model ({clean_name})", _pull_model)
+
+
 if __name__ == "__main__":
     target = sys.argv[1] if len(sys.argv) > 1 else "all"
     print(f"============================================================")
@@ -106,6 +182,8 @@ if __name__ == "__main__":
         prefetch_sentence_transformers()
     if target in ("xtts", "all"):
         prefetch_xtts()
+    if target in ("ollama", "all"):
+        prefetch_ollama_models()
 
     print("============================================================")
     print("[PREFETCH] TOAN BO CAC AI MODELS DA DUOC TAI VA LUU VAO CACHE THANH CONG!")

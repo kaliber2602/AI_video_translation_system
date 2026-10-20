@@ -59,7 +59,7 @@ export default function FloatingChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(true);
-  const [selectedModel, setSelectedModel] = useState("ollama");
+  const [selectedModel, setSelectedModel] = useState("qwen2.5:3b");
 
   // Multi-session state
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -792,7 +792,7 @@ export default function FloatingChatWidget() {
                   {/* Actions / Selectors Bar inside Capsule */}
                   <div className="flex items-center justify-between pt-1.5 border-t border-[var(--color-border)]/40">
                     <div className="flex items-center gap-2">
-                      {/* Model Selector Pill (Chỉ còn Ollama và Hermes) */}
+                      {/* Model Selector Pill */}
                       <div className="flex items-center gap-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-full px-2 py-0.5 shadow-xs hover:border-[var(--color-primary)]/60 transition">
                         <Cpu size={11} className="text-[var(--color-primary)] shrink-0" />
                         <select
@@ -801,8 +801,7 @@ export default function FloatingChatWidget() {
                           className="bg-transparent text-[10px] font-medium text-[var(--color-text-secondary)] outline-none cursor-pointer pr-1"
                           title="Chọn mô hình AI xử lý"
                         >
-                          <option value="ollama">Ollama</option>
-                          <option value="hermes">Hermes</option>
+                          <option value="qwen2.5:3b">Qwen 2.5 3B</option>
                         </select>
                       </div>
                     </div>

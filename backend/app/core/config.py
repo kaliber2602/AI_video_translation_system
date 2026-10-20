@@ -124,12 +124,12 @@ TTS_API_URL = os.getenv("TTS_API_URL", "http://tts-service:8001/generate_tts")
 
 # Shared LLM & Cloud AI Providers
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434").strip()
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "hermes3:8b").strip()
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b").strip()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip() or None
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip() or None
 HF_TOKEN = os.getenv("HF_TOKEN", "").strip() or None
-HERMES_MODEL = os.getenv("HERMES_MODEL", "hermes3:8b").strip()
+HERMES_MODEL = os.getenv("HERMES_MODEL", "qwen2.5:3b").strip()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip() or None
 CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "").strip() or None
