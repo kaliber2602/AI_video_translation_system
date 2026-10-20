@@ -19,7 +19,7 @@ from app.services.s3_service import upload_file, upload_hls_directory
 from app.core.config import SEGMENT_SECONDS, OUTPUT_DIR, UPLOAD_DIR
 from app.core.languages import TARGET_LANGUAGE_MAP, SOURCE_LANGUAGE_MAP
 from app.core.database import DatabaseSession
-from app.models import Video, VideoPipelineConfig, ProjectGlossary, TranscriptSegment, TranslationSegment, SpeakerProfile
+from app.models import Video, VideoPipelineConfig, TranscriptSegment, TranslationSegment, SpeakerProfile
 from app.models.enums import JobStatus, JobStep
 
 
@@ -124,12 +124,7 @@ class PipelineSteps:
         self.diarization_service = DiarizationService()
 
     def _get_glossary(self, project_id: Optional[int]) -> Dict[str, str]:
-        if not project_id:
-            return {}
-        glossaries = (self.db.query(ProjectGlossary)
-                     .filter(ProjectGlossary.project_id == project_id)
-                     .all())
-        return {g.source_term: g.target_term for g in glossaries if getattr(g, "source_term", None)}
+        return {}
 
     def step_extract_audio(self, job_id: uuid.UUID, video_id: int, video_path: str, temp_dir: str) -> Dict[str, Any]:
         self.job_service.update_job_status(job_id, JobStatus.PROCESSING, progress=10, current_step=JobStep.AUDIO_EXTRACT)
