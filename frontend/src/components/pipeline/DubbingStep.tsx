@@ -60,7 +60,7 @@ export default function DubbingStep() {
   const [ttsStatus, setTtsStatus] = useState<string | null>(null);
   const [ttsAudioUrl, setTtsAudioUrl] = useState<string | null>(null);
   const [ttsEngine, setTtsEngine] = useState<string>(
-    state.pipelineConfig?.tts_dubbing?.engine || "coqui_xtts_v2"
+    state.pipelineConfig?.tts_dubbing?.engine || "edge_tts"
   );
   const [selectedSpeaker] = useState<number>(1);
   const ttsStyle = "neutral";
@@ -500,14 +500,8 @@ export default function DubbingStep() {
     return () => {
       stopTtsPolling();
       stopDubPolling();
-      if (ttsAudioUrl && ttsAudioUrl.startsWith("blob:")) {
-        URL.revokeObjectURL(ttsAudioUrl);
-      }
-      if (videoUrl && videoUrl.startsWith("blob:")) {
-        URL.revokeObjectURL(videoUrl);
-      }
     };
-  }, [ttsAudioUrl, videoUrl]);
+  }, []);
 
   // Sidebar Toggles
   const handleToggleDubbingTab = () => {
