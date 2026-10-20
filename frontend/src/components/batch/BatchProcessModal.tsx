@@ -16,6 +16,7 @@ import Dialog from "../common/Dialog";
 import Button from "../common/Button";
 import { toast } from "../../lib/toast";
 import { useSubscriptionPlan } from "../../hooks/useSubscriptionPlan";
+import { useTranslation } from "react-i18next";
 import {
   getPresets,
   createPreset,
@@ -76,6 +77,7 @@ export default function BatchProcessModal({
   onBatchStarted,
 }: BatchProcessModalProps) {
   const { isPro } = useSubscriptionPlan();
+  const { t } = useTranslation(["pipeline", "common"]);
   const [presets, setPresets] = useState<PipelinePreset[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<number | null>(null);
   const [isLoadingPresets, setIsLoadingPresets] = useState(true);
@@ -129,7 +131,7 @@ export default function BatchProcessModal({
   const handleSelectPreset = (preset: PipelinePreset) => {
     if (!isPro && isPresetProTier(preset)) {
       toast.warning(
-        "Mẫu cấu hình yêu cầu gói Pro. Vui lòng nâng cấp tài khoản hoặc chọn mẫu cấu hình tiêu chuẩn dành cho gói Free."
+        t("pipeline:batch.proRequiredWarning", "This preset requires Pro plan. Please upgrade or choose a Free plan preset.")
       );
       return;
     }
@@ -147,7 +149,7 @@ export default function BatchProcessModal({
 
     // Validation for Free plan
     if (!isPro && selectedPreset && isPresetProTier(selectedPreset)) {
-      toast.error("Không thể lưu cấu hình chứa mô hình AI thuộc gói Pro. Vui lòng nâng cấp tài khoản.");
+      toast.error(t("pipeline:batch.proPresetSaveBlocked", "Cannot save configuration with Pro AI models on Free plan. Please upgrade."));
       return;
     }
 
@@ -241,21 +243,21 @@ export default function BatchProcessModal({
       isOpen={isOpen}
       onClose={isSubmitting ? () => {} : onClose}
       maxWidth="2xl"
-      title="Xử lý hàng loạt (Batch Processing)"
-      description={`Cấu hình và áp dụng quy trình AI tự động đồng loạt cho ${selectedVideoIds.length} video đã chọn.`}
+      title={t("pipeline:batch.title", "Batch Processing")}
+      description={t("pipeline:batch.subtitle", { count: selectedVideoIds.length, defaultValue: "Apply automated AI pipeline across selected videos." })}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Batch Name */}
         <div>
           <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
-            Tên tiến trình hàng loạt:
+            {t("pipeline:batch.batchName", "Batch Process Name")}:
           </label>
           <input
             type="text"
             value={batchName}
             onChange={(e) => setBatchName(e.target.value)}
             disabled={isSubmitting}
-            placeholder="Đặt tên cho đợt xử lý..."
+            placeholder={t("pipeline:batch.batchNamePlaceholder", "Enter batch process name...")}
             className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2 text-sm text-[var(--color-text-primary)] outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
           />
         </div>
@@ -265,17 +267,17 @@ export default function BatchProcessModal({
           <div className="mb-2 flex items-center justify-between">
             <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)] flex items-center gap-1.5">
               <Layers size={14} />
-              Chọn mẫu cấu hình (Pipeline Presets)
+              {t("pipeline:batch.selectPreset", "Select Pipeline Presets")}
             </label>
             <span className="text-xs text-[var(--color-text-muted)]">
-              {presets.length} mẫu có sẵn
+              {t("pipeline:batch.availablePresets", { count: presets.length, defaultValue: `${presets.length} presets available` })}
             </span>
           </div>
 
           {isLoadingPresets ? (
             <div className="flex h-32 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]">
               <Loader2 size={24} className="animate-spin text-[var(--color-primary)]" />
-              <span className="ml-2 text-sm text-[var(--color-text-muted)]">Đang tải cấu hình mẫu...</span>
+              <span className="ml-2 text-sm text-[var(--color-text-muted)]">{t("pipeline:batch.loadingPresets", "Loading presets...")}</span>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -338,7 +340,7 @@ export default function BatchProcessModal({
                       <div className="flex items-center justify-between">
                         <span>Phụ đề:</span>
                         <span className="font-medium text-[var(--color-text-primary)]">
-                          {preset.burn_subtitles ? "Hardsub" : "Softsub"}
+                          {preset.burn_subtitles ? t("pipeline:batch.hardsub", "Hardsub") : t("pipeline:batch.softsub", "Softsub")}
                         </span>
                       </div>
                     </div>
@@ -378,14 +380,14 @@ export default function BatchProcessModal({
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-[var(--color-text-primary)] flex items-center gap-1.5">
               <Settings2 size={14} className="text-[var(--color-primary)]" />
-              Tùy chỉnh nhanh cho đợt xử lý này
+              {t("pipeline:batch.quickOptions", "Quick options for this batch")}
             </span>
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
               className="text-xs font-medium text-[var(--color-primary)] hover:underline cursor-pointer"
             >
-              {showAdvanced ? "Thu gọn" : "Lưu Preset mới"}
+              {showAdvanced ? t("pipeline:batch.collapse", "Collapse") : t("pipeline:batch.saveAsPreset", "Save New Preset")}
             </button>
           </div>
 
@@ -393,7 +395,7 @@ export default function BatchProcessModal({
             {/* Target Language */}
             <div>
               <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1 flex items-center gap-1">
-                <Globe size={12} /> Ngôn ngữ dịch đích
+                <Globe size={12} /> {t("pipeline:batch.targetLanguage", "Target Translation Language")}
               </label>
               <select
                 value={targetLang}
@@ -421,7 +423,7 @@ export default function BatchProcessModal({
             {/* Subtitle Mode */}
             <div>
               <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1 flex items-center gap-1">
-                <Subtitles size={12} /> Chế độ phụ đề
+                <Subtitles size={12} /> {t("pipeline:batch.subtitleMode", "Subtitle Mode")}
               </label>
               <select
                 value={burnSubtitles ? "hardsub" : "softsub"}
@@ -429,8 +431,8 @@ export default function BatchProcessModal({
                 disabled={isSubmitting}
                 className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] cursor-pointer"
               >
-                <option value="hardsub">Hardsub (Ghi đè trực tiếp lên video)</option>
-                <option value="softsub">Softsub (Tách tệp phụ đề riêng)</option>
+                <option value="hardsub">{t("pipeline:batch.hardsubDesc", "Hardsub (Burned directly onto video)")}</option>
+                <option value="softsub">{t("pipeline:batch.softsubDesc", "Softsub (Separate subtitle stream)")}</option>
               </select>
             </div>
 
@@ -438,7 +440,7 @@ export default function BatchProcessModal({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-[var(--color-text-secondary)] flex items-center gap-1">
-                  <Volume2 size={12} /> Tốc độ giọng đọc
+                  <Volume2 size={12} /> {t("pipeline:batch.voiceSpeed", "Speech Speed")}
                 </label>
                 <span className="text-xs font-bold text-[var(--color-primary)]">{voiceSpeed}x</span>
               </div>
@@ -460,12 +462,12 @@ export default function BatchProcessModal({
             <div className="pt-3 border-t border-[var(--color-border)]/60 space-y-3">
               <div className="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5">
                 <BookmarkPlus size={13} className="text-[var(--color-primary)]" />
-                <span>Lưu cấu hình hiện tại thành Preset riêng:</span>
+                <span>{t("pipeline:batch.saveAsPresetTitle", "Save current configuration as custom preset:")}</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
                   type="text"
-                  placeholder="Tên Preset mới..."
+                  placeholder={t("pipeline:batch.presetNamePlaceholder", "New preset name...")}
                   value={newPresetName}
                   onChange={(e) => setNewPresetName(e.target.value)}
                   disabled={isSavingPreset}
@@ -473,7 +475,7 @@ export default function BatchProcessModal({
                 />
                 <input
                   type="text"
-                  placeholder="Mô tả ngắn gọn..."
+                  placeholder={t("pipeline:batch.presetDescPlaceholder", "Short description...")}
                   value={newPresetDesc}
                   onChange={(e) => setNewPresetDesc(e.target.value)}
                   disabled={isSavingPreset}
@@ -500,9 +502,9 @@ export default function BatchProcessModal({
         <div className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-800 dark:text-emerald-300">
           <ShieldCheck size={18} className="shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
           <div className="space-y-0.5">
-            <p className="font-semibold">Cơ chế bảo vệ VRAM & Chạy ngầm an toàn:</p>
+            <p className="font-semibold">{t("pipeline:batch.vramTitle", "VRAM Protection & Safe Background Execution:")}</p>
             <p className="text-[11px] leading-relaxed text-emerald-700/90 dark:text-emerald-300/80">
-              Hệ thống sẽ điều phối tuần tự từng video trên GPU RTX 4060 (đỉnh tải &le; 6.19GB VRAM), loại trừ hoàn toàn nguy cơ tràn bộ nhớ. Bạn có thể yên tâm đóng tab trình duyệt; thông báo tổng kết sẽ gửi về khi hoàn tất toàn bộ video.
+              {t("pipeline:batch.vramDesc", "The system orchestrates sequential execution per video on GPU (peak load <= 6.19GB VRAM), eliminating memory overflow risks. You can safely close your browser; digest notifications will be delivered upon completion.")}
             </p>
           </div>
         </div>
@@ -524,8 +526,8 @@ export default function BatchProcessModal({
             icon={isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
           >
             {isSubmitting
-              ? "Đang khởi tạo..."
-              : `Bắt đầu xử lý hàng loạt (${selectedVideoIds.length} video)`}
+              ? t("pipeline:batch.starting", "Initializing...")
+              : t("pipeline:batch.startBatch", { count: selectedVideoIds.length, defaultValue: `Start Batch Processing (${selectedVideoIds.length} videos)` })}
           </Button>
         </div>
       </form>

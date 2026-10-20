@@ -852,10 +852,10 @@ export default function DataPrivacySection() {
         {/* DANGER ZONE (Full width on lg) */}
         <div className="lg:col-span-2">
           <SettingsDangerZone
-            title="Delete Account & Workspace Data"
-            description="Permanently delete your user profile, video projects, generated voice dubbings, and active subscriptions."
-            warningNote="This action is completely irreversible. All stored video footage and cloud transcripts will be immediately wiped."
-            actionText="Delete My Account"
+            title={t("settings:privacy.dangerZoneTitle", "Delete Account & Workspace Data")}
+            description={t("settings:privacy.dangerZoneDesc", "Permanently delete your user profile, video projects, generated voice dubbings, and active subscriptions.")}
+            warningNote={t("settings:privacy.dangerZoneWarning", "This action is completely irreversible. All stored video footage and cloud transcripts will be immediately wiped.")}
+            actionText={t("settings:privacy.deleteMyAccount", "Delete My Account")}
             onAction={() => {
               setDeleteConfirmationText("");
               setIsDeleteModalOpen(true);
@@ -868,8 +868,8 @@ export default function DataPrivacySection() {
       <SettingsModal
         isOpen={Boolean(fileToDelete)}
         onClose={() => setFileToDelete(null)}
-        title="Delete Media Resource"
-        subtitle="Are you sure you want to delete this file?"
+        title={t("settings:privacy.deleteResourceModalTitle", "Delete Media Resource")}
+        subtitle={t("settings:privacy.deleteResourceModalSubtitle", "Are you sure you want to delete this file?")}
         icon={<Trash2 size={20} className="text-rose-600" />}
         maxWidth="md"
         footer={
@@ -889,7 +889,7 @@ export default function DataPrivacySection() {
               className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white hover:bg-rose-700 shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               {isDeletingFile ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-              <span>{isDeletingFile ? "Deleting..." : "Confirm Delete"}</span>
+              <span>{isDeletingFile ? t("common:loading", "Deleting...") : t("settings:privacy.confirmDeleteBtn", "Confirm Delete")}</span>
             </button>
           </div>
         }
@@ -977,8 +977,8 @@ export default function DataPrivacySection() {
       <SettingsModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        title="Xác nhận xóa tài khoản vĩnh viễn"
-        subtitle="Hành động này không thể hoàn tác"
+        title={t("settings:privacy.deleteAccountModalTitle", "Confirm Account Deletion")}
+        subtitle={t("settings:privacy.deleteAccountModalSubtitle", "This action cannot be undone")}
         icon={<AlertTriangle size={20} className="text-rose-600" />}
         maxWidth="md"
         footer={
@@ -996,22 +996,22 @@ export default function DataPrivacySection() {
               disabled={deleteConfirmationText.trim() !== "DELETE" || isDeletingAccount}
               className="rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
-              {isDeletingAccount ? "Đang xóa..." : "Xác nhận xóa tài khoản"}
+              {isDeletingAccount ? t("settings:privacy.deletingAccount", "Deleting...") : t("settings:privacy.confirmDeleteAccountBtn", "Confirm Account Deletion")}
             </button>
           </div>
         }
       >
         <div className="space-y-4">
           <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3.5 text-xs text-rose-700 dark:text-rose-300 leading-relaxed">
-            ⚠️ <b>Cảnh báo:</b> Bạn sắp xóa vĩnh viễn tài khoản <b>{currentUser?.email || "người dùng"}</b>. Tất cả dữ liệu dự án, video và cấu hình sẽ bị xóa ngay lập tức.
+            ⚠️ <b>{t("common:warning", "Warning")}:</b> {t("settings:privacy.deleteAccountWarningText", "You are about to permanently delete account")} <b>{currentUser?.email || "user"}</b>. {t("settings:privacy.deleteAccountWarningSuffix", "All project data, videos, and settings will be wiped immediately.")}
           </div>
 
           <div>
             <p className="text-xs text-[var(--color-text-secondary)] font-medium mb-1.5">
-              Nhập chữ <span className="font-bold text-rose-600">DELETE</span> vào ô bên dưới để xác nhận:
+              {t("settings:privacy.typeDeleteToConfirm", "Type DELETE in capital letters below to confirm:")}
             </p>
             <SettingsInput
-              placeholder="Nhập DELETE"
+              placeholder={t("settings:privacy.deletePlaceholder", "Type DELETE")}
               value={deleteConfirmationText}
               onChange={setDeleteConfirmationText}
             />

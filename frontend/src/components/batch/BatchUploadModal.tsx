@@ -18,6 +18,7 @@ import { getPresets, type PipelinePreset } from "../../services/preset.service";
 import { createBatchJob, type BatchJobDetail } from "../../services/batch.service";
 import type { ProjectFolder } from "../../types/project";
 import { useSubscriptionPlan } from "../../hooks/useSubscriptionPlan";
+import { useTranslation } from "react-i18next";
 import { isPresetProTier } from "./BatchProcessModal";
 
 export interface BatchUploadModalProps {
@@ -71,6 +72,7 @@ export default function BatchUploadModal({
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
   const [isCreatingBatch, setIsCreatingBatch] = useState(false);
   const { isPro } = useSubscriptionPlan();
+  const { t } = useTranslation(["pipeline", "common"]);
 
   // Settings
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(defaultFolderId);
@@ -412,7 +414,7 @@ export default function BatchUploadModal({
                 disabled={isProcessingQueue}
                 className="w-full bg-transparent text-xs text-[var(--color-text-primary)] outline-none cursor-pointer"
               >
-                <option value="">Project Root (Gốc)</option>
+                <option value="">{t("pipeline:batch.rootFolder", "Project Root")}</option>
                 {folders.map((f) => (
                   <option key={f.id} value={f.id}>
                     📁 {f.name}
@@ -426,7 +428,7 @@ export default function BatchUploadModal({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-[11px] font-semibold text-[var(--color-text-secondary)]">
-                Preset quy trình AI:
+                {t("pipeline:batch.presetSelector", "AI Pipeline Preset:")}
               </label>
               {onOpenPresetStudio && (
                 <button
@@ -455,7 +457,7 @@ export default function BatchUploadModal({
                 const isLocked = !isPro && isProPreset;
                 return (
                   <option key={p.id} value={p.id} disabled={isLocked}>
-                    {p.name} {isProPreset ? "(Gói Pro)" : ""} {p.is_system ? "(Hệ thống)" : "(Tùy chỉnh)"}
+                    {p.name} {isProPreset ? `(${t("pipeline:batch.proPlan", "Pro Plan")})` : ""} {p.is_system ? `(${t("pipeline:batch.systemPreset", "System")})` : `(${t("pipeline:batch.customPreset", "Custom")})`}
                   </option>
                 );
               })}
@@ -465,7 +467,7 @@ export default function BatchUploadModal({
           {/* Target Language */}
           <div>
             <label className="block text-[11px] font-semibold text-[var(--color-text-secondary)] mb-1">
-              Ngôn ngữ dịch đích:
+              {t("pipeline:batch.targetLangLabel", "Target Language:")}
             </label>
             <select
               value={targetLanguage}
