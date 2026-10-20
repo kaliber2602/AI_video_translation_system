@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -53,23 +54,23 @@ export default function SettingsModal({
     xl: "max-w-xl",
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity animate-fade-in"
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity animate-fade-in"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Dialog Box */}
       <div
-        className={`relative z-10 w-full ${maxWidthClasses[maxWidth]} overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] animate-scale-in`}
+        className={`relative z-10 w-full ${maxWidthClasses[maxWidth]} max-h-[90vh] flex flex-col overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.4)] animate-scale-in`}
         role="dialog"
         aria-modal="true"
       >
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-[var(--color-border)]/60 px-6 py-5">
+        <div className="flex shrink-0 items-start justify-between border-b border-[var(--color-border)]/60 px-6 py-5">
           <div className="flex items-center gap-3">
             {icon && (
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
@@ -91,7 +92,7 @@ export default function SettingsModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
             aria-label={t("common:close", "Close")}
           >
             <X size={18} />
@@ -99,15 +100,17 @@ export default function SettingsModal({
         </div>
 
         {/* Content */}
-        <div className="max-h-[75vh] overflow-y-auto px-6 py-5">{children}</div>
+        <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
 
         {/* Footer */}
         {footer && (
-          <div className="flex items-center justify-end gap-3 border-t border-[var(--color-border)]/60 bg-[var(--color-surface-muted)]/50 px-6 py-4">
+          <div className="flex shrink-0 items-center justify-end gap-3 border-t border-[var(--color-border)]/60 bg-[var(--color-surface-muted)]/50 px-6 py-4">
             {footer}
           </div>
         )}
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
