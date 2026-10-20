@@ -45,7 +45,11 @@ def prefetch_whisper():
 def prefetch_nllb():
     try:
         from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-        for model_name in ["facebook/nllb-200-1.3B", "facebook/nllb-200-3.3B"]:
+        for model_name in [
+            "facebook/nllb-200-distilled-600M",
+            "facebook/nllb-200-1.3B",
+            "facebook/nllb-200-3.3B"
+        ]:
             def _dl(mn=model_name):
                 AutoTokenizer.from_pretrained(mn, cache_dir=CACHE_DIR)
                 AutoModelForSeq2SeqLM.from_pretrained(mn, cache_dir=CACHE_DIR)

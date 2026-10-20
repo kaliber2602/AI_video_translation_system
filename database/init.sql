@@ -1041,7 +1041,7 @@ VALUES
 
     -- Translation (Meta NLLB-200 Local)
     ('nllb_200_1.3b', 'Meta NLLB-200 1.3B (Free)', 'translation', 'local', 1, TRUE, 'free'),
-    ('deepseek_v3', 'DeepSeek V3 (Free)', 'translation', 'local', 1, TRUE, 'free'),
+    ('nllb_200_distilled_600m', 'Meta NLLB-200 600M (Free)', 'translation', 'local', 1, TRUE, 'free'),
     ('nllb_200_3.3b', 'Meta NLLB-200 3.3B (Pro)', 'translation', 'local', 2, TRUE, 'pro'),
 
     -- TTS & Voice Cloning (Coqui XTTS Local & Edge-TTS Free Cloud API & ElevenLabs)

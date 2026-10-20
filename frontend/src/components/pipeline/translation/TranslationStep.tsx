@@ -96,7 +96,7 @@ export default function TranslationStep() {
 
   const supportedTranslationModels = [
     { code: "nllb_200_1.3b", label: "Meta NLLB-200 1.3B (Free)", requiredPlan: "free" },
-    { code: "deepseek_v3", label: "DeepSeek V3 (Free)", requiredPlan: "free" },
+    { code: "nllb_200_distilled_600m", label: "Meta NLLB-200 600M (Free)", requiredPlan: "free" },
     { code: "nllb_200_3.3b", label: "Meta NLLB-200 3.3B (Pro)", requiredPlan: "pro" },
   ];
 

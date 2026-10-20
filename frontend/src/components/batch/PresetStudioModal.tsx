@@ -702,7 +702,7 @@ export default function PresetStudioModal({
                     className="w-full h-9 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-3 text-xs text-[var(--color-text-primary)] outline-none focus:border-indigo-500"
                   >
                     <option value="nllb_200_1.3b">Meta NLLB-200 1.3B (Free)</option>
-                    <option value="deepseek_v3">DeepSeek V3 (Free)</option>
+                    <option value="nllb_200_distilled_600m">Meta NLLB-200 600M (Free)</option>
                     <option value="nllb_200_3.3b" disabled={!isPro}>
                       Meta NLLB-200 3.3B {!isPro ? "(Yeu cau goi Pro)" : "(Pro)"}
                     </option>

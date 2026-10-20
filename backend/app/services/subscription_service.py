@@ -1663,7 +1663,7 @@ def validate_model_access(user_id: int, model_code: str):
     Enforces subscription model tiering:
     All AI models deployed in VidNova are free/open-source or free cloud API models (like Edge-TTS),
     avoiding costly commercial APIs. However, models are still tiered based on compute intensity:
-    - Free Tier: demucs_v4, whisper_turbo, whisperx_large_v3, pyannote_3.1, nllb_200_1.3b, edge_tts, bark, deepseek_v3, qwen3_embedding.
+    - Free Tier: demucs_v4, whisper_turbo, whisperx_large_v3, pyannote_3.1, nllb_200_distilled_600m, nllb_200_1.3b, edge_tts, bark, qwen3_embedding.
     - Pro Tier: mdx_net_karaoke, whisper_large_v3, nllb_200_3.3b, xtts_v2, qwen3_tts, qwen_2.5_72b, bge_m3.
     If a user on 'free' plan attempts to select a Pro-tier model, raises HTTP 403 Forbidden.
     """
