@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   X,
   RefreshCw,
@@ -29,12 +30,14 @@ interface BatchProgressDrawerProps {
 }
 
 export default function BatchProgressDrawer({
+
   isOpen,
   onClose,
   projectId,
   activeBatchId: initialBatchId,
   onSelectVideo,
 }: BatchProgressDrawerProps) {
+  const { t } = useTranslation(["pipeline", "common"]);
   const [batches, setBatches] = useState<BatchJobSummary[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(initialBatchId || null);
   const [activeBatch, setActiveBatch] = useState<BatchJobDetail | null>(null);
@@ -120,11 +123,11 @@ export default function BatchProgressDrawer({
     try {
       setIsCancelling(true);
       await cancelBatchJob(selectedBatchId);
-      toast.success("Đã gửi yêu cầu hủy tiến trình hàng loạt");
+      toast.success(t("pipeline:batch.drawer.toastCancelSuccess", "Đã gửi yêu cầu hủy tiến trình hàng loạt"));
       loadBatchDetails(selectedBatchId, false);
       loadBatches();
     } catch (err: any) {
-      toast.error("Không thể hủy tiến trình");
+      toast.error(t("pipeline:batch.drawer.toastCancelError", "Không thể hủy tiến trình"));
     } finally {
       setIsCancelling(false);
     }
@@ -133,22 +136,22 @@ export default function BatchProgressDrawer({
   const getStepLabel = (step?: string | null) => {
     switch (step) {
       case "extract_audio":
-        return "Tách âm thanh";
+        return t("pipeline:batch.drawer.stepSeparation", "Tách âm thanh");
       case "transcribe":
       case "stt":
-        return "Bóc băng (STT)";
+        return t("pipeline:batch.drawer.stepStt", "Bóc băng (STT)");
       case "translate":
-        return "Dịch thuật";
+        return t("pipeline:batch.drawer.stepTranslation", "Dịch thuật");
       case "tts":
       case "generate_tts":
-        return "Tạo giọng đọc (TTS)";
+        return t("pipeline:batch.drawer.stepTts", "Tạo giọng đọc (TTS)");
       case "dub_mux":
       case "mux":
-        return "Lồng tiếng & Xuất video";
+        return t("pipeline:batch.drawer.stepDubbing", "Lồng tiếng & Xuất video");
       case "completed":
-        return "Hoàn tất";
+        return t("pipeline:batch.drawer.stepCompleted", "Hoàn tất");
       default:
-        return "Đang xử lý";
+        return t("pipeline:batch.drawer.stepProcessing", "Đang xử lý");
     }
   };
 
@@ -158,7 +161,7 @@ export default function BatchProgressDrawer({
         return (
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 size={12} />
-            Hoàn tất
+            {t("pipeline:batch.drawer.statusCompleted", "Hoàn tất")}
           </span>
         );
       case "processing":
@@ -172,21 +175,21 @@ export default function BatchProgressDrawer({
         return (
           <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
             <Clock size={12} />
-            Đang chờ
+            {t("pipeline:batch.drawer.statusPending", "Đang chờ")}
           </span>
         );
       case "failed":
         return (
           <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-semibold text-red-600 dark:text-red-400">
             <AlertCircle size={12} />
-            Thất bại
+            {t("pipeline:batch.drawer.statusFailed", "Thất bại")}
           </span>
         );
       case "cancelled":
         return (
           <span className="inline-flex items-center gap-1 rounded-full bg-slate-500/10 px-2.5 py-0.5 text-xs font-semibold text-slate-500">
             <Ban size={12} />
-            Đã hủy
+            {t("pipeline:batch.drawer.statusCancelled", "Đã hủy")}
           </span>
         );
       default:
@@ -206,7 +209,7 @@ export default function BatchProgressDrawer({
 
       <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
         <aside
-          aria-label="Tiến độ xử lý hàng loạt"
+          aria-label={t("pipeline:batch.drawer.drawerTitle", "Tiến độ xử lý hàng loạt")}
           className="w-screen max-w-md bg-[var(--color-surface)] shadow-2xl border-l border-[var(--color-border)] flex flex-col justify-between"
         >
           {/* Header */}
@@ -217,10 +220,10 @@ export default function BatchProgressDrawer({
               </div>
               <div>
                 <h3 className="text-sm font-bold text-[var(--color-text-primary)]">
-                  Tiến độ Batch AI
+                  {t("pipeline:batch.drawer.drawerTitle", "Tiến độ Batch AI")}
                 </h3>
                 <p className="text-xs text-[var(--color-text-muted)]">
-                  Quản lý tiến trình xử lý video hàng loạt
+                  {t("pipeline:batch.drawer.drawerSubtitle", "Quản lý tiến trình xử lý video hàng loạt")}
                 </p>
               </div>
             </div>
@@ -233,7 +236,7 @@ export default function BatchProgressDrawer({
                   loadBatches();
                 }}
                 className="rounded-lg p-1.5 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)] cursor-pointer"
-                title="Làm mới"
+                title={t("pipeline:batch.drawer.refresh", "Làm mới")}
               >
                 <RefreshCw size={15} />
               </button>
@@ -274,10 +277,10 @@ export default function BatchProgressDrawer({
                   <Sparkles size={28} />
                 </div>
                 <h4 className="text-sm font-bold text-[var(--color-text-primary)]">
-                  Chưa có đợt xử lý hàng loạt nào
+                  {t("pipeline:batch.drawer.noBatches", "Chưa có đợt xử lý hàng loạt nào")}
                 </h4>
                 <p className="text-xs text-[var(--color-text-muted)] mt-1 max-w-xs">
-                  Chọn các video trong dự án và nhấn "Xử lý hàng loạt (Batch AI)" để kích hoạt tiến trình tự động.
+                  {t("pipeline:batch.drawer.noBatchesDesc", 'Chọn các video trong dự án và nhấn "Xử lý hàng loạt (Batch AI)" để kích hoạt tiến trình tự động.')}
                 </p>
               </div>
             ) : isLoading && !activeBatch ? (
@@ -286,7 +289,7 @@ export default function BatchProgressDrawer({
               </div>
             ) : !activeBatch ? (
               <div className="flex flex-col items-center justify-center h-48 text-center text-xs text-[var(--color-text-muted)]">
-                Không tìm thấy dữ liệu đợt xử lý
+                {t("pipeline:batch.drawer.notFound", "Không tìm thấy dữ liệu đợt xử lý")}
               </div>
             ) : (
               <>
@@ -298,7 +301,7 @@ export default function BatchProgressDrawer({
                         {activeBatch.name}
                       </h4>
                       <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                        Tạo lúc: {activeBatch.created_at ? new Date(activeBatch.created_at).toLocaleTimeString() : "--:--"}
+                        {t("pipeline:batch.drawer.createdAt", { time: activeBatch.created_at ? new Date(activeBatch.created_at).toLocaleTimeString() : "--:--", defaultValue: `Tạo lúc: ${activeBatch.created_at ? new Date(activeBatch.created_at).toLocaleTimeString() : "--:--"}` })}
                       </p>
                     </div>
                     {getStatusBadge(activeBatch.status)}
@@ -307,7 +310,7 @@ export default function BatchProgressDrawer({
                   {/* Progress Bar */}
                   <div>
                     <div className="flex items-center justify-between text-xs font-semibold mb-1.5">
-                      <span className="text-[var(--color-text-secondary)]">Tiến độ chung:</span>
+                      <span className="text-[var(--color-text-secondary)]">{t("pipeline:batch.drawer.overallProgress", "Tiến độ chung:")}</span>
                       <span className="text-[var(--color-primary)]">{activeBatch.progress}%</span>
                     </div>
                     <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-border)]">
@@ -321,19 +324,19 @@ export default function BatchProgressDrawer({
                   {/* Stats Counter */}
                   <div className="grid grid-cols-3 gap-2 border-t border-[var(--color-border)] pt-2.5 text-center text-xs">
                     <div>
-                      <span className="text-[var(--color-text-muted)] block text-[11px]">Tổng số</span>
+                      <span className="text-[var(--color-text-muted)] block text-[11px]">{t("pipeline:batch.drawer.totalVideos", "Tổng số")}</span>
                       <span className="font-bold text-[var(--color-text-primary)]">
                         {activeBatch.total_videos}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[var(--color-text-muted)] block text-[11px]">Thành công</span>
+                      <span className="text-[var(--color-text-muted)] block text-[11px]">{t("pipeline:batch.drawer.successVideos", "Thành công")}</span>
                       <span className="font-bold text-emerald-600 dark:text-emerald-400">
                         {activeBatch.completed_videos}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[var(--color-text-muted)] block text-[11px]">Thất bại</span>
+                      <span className="text-[var(--color-text-muted)] block text-[11px]">{t("pipeline:batch.drawer.statusFailed", "Thất bại")}</span>
                       <span className="font-bold text-red-600 dark:text-red-400">
                         {activeBatch.failed_videos}
                       </span>
@@ -351,7 +354,7 @@ export default function BatchProgressDrawer({
                         disabled={isCancelling}
                         icon={<Ban size={13} />}
                       >
-                        {isCancelling ? "Đang hủy..." : "Hủy toàn bộ tiến trình này"}
+                        {isCancelling ? t("pipeline:batch.drawer.cancelling", "Đang hủy...") : t("pipeline:batch.drawer.cancelEntireBatch", "Hủy toàn bộ tiến trình này")}
                       </Button>
                     </div>
                   )}
@@ -360,7 +363,7 @@ export default function BatchProgressDrawer({
                 {/* Video Items List */}
                 <div>
                   <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)] mb-2.5">
-                    Danh sách video ({activeBatch.items.length})
+                    {t("pipeline:batch.drawer.videoList", { count: activeBatch.items.length, defaultValue: `Danh sách video (${activeBatch.items.length})` })}
                   </h4>
 
                   <div className="space-y-2">
@@ -416,7 +419,7 @@ export default function BatchProgressDrawer({
           {/* Footer Note */}
           <div className="border-t border-[var(--color-border)] p-3 bg-[var(--color-surface-muted)]/20 text-center">
             <p className="text-[11px] text-[var(--color-text-muted)]">
-              Tự động đồng bộ thời gian thực mỗi 3.5s
+              {t("pipeline:batch.drawer.autoSyncTip", "Tự động đồng bộ thời gian thực mỗi 3.5s")}
             </p>
           </div>
         </aside>
