@@ -70,14 +70,14 @@ export default function TranscriptToolsPanel({
 
       {transcriptionNotice && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-600 dark:text-amber-400 flex items-start gap-2">
-          <span className="font-bold shrink-0">ℹ️ Lưu ý:</span>
+          <span className="font-bold shrink-0">ℹ️ {t("pipeline:toolPanel.notice", "Lưu ý:")}</span>
           <span>{transcriptionNotice}</span>
         </div>
       )}
 
       {transcriptionError && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-2.5 text-xs text-red-600 dark:text-red-400 flex items-start gap-2">
-          <span className="font-bold shrink-0">⚠️ Lỗi:</span>
+          <span className="font-bold shrink-0">⚠️ {t("pipeline:toolPanel.error", "Lỗi:")}</span>
           <span className="break-words flex-1">{transcriptionError}</span>
         </div>
       )}
@@ -90,7 +90,7 @@ export default function TranscriptToolsPanel({
               {t("pipeline:steps.transcript.totalSegments", "Tổng số câu:")}
             </span>
             <p className="font-bold text-[var(--color-text-primary)] font-mono text-sm mt-0.5">
-              {totalSegments} câu
+              {t("pipeline:toolPanel.segmentsCount", { count: totalSegments, defaultValue: `${totalSegments} câu` })}
             </p>
           </div>
           <div>
@@ -98,7 +98,7 @@ export default function TranscriptToolsPanel({
               {t("pipeline:steps.transcript.sourceLang", "Ngôn ngữ gốc:")}
             </span>
             <p className="font-bold text-[var(--color-text-primary)] font-mono text-sm mt-0.5 uppercase">
-              {sourceLang || "Tự động"}
+              {sourceLang || t("pipeline:toolPanel.langAuto", "Tự động")}
             </p>
           </div>
         </div>
@@ -108,14 +108,14 @@ export default function TranscriptToolsPanel({
       {totalSegments > 0 && (
         <div className="space-y-1.5">
           <span className="text-[10px] uppercase font-bold text-[var(--color-text-muted)] block">
-            Xuất dữ liệu phụ đề & văn bản:
+            {t("pipeline:toolPanel.exportSubtitlesAndText", "Xuất dữ liệu phụ đề & văn bản:")}
           </span>
           <div className="grid grid-cols-2 gap-1.5">
             <button
               type="button"
               onClick={() => onExportFormat("txt")}
               className="flex items-center justify-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2 text-xs font-semibold text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition"
-              title="Xuất văn bản thuần .TXT"
+              title={t("pipeline:toolPanel.exportTxtPure", "Xuất văn bản thuần .TXT")}
             >
               <Download size={12} />
               <span>TXT (Plain)</span>
@@ -124,7 +124,7 @@ export default function TranscriptToolsPanel({
               type="button"
               onClick={() => onExportFormat("txt-time")}
               className="flex items-center justify-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2 text-xs font-semibold text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition"
-              title="Xuất văn bản kèm mốc thời gian"
+              title={t("pipeline:toolPanel.exportTxtTimestamp", "Xuất văn bản kèm mốc thời gian")}
             >
               <Download size={12} />
               <span>TXT (Timestamp)</span>
@@ -159,7 +159,7 @@ export default function TranscriptToolsPanel({
               className="flex items-center justify-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2 text-xs font-semibold text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition"
             >
               <Download size={12} />
-              <span>Bảng CSV</span>
+              <span>{t("pipeline:toolPanel.exportCsv", "Bảng CSV")}</span>
             </button>
           </div>
         </div>
@@ -175,12 +175,12 @@ export default function TranscriptToolsPanel({
                 {taskMessage
                   ? taskMessage
                   : taskProgress < 15
-                  ? "Đang khởi động Whisper model..."
+                  ? t("pipeline:toolPanel.startingWhisper", "Đang khởi động Whisper model...")
                   : taskProgress < 75
-                  ? `Đang nhận diện giọng nói (${taskProgress}%)...`
+                  ? t("pipeline:toolPanel.recognizingSpeech", { progress: taskProgress, defaultValue: `Đang nhận diện giọng nói (${taskProgress}%)...` })
                   : taskProgress < 95
-                  ? "Đang phân tách người nói (Diarization)..."
-                  : "Đang lưu trữ dữ liệu bản bóc băng..."}
+                  ? t("pipeline:toolPanel.diarizing", "Đang phân tách người nói (Diarization)...")
+                  : t("pipeline:toolPanel.savingTranscript", "Đang lưu trữ dữ liệu bản bóc băng...")}
               </span>
             </span>
             <span className="font-mono font-bold text-[var(--color-primary)] shrink-0">{taskProgress}%</span>
@@ -192,7 +192,7 @@ export default function TranscriptToolsPanel({
             />
           </div>
           <p className="text-[10px] text-[var(--color-text-muted)]">
-            Tiến độ được cập nhật trực tiếp theo thời gian thực từ GPU/Celery worker.
+            {t("pipeline:toolPanel.transcriptProgressNote", "Tiến độ được cập nhật trực tiếp theo thời gian thực từ GPU/Celery worker.")}
           </p>
         </div>
       )}
@@ -214,7 +214,7 @@ export default function TranscriptToolsPanel({
             {isGenerating
               ? t("pipeline:steps.transcript.extracting", "Đang trích xuất lời thoại...")
               : isGlobalTaskRunning
-              ? "Tác vụ ngầm đang chạy (Đã khóa)"
+              ? t("pipeline:toolPanel.taskRunningLocked", "Tác vụ ngầm đang chạy (Đã khóa)")
               : totalSegments > 0
               ? t("pipeline:steps.transcript.retranscribe", "Bóc băng lại Whisper")
               : t("pipeline:steps.transcript.startTranscribe", "Bắt đầu bóc băng Whisper")}

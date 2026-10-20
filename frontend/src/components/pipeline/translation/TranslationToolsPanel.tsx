@@ -115,7 +115,7 @@ export default function TranslationToolsPanel({
 
       {translationError && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-2.5 text-xs text-red-600 dark:text-red-400 flex items-start gap-2">
-          <span className="font-bold shrink-0"> Lỗi:</span>
+          <span className="font-bold shrink-0"> {t("pipeline:toolPanel.error", "Lỗi:")}</span>
           <span className="break-words flex-1">{translationError}</span>
         </div>
       )}
@@ -128,12 +128,12 @@ export default function TranslationToolsPanel({
               {t("pipeline:steps.translation.totalSegments", "Tổng số câu:")}
             </span>
             <p className="font-bold text-[var(--color-text-primary)] font-mono text-sm mt-0.5">
-              {totalSegments} câu
+              {t("pipeline:toolPanel.segmentsCount", { count: totalSegments, defaultValue: `${totalSegments} câu` })}
             </p>
           </div>
           <div>
             <span className="text-[10px] uppercase font-semibold text-[var(--color-text-muted)]">
-              Cặp ngôn ngữ:
+              {t("pipeline:toolPanel.langPair", "Cặp ngôn ngữ:")}
             </span>
             <p className="font-bold text-[var(--color-text-primary)] font-mono text-xs mt-0.5 uppercase truncate">
               {sourceLang || "AUTO"} → {targetLang || selectedTargetLang}
@@ -146,7 +146,7 @@ export default function TranslationToolsPanel({
       {totalSegments > 0 && (
         <div className="space-y-1.5">
           <span className="text-[10px] uppercase font-bold text-[var(--color-text-muted)] block">
-            Xuất dữ liệu phụ đề bản dịch:
+            {t("pipeline:toolPanel.exportTranslationData", "Xuất dữ liệu phụ đề bản dịch:")}
           </span>
           <div className="grid grid-cols-2 gap-1.5">
             <button
@@ -179,7 +179,7 @@ export default function TranslationToolsPanel({
               className="flex items-center justify-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2 text-xs font-semibold text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition"
             >
               <Download size={12} />
-              <span>Bảng CSV</span>
+              <span>{t("pipeline:toolPanel.exportCsv", "Bảng CSV")}</span>
             </button>
           </div>
         </div>
@@ -195,10 +195,10 @@ export default function TranslationToolsPanel({
                 {taskMessage
                   ? taskMessage
                   : taskProgress < 15
-                  ? "Đang khởi động mô hình dịch..."
+                  ? t("pipeline:toolPanel.startingTranslationModel", "Đang khởi động mô hình dịch...")
                   : taskProgress < 85
-                  ? `Đang dịch thuật văn bản (${taskProgress}%)...`
-                  : "Đang kiểm tra và căn chỉnh ngữ cảnh..."}
+                  ? t("pipeline:toolPanel.translatingText", { progress: taskProgress, defaultValue: `Đang dịch thuật văn bản (${taskProgress}%)...` })
+                  : t("pipeline:toolPanel.checkingContext", "Đang kiểm tra và căn chỉnh ngữ cảnh...")}
               </span>
             </span>
             <span className="font-mono font-bold text-[var(--color-primary)] shrink-0">{taskProgress}%</span>
@@ -210,7 +210,7 @@ export default function TranslationToolsPanel({
             />
           </div>
           <p className="text-[10px] text-[var(--color-text-muted)]">
-            Tiến độ dịch thuật được truyền trực tiếp qua Celery worker / GPU pipeline.
+            {t("pipeline:toolPanel.translationProgressNote", "Tiến độ dịch thuật được truyền trực tiếp qua Celery worker / GPU pipeline.")}
           </p>
         </div>
       )}
@@ -238,7 +238,7 @@ export default function TranslationToolsPanel({
             {isTranslating
               ? t("pipeline:steps.translation.translating", "Đang dịch lời thoại...")
               : isGlobalTaskRunning
-              ? "Tác vụ ngầm đang chạy (Đã khóa)"
+              ? t("pipeline:toolPanel.taskRunningLocked", "Tác vụ ngầm đang chạy (Đã khóa)")
               : hasTranslation
               ? t("pipeline:steps.translation.retranslate", "Dịch lại toàn bộ (AI)")
               : t("pipeline:steps.translation.startTranslate", "Bắt đầu dịch thuật")}

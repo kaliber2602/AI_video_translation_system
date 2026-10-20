@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   Mic,
   Loader2,
@@ -119,6 +120,7 @@ export default function DubbingToolsPanel({
   onGoToReviewStep,
 }: DubbingToolsPanelProps) {
   const { isPro } = useSubscriptionPlan();
+  const { t } = useTranslation(["pipeline", "common"]);
   const [elevenVoices, setElevenVoices] = useState<Array<{ id: string; name: string; sample_url: string }>>([
     { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel (Nữ)", sample_url: "/api/videos/elevenlabs/voices/21m00Tcm4TlvDq8ikWAM/sample" },
     { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi (Nữ)", sample_url: "/api/videos/elevenlabs/voices/AZnzlk1XvdvUeBnXmlld/sample" },
@@ -168,14 +170,14 @@ export default function DubbingToolsPanel({
     setPlayingVoiceId(voiceId);
     audio.play().catch((err) => {
       console.warn("Error playing ElevenLabs preview audio:", err);
-      toast.error("Không thể phát mẫu âm thanh giọng đọc này.");
+      toast.error(t("pipeline:toolPanel.toastVoicePlayError", "Không thể phát mẫu âm thanh giọng đọc này."));
       setPlayingVoiceId(null);
     });
     audio.onended = () => {
       setPlayingVoiceId(null);
     };
     audio.onerror = () => {
-      toast.error("Lỗi tải mẫu âm thanh từ máy chủ.");
+      toast.error(t("pipeline:toolPanel.toastVoiceDownloadError", "Lỗi tải mẫu âm thanh từ máy chủ."));
       setPlayingVoiceId(null);
     };
   };
@@ -190,7 +192,7 @@ export default function DubbingToolsPanel({
               1
             </span>
             <span className="text-xs font-bold text-[var(--color-text-primary)]">
-              Cấu hình Giọng Đọc AI (TTS)
+              {t("pipeline:toolPanel.ttsConfigTitle", "Cấu hình Giọng Đọc AI (TTS)")}
             </span>
           </div>
           <span
@@ -202,14 +204,14 @@ export default function DubbingToolsPanel({
                 : "bg-[var(--color-surface-muted)] text-[var(--color-text-muted)]"
             }`}
           >
-            {isTTSReady ? "✓ Đã sẵn sàng" : isGeneratingTTS ? "Đang tạo..." : "Chưa tạo"}
+            {isTTSReady ? t("pipeline:toolPanel.ready", "✓ Đã sẵn sàng") : isGeneratingTTS ? t("pipeline:toolPanel.generating", "Đang tạo...") : t("pipeline:toolPanel.notCreated", "Chưa tạo")}
           </span>
         </div>
 
         {/* TTS Engine Selector */}
         <div>
           <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
-            Mô hình lồng tiếng AI (TTS Engine):
+            {t("pipeline:toolPanel.ttsEngineLabel", "Mô hình lồng tiếng AI (TTS Engine):")}
           </label>
           <select
             value={ttsEngine}
@@ -272,10 +274,10 @@ export default function DubbingToolsPanel({
                           ? "bg-[var(--color-primary)] text-white border-[var(--color-primary)]"
                           : "border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white"
                       }`}
-                      title={isPlaying ? "Tạm dừng mẫu giọng" : "Nghe thử giọng mẫu ElevenLabs"}
+                      title={isPlaying ? t("pipeline:toolPanel.pauseVoiceSample", "Tạm dừng mẫu giọng") : t("pipeline:toolPanel.previewVoiceSample", "Nghe thử giọng mẫu")}
                     >
                       {isPlaying ? <Pause size={9} /> : <Play size={9} />}
-                      <span>{isPlaying ? "Dừng" : "Nghe"}</span>
+                      <span>{isPlaying ? t("pipeline:toolPanel.stop", "Dừng") : t("pipeline:toolPanel.listen", "Nghe")}</span>
                     </button>
                   </div>
                 );
@@ -287,16 +289,16 @@ export default function DubbingToolsPanel({
         {/* SPEED SELECTOR DROPDOWN */}
         <div>
           <label className="text-[11px] font-medium text-[var(--color-text-secondary)] block mb-1">
-            Tốc độ đọc mặc định:
+            {t("pipeline:toolPanel.defaultSpeed", "Tốc độ đọc mặc định:")}
           </label>
           <select
             value={ttsSpeed}
             onChange={(e) => setTtsSpeed(parseFloat(e.target.value))}
             className="w-full h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-input-background)] px-2.5 text-xs font-semibold text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)] font-mono"
           >
-            <option value={0.8}>0.8x (Chậm)</option>
+            <option value={0.8}>0.8x ({t("pipeline:toolPanel.speedSlow", "Chậm")})</option>
             <option value={0.9}>0.9x</option>
-            <option value={1.0}>1.0x (Chuẩn)</option>
+            <option value={1.0}>1.0x ({t("pipeline:toolPanel.speedStandard", "Chuẩn")})</option>
             <option value={1.1}>1.1x</option>
             <option value={1.2}>1.2x (Nhanh)</option>
           </select>
@@ -312,12 +314,12 @@ export default function DubbingToolsPanel({
           {isGeneratingTTS ? <Loader2 size={13} className="animate-spin" /> : <Mic size={13} />}
           <span>
             {isGeneratingTTS
-              ? `Đang tạo giọng AI...${ttsProgress > 0 ? ` (${ttsProgress}%)` : ""}`
+              ? t("pipeline:toolPanel.generatingTtsProgress", { progress: ttsProgress > 0 ? ` (${ttsProgress}%)` : "", defaultValue: `Đang tạo giọng AI...${ttsProgress > 0 ? ` (${ttsProgress}%)` : ""}` })
               : isGlobalTaskRunning
-              ? "Tác vụ ngầm đang chạy (Đã khóa)"
+              ? t("pipeline:toolPanel.taskRunningLocked", "Tác vụ ngầm đang chạy (Đã khóa)")
               : isTTSReady
-              ? "Tạo lại giọng đọc AI"
-              : "Tạo giọng đọc AI (TTS)"}
+              ? t("pipeline:toolPanel.regenerateTts", "Tạo lại giọng đọc AI")
+              : t("pipeline:toolPanel.generateTts", "Tạo giọng đọc AI (TTS)")}
           </span>
         </button>
 
@@ -328,7 +330,7 @@ export default function DubbingToolsPanel({
               <span className="flex items-center gap-1.5 truncate max-w-[80%]">
                 <Loader2 size={13} className="animate-spin text-[var(--color-primary)] shrink-0" />
                 <span className="truncate">
-                  {ttsMessage || `Đang tổng hợp giọng nói (${ttsProgress}%)...`}
+                  {ttsMessage || t("pipeline:toolPanel.synthesizingSpeech", { progress: ttsProgress, defaultValue: `Đang tổng hợp giọng nói (${ttsProgress}%)...` })}
                 </span>
               </span>
               <span className="font-mono font-bold text-[var(--color-primary)] shrink-0">{ttsProgress}%</span>
@@ -340,7 +342,7 @@ export default function DubbingToolsPanel({
               />
             </div>
             <p className="text-[10px] text-[var(--color-text-muted)]">
-              Tiến độ lồng tiếng được tính toán trực tiếp trên số lượng câu AI đã đọc.
+              {t("pipeline:toolPanel.ttsDubProgressNote", "Tiến độ lồng tiếng được tính toán trực tiếp trên số lượng câu AI đã đọc.")}
             </p>
           </div>
         )}
@@ -353,7 +355,7 @@ export default function DubbingToolsPanel({
                 <Waves size={13} />
               </div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-primary)]">
-                Rãnh Âm Thanh Lồng Tiếng (TTS)
+                {t("pipeline:toolPanel.ttsAudioTrack", "Rãnh Âm Thanh Lồng Tiếng (TTS)")}
               </span>
             </div>
 
@@ -366,7 +368,7 @@ export default function DubbingToolsPanel({
                   : "bg-zinc-800/80 text-zinc-400"
               }`}
             >
-              {isTTSReady ? "✓ Đã Tạo" : isGeneratingTTS ? "Đang tạo..." : "Chưa tạo"}
+              {isTTSReady ? t("pipeline:toolPanel.rendered", "✓ Đã Tạo") : isGeneratingTTS ? t("pipeline:toolPanel.generating", "Đang tạo...") : t("pipeline:toolPanel.notCreated", "Chưa tạo")}
             </span>
           </div>
 
@@ -408,7 +410,7 @@ export default function DubbingToolsPanel({
                   href={ttsAudioUrl}
                   download={`tts_${selectedLanguage}.wav`}
                   className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition"
-                  title="Tải tệp âm thanh wav"
+                  title={t("pipeline:toolPanel.downloadWav", "Tải tệp âm thanh wav")}
                 >
                   <Download size={14} />
                 </a>
@@ -416,7 +418,7 @@ export default function DubbingToolsPanel({
             </div>
           ) : (
             <div className="text-[10px] text-[var(--color-text-muted)] py-0.5 italic">
-              Chưa có tệp âm thanh xem trước. Hãy nhấn nút tạo ở trên.
+              {t("pipeline:toolPanel.noAudioPreview", "Chưa có tệp âm thanh xem trước. Hãy nhấn nút tạo ở trên.")}
             </div>
           )}
         </div>
@@ -427,7 +429,7 @@ export default function DubbingToolsPanel({
             <div className="flex items-center gap-1.5">
               <Sliders size={13} className="text-[var(--color-primary)]" />
               <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-primary)]">
-                Bàn Trộn 3 Rãnh (Virtual Mixer)
+                {t("pipeline:toolPanel.mixerTitle", "Bàn Trộn 3 Rãnh (Virtual Mixer)")}
               </span>
             </div>
             <span className="text-[9px] font-bold text-[var(--color-primary)] bg-[var(--color-primary)]/10 px-1.5 py-0.2 rounded">
@@ -440,7 +442,7 @@ export default function DubbingToolsPanel({
             <div className="flex items-center justify-between text-[10px]">
               <span className="flex items-center gap-1 font-semibold text-[var(--color-text-secondary)]">
                 <Mic size={11} className="text-zinc-400" />
-                Vocal Gốc (Original)
+                {t("pipeline:toolPanel.originalTrack", "Vocal Gốc (Original)")}
               </span>
               <div className="flex items-center gap-1.5 font-mono">
                 <button
@@ -473,7 +475,7 @@ export default function DubbingToolsPanel({
             <div className="flex items-center justify-between text-[10px]">
               <span className="flex items-center gap-1 font-semibold text-[var(--color-text-secondary)]">
                 <Waves size={11} className="text-indigo-400" />
-                Nhạc nền (BGM)
+                {t("pipeline:toolPanel.bgmTrack", "Nhạc nền (BGM)")}
               </span>
               <div className="flex items-center gap-1.5 font-mono">
                 <button
@@ -506,7 +508,7 @@ export default function DubbingToolsPanel({
             <div className="flex items-center justify-between text-[10px]">
               <span className="flex items-center gap-1 font-semibold text-[var(--color-text-secondary)]">
                 <Volume2 size={11} className="text-emerald-400" />
-                Giọng AI Dubbing
+                {t("pipeline:toolPanel.dubTrack", "Giọng AI Dubbing")}
               </span>
               <div className="flex items-center gap-1.5 font-mono">
                 <button
@@ -537,7 +539,7 @@ export default function DubbingToolsPanel({
           {/* 1-Click Mixing Audio Presets */}
           <div className="pt-2 border-t border-[var(--color-border)]">
             <span className="text-[10px] font-bold text-[var(--color-text-secondary)] block mb-1.5">
-              Thiết lập mẫu nhanh (1-Click Presets):
+              {t("pipeline:toolPanel.quickPresets", "Thiết lập mẫu nhanh (1-Click Presets):")}
             </span>
             <div className="grid grid-cols-3 gap-1">
               <button
@@ -549,11 +551,11 @@ export default function DubbingToolsPanel({
                   setBgmVolume(45);
                   setIsDubMuted(false);
                   setDubVolume(100);
-                  toast.success("Áp dụng: Lồng tiếng chuẩn (Tắt vocal gốc, BGM 45%, Dub 100%)");
+                  toast.success(t("pipeline:toolPanel.toastPresetStandardDub", "Áp dụng: Lồng tiếng chuẩn (Tắt vocal gốc, BGM 45%, Dub 100%)"));
                 }}
                 className="px-1.5 py-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[9px] font-semibold text-[var(--color-text-primary)] hover:border-[var(--color-primary)] transition truncate"
               >
-                Lồng tiếng chuẩn
+                {t("pipeline:toolPanel.presetStandardDub", "Lồng tiếng chuẩn")}
               </button>
               <button
                 type="button"
@@ -564,11 +566,11 @@ export default function DubbingToolsPanel({
                   setBgmVolume(40);
                   setIsDubMuted(false);
                   setDubVolume(100);
-                  toast.success("Áp dụng: Thuyết minh Discovery 70/30 (Vocal gốc 30%, Dub 100%)");
+                  toast.success(t("pipeline:toolPanel.toastPresetDiscovery", "Áp dụng: Thuyết minh Discovery 70/30 (Vocal gốc 30%, Dub 100%)"));
                 }}
                 className="px-1.5 py-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[9px] font-semibold text-[var(--color-text-primary)] hover:border-[var(--color-primary)] transition truncate"
               >
-                Thuyết minh 70/30
+                {t("pipeline:toolPanel.presetDiscovery", "Thuyết minh 70/30")}
               </button>
               <button
                 type="button"
@@ -579,11 +581,11 @@ export default function DubbingToolsPanel({
                   setBgmVolume(0);
                   setIsDubMuted(false);
                   setDubVolume(100);
-                  toast.success("Áp dụng: Chỉ lấy giọng AI (Tắt toàn bộ vocal & BGM gốc)");
+                  toast.success(t("pipeline:toolPanel.toastPresetAiOnly", "Áp dụng: Chỉ lấy giọng AI (Tắt toàn bộ vocal & BGM gốc)"));
                 }}
                 className="px-1.5 py-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[9px] font-semibold text-[var(--color-text-primary)] hover:border-[var(--color-primary)] transition truncate"
               >
-                Giọng trong trẻo
+                {t("pipeline:toolPanel.presetAiOnly", "Giọng trong trẻo")}
               </button>
             </div>
           </div>
@@ -598,7 +600,7 @@ export default function DubbingToolsPanel({
               2
             </span>
             <span className="text-xs font-bold text-[var(--color-text-primary)]">
-              Hòa Âm & Render Video Lồng Tiếng
+              {t("pipeline:toolPanel.renderDubTitle", "Hòa Âm & Render Video Lồng Tiếng")}
             </span>
           </div>
           <span
@@ -610,7 +612,7 @@ export default function DubbingToolsPanel({
                 : "bg-[var(--color-surface-muted)] text-[var(--color-text-muted)]"
             }`}
           >
-            {isDubReady ? "✓ Đã xong" : isGeneratingDub ? "Đang render..." : "Chờ TTS"}
+            {isDubReady ? t("pipeline:toolPanel.rendered", "✓ Đã xong") : isGeneratingDub ? t("pipeline:toolPanel.rendering", "Đang render...") : t("pipeline:toolPanel.waitingTts", "Chờ TTS")}
           </span>
         </div>
 
@@ -619,7 +621,7 @@ export default function DubbingToolsPanel({
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-300 space-y-2">
             <div className="flex items-start gap-2">
               <Lock size={14} className="shrink-0 mt-0.5" />
-              <span>Cần tạo giọng đọc AI (TTS) ở Mục 1 trước khi kết xuất video hoàn chỉnh.</span>
+              <span>{t("pipeline:toolPanel.needTtsWarning", "Cần tạo giọng đọc AI (TTS) ở Mục 1 trước khi kết xuất video hoàn chỉnh.")}</span>
             </div>
           </div>
         )}
@@ -633,7 +635,7 @@ export default function DubbingToolsPanel({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--color-text-primary)]">
                 <Captions size={14} className="text-[var(--color-primary)]" />
-                <span>Nhúng phụ đề cứng (Hardsub)</span>
+                <span>{t("pipeline:toolPanel.hardsubToggle", "Nhúng phụ đề cứng (Hardsub)")}</span>
               </div>
               <div
                 className={`w-8 h-4 rounded-full transition-colors relative flex items-center p-0.5 ${
@@ -649,8 +651,8 @@ export default function DubbingToolsPanel({
             </div>
             <p className="mt-1 text-[10px] text-[var(--color-text-muted)] leading-normal">
               {burnSubtitles
-                ? `✓ Bật: Nung phụ đề chuẩn khung hình ${aspectRatio} đã chọn ở Bước 4`
-                : "✗ Tắt: Giữ video sạch không chữ (Clean export)"}
+                ? t("pipeline:toolPanel.hardsubOnDesc", { ratio: aspectRatio, defaultValue: `✓ Bật: Nung phụ đề chuẩn khung hình ${aspectRatio} đã chọn ở Bước 4` })
+                : t("pipeline:toolPanel.hardsubOffDesc", "✗ Tắt: Giữ video sạch không chữ (Clean export)")}
             </p>
           </div>
         )}
@@ -666,12 +668,12 @@ export default function DubbingToolsPanel({
             {isGeneratingDub ? <Loader2 size={14} className="animate-spin" /> : <Film size={14} />}
             <span>
               {isGeneratingDub
-                ? `Đang render video...${dubProgress > 0 ? ` (${dubProgress}%)` : ""}`
+                ? t("pipeline:toolPanel.renderingDubProgress", { progress: dubProgress > 0 ? ` (${dubProgress}%)` : "", defaultValue: `Đang render video...${dubProgress > 0 ? ` (${dubProgress}%)` : ""}` })
                 : isGlobalTaskRunning
-                ? "Tác vụ ngầm đang chạy (Đã khóa)"
+                ? t("pipeline:toolPanel.taskRunningLocked", "Tác vụ ngầm đang chạy (Đã khóa)")
                 : isDubReady
-                ? "Tạo lại Video Lồng Tiếng"
-                : "Tạo Video Lồng Tiếng"}
+                ? t("pipeline:toolPanel.reRenderDubVideo", "Tạo lại Video Lồng Tiếng")
+                : t("pipeline:toolPanel.renderDubVideo", "Tạo Video Lồng Tiếng")}
             </span>
           </button>
         )}
@@ -683,7 +685,7 @@ export default function DubbingToolsPanel({
               <span className="flex items-center gap-1.5 truncate max-w-[80%]">
                 <Loader2 size={13} className="animate-spin text-[var(--color-primary)] shrink-0" />
                 <span className="truncate">
-                  {dubMessage || `Đang hòa âm và kết xuất video (${dubProgress}%)...`}
+                  {dubMessage || t("pipeline:toolPanel.mixingAndRendering", { progress: dubProgress, defaultValue: `Đang hòa âm và kết xuất video (${dubProgress}%)...` })}
                 </span>
               </span>
               <span className="font-mono font-bold text-[var(--color-primary)] shrink-0">{dubProgress}%</span>
@@ -695,7 +697,7 @@ export default function DubbingToolsPanel({
               />
             </div>
             <p className="text-[10px] text-[var(--color-text-muted)]">
-              Tiến độ encode FFmpeg / hòa âm âm thanh được cập nhật thời gian thực từ worker.
+              {t("pipeline:toolPanel.renderProgressNote", "Tiến độ encode FFmpeg / hòa âm âm thanh được cập nhật thời gian thực từ worker.")}
             </p>
           </div>
         )}
@@ -708,7 +710,7 @@ export default function DubbingToolsPanel({
           onClick={onGoToReviewStep}
           className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-xs font-bold text-[var(--color-text-primary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition active:scale-98 shadow-xs"
         >
-          <span>Tiếp tục: Kiểm duyệt & Xuất (Bước 6)</span>
+          <span>{t("pipeline:toolPanel.nextStepReview", "Tiếp tục: Kiểm duyệt & Xuất (Bước 6)")}</span>
           <ChevronRight size={15} />
         </button>
       )}
