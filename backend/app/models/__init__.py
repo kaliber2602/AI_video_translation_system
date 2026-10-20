@@ -10,8 +10,6 @@ User = TableModel("users")
 UserSettings = TableModel("user_settings")
 Project = TableModel("projects")
 ProjectFolder = TableModel("project_folders")
-ProjectMember = TableModel("project_members")
-ProjectGlossary = TableModel("project_glossary")
 Tag = TableModel("tags")
 ProjectTag = TableModel("project_tags")
 Plan = TableModel("plans")
@@ -43,8 +41,6 @@ __all__ = [
     'UserSettings',
     'Project',
     'ProjectFolder',
-    'ProjectMember',
-    'ProjectGlossary',
     'Tag',
     'ProjectTag',
     'Plan',
@@ -64,5 +60,5 @@ __all__ = [
     'PipelinePreset',
     'BatchJob',
     'BatchJobItem',
-    'VideoChatMessage',
-]
+    'VideoChatMessage'
+]

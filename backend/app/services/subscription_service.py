@@ -1137,11 +1137,6 @@ def refund_user_credits(
         conn.close()
 
 
-def get_model_credit_cost(model_code: Optional[str], default_cost: int = 1) -> int:
-    """Deprecated alias for get_model_word_multiplier."""
-    return get_model_word_multiplier(model_code, default_multiplier=default_cost)
-
-
 def get_model_word_multiplier(model_code: Optional[str], default_multiplier: int = 1) -> int:
     """
     Look up the word cost multiplier (1x, 2x, 3x...) for an AI model from the ai_models database table.

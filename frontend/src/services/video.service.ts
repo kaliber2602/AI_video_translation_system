@@ -313,6 +313,11 @@ export const videoService = {
     return response.data;
   },
 
+  async generateVideoIntelligence(videoId: number) {
+    const response = await api.post(`/api/videos/${videoId}/intelligence/generate`);
+    return response.data;
+  },
+
   async searchVideoTranscript(videoId: number, query: string, limit: number = 20) {
     const response = await api.get(`/api/videos/${videoId}/search`, {
       params: { q: query, limit },

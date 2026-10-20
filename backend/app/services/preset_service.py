@@ -281,13 +281,9 @@ class PresetService:
                     SELECT v.id, v.project_id, v.snapshot_data, v.target_language, p.owner_id
                     FROM videos v
                     JOIN projects p ON v.project_id = p.id
-                    WHERE v.id = %s AND (p.owner_id = %s OR EXISTS (
-                        SELECT 1 FROM project_members pm
-                        WHERE pm.project_id = p.id AND (pm.user_id = %s OR pm.email = (SELECT email FROM users WHERE id = %s))
-                        AND pm.role IN ('owner', 'admin', 'editor')
-                    ));
+                    WHERE v.id = %s AND p.owner_id = %s;
                     """,
-                    (video_id, user_id, user_id, user_id)
+                    (video_id, user_id)
                 )
                 v_row = cur.fetchone()
                 if not v_row:

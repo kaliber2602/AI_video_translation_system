@@ -15,7 +15,15 @@ import ThemeSelector from "../ThemeSelector";
 import SelectBox from "../SelectBox";
 import SettingsSectionHeader from "../common/SettingsSectionHeader";
 import SettingsInput from "../common/SettingsInput";
-import { INITIAL_MOCK_SETTINGS } from "../mock/settingsMockData";
+const DEFAULT_GENERAL_SETTINGS = {
+  bio: "AI video localization specialist and media producer.",
+  timezone: "UTC+07:00 (Indochina Time - Bangkok, Hanoi, Jakarta)",
+  dateFormat: "DD/MM/YYYY",
+  numberFormat: "1,234.56",
+  firstDayOfWeek: "monday",
+  interfaceDensity: "comfortable" as const,
+  reducedMotion: false,
+};
 
 export interface GeneralSectionProps {
   user: UserResponse | null;
@@ -64,9 +72,9 @@ export default function GeneralSection({
   // Local state for General settings
   const [fullName, setFullName] = useState(user?.full_name || "Alex Morgan");
   const [email, setEmail] = useState(user?.email || "alex.morgan@vidnova.ai");
-  const [bio, setBio] = useState(INITIAL_MOCK_SETTINGS.general.bio);
+  const [bio, setBio] = useState(DEFAULT_GENERAL_SETTINGS.bio);
   const [timezone] = useState<string>(() => getDetectedClientTimezone());
-  const [dateFormat, setDateFormat] = useState(INITIAL_MOCK_SETTINGS.general.dateFormat);
+  const [dateFormat, setDateFormat] = useState(DEFAULT_GENERAL_SETTINGS.dateFormat);
   const [fontFamily, setFontFamily] = useState<string>(() => {
     return localStorage.getItem("vidnova_system_font") || "Inter";
   });
@@ -149,17 +157,17 @@ export default function GeneralSection({
   };
 
   const handleReset = async () => {
-    setBio(INITIAL_MOCK_SETTINGS.general.bio);
-    setDateFormat(INITIAL_MOCK_SETTINGS.general.dateFormat);
+    setBio(DEFAULT_GENERAL_SETTINGS.bio);
+    setDateFormat(DEFAULT_GENERAL_SETTINGS.dateFormat);
     setFontFamily("Inter");
     applySystemFont("Inter");
     try {
       await patchUserSettings({
         preferences: {
           general: {
-            bio: INITIAL_MOCK_SETTINGS.general.bio,
+            bio: DEFAULT_GENERAL_SETTINGS.bio,
             timezone,
-            dateFormat: INITIAL_MOCK_SETTINGS.general.dateFormat,
+            dateFormat: DEFAULT_GENERAL_SETTINGS.dateFormat,
             fontFamily: "Inter",
           },
         },

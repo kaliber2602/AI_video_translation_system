@@ -25,19 +25,7 @@ CREATE TABLE users (
 CREATE TABLE user_settings (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL UNIQUE,
-    theme VARCHAR(50) DEFAULT 'light',
-    language VARCHAR(20) DEFAULT 'en',
-    default_target_language VARCHAR(20) DEFAULT 'vi',
-    
-    -- AI Model Preferences per Stage
-    default_separation_model VARCHAR(100) DEFAULT 'demucs_v4',
-    default_stt_model VARCHAR(100) DEFAULT 'whisperx_large_v3',
-    default_diarization_model VARCHAR(100) DEFAULT 'pyannote_3.1',
-    default_translation_model VARCHAR(100) DEFAULT 'nllb_200_1.3b',
-    default_tts_model VARCHAR(100) DEFAULT 'xtts_v2',
-    default_llm_model VARCHAR(100) DEFAULT 'gpt_4o',
-    default_embedding_model VARCHAR(100) DEFAULT 'qwen3_embedding',
-    preferences JSONB DEFAULT '{}'::jsonb,
+    preferences JSONB DEFAULT '{"theme": "dark", "language": "vi"}'::jsonb,
     
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -53,29 +41,11 @@ RETURNS TRIGGER AS $$
 BEGIN
     INSERT INTO user_settings (
         user_id,
-        theme,
-        language,
-        default_target_language,
-        default_separation_model,
-        default_stt_model,
-        default_diarization_model,
-        default_translation_model,
-        default_tts_model,
-        default_llm_model,
-        default_embedding_model
+        preferences
     )
     VALUES (
         NEW.id,
-        'light',
-        'en',
-        'vi',
-        'demucs_v4',
-        'whisperx_large_v3',
-        'pyannote_3.1',
-        'nllb_200_1.3b',
-        'xtts_v2',
-        'gpt_4o',
-        'qwen3_embedding'
+        '{"theme": "dark", "language": "vi"}'::jsonb
     )
     ON CONFLICT (user_id) DO NOTHING;
 
@@ -145,38 +115,6 @@ CREATE TABLE refresh_tokens (
         FOREIGN KEY (user_id)
         REFERENCES users(id)
         ON DELETE CASCADE
-);
-
-CREATE TABLE user_api_keys (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    prefix VARCHAR(50) NOT NULL,
-    key_hash VARCHAR(255) NOT NULL,
-    environment VARCHAR(50) NOT NULL DEFAULT 'production',
-    last_used_at TIMESTAMPTZ NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT fk_user_api_keys_user
-        FOREIGN KEY (user_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE
-);
-
-CREATE TABLE user_integrations (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    app_id VARCHAR(100) NOT NULL,
-    is_connected BOOLEAN NOT NULL DEFAULT FALSE,
-    account_email VARCHAR(255) NULL,
-    config JSONB DEFAULT '{}'::jsonb,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT fk_user_integrations_user
-        FOREIGN KEY (user_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE,
-    CONSTRAINT uq_user_app UNIQUE (user_id, app_id)
 );
 
 CREATE TABLE notifications (
@@ -432,73 +370,6 @@ CREATE TABLE project_folders (
 CREATE INDEX idx_project_folders_project ON project_folders(project_id);
 CREATE INDEX idx_project_folders_parent ON project_folders(parent_id);
 
-CREATE TABLE project_members (
-    id SERIAL PRIMARY KEY,
-    project_id INTEGER NOT NULL,
-    user_id INTEGER,
-    email VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL DEFAULT 'viewer',
-    status VARCHAR(50) NOT NULL DEFAULT 'pending',
-    invitation_token VARCHAR(255) UNIQUE,
-    invited_by INTEGER NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT fk_project_members_project
-        FOREIGN KEY (project_id)
-        REFERENCES projects(id)
-        ON DELETE CASCADE,
-
-    CONSTRAINT fk_project_members_user
-        FOREIGN KEY (user_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE,
-
-    CONSTRAINT fk_project_members_inviter
-        FOREIGN KEY (invited_by)
-        REFERENCES users(id)
-        ON DELETE CASCADE,
-
-    CONSTRAINT chk_project_members_role
-        CHECK (role IN ('viewer', 'commenter', 'editor', 'admin')),
-
-    CONSTRAINT chk_project_members_status
-        CHECK (status IN ('pending', 'accepted', 'declined', 'revoked')),
-
-    CONSTRAINT uq_project_member
-        UNIQUE (project_id, email)
-);
-
--- NOTE: Reserved for public shareable links roadmap
-CREATE TABLE project_share_links (
-    id SERIAL PRIMARY KEY,
-    project_id INTEGER NOT NULL,
-    created_by INTEGER NOT NULL,
-    token VARCHAR(64) NOT NULL UNIQUE,
-    permission VARCHAR(50) NOT NULL DEFAULT 'view',
-    allow_download BOOLEAN NOT NULL DEFAULT TRUE,
-    allow_export_docs BOOLEAN NOT NULL DEFAULT TRUE,
-    password_hash VARCHAR(255),
-    expires_at TIMESTAMP,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    view_count INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT fk_project_share_links_project
-        FOREIGN KEY (project_id)
-        REFERENCES projects(id)
-        ON DELETE CASCADE,
-
-    CONSTRAINT fk_project_share_links_creator
-        FOREIGN KEY (created_by)
-        REFERENCES users(id)
-        ON DELETE CASCADE,
-
-    CONSTRAINT chk_project_share_links_permission
-        CHECK (permission IN ('view', 'comment', 'edit'))
-);
-
 CREATE TABLE project_favorites (
     user_id INTEGER NOT NULL,
     project_id INTEGER NOT NULL,
@@ -552,21 +423,6 @@ CREATE TABLE project_tags (
     CONSTRAINT fk_project_tags_tag
         FOREIGN KEY (tag_id)
         REFERENCES tags(id)
-        ON DELETE CASCADE
-);
-
-CREATE TABLE project_glossary (
-    id SERIAL PRIMARY KEY,
-    project_id INTEGER NOT NULL,
-    source_term VARCHAR(255) NOT NULL,
-    target_term VARCHAR(255) NOT NULL,
-    note TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT fk_project_glossary_project
-        FOREIGN KEY (project_id)
-        REFERENCES projects(id)
         ON DELETE CASCADE
 );
 
@@ -1102,12 +958,8 @@ CREATE INDEX idx_contact_messages_email ON contact_messages(email);
 CREATE INDEX idx_contact_messages_created_at ON contact_messages(created_at DESC);
 
 CREATE INDEX idx_projects_owner_id ON projects(owner_id);
-CREATE INDEX idx_project_members_user ON project_members(user_id);
-CREATE INDEX idx_project_members_project ON project_members(project_id);
-CREATE INDEX idx_project_share_links_token ON project_share_links(token);
 
 CREATE INDEX idx_project_tags_tag_id ON project_tags(tag_id);
-CREATE INDEX idx_project_glossary_project_id ON project_glossary(project_id);
 
 CREATE INDEX idx_videos_project_id ON videos(project_id);
 CREATE INDEX idx_videos_status ON videos(status);

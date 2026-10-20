@@ -1,6 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
 import {
-  FileText,
   MoreHorizontal,
   Play,
   Settings2,
@@ -41,7 +40,6 @@ export type VideoCardProps = {
   onMove?: (video: Video) => void;
   onDownload?: (video: Video) => void;
   onDelete?: (video: Video) => void;
-  onViewDocuments?: (video: Video) => void;
   onManageThumbnail?: (video: Video) => void;
   isSelected?: boolean;
   onToggleSelect?: (video: Video) => void;
@@ -63,7 +61,6 @@ export default function VideoCard({
   onMove,
   onDownload,
   onDelete,
-  onViewDocuments,
   onManageThumbnail,
   isSelected,
   onToggleSelect,
@@ -512,20 +509,6 @@ export default function VideoCard({
           >
             <Settings2 size={15} />
             {getActionLabel(video.status)}
-          </button>
-
-          {/* View Chapters & Documents */}
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onViewDocuments?.(video);
-            }}
-            aria-label={t("project:viewDocuments") || "View Chapters & Documents"}
-            title="View Chapters & Documents"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] transition-colors duration-180 ease-out hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] cursor-pointer"
-          >
-            <FileText size={15} />
           </button>
         </div>
       </div>

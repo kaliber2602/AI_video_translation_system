@@ -161,22 +161,12 @@ def ensure_db_schema():
             # 3. users table: is_deleted
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;")
 
-            # 4. user_api_keys table
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS user_api_keys (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    name VARCHAR(255) NOT NULL,
-                    prefix VARCHAR(50) NOT NULL,
-                    key_hash VARCHAR(255) NOT NULL,
-                    environment VARCHAR(50) NOT NULL DEFAULT 'production',
-                    last_used_at TIMESTAMP WITH TIME ZONE,
-                    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-
-            # 5. user_integrations table deprecated and removed in favor of system-wide shared API keys
+            # Drop removed tables if they exist
+            cur.execute("DROP TABLE IF EXISTS user_api_keys CASCADE;")
             cur.execute("DROP TABLE IF EXISTS user_integrations CASCADE;")
+            cur.execute("DROP TABLE IF EXISTS project_members CASCADE;")
+            cur.execute("DROP TABLE IF EXISTS project_share_links CASCADE;")
+            cur.execute("DROP TABLE IF EXISTS project_glossary CASCADE;")
 
             # 6. videos language and snapshot columns
             cur.execute("ALTER TABLE videos ADD COLUMN IF NOT EXISTS target_language VARCHAR(20);")

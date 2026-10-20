@@ -1,6 +1,10 @@
 backend/uploads/
 backend/outputs/
 .pytest_cache/
+backend/.pytest_cache/
+backend/.pytest_temp/
+backend/celerybeat-schedule*
+celerybeat-schedule*
 uploads/
 outputs/
 model-cache

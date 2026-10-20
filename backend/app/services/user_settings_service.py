@@ -8,16 +8,8 @@ from app.schemas.user_settings import (
 
 
 DEFAULT_SETTINGS = {
-    "theme": "light",
-    "language": "en",
-    "default_target_language": "vi",
-    "default_separation_model": "demucs_v4",
-    "default_stt_model": "whisperx_large_v3",
-    "default_diarization_model": "pyannote_3.1",
-    "default_translation_model": "nllb_200_1.3b",
-    "default_tts_model": "xtts_v2",
-    "default_llm_model": "gpt_4o",
-    "default_embedding_model": "qwen3_embedding",
+    "theme": "dark",
+    "language": "vi",
 }
 
 
@@ -25,7 +17,8 @@ def _row_to_dict(row):
     if row is None:
         return None
 
-    prefs = row[12] if len(row) > 12 else {}
+    # row: (id, user_id, preferences)
+    prefs = row[2] if len(row) > 2 else {}
     if isinstance(prefs, str):
         try:
             prefs = json.loads(prefs)
@@ -34,56 +27,55 @@ def _row_to_dict(row):
     elif prefs is None:
         prefs = {}
 
+    theme = prefs.get("theme", DEFAULT_SETTINGS["theme"])
+    language = prefs.get("language", DEFAULT_SETTINGS["language"])
+
     return {
         "id": row[0],
         "user_id": row[1],
-        "theme": row[2],
-        "language": row[3],
-        "default_target_language": row[4],
-        "default_separation_model": row[5],
-        "default_stt_model": row[6],
-        "default_diarization_model": row[7],
-        "default_translation_model": row[8],
-        "default_tts_model": row[9],
-        "default_llm_model": row[10],
-        "default_embedding_model": row[11],
+        "theme": theme,
+        "language": language,
         "preferences": prefs,
     }
 
 
 def get_user_settings(user_id: int):
-
     connection = get_connection()
-
     try:
         with connection.cursor() as cursor:
-
             cursor.execute(
                 """
                 SELECT
                     id,
                     user_id,
-                    theme,
-                    language,
-                    default_target_language,
-                    default_separation_model,
-                    default_stt_model,
-                    default_diarization_model,
-                    default_translation_model,
-                    default_tts_model,
-                    default_llm_model,
-                    default_embedding_model,
                     preferences
                 FROM user_settings
                 WHERE user_id = %s
                 """,
                 (user_id,),
             )
+            row = cursor.fetchone()
+            if not row:
+                # Insert default if not exists
+                cursor.execute(
+                    """
+                    INSERT INTO user_settings (user_id, preferences)
+                    VALUES (%s, %s::jsonb)
+                    ON CONFLICT (user_id) DO NOTHING
+                    RETURNING id, user_id, preferences
+                    """,
+                    (user_id, json.dumps(DEFAULT_SETTINGS)),
+                )
+                row = cursor.fetchone()
+                connection.commit()
+                if not row:
+                    cursor.execute(
+                        "SELECT id, user_id, preferences FROM user_settings WHERE user_id = %s",
+                        (user_id,),
+                    )
+                    row = cursor.fetchone()
 
-            return _row_to_dict(
-                cursor.fetchone()
-            )
-
+            return _row_to_dict(row)
     finally:
         connection.close()
 
@@ -92,77 +84,51 @@ def update_user_settings(
     user_id: int,
     data: UserSettingsUpdate,
 ):
-
     connection = get_connection()
-
     try:
         with connection.cursor() as cursor:
+            prefs = data.preferences or {}
+            if data.theme:
+                prefs["theme"] = data.theme
+            if data.language:
+                prefs["language"] = data.language
 
             cursor.execute(
                 """
                 UPDATE user_settings
                 SET
-                    theme = %s,
-                    language = %s,
-                    default_target_language = %s,
-                    default_separation_model = %s,
-                    default_stt_model = %s,
-                    default_diarization_model = %s,
-                    default_translation_model = %s,
-                    default_tts_model = %s,
-                    default_llm_model = %s,
-                    default_embedding_model = %s,
-                    preferences = %s,
+                    preferences = %s::jsonb,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE user_id = %s
                 RETURNING
                     id,
                     user_id,
-                    theme,
-                    language,
-                    default_target_language,
-                    default_separation_model,
-                    default_stt_model,
-                    default_diarization_model,
-                    default_translation_model,
-                    default_tts_model,
-                    default_llm_model,
-                    default_embedding_model,
                     preferences
                 """,
                 (
-                    data.theme,
-                    data.language,
-                    data.default_target_language,
-                    data.default_separation_model,
-                    data.default_stt_model,
-                    data.default_diarization_model,
-                    data.default_translation_model,
-                    data.default_tts_model,
-                    data.default_llm_model,
-                    data.default_embedding_model,
-                    json.dumps(data.preferences or {}),
+                    json.dumps(prefs),
                     user_id,
                 ),
             )
 
             row = cursor.fetchone()
-
             if row is None:
-                connection.rollback()
-                return None
+                cursor.execute(
+                    """
+                    INSERT INTO user_settings (user_id, preferences)
+                    VALUES (%s, %s::jsonb)
+                    RETURNING id, user_id, preferences
+                    """,
+                    (user_id, json.dumps(prefs)),
+                )
+                row = cursor.fetchone()
 
         connection.commit()
-
         return _row_to_dict(row)
-
     except Exception:
-
         connection.rollback()
         raise
-
     finally:
-
         connection.close()
 
 
@@ -170,182 +136,101 @@ def patch_user_settings(
     user_id: int,
     data: UserSettingsPatch,
 ):
-
-    update_data = data.model_dump(
-        exclude_unset=True
-    )
-
+    update_data = data.model_dump(exclude_unset=True)
     if not update_data:
         return get_user_settings(user_id)
 
-    allowed_fields = {
-        "theme",
-        "language",
-        "default_target_language",
-        "default_separation_model",
-        "default_stt_model",
-        "default_diarization_model",
-        "default_translation_model",
-        "default_tts_model",
-        "default_llm_model",
-        "default_embedding_model",
-        "preferences",
-    }
-
-    fields = [
-        field
-        for field in update_data
-        if field in allowed_fields
-    ]
-
     connection = get_connection()
-
     try:
-
-        set_clauses = []
-        values = []
-
-        for field in fields:
-            if field == "preferences":
-                set_clauses.append(
-                    "preferences = COALESCE(preferences, '{}'::jsonb) || %s::jsonb"
-                )
-                values.append(
-                    json.dumps(update_data["preferences"] or {})
-                )
-            else:
-                set_clauses.append(
-                    f"{field} = %s"
-                )
-                values.append(
-                    update_data[field]
-                )
-
-        set_clauses.append(
-            "updated_at = CURRENT_TIMESTAMP"
-        )
-
-        values.append(user_id)
-
-        query = f"""
-            UPDATE user_settings
-            SET {", ".join(set_clauses)}
-            WHERE user_id = %s
-            RETURNING
-                id,
-                user_id,
-                theme,
-                language,
-                default_target_language,
-                default_separation_model,
-                default_stt_model,
-                default_diarization_model,
-                default_translation_model,
-                default_tts_model,
-                default_llm_model,
-                default_embedding_model,
-                preferences
-        """
-
         with connection.cursor() as cursor:
+            # fetch existing
+            cursor.execute("SELECT preferences FROM user_settings WHERE user_id = %s", (user_id,))
+            r = cursor.fetchone()
+            existing_prefs = {}
+            if r and r[0]:
+                existing_prefs = r[0] if isinstance(r[0], dict) else json.loads(r[0])
+
+            if "preferences" in update_data and isinstance(update_data["preferences"], dict):
+                existing_prefs.update(update_data["preferences"])
+            if "theme" in update_data and update_data["theme"]:
+                existing_prefs["theme"] = update_data["theme"]
+            if "language" in update_data and update_data["language"]:
+                existing_prefs["language"] = update_data["language"]
 
             cursor.execute(
-                query,
-                tuple(values),
+                """
+                UPDATE user_settings
+                SET
+                    preferences = %s::jsonb,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s
+                RETURNING
+                    id,
+                    user_id,
+                    preferences
+                """,
+                (json.dumps(existing_prefs), user_id),
             )
-
             row = cursor.fetchone()
-
             if row is None:
-                connection.rollback()
-                return None
+                cursor.execute(
+                    """
+                    INSERT INTO user_settings (user_id, preferences)
+                    VALUES (%s, %s::jsonb)
+                    RETURNING id, user_id, preferences
+                    """,
+                    (user_id, json.dumps(existing_prefs)),
+                )
+                row = cursor.fetchone()
 
         connection.commit()
-
         return _row_to_dict(row)
-
     except Exception:
-
         connection.rollback()
         raise
-
     finally:
-
         connection.close()
 
 
 def reset_user_settings(
     user_id: int,
 ):
-
     connection = get_connection()
-
     try:
-
         with connection.cursor() as cursor:
-
             cursor.execute(
                 """
                 UPDATE user_settings
                 SET
-                    theme = %s,
-                    language = %s,
-                    default_target_language = %s,
-                    default_separation_model = %s,
-                    default_stt_model = %s,
-                    default_diarization_model = %s,
-                    default_translation_model = %s,
-                    default_tts_model = %s,
-                    default_llm_model = %s,
-                    default_embedding_model = %s,
-                    preferences = '{}'::jsonb,
+                    preferences = %s::jsonb,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE user_id = %s
                 RETURNING
                     id,
                     user_id,
-                    theme,
-                    language,
-                    default_target_language,
-                    default_separation_model,
-                    default_stt_model,
-                    default_diarization_model,
-                    default_translation_model,
-                    default_tts_model,
-                    default_llm_model,
-                    default_embedding_model,
                     preferences
                 """,
                 (
-                    DEFAULT_SETTINGS["theme"],
-                    DEFAULT_SETTINGS["language"],
-                    DEFAULT_SETTINGS["default_target_language"],
-                    DEFAULT_SETTINGS["default_separation_model"],
-                    DEFAULT_SETTINGS["default_stt_model"],
-                    DEFAULT_SETTINGS["default_diarization_model"],
-                    DEFAULT_SETTINGS["default_translation_model"],
-                    DEFAULT_SETTINGS["default_tts_model"],
-                    DEFAULT_SETTINGS["default_llm_model"],
-                    DEFAULT_SETTINGS["default_embedding_model"],
+                    json.dumps(DEFAULT_SETTINGS),
                     user_id,
                 ),
             )
-
             row = cursor.fetchone()
-
             if row is None:
-                connection.rollback()
-                return None
+                cursor.execute(
+                    """
+                    INSERT INTO user_settings (user_id, preferences)
+                    VALUES (%s, %s::jsonb)
+                    RETURNING id, user_id, preferences
+                    """,
+                    (user_id, json.dumps(DEFAULT_SETTINGS)),
+                )
+                row = cursor.fetchone()
 
         connection.commit()
-
         return _row_to_dict(row)
-
     except Exception:
-
         connection.rollback()
         raise
-
     finally:
-
         connection.close()

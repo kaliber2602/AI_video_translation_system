@@ -27,7 +27,7 @@ except Exception:
 from app.core.config import OUTPUT_DIR, UPLOAD_DIR, AWS_S3_BUCKET, AWS_REGION, S3_ENDPOINT_URL
 from app.core.database import get_db, DatabaseSession, desc, Session
 from app.core.security import get_user_id_from_token
-from app.models import Video, VideoPipelineConfig, PipelineJob, PipelineTaskLog, SpeakerProfile, Project, ProjectFolder, ProjectMember, TranscriptSegment, VideoRenderOutput
+from app.models import Video, VideoPipelineConfig, PipelineJob, PipelineTaskLog, SpeakerProfile, Project, ProjectFolder, TranscriptSegment, VideoRenderOutput
 from app.models.enums import JobStatus, VideoStatus
 from app.services import (
     JobService,
@@ -126,8 +126,7 @@ def check_user_project_access(
 ) -> tuple[bool, Optional[Project]]:
     """
     Verifies if a user has access to a project:
-    Checks if user is owner, or an accepted member with sufficient role.
-    Role hierarchy: owner (3) >= editor (2) >= viewer (1).
+    Checks if user is owner (owner_id == user_id).
     """
     project = db.query(Project).filter(
         Project.id == project_id,
@@ -136,28 +135,10 @@ def check_user_project_access(
     if not project:
         return False, None
 
-    # Owner has complete access to their projects
     if project.owner_id == user_id:
         return True, project
 
-    # Check project_members table for collaborative access
-    member = db.query(ProjectMember).filter(
-        ProjectMember.project_id == project_id,
-        ProjectMember.user_id == user_id,
-        ProjectMember.status == "accepted",
-    ).first()
-
-    if not member:
-        return False, None
-
-    role_weights = {"viewer": 1, "editor": 2, "owner": 3}
-    user_weight = role_weights.get(str(member.role).lower(), 1)
-    required_weight = role_weights.get(required_role.lower(), 1)
-
-    if user_weight >= required_weight:
-        return True, project
-
-    return False, project
+    return False, None
 
 
 def get_video_with_access(
@@ -624,21 +605,10 @@ async def list_videos(
     """Get the authenticated user's uploaded videos."""
     query = db.query(Video).filter(Video.deleted_at.is_(None))
     
-    # Filter by user's owned projects OR projects where user is an invited member
+    # Filter by user's owned projects
     accessible_pids = [
         r.id for r in db.query(Project.id).filter(Project.owner_id == user_id, Project.deleted_at.is_(None)).all()
     ]
-    try:
-        with db.conn.cursor() as cur:
-            cur.execute(
-                "SELECT project_id FROM project_members WHERE user_id = %s",
-                (user_id,)
-            )
-            for row in cur.fetchall():
-                if row[0] not in accessible_pids:
-                    accessible_pids.append(row[0])
-    except Exception as e:
-        logger.warning(f"Error fetching member projects: {e}")
 
     if not accessible_pids:
         return []
@@ -6902,6 +6872,24 @@ def generate_video_chapters(
     except Exception as e:
         logger.error(f"Failed to generate chapters for video {video_id}: {e}")
         raise HTTPException(500, f"Chapter generation failed: {str(e)}")
+
+
+@router.post("/{video_id}/intelligence/generate")
+def generate_video_intelligence(
+    video_id: int,
+    db: DatabaseSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Unified generation: LLM semantic chapters, executive summary and structured analysis."""
+    service = VideoUnderstandingService(db=db)
+    try:
+        return service.generate_intelligence(video_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        logger.error(f"Failed to generate intelligence for video {video_id}: {e}")
+        raise HTTPException(500, f"Intelligence generation failed: {str(e)}")
+
 
 
 @router.get("/{video_id}/documents", response_model=List[VideoDocumentResponse])

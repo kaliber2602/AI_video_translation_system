@@ -24,9 +24,7 @@ import SettingsBadge from "../common/SettingsBadge";
 import SettingsDangerZone from "../common/SettingsDangerZone";
 import SettingsModal from "../common/SettingsModal";
 import SettingsInput from "../common/SettingsInput";
-import {
-  type StorageFileItem,
-} from "../mock/settingsMockData";
+import type { StorageFileItem } from "../../../types/settings";
 import {
   getStorageBreakdown,
   getMyQuota,
@@ -298,6 +296,7 @@ export default function DataPrivacySection() {
           icon: <FileText size={14} className="text-pink-500" />,
         };
       case "pipeline_cache":
+      default:
         return {
           label: "Pipeline Cache",
           badgeVariant: "neutral" as const,

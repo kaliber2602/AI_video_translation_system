@@ -30,6 +30,7 @@ export interface StandardVideoPlayerProps {
   aspectRatio?: "16:9" | "9:16" | "1:1" | "4:3" | "auto";
   className?: string;
   onDurationChange?: (duration: number) => void;
+  seekTime?: number | null;
 }
 
 export const StandardVideoPlayer: React.FC<StandardVideoPlayerProps> = ({
@@ -43,6 +44,7 @@ export const StandardVideoPlayer: React.FC<StandardVideoPlayerProps> = ({
   aspectRatio = "auto",
   className = "",
   onDurationChange,
+  seekTime = null,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -53,6 +55,15 @@ export const StandardVideoPlayer: React.FC<StandardVideoPlayerProps> = ({
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [volume, setVolume] = useState<number>(1);
   const [currentTime, setCurrentTime] = useState<number>(0);
+
+  useEffect(() => {
+    if (seekTime !== null && seekTime !== undefined && videoRef.current) {
+      videoRef.current.currentTime = seekTime;
+      setCurrentTime(seekTime);
+      videoRef.current.play().catch(() => {});
+      setIsPlaying(true);
+    }
+  }, [seekTime]);
   const [duration, setDuration] = useState<number>(0);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isCaptionsOn, setIsCaptionsOn] = useState<boolean>(true);

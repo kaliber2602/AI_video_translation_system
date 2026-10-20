@@ -10,41 +10,29 @@ export interface UserSettingsResponse {
   user_id: number;
   theme: string;
   language: string;
-  default_target_language: string | null;
-  default_separation_model: string | null;
-  default_stt_model: string | null;
-  default_diarization_model: string | null;
-  default_translation_model: string | null;
-  default_tts_model: string | null;
-  default_llm_model: string | null;
-  default_embedding_model: string | null;
   preferences?: Record<string, any>;
 }
 
 export interface UserSettingsUpdate {
-  theme: string;
-  language: string;
-  default_target_language?: string | null;
-  default_separation_model?: string | null;
-  default_stt_model?: string | null;
-  default_diarization_model?: string | null;
-  default_translation_model?: string | null;
-  default_tts_model?: string | null;
-  default_llm_model?: string | null;
-  default_embedding_model?: string | null;
+  theme?: string;
+  language?: string;
   preferences?: Record<string, any>;
 }
 
 export interface UserSettingsPatch {
   theme?: string;
   language?: string;
-  default_target_language?: string | null;
-  default_separation_model?: string | null;
-  default_stt_model?: string | null;
-  default_diarization_model?: string | null;
-  default_translation_model?: string | null;
-  default_tts_model?: string | null;
-  default_llm_model?: string | null;
-  default_embedding_model?: string | null;
   preferences?: Record<string, any>;
+}
+
+export interface StorageFileItem {
+  id: string;
+  filename: string;
+  projectName: string;
+  resourceType: "source_video" | "dubbed_video" | "audio_track" | "subtitles_docs" | "pipeline_cache";
+  sizeBytes: number;
+  sizeFormatted: string;
+  specs: string;
+  createdAt: string;
+  status: "ready" | "processing" | "failed";
 }

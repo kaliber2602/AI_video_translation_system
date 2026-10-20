@@ -243,7 +243,7 @@ class LLMService:
         full_transcript: str,
     ) -> Optional[Dict[str, Any]]:
         """
-        Generates structured executive summary and chapters using free LLMs.
+        Generates structured executive summary using free LLMs.
         """
         system_prompt = (
             "Bạn là chuyên gia phân tích nội dung video. Hãy tạo một bản tóm tắt súc tích bằng tiếng Việt "
@@ -266,3 +266,72 @@ class LLMService:
                     }
 
         return None
+
+    def generate_semantic_chapters_and_summary(
+        self,
+        video_title: str,
+        timestamped_dialogue: str,
+        video_duration: float = 0.0,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Interprets transcript with timestamps and generates structured summary and semantic chapters via LLM.
+        """
+        system_prompt = (
+            "Bạn là trợ lý AI chuyên gia phân tích nội dung video đa phương tiện. "
+            "Nhiệm vụ của bạn là đọc lời thoại có gắn mốc thời gian của video, nhận diện các bước chuyển chủ đề ngữ nghĩa (semantic topic shifts) "
+            "và tạo bản tóm tắt điều hành cùng danh sách phân đoạn (Chapters) hoàn toàn bám sát nội dung thực tế.\n"
+            "QUY TẮC BẮT BUỘC:\n"
+            "1. KHÔNG chia đoạn rập khuôn, không dùng mẫu chung chung như 'Intro', 'Body', 'Conclusion' trừ khi nội dung video thực sự là như vậy.\n"
+            "2. Tiêu đề mỗi Chapter phải ngắn gọn, súc tích (dưới 60 ký tự), phản ánh chính xác nội dung thảo luận trong đoạn.\n"
+            "3. Mốc thời gian start_time và end_time tính bằng giây (float hoặc integer), phải nằm trong khoảng thời gian của lời thoại.\n"
+            "4. Định dạng phản hồi DUY NHẤT bằng cú pháp JSON hợp lệ theo schema sau (không thêm văn bản ngoài JSON):\n"
+            "{\n"
+            '  "executive_summary": "Tóm tắt tổng quan nội dung video bằng tiếng Việt...",\n'
+            '  "key_takeaways": ["Ý chính 1", "Ý chính 2", "Ý chính 3"],\n'
+            '  "chapters": [\n'
+            '    {\n'
+            '      "start_time": 0.0,\n'
+            '      "end_time": 45.0,\n'
+            '      "title": "Tên chương ngữ nghĩa",\n'
+            '      "summary": "Tóm tắt ngắn 1-2 câu về nội dung đoạn này"\n'
+            '    }\n'
+            '  ]\n'
+            "}"
+        )
+
+        user_prompt = (
+            f"Tiêu đề video: {video_title}\n"
+            f"Thời lượng dự kiến: {video_duration}s\n\n"
+            f"Danh sách lời thoại có gắn mốc thời gian:\n"
+            f"{timestamped_dialogue[:12000]}\n\n"
+            "Hãy phân tích và trả về kết quả định dạng JSON thuần túy."
+        )
+
+        for provider in self.providers:
+            if provider.is_available():
+                try:
+                    response_text = provider.generate_response(prompt=user_prompt, system_prompt=system_prompt)
+                    if response_text:
+                        raw = response_text.strip()
+                        # Clean markdown formatting if present
+                        if "```json" in raw:
+                            raw = raw.split("```json", 1)[1].split("```", 1)[0].strip()
+                        elif "```" in raw:
+                            raw = raw.split("```", 1)[1].split("```", 1)[0].strip()
+
+                        # Locate outermost JSON braces
+                        s_idx = raw.find("{")
+                        e_idx = raw.rfind("}")
+                        if s_idx != -1 and e_idx != -1 and e_idx > s_idx:
+                            parsed = json.loads(raw[s_idx:e_idx + 1])
+                            if isinstance(parsed, dict) and "chapters" in parsed:
+                                return {
+                                    "provider": provider.__class__.__name__,
+                                    "data": parsed,
+                                }
+                except Exception as e:
+                    logger.warning(f"[LLMService] Failed to parse chapter generation from {provider.__class__.__name__}: {e}")
+                    continue
+
+        return None
+

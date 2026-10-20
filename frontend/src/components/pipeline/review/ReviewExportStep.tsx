@@ -5,6 +5,12 @@ import {
   AlertCircle,
   ChevronLeft,
   Loader2,
+  Sparkles,
+  BookOpen,
+  Clock,
+  Download,
+  FileText,
+  Play,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePipeline } from "../../../hooks/usePipeline";
@@ -27,6 +33,13 @@ export default function ReviewExportStep() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportSuccess, setExportSuccess] = useState(false);
   const [customExportFilename, setCustomExportFilename] = useState("");
+
+  // Video chapters & summary intelligence states
+  const [chapters, setChapters] = useState<any[]>([]);
+  const [summaryDoc, setSummaryDoc] = useState<any | null>(null);
+  const [isGeneratingIntelligence, setIsGeneratingIntelligence] = useState(false);
+  const [isLoadingIntelligence, setIsLoadingIntelligence] = useState(false);
+  const [activeSeekTime, setActiveSeekTime] = useState<number | null>(null);
 
   useEffect(() => {
     if (!customExportFilename && (state.video?.title || state.video?.filename)) {
@@ -73,7 +86,58 @@ export default function ReviewExportStep() {
     loadExportOptions();
     loadVideoPreview();
     loadSubtitles();
+    loadIntelligence();
   }, [state.video?.videoId, state.video?.outputPath, state.dubbedVideo]);
+
+  const loadIntelligence = async () => {
+    const vidId = state.video?.videoId;
+    if (!vidId) return;
+    try {
+      setIsLoadingIntelligence(true);
+      const [chs, docs] = await Promise.all([
+        videoService.getVideoChapters(vidId).catch(() => []),
+        videoService.getVideoDocuments(vidId).catch(() => []),
+      ]);
+      setChapters(chs || []);
+      if (docs && docs.length > 0) {
+        setSummaryDoc(docs[0]);
+      }
+    } catch (err) {
+      console.warn("Failed to load intelligence data:", err);
+    } finally {
+      setIsLoadingIntelligence(false);
+    }
+  };
+
+  const handleGenerateIntelligence = async () => {
+    const vidId = state.video?.videoId;
+    if (!vidId) return;
+    try {
+      setIsGeneratingIntelligence(true);
+      const res = await videoService.generateVideoIntelligence(vidId);
+      if (res) {
+        if (res.chapters) setChapters(res.chapters);
+        if (res.document) setSummaryDoc(res.document);
+      }
+    } catch (err) {
+      console.error("Failed to generate intelligence:", err);
+    } finally {
+      setIsGeneratingIntelligence(false);
+    }
+  };
+
+  const handleDownloadSummaryDoc = () => {
+    if (!summaryDoc?.content_markdown) return;
+    const blob = new Blob([summaryDoc.content_markdown], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${customExportFilename || "video"}_summary_chapters.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     if (state.presetConfig) {
@@ -455,6 +519,7 @@ export default function ReviewExportStep() {
                   subtitleSegments={subtitleSegments}
                   aspectRatio="auto"
                   onDurationChange={(d) => setDuration(d)}
+                  seekTime={activeSeekTime}
                 />
 
                 {/* Video Info Badges */}
@@ -506,6 +571,142 @@ export default function ReviewExportStep() {
                   <ChevronLeft size={14} />
                   <span>{t("pipeline:steps.reviewExport.backToDubbing")}</span>
                 </button>
+              </div>
+            )}
+          </div>
+
+          {/* -------------------------------------------------------- */}
+          {/* VIDEO INTELLIGENCE: SUMMARY & SEMANTIC CHAPTERS */}
+          {/* -------------------------------------------------------- */}
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-5 shadow-[var(--shadow-card)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] pb-3.5 mb-4">
+              <div className="flex items-center gap-2">
+                <Sparkles size={18} className="text-[var(--color-primary)]" />
+                <div>
+                  <h3 className="text-sm font-bold text-[var(--color-text-primary)]">
+                    Phân đoạn & Tóm tắt nội dung thông minh (AI Chapters & Summary)
+                  </h3>
+                  <p className="text-[11px] text-[var(--color-text-muted)]">
+                    Phân tích ngữ nghĩa transcript bằng LLM để tự động chia chương mục và trích xuất điểm nổi bật
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {summaryDoc && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadSummaryDoc}
+                    className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)] transition"
+                    title="Tải tài liệu tổng hợp Markdown"
+                  >
+                    <Download size={13} />
+                    <span>Tải Báo Cáo (.md)</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  disabled={isGeneratingIntelligence}
+                  onClick={handleGenerateIntelligence}
+                  className="flex items-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[var(--color-primary-hover)] shadow-xs transition disabled:opacity-50 active:scale-95 cursor-pointer"
+                >
+                  {isGeneratingIntelligence ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>Đang phân tích LLM...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={13} />
+                      <span>{chapters.length > 0 ? "Tạo lại với AI" : "Tạo Chapters & Tóm tắt"}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {isLoadingIntelligence ? (
+              <div className="flex h-36 items-center justify-center">
+                <Loader2 size={24} className="animate-spin text-[var(--color-primary)] mr-2" />
+                <span className="text-xs text-[var(--color-text-muted)]">Đang tải dữ liệu tóm tắt...</span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                {/* Left/Main Column: Timeline Chapters */}
+                <div className="lg:col-span-7 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)] flex items-center gap-1.5">
+                      <Clock size={14} className="text-[var(--color-primary)]" />
+                      Danh sách Chapters ({chapters.length})
+                    </span>
+                    <span className="text-[11px] text-[var(--color-text-muted)]">
+                      Click vào chapter để tua video
+                    </span>
+                  </div>
+
+                  {chapters.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-muted)]/40 p-8 text-center">
+                      <BookOpen size={28} className="mx-auto text-[var(--color-text-muted)] opacity-60 mb-2" />
+                      <p className="text-xs text-[var(--color-text-muted)]">
+                        Chưa có chapters nào được tạo cho video này. Nhấn nút "Tạo Chapters & Tóm tắt" để LLM nhận diện các phân đoạn ngữ nghĩa.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+                      {chapters.map((ch) => (
+                        <div
+                          key={ch.id || ch.sequence}
+                          onClick={() => {
+                            setActiveSeekTime(ch.start_time);
+                          }}
+                          className="group flex items-start gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/60 p-3 transition hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)] cursor-pointer"
+                        >
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)] group-hover:bg-[var(--color-primary)] group-hover:text-white transition">
+                            <Play size={14} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-bold text-[var(--color-primary)]">
+                                {formatTime(ch.start_time)} - {formatTime(ch.end_time)}
+                              </span>
+                              <span className="rounded bg-[var(--color-border)]/50 px-1.5 py-0.2 text-[10px] font-semibold text-[var(--color-text-muted)]">
+                                #{ch.sequence}
+                              </span>
+                            </div>
+                            <h4 className="mt-1 text-xs font-bold text-[var(--color-text-primary)] group-hover:text-[var(--color-primary)] transition">
+                              {ch.title}
+                            </h4>
+                            {ch.summary && (
+                              <p className="mt-1 text-[11px] text-[var(--color-text-muted)] line-clamp-2 leading-relaxed">
+                                {ch.summary}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Column: Executive Summary Overview */}
+                <div className="lg:col-span-5 flex flex-col rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/30 p-3.5">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)] flex items-center gap-1.5 mb-2.5">
+                    <FileText size={14} className="text-[var(--color-primary)]" />
+                    Bản tóm tắt tổng quan (Executive Summary)
+                  </span>
+
+                  {summaryDoc?.content_markdown ? (
+                    <div className="flex-1 max-h-[340px] overflow-y-auto pr-1 text-xs leading-relaxed text-[var(--color-text-secondary)] space-y-2 whitespace-pre-wrap">
+                      {summaryDoc.content_markdown}
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-xs text-[var(--color-text-muted)]">
+                      <Sparkles size={24} className="opacity-40 mb-2" />
+                      Nhấn nút tạo phía trên để xem bản tóm tắt điều hành và các điểm chính (Key Takeaways).
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

@@ -49,81 +49,215 @@ class VideoUnderstandingService:
         return [dict(r) for r in rows]
 
     def generate_chapters(self, video_id: int) -> List[Dict[str, Any]]:
+        """
+        Generates semantic chapters and synchronous document analysis for a video.
+        """
+        result = self.generate_intelligence(video_id=video_id)
+        return result.get("chapters", [])
+
+    def generate_intelligence(self, video_id: int) -> Dict[str, Any]:
+        """
+        Unified pipeline: generates LLM semantic chapters, executive summary, and structured document.
+        Persists both to video_chapters and video_documents tables.
+        """
         video = self.db.query(Video).filter(Video.id == video_id).first()
         if not video:
             raise ValueError(f"Video with ID {video_id} not found")
 
-        segments = self.db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).all()
-        segments.sort(key=lambda s: s.get("start_time", 0.0))
+        # Fetch transcript segments
+        raw_segs = self.db.query(TranscriptSegment).filter(TranscriptSegment.video_id == video_id).all()
+        raw_segs.sort(key=lambda s: s.get("start_time", 0.0))
+        segments = [dict(s) for s in raw_segs]
+
+        title = video.get("title") or video.get("original_filename") or f"Video #{video_id}"
+        duration = float(video.get("duration") or 0.0)
+        if not duration and segments:
+            duration = float(segments[-1].get("end_time") or 0.0)
 
         chapters_to_insert = []
+        executive_summary = ""
+        key_takeaways = []
+
         if segments:
-            # Group transcript into dynamic chapters of ~60-120 seconds or significant pause
-            chapter_idx = 1
-            current_chunk = []
-            chunk_start = segments[0].get("start_time", 0.0)
+            # Build dialogue text with timestamps
+            dialogue_lines = []
+            for s in segments:
+                st = _format_timestamp(s.get("start_time", 0.0))
+                et = _format_timestamp(s.get("end_time", 0.0))
+                text = (s.get("translated_text") or s.get("original_text") or "").strip()
+                spk = s.get("speaker") or "Speaker"
+                if text:
+                    dialogue_lines.append(f"[{st} - {et}] {spk}: {text}")
 
-            for seg in segments:
-                current_chunk.append(seg)
-                seg_end = seg.get("end_time", chunk_start)
-                if (seg_end - chunk_start) >= 90.0:
-                    summary_text = " ".join(s.get("original_text", "") for s in current_chunk).strip()
-                    title = f"Chapter {chapter_idx}: {summary_text[:40]}..." if len(summary_text) > 40 else f"Chapter {chapter_idx}"
-                    chapters_to_insert.append({
-                        "video_id": video_id,
-                        "sequence": chapter_idx,
-                        "start_time": chunk_start,
-                        "end_time": seg_end,
-                        "title": title,
-                        "summary": summary_text[:300],
-                        "thumbnail_path": None,
-                    })
-                    chapter_idx += 1
-                    current_chunk = []
-                    chunk_start = seg_end
+            formatted_dialogue = "\n".join(dialogue_lines)
 
-            if current_chunk:
-                seg_end = current_chunk[-1].get("end_time", chunk_start + 10.0)
-                summary_text = " ".join(s.get("original_text", "") for s in current_chunk).strip()
-                title = f"Chapter {chapter_idx}: {summary_text[:40]}..." if len(summary_text) > 40 else f"Chapter {chapter_idx}"
-                chapters_to_insert.append({
-                    "video_id": video_id,
-                    "sequence": chapter_idx,
-                    "start_time": chunk_start,
-                    "end_time": seg_end,
-                    "title": title,
-                    "summary": summary_text[:300],
-                    "thumbnail_path": None,
-                })
+            # Call LLM for Semantic Understanding
+            llm_result = None
+            try:
+                from app.services.llm_service import LLMService
+                llm = LLMService()
+                llm_result = llm.generate_semantic_chapters_and_summary(
+                    video_title=title,
+                    timestamped_dialogue=formatted_dialogue,
+                    video_duration=duration,
+                )
+            except Exception as e:
+                logger.warning(f"[Intelligence] LLM semantic chaptering error: {e}")
+
+            if llm_result and "data" in llm_result:
+                parsed_data = llm_result["data"]
+                executive_summary = parsed_data.get("executive_summary", "").strip()
+                key_takeaways = parsed_data.get("key_takeaways", [])
+                raw_chapters = parsed_data.get("chapters", [])
+
+                if isinstance(raw_chapters, list) and len(raw_chapters) > 0:
+                    for idx, ch in enumerate(raw_chapters, start=1):
+                        ch_start = float(ch.get("start_time", 0.0))
+                        ch_end = float(ch.get("end_time", 0.0))
+                        # Validate timestamps against actual range
+                        if ch_end <= ch_start:
+                            ch_end = min(duration, ch_start + 30.0)
+
+                        chapters_to_insert.append({
+                            "video_id": video_id,
+                            "sequence": idx,
+                            "start_time": ch_start,
+                            "end_time": ch_end,
+                            "title": (ch.get("title") or f"Phần {idx}").strip()[:250],
+                            "summary": (ch.get("summary") or "").strip(),
+                            "thumbnail_path": None,
+                        })
+
+            # If LLM returned no chapters or was unavailable, compute semantic-safe segments based on dialogue gaps
+            if not chapters_to_insert:
+                logger.info(f"[Intelligence] Fallback: grouping segments by pauses for video {video_id}")
+                chapter_idx = 1
+                curr_group = []
+                chunk_start = float(segments[0].get("start_time", 0.0))
+
+                for idx, seg in enumerate(segments):
+                    curr_group.append(seg)
+                    seg_end = float(seg.get("end_time", chunk_start))
+                    is_last = (idx == len(segments) - 1)
+                    # Break on long dialogue pause (> 4.0s) or cumulative length >= 60s
+                    next_pause = False
+                    if not is_last:
+                        next_start = float(segments[idx + 1].get("start_time", seg_end))
+                        if (next_start - seg_end) >= 4.0:
+                            next_pause = True
+
+                    if (seg_end - chunk_start >= 60.0) or next_pause or is_last:
+                        group_text = " ".join(
+                            (s.get("translated_text") or s.get("original_text") or "").strip() for s in curr_group
+                        ).strip()
+                        ch_title = group_text[:45] + "..." if len(group_text) > 45 else group_text
+                        if not ch_title:
+                            ch_title = f"Chủ đề {chapter_idx}"
+
+                        chapters_to_insert.append({
+                            "video_id": video_id,
+                            "sequence": chapter_idx,
+                            "start_time": chunk_start,
+                            "end_time": seg_end,
+                            "title": ch_title,
+                            "summary": group_text[:300],
+                            "thumbnail_path": None,
+                        })
+                        chapter_idx += 1
+                        curr_group = []
+                        if not is_last:
+                            chunk_start = float(segments[idx + 1].get("start_time", seg_end))
         else:
-            # Fallback based on video duration
-            duration = video.get("duration") or 120.0
-            part = max(30.0, duration / 3.0)
-            titles = ["Introduction & Overview", "Core Discussion & Analysis", "Summary & Conclusion"]
-            for idx, title in enumerate(titles):
-                s_time = idx * part
-                e_time = min(duration, (idx + 1) * part)
-                chapters_to_insert.append({
-                    "video_id": video_id,
-                    "sequence": idx + 1,
-                    "start_time": s_time,
-                    "end_time": e_time,
-                    "title": title,
-                    "summary": f"Segment covers timeline {_format_timestamp(s_time)} - {_format_timestamp(e_time)}",
-                    "thumbnail_path": None,
-                })
+            # Empty transcript fallback
+            chapters_to_insert.append({
+                "video_id": video_id,
+                "sequence": 1,
+                "start_time": 0.0,
+                "end_time": max(10.0, duration),
+                "title": "Toàn bộ video",
+                "summary": "Không có lời thoại để phân tích chi tiết.",
+                "thumbnail_path": None,
+            })
 
-        # Remove existing chapters for video to regenerate cleanly
+        # Persist chapters
         self.db.execute("DELETE FROM video_chapters WHERE video_id = %s", (video_id,))
-
-        created_chapters = []
         for ch in chapters_to_insert:
             record = VideoChapter(**ch)
             self.db.add(record)
-            created_chapters.append(ch)
-
         self.db.commit()
-        return self.get_chapters(video_id)
+
+        # Build & persist structured document
+        saved_chapters = self.get_chapters(video_id)
+        if not executive_summary:
+            executive_summary = f'Tài liệu phân tích cấu trúc và tổng hợp tóm tắt nội dung cho video "{title}".'
+
+        md_lines = [
+            f"# {title}",
+            "",
+            f"**Thời lượng:** {_format_timestamp(duration)}  ",
+            f"**Tạo lúc:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}  ",
+            f"**Loại tài liệu:** Bản tóm tắt điều hành & Bảng phân đoạn thời gian (Chapters)",
+            "",
+            "## Tóm tắt điều hành (Executive Summary)",
+            "",
+            executive_summary,
+            "",
+        ]
+
+        if key_takeaways:
+            md_lines.append("## Điểm nổi bật quan trọng (Key Takeaways)")
+            md_lines.append("")
+            for pt in key_takeaways:
+                md_lines.append(f"- {pt}")
+            md_lines.append("")
+
+        md_lines.append("## Danh sách các chương (Chapter Timeline)")
+        md_lines.append("")
+        for ch in saved_chapters:
+            st = _format_timestamp(ch.get("start_time", 0.0))
+            et = _format_timestamp(ch.get("end_time", 0.0))
+            ch_title = ch.get("title", "Chapter")
+            ch_sum = ch.get("summary", "")
+            md_lines.append(f"### [{st} - {et}] {ch_title}")
+            if ch_sum:
+                md_lines.append(f"{ch_sum}")
+            md_lines.append("")
+
+        if segments:
+            md_lines.append("## Toàn bộ lời thoại (Full Dialogue)")
+            md_lines.append("")
+            for seg in segments:
+                st = _format_timestamp(seg.get("start_time", 0.0))
+                text = (seg.get("translated_text") or seg.get("original_text") or "").strip()
+                speaker = seg.get("speaker") or "Speaker"
+                md_lines.append(f"- **[{st}] {speaker}:** {text}")
+            md_lines.append("")
+
+        content_markdown = "\n".join(md_lines)
+        file_size_bytes = len(content_markdown.encode("utf-8"))
+
+        # Remove existing documents of type summary / markdown for clean regeneration
+        self.db.execute("DELETE FROM video_documents WHERE video_id = %s", (video_id,))
+        doc_record = VideoDocument(
+            video_id=video_id,
+            doc_type="summary",
+            title=f"{title} - Phân tích tóm tắt & Chapters",
+            file_path=None,
+            content_markdown=content_markdown,
+            file_size_bytes=file_size_bytes,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        self.db.add(doc_record)
+        self.db.commit()
+        self.db.refresh(doc_record)
+
+        return {
+            "summary": executive_summary,
+            "key_takeaways": key_takeaways,
+            "chapters": saved_chapters,
+            "document": dict(doc_record),
+        }
 
     def get_documents(self, video_id: int) -> List[Dict[str, Any]]:
         rows = self.db.query(VideoDocument).filter(VideoDocument.video_id == video_id).all()
