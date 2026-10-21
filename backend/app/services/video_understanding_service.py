@@ -756,14 +756,9 @@ class VideoUnderstandingService:
             })
             context_snippets.append(f"[{c.get('timestamp_formatted', '00:00')}] ({spk}): {c.get('text', '')}")
 
-        # If user asks for summary/overview, enrich citations with video chapters if available
+        # If user asks for summary/overview, enrich citations with video chapters only if already generated (DO NOT auto-trigger heavy LLM chapters)
         if is_summary_intent:
             chapters = self.get_chapters(video_id)
-            if not chapters:
-                try:
-                    chapters = self.generate_chapters(video_id)
-                except Exception:
-                    chapters = []
             for ch in chapters[:4]:
                 st = ch.get("start_time", 0.0)
                 citations.append({
