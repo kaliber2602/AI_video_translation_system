@@ -254,8 +254,11 @@ class LLMService:
             "Nhiệm vụ của bạn là đọc lời thoại video được gắn mốc thời gian để lập BẢN BÁO CÁO PHÂN TÍCH ĐIỀU HÀNH & PHÂN ĐOẠN CHUYÊN NGHIỆP.\n"
             "QUY TẮC CỐT LÕI BẮT BUỘC:\n"
             "1. TIÊU ĐỀ CHAPTER: TUYỆT ĐỐI KHÔNG sao chép nguyên văn câu nói của speaker. BẮT BUỘC tư duy trừu tượng hóa, đặt tiêu đề chủ đề ngắn gọn (dưới 8 từ) khái quát bản chất vấn đề được thảo luận (ví dụ: 'Bản chất của AI Workflow', 'Quy trình Tự động hóa No-Code', 'Chiến dịch Đa tầng 90% AI', 'Mở rộng và Vận hành').\n"
-            "2. PHẠM VI TIMELINE CHAPTER: BẮT BUỘC chia video thành từ 3 đến 5 chapter nối tiếp nhau, bao phủ toàn bộ thời lượng từ 0.0s đến hết video (ví dụ: Chapter 1: 0.0s -> 45.0s, Chapter 2: 45.0s -> 90.0s, Chapter 3: 90.0s -> hết video). KHÔNG được bỏ dở chỉ làm 1 chapter.\n"
-            "3. TÓM TẮT TỪNG PHÂN ĐOẠN: Viết 1 đoạn văn hoàn chỉnh (full paragraph, 3-5 câu) phân tích logic, công cụ và giải pháp trong đoạn đó. Tuyệt đối không copy paste câu thoại thô.\n"
+            "2. PHẠM VI TIMELINE CHAPTER: BẮT BUỘC chia video thành từ 3 đến 5 chapter nối tiếp nhau (mỗi chapter tương ứng với 1 giai đoạn thời lượng từ 30s - 60s), bao phủ toàn bộ thời lượng từ 0.0s đến hết video (ví dụ: Chapter 1: 0.0s -> 45.0s, Chapter 2: 45.0s -> 90.0s, Chapter 3: 90.0s -> hết video). TUYỆT ĐỐI PHẢI TRẢ VỀ ĐỦ TẤT CẢ 3 ĐẾN 5 CHAPTERS TRONG MẢNG 'chapters', KHÔNG ĐƯỢC chỉ trả về 1 chapter duy nhất.\n"
+            "3. DIỄN GIẢI CHI TIẾT TỪNG PHÂN ĐOẠN (CHAPTER ANALYSIS):\n"
+            "   - 'summary': Viết 1 câu hoặc đoạn ngắn súc tích (1-2 câu) tóm tắt nhanh mục tiêu cốt lõi của chương.\n"
+            "   - 'detailed_analysis': Viết đoạn văn phân tích chuyên sâu, diễn giải cặn kẽ (1-2 đoạn văn hoàn chỉnh, từ 80-150 từ) phân tích logic vận hành, cách thức speaker lập luận, các bước kỹ thuật hoặc dẫn chứng thực tế được đề cập trong đoạn đó. Tuyệt đối không copy paste câu thoại thô.\n"
+            "   - 'key_points': Mảng 2-4 gạch đầu dòng các luận điểm/bước thực thi chính được nhắc đến trong chương đó.\n"
             "4. TÓM TẮT ĐIỀU HÀNH (EXECUTIVE SUMMARY): Viết 2-3 đoạn văn hoàn chỉnh (full paragraphs) đúc kết bản chất cốt lõi, phương pháp thực thi và giá trị thực tế của toàn bộ video.\n"
             "5. ĐIỂM NỔI BẬT & KHUYẾN NGHỊ (KEY TAKEAWAYS): Danh sách 3-5 gạch đầu dòng các bài học thực tiễn, nguyên lý cốt lõi.\n"
             "6. BỘ CÔNG CỤ ĐỀ CẬP (TECH STACK): Danh sách các công cụ, phần mềm hoặc công nghệ được nhắc đến trong video (ví dụ: Zapier, Make, n8n, Claude, ChatGPT, Gmail).\n"
@@ -269,8 +272,26 @@ class LLMService:
             '    {\n'
             '      "start_time": 0.0,\n'
             '      "end_time": 45.0,\n'
-            '      "title": "Tiêu đề chủ đề ngắn gọn",\n'
-            '      "summary": "Đoạn văn phân tích chuyên môn chi tiết..."\n'
+            '      "title": "Bản chất của AI Workflow",\n'
+            '      "summary": "Tóm tắt súc tích bản chất phân đoạn...",\n'
+            '      "detailed_analysis": "Đoạn văn diễn giải chi tiết, phân tích cặn kẽ logic, công cụ, cách triển khai...",\n'
+            '      "key_points": ["Luận điểm / bước 1", "Luận điểm / bước 2"]\n'
+            '    },\n'
+            '    {\n'
+            '      "start_time": 45.0,\n'
+            '      "end_time": 90.0,\n'
+            '      "title": "Xây dựng Pipeline No-Code",\n'
+            '      "summary": "Tóm tắt bước thực thi tiếp theo...",\n'
+            '      "detailed_analysis": "Phân tích chi tiết quy trình kết nối các node tự động hóa...",\n'
+            '      "key_points": ["Luận điểm 1", "Luận điểm 2"]\n'
+            '    },\n'
+            '    {\n'
+            '      "start_time": 90.0,\n'
+            '      "end_time": 137.0,\n'
+            '      "title": "Mở rộng và Tự động hóa Toàn diện",\n'
+            '      "summary": "Tóm tắt chiến lược mở rộng...",\n'
+            '      "detailed_analysis": "Phân tích việc nhân rộng các bước AI để đạt 90% tự động...",\n'
+            '      "key_points": ["Luận điểm 1", "Luận điểm 2"]\n'
             '    }\n'
             '  ]\n'
             "}"

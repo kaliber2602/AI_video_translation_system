@@ -136,13 +136,30 @@ class VideoUnderstandingService:
                         if ch_end <= ch_start:
                             ch_end = min(duration, ch_start + 30.0) if duration > 0 else (ch_start + 30.0)
 
+                        # Ghép summary súc tích kèm phân tích diễn giải chuyên sâu và các gạch đầu dòng luận điểm
+                        ch_summary_short = (ch.get("summary") or "").strip()
+                        ch_detailed = (ch.get("detailed_analysis") or "").strip()
+                        ch_keypoints = ch.get("key_points") or []
+
+                        full_summary_parts = []
+                        if ch_summary_short:
+                            full_summary_parts.append(f"**Tóm tắt cốt lõi:** {ch_summary_short}")
+                        if ch_detailed:
+                            full_summary_parts.append(f"**Diễn giải chi tiết:** {ch_detailed}")
+                        if ch_keypoints and isinstance(ch_keypoints, list):
+                            points_md = "\n".join(f"- {kp}" for kp in ch_keypoints if kp)
+                            if points_md:
+                                full_summary_parts.append(f"**Nội dung & Luận điểm chính:**\n{points_md}")
+
+                        final_chapter_text = "\n\n".join(full_summary_parts) if full_summary_parts else ch_summary_short
+
                         chapters_to_insert.append({
                             "video_id": video_id,
                             "sequence": idx,
                             "start_time": ch_start,
                             "end_time": ch_end,
                             "title": (ch.get("title") or f"Phần {idx}").strip()[:250],
-                            "summary": (ch.get("summary") or "").strip(),
+                            "summary": final_chapter_text,
                             "thumbnail_path": None,
                         })
 
