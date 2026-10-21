@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   FileText,
   Code2,
@@ -32,6 +32,21 @@ export default function SideBySideReportReview({
   const [isCopied, setIsCopied] = useState(false);
   const [isDownloadingDocx, setIsDownloadingDocx] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    if (showExportMenu) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [showExportMenu]);
 
   // Keep internal state synchronized if parent updates markdownContent
   React.useEffect(() => {
@@ -248,7 +263,7 @@ export default function SideBySideReportReview({
           </button>
 
           {/* Export Dropdown (.md, .docx, .pdf) */}
-          <div className="relative">
+          <div className="relative" ref={exportMenuRef}>
             <button
               type="button"
               onClick={() => setShowExportMenu(!showExportMenu)}

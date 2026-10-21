@@ -8,7 +8,6 @@ import {
   Sparkles,
   BookOpen,
   Clock,
-  Download,
   Play,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -124,19 +123,6 @@ export default function ReviewExportStep() {
     } finally {
       setIsGeneratingIntelligence(false);
     }
-  };
-
-  const handleDownloadSummaryDoc = () => {
-    if (!summaryDoc?.content_markdown) return;
-    const blob = new Blob([summaryDoc.content_markdown], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${customExportFilename || "video"}_summary_chapters.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   };
 
   useEffect(() => {
@@ -593,18 +579,6 @@ export default function ReviewExportStep() {
               </div>
 
               <div className="flex items-center gap-2">
-                {summaryDoc && (
-                  <button
-                    type="button"
-                    onClick={handleDownloadSummaryDoc}
-                    className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-primary)] transition"
-                    title={t("pipeline:steps.reviewExport.downloadMdTip", "Tải tài liệu tổng hợp Markdown")}
-                  >
-                    <Download size={13} />
-                    <span>{t("pipeline:steps.reviewExport.downloadMd", "Tải Báo Cáo (.md)")}</span>
-                  </button>
-                )}
-
                 <button
                   type="button"
                   disabled={isGeneratingIntelligence}
