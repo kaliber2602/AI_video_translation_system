@@ -62,6 +62,7 @@ class OllamaLocalProvider(BaseLLMProvider):
         prompt: str,
         system_prompt: Optional[str] = None,
         model_name: Optional[str] = None,
+        timeout: int = 180,
     ) -> Optional[str]:
         target_model = model_name or self.model
         url = f"{self.base_url}/api/generate"
@@ -76,8 +77,8 @@ class OllamaLocalProvider(BaseLLMProvider):
         try:
             data = json.dumps(payload).encode("utf-8")
             req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-            # 60s timeout for cold start or detailed response
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            # 180s timeout to allow local GPU/CPU to thoroughly synthesize full executive paragraphs without premature cutoff
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 result = json.loads(resp.read().decode("utf-8"))
                 return result.get("response", "").strip()
         except Exception as e:
@@ -250,23 +251,26 @@ class LLMService:
         """
         system_prompt = (
             "Bạn là một chuyên gia phân tích nghiệp vụ và tóm tắt điều hành cao cấp (Senior Executive Business Analyst).\n"
-            "Nhiệm vụ của bạn là đọc lời thoại có gắn mốc thời gian của video để tạo BẢN BÁO CÁO TÓM TẮT ĐIỀU HÀNH & PHÂN ĐOẠN CHUYÊN NGHIỆP.\n"
+            "Nhiệm vụ của bạn là đọc lời thoại video được gắn mốc thời gian để lập BẢN BÁO CÁO PHÂN TÍCH ĐIỀU HÀNH & PHÂN ĐOẠN CHUYÊN NGHIỆP.\n"
             "QUY TẮC CỐT LÕI BẮT BUỘC:\n"
-            "1. TIÊU ĐỀ CHAPTER: TUYỆT ĐỐI KHÔNG sao chép nguyên văn câu nói/lời thoại của người nói. BẮT BUỘC phải tư duy trừu tượng hóa, đặt tiêu đề chủ đề ngắn gọn (dưới 8 từ) khái quát bản chất nội dung được trình bày (ví dụ: 'Bản chất của AI Workflow', 'Quy trình Tự động hóa No-Code', 'Chiến dịch Đa tầng 90% AI', 'Mở rộng và Vận hành').\n"
-            "2. TÓM TẮT PHÂN ĐOẠN: Viết một đoạn văn hoàn chỉnh (full paragraph) giải thích súc tích logic, công cụ và cách thức triển khai được trình bày trong phân đoạn, KHÔNG trích dẫn thô.\n"
-            "3. EXECUTIVE SUMMARY: Viết 2-3 đoạn văn hoàn chỉnh (full paragraphs) đúc kết bức tranh toàn cảnh, phương pháp luận và giá trị thực tế của video.\n"
-            "4. KEY TAKEAWAYS: 3-5 ý chính quan trọng, công cụ hoặc bài học hành động.\n"
-            "5. Mốc thời gian start_time và end_time tính bằng giây (float hoặc integer), nằm trong khoảng thời lượng video.\n"
-            "6. Định dạng phản hồi DUY NHẤT bằng cú pháp JSON hợp lệ theo schema sau (không thêm lời dẫn bên ngoài JSON):\n"
+            "1. TIÊU ĐỀ CHAPTER: TUYỆT ĐỐI KHÔNG sao chép nguyên văn câu nói của speaker. BẮT BUỘC tư duy trừu tượng hóa, đặt tiêu đề chủ đề ngắn gọn (dưới 8 từ) khái quát bản chất vấn đề được thảo luận (ví dụ: 'Bản chất của AI Workflow', 'Quy trình Tự động hóa No-Code', 'Chiến dịch Đa tầng 90% AI', 'Mở rộng và Vận hành').\n"
+            "2. PHẠM VI TIMELINE CHAPTER: BẮT BUỘC chia video thành từ 3 đến 5 chapter nối tiếp nhau, bao phủ toàn bộ thời lượng từ 0.0s đến hết video (ví dụ: Chapter 1: 0.0s -> 45.0s, Chapter 2: 45.0s -> 90.0s, Chapter 3: 90.0s -> hết video). KHÔNG được bỏ dở chỉ làm 1 chapter.\n"
+            "3. TÓM TẮT TỪNG PHÂN ĐOẠN: Viết 1 đoạn văn hoàn chỉnh (full paragraph, 3-5 câu) phân tích logic, công cụ và giải pháp trong đoạn đó. Tuyệt đối không copy paste câu thoại thô.\n"
+            "4. TÓM TẮT ĐIỀU HÀNH (EXECUTIVE SUMMARY): Viết 2-3 đoạn văn hoàn chỉnh (full paragraphs) đúc kết bản chất cốt lõi, phương pháp thực thi và giá trị thực tế của toàn bộ video.\n"
+            "5. ĐIỂM NỔI BẬT & KHUYẾN NGHỊ (KEY TAKEAWAYS): Danh sách 3-5 gạch đầu dòng các bài học thực tiễn, nguyên lý cốt lõi.\n"
+            "6. BỘ CÔNG CỤ ĐỀ CẬP (TECH STACK): Danh sách các công cụ, phần mềm hoặc công nghệ được nhắc đến trong video (ví dụ: Zapier, Make, n8n, Claude, ChatGPT, Gmail).\n"
+            "7. Mốc thời gian start_time và end_time tính bằng giây (float hoặc integer), nằm trong khoảng thời lượng video.\n"
+            "8. ĐỊNH DẠNG PHẢN HỒI: Trả về cú pháp JSON hợp lệ DUY NHẤT theo schema sau (không thêm lời chào, không bọc text ngoài JSON):\n"
             "{\n"
-            '  "executive_summary": "Đoạn 1...\\n\\nĐoạn 2...",\n'
-            '  "key_takeaways": ["Ý chính 1", "Ý chính 2", "Ý chính 3"],\n'
+            '  "executive_summary": "Đoạn 1 (Bản chất)...\\n\\nĐoạn 2 (Phương pháp & Công cụ)...\\n\\nĐoạn 3 (Lộ trình áp dụng)...",\n'
+            '  "key_takeaways": ["Ý cốt lõi 1", "Ý cốt lõi 2", "Ý cốt lõi 3"],\n'
+            '  "tech_stack": ["Công cụ 1", "Công cụ 2"],\n'
             '  "chapters": [\n'
             '    {\n'
             '      "start_time": 0.0,\n'
             '      "end_time": 45.0,\n'
             '      "title": "Tiêu đề chủ đề ngắn gọn",\n'
-            '      "summary": "Đoạn văn tóm tắt chi tiết nội dung phân đoạn..."\n'
+            '      "summary": "Đoạn văn phân tích chuyên môn chi tiết..."\n'
             '    }\n'
             '  ]\n'
             "}"
@@ -277,15 +281,20 @@ class LLMService:
             f"Thời lượng dự kiến: {video_duration}s\n\n"
             f"Danh sách lời thoại có gắn mốc thời gian:\n"
             f"{timestamped_dialogue[:12000]}\n\n"
-            "Hãy phân tích và trả về kết quả định dạng JSON thuần túy."
+            "Hãy phân tích nghiệp vụ chuyên sâu và trả về JSON hợp lệ:"
         )
 
         if self.ollama.is_available("qwen2.5:3b"):
             try:
-                response_text = self.ollama.generate_response(prompt=user_prompt, system_prompt=system_prompt, model_name="qwen2.5:3b")
+                response_text = self.ollama.generate_response(
+                    prompt=user_prompt,
+                    system_prompt=system_prompt,
+                    model_name="qwen2.5:3b",
+                    timeout=180,
+                )
                 if response_text:
                     raw = response_text.strip()
-                    # Clean markdown formatting if present
+                    # Clean markdown code fence if present
                     if "```json" in raw:
                         raw = raw.split("```json", 1)[1].split("```", 1)[0].strip()
                     elif "```" in raw:

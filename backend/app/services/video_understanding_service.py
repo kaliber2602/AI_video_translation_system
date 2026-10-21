@@ -79,17 +79,30 @@ class VideoUnderstandingService:
         key_takeaways = []
 
         if segments:
-            # Build dialogue text with timestamps
-            dialogue_lines = []
-            for s in segments:
-                st = _format_timestamp(s.get("start_time", 0.0))
-                et = _format_timestamp(s.get("end_time", 0.0))
-                text = (s.get("translated_text") or s.get("original_text") or "").strip()
-                spk = s.get("speaker") or "Speaker"
-                if text:
-                    dialogue_lines.append(f"[{st} - {et}] {spk}: {text}")
+            # Build condensed timed dialogue chunks (gom các segment ngắn thành các khối 30-50s)
+            # Điều này giúp LLM đọc trọn vẹn ngữ cảnh của từng ý mà không bị phân mảnh bởi hàng chục dòng ngắn
+            condensed_chunks = []
+            curr_chunk_texts = []
+            chunk_start = float(segments[0].get("start_time", 0.0))
 
-            formatted_dialogue = "\n".join(dialogue_lines)
+            for i, s in enumerate(segments):
+                s_text = (s.get("translated_text") or s.get("original_text") or "").strip()
+                if s_text:
+                    curr_chunk_texts.append(s_text)
+                s_end = float(s.get("end_time", chunk_start))
+
+                is_last_seg = (i == len(segments) - 1)
+                if (s_end - chunk_start >= 35.0) or is_last_seg:
+                    chunk_body = " ".join(curr_chunk_texts).strip()
+                    if chunk_body:
+                        st_str = _format_timestamp(chunk_start)
+                        et_str = _format_timestamp(s_end)
+                        condensed_chunks.append(f"[{st_str} - {et_str}] {chunk_body}")
+                    curr_chunk_texts = []
+                    if not is_last_seg:
+                        chunk_start = float(segments[i + 1].get("start_time", s_end))
+
+            formatted_dialogue = "\n\n".join(condensed_chunks)
 
             # Call LLM for Semantic Understanding
             llm_result = None
@@ -104,19 +117,24 @@ class VideoUnderstandingService:
             except Exception as e:
                 logger.warning(f"[Intelligence] LLM semantic chaptering error: {e}")
 
+            tech_stack = []
             if llm_result and "data" in llm_result:
                 parsed_data = llm_result["data"]
                 executive_summary = parsed_data.get("executive_summary", "").strip()
                 key_takeaways = parsed_data.get("key_takeaways", [])
+                tech_stack = parsed_data.get("tech_stack", [])
                 raw_chapters = parsed_data.get("chapters", [])
 
                 if isinstance(raw_chapters, list) and len(raw_chapters) > 0:
                     for idx, ch in enumerate(raw_chapters, start=1):
                         ch_start = float(ch.get("start_time", 0.0))
                         ch_end = float(ch.get("end_time", 0.0))
-                        # Validate timestamps against actual range
+                        # Clamp timestamps to actual video duration to ensure accuracy
+                        if duration > 0:
+                            ch_start = min(ch_start, duration)
+                            ch_end = min(ch_end, duration)
                         if ch_end <= ch_start:
-                            ch_end = min(duration, ch_start + 30.0)
+                            ch_end = min(duration, ch_start + 30.0) if duration > 0 else (ch_start + 30.0)
 
                         chapters_to_insert.append({
                             "video_id": video_id,
@@ -214,7 +232,15 @@ class VideoUnderstandingService:
                 md_lines.append(f"- {pt}")
             md_lines.append("")
 
-        md_lines.append("## 3. Phân tích chi tiết theo chuyên đề (Chapter Breakdown)")
+        if tech_stack:
+            md_lines.append("## 3. Hệ sinh thái Công cụ & Công nghệ (Tech Stack & Tools)")
+            md_lines.append("")
+            for t in tech_stack:
+                md_lines.append(f"- **{t}**")
+            md_lines.append("")
+
+        chap_heading_num = "4" if tech_stack else "3"
+        md_lines.append(f"## {chap_heading_num}. Phân tích chi tiết theo chuyên đề (Chapter Breakdown)")
         md_lines.append("")
         for idx, ch in enumerate(saved_chapters, start=1):
             st = _format_timestamp(ch.get("start_time", 0.0))
