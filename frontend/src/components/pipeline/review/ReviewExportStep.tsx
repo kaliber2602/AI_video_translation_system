@@ -9,7 +9,6 @@ import {
   BookOpen,
   Clock,
   Download,
-  FileText,
   Play,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -19,6 +18,7 @@ import StandardVideoPlayer from "../../common/StandardVideoPlayer";
 import PipelineStepLayout from "../PipelineStepLayout";
 import ExportConfigPanel from "./ExportConfigPanel";
 import ZipDownloadCard from "./ZipDownloadCard";
+import SideBySideReportReview from "./SideBySideReportReview";
 
 export default function ReviewExportStep() {
   const { t } = useTranslation(["pipeline", "common"]);
@@ -629,52 +629,50 @@ export default function ReviewExportStep() {
             {isLoadingIntelligence ? (
               <div className="flex h-36 items-center justify-center">
                 <Loader2 size={24} className="animate-spin text-[var(--color-primary)] mr-2" />
-                <span className="text-xs text-[var(--color-text-muted)]">{t("pipeline:steps.reviewExport.loadingSummary", "Đang tải dữ liệu tóm tắt...")}</span>
+                <span className="text-xs text-[var(--color-text-muted)]">{t("pipeline:steps.reviewExport.loadingSummary", "Đang phân tích và tải dữ liệu báo cáo...")}</span>
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                {/* Left/Main Column: Timeline Chapters */}
-                <div className="lg:col-span-7 space-y-3">
+              <div className="space-y-6">
+                {/* 1. Interactive Chapter Timeline Grid */}
+                <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)] flex items-center gap-1.5">
                       <Clock size={14} className="text-[var(--color-primary)]" />
-                      {t("pipeline:steps.reviewExport.chaptersList", { count: chapters.length, defaultValue: `Danh sách Chapters (${chapters.length})` })}
+                      {t("pipeline:steps.reviewExport.chaptersList", { count: chapters.length, defaultValue: `Danh sách Phân đoạn Chuyên đề (${chapters.length})` })}
                     </span>
                     <span className="text-[11px] text-[var(--color-text-muted)]">
-                      {t("pipeline:steps.reviewExport.clickChapterToSeek", "Click vào chapter để tua video")}
+                      {t("pipeline:steps.reviewExport.clickChapterToSeek", "Click vào phân đoạn để tua video trực tiếp")}
                     </span>
                   </div>
 
                   {chapters.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-muted)]/40 p-8 text-center">
-                      <BookOpen size={28} className="mx-auto text-[var(--color-text-muted)] opacity-60 mb-2" />
+                    <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface-muted)]/40 p-6 text-center">
+                      <BookOpen size={24} className="mx-auto text-[var(--color-text-muted)] opacity-60 mb-2" />
                       <p className="text-xs text-[var(--color-text-muted)]">
-                        {t("pipeline:steps.reviewExport.noChapters", "Chưa có chapters nào được tạo cho video này. Nhấn nút \"Tạo Chapters & Tóm tắt\" để LLM nhận diện các phân đoạn ngữ nghĩa.")}
+                        {t("pipeline:steps.reviewExport.noChapters", "Chưa có phân đoạn nào được tạo. Nhấn nút \"Tạo Chapters & Tóm tắt\" phía trên để AI tiến hành phân tích.")}
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                       {chapters.map((ch) => (
                         <div
                           key={ch.id || ch.sequence}
                           onClick={() => {
                             setActiveSeekTime(ch.start_time);
                           }}
-                          className="group flex items-start gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/60 p-3 transition hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)] cursor-pointer"
+                          className="group flex flex-col justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/50 p-3 transition hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-muted)] cursor-pointer shadow-2xs"
                         >
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)] group-hover:bg-[var(--color-primary)] group-hover:text-white transition">
-                            <Play size={14} />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-xs font-bold text-[var(--color-primary)]">
+                          <div>
+                            <div className="flex items-center justify-between gap-1 mb-1.5">
+                              <span className="font-mono text-xs font-bold text-[var(--color-primary)] flex items-center gap-1">
+                                <Play size={11} className="fill-current" />
                                 {formatTime(ch.start_time)} - {formatTime(ch.end_time)}
                               </span>
-                              <span className="rounded bg-[var(--color-border)]/50 px-1.5 py-0.2 text-[10px] font-semibold text-[var(--color-text-muted)]">
+                              <span className="rounded bg-[var(--color-border)]/60 px-1.5 py-0.2 text-[9.5px] font-bold text-[var(--color-text-muted)]">
                                 #{ch.sequence}
                               </span>
                             </div>
-                            <h4 className="mt-1 text-xs font-bold text-[var(--color-text-primary)] group-hover:text-[var(--color-primary)] transition">
+                            <h4 className="text-xs font-bold text-[var(--color-text-primary)] group-hover:text-[var(--color-primary)] transition line-clamp-1">
                               {ch.title}
                             </h4>
                             {ch.summary && (
@@ -689,24 +687,19 @@ export default function ReviewExportStep() {
                   )}
                 </div>
 
-                {/* Right Column: Executive Summary Overview */}
-                <div className="lg:col-span-5 flex flex-col rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/30 p-3.5">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)] flex items-center gap-1.5 mb-2.5">
-                    <FileText size={14} className="text-[var(--color-primary)]" />
-                    {t("pipeline:steps.reviewExport.executiveSummary", "Bản tóm tắt tổng quan (Executive Summary)")}
-                  </span>
-
-                  {summaryDoc?.content_markdown ? (
-                    <div className="flex-1 max-h-[340px] overflow-y-auto pr-1 text-xs leading-relaxed text-[var(--color-text-secondary)] space-y-2 whitespace-pre-wrap">
-                      {summaryDoc.content_markdown}
-                    </div>
-                  ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-xs text-[var(--color-text-muted)]">
-                      <Sparkles size={24} className="opacity-40 mb-2" />
-                      {t("pipeline:steps.reviewExport.executiveSummaryPlaceholder", "Nhấn nút tạo phía trên để xem bản tóm tắt điều hành và các điểm chính (Key Takeaways).")}
-                    </div>
-                  )}
-                </div>
+                {/* 2. Side-by-Side Dual-Pane Report Review (Source Code Left, Live Preview Right, Multi-format Export) */}
+                {summaryDoc?.content_markdown && state.video?.videoId && (
+                  <div className="pt-2">
+                    <SideBySideReportReview
+                      videoId={state.video.videoId}
+                      markdownContent={summaryDoc.content_markdown}
+                      defaultFilename={customExportFilename || `video_${state.video.videoId}_report`}
+                      onContentChange={(updated) => {
+                        setSummaryDoc((prev: any) => ({ ...prev, content_markdown: updated }));
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>

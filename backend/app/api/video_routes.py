@@ -7002,6 +7002,34 @@ def get_video_document(
     return doc
 
 
+@router.get("/{video_id}/documents/export/docx")
+def export_video_summary_docx(
+    video_id: int,
+    db: DatabaseSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+):
+    """Export formatted Executive Summary and Chapters to Microsoft Word (.docx)."""
+    service = VideoUnderstandingService(db=db)
+    try:
+        docx_bytes = service.export_summary_docx(video_id)
+        from fastapi.responses import Response
+        import urllib.parse
+        filename = f"video_{video_id}_summary_report.docx"
+        encoded_filename = urllib.parse.quote(filename)
+        return Response(
+            content=docx_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"; filename*=UTF-8\'\'{encoded_filename}'
+            }
+        )
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        logger.error(f"Failed to export docx for video {video_id}: {e}")
+        raise HTTPException(500, f"Docx export failed: {str(e)}")
+
+
 @router.get("/{video_id}/search")
 def search_video_transcript(
     video_id: int,

@@ -150,9 +150,12 @@ class VideoUnderstandingService:
                         group_text = " ".join(
                             (s.get("translated_text") or s.get("original_text") or "").strip() for s in curr_group
                         ).strip()
-                        ch_title = group_text[:45] + "..." if len(group_text) > 45 else group_text
-                        if not ch_title:
-                            ch_title = f"Chủ đề {chapter_idx}"
+                        # Tạo tiêu đề phân đoạn mang tính khái quát thay vì cắt vụn lời nói
+                        ch_title = f"Phân đoạn {chapter_idx}: Tổng quan thảo luận"
+                        if chapter_idx == 1:
+                            ch_title = "Giới thiệu & Đặt vấn đề"
+                        elif is_last:
+                            ch_title = "Tổng kết & Đúc kết hành động"
 
                         chapters_to_insert.append({
                             "video_id": video_id,
@@ -160,7 +163,7 @@ class VideoUnderstandingService:
                             "start_time": chunk_start,
                             "end_time": seg_end,
                             "title": ch_title,
-                            "summary": group_text[:300],
+                            "summary": group_text[:400],
                             "thumbnail_path": None,
                         })
                         chapter_idx += 1
@@ -196,41 +199,31 @@ class VideoUnderstandingService:
             "",
             f"**Thời lượng:** {_format_timestamp(duration)}  ",
             f"**Tạo lúc:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}  ",
-            f"**Loại tài liệu:** Bản tóm tắt điều hành & Bảng phân đoạn thời gian (Chapters)",
+            f"**Loại tài liệu:** Báo cáo Phân tích Điều hành & Phân đoạn Chuyên đề (Executive Summary & Chapters)",
             "",
-            "## Tóm tắt điều hành (Executive Summary)",
+            "## 1. Tóm tắt điều hành (Executive Summary)",
             "",
             executive_summary,
             "",
         ]
 
         if key_takeaways:
-            md_lines.append("## Điểm nổi bật quan trọng (Key Takeaways)")
+            md_lines.append("## 2. Các điểm cốt lõi & Bài học hành động (Key Takeaways)")
             md_lines.append("")
             for pt in key_takeaways:
                 md_lines.append(f"- {pt}")
             md_lines.append("")
 
-        md_lines.append("## Danh sách các chương (Chapter Timeline)")
+        md_lines.append("## 3. Phân tích chi tiết theo chuyên đề (Chapter Breakdown)")
         md_lines.append("")
-        for ch in saved_chapters:
+        for idx, ch in enumerate(saved_chapters, start=1):
             st = _format_timestamp(ch.get("start_time", 0.0))
             et = _format_timestamp(ch.get("end_time", 0.0))
-            ch_title = ch.get("title", "Chapter")
+            ch_title = ch.get("title", f"Chương {idx}")
             ch_sum = ch.get("summary", "")
-            md_lines.append(f"### [{st} - {et}] {ch_title}")
+            md_lines.append(f"### Chương {idx}: {ch_title} `[{st} - {et}]`")
             if ch_sum:
                 md_lines.append(f"{ch_sum}")
-            md_lines.append("")
-
-        if segments:
-            md_lines.append("## Toàn bộ lời thoại (Full Dialogue)")
-            md_lines.append("")
-            for seg in segments:
-                st = _format_timestamp(seg.get("start_time", 0.0))
-                text = (seg.get("translated_text") or seg.get("original_text") or "").strip()
-                speaker = seg.get("speaker") or "Speaker"
-                md_lines.append(f"- **[{st}] {speaker}:** {text}")
             md_lines.append("")
 
         content_markdown = "\n".join(md_lines)
@@ -352,6 +345,148 @@ class VideoUnderstandingService:
         self.db.refresh(doc_record)
 
         return dict(doc_record)
+
+    def export_summary_docx(self, video_id: int) -> bytes:
+        """
+        Generate a professional, publication-ready Microsoft Word (.docx) report
+        containing Executive Summary, Key Takeaways, and Conceptual Chapter Breakdown.
+        """
+        import io
+        import docx
+        from docx.shared import Inches, Pt, RGBColor
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.oxml import parse_xml, OxmlElement
+        from docx.oxml.ns import nsdecls, qn
+
+        video = self.db.query(Video).filter(Video.id == video_id).first()
+        if not video:
+            raise ValueError(f"Video #{video_id} not found.")
+
+        title = video.get("title") or video.get("original_filename") or f"Video #{video_id}"
+        duration = video.get("duration") or 0.0
+
+        # Retrieve chapters and document
+        chapters = self.get_chapters(video_id)
+        docs = self.get_documents(video_id)
+        doc_content = docs[0].get("content_markdown", "") if docs else ""
+
+        doc = docx.Document()
+
+        # Set page margins (1 inch)
+        for section in doc.sections:
+            section.top_margin = Inches(1.0)
+            section.bottom_margin = Inches(1.0)
+            section.left_margin = Inches(1.0)
+            section.right_margin = Inches(1.0)
+
+        # Title
+        p_title = doc.add_paragraph()
+        p_title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        r_title = p_title.add_run(f"BÁO CÁO TỔNG QUAN & PHÂN TÍCH CHUYÊN ĐỀ")
+        r_title.font.name = "Arial"
+        r_title.font.size = Pt(18)
+        r_title.font.bold = True
+        r_title.font.color.rgb = RGBColor(15, 23, 42)
+
+        p_subtitle = doc.add_paragraph()
+        r_sub = p_subtitle.add_run(f"Dự án / Video: {title}")
+        r_sub.font.name = "Arial"
+        r_sub.font.size = Pt(13)
+        r_sub.font.bold = True
+        r_sub.font.color.rgb = RGBColor(79, 70, 229) # Indigo
+
+        # Meta table
+        meta_table = doc.add_table(rows=2, cols=2)
+        meta_table.style = "Table Grid"
+        cells = meta_table.rows[0].cells
+        cells[0].text = f"Thời lượng: {_format_timestamp(duration)}"
+        cells[1].text = f"Ngày phân tích: {datetime.utcnow().strftime('%d/%m/%Y %H:%M UTC')}"
+        cells_row2 = meta_table.rows[1].cells
+        cells_row2[0].text = f"Số lượng phân đoạn (Chapters): {len(chapters)}"
+        cells_row2[1].text = "Hệ thống: VidNova AI Video Intelligence"
+
+        for row in meta_table.rows:
+            for cell in row.cells:
+                tcPr = cell._element.get_or_add_tcPr()
+                shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="F8FAFC"/>')
+                tcPr.append(shd)
+                for paragraph in cell.paragraphs:
+                    for run in paragraph.runs:
+                        run.font.name = "Arial"
+                        run.font.size = Pt(9.5)
+                        run.font.color.rgb = RGBColor(71, 85, 105)
+
+        doc.add_paragraph() # Spacing
+
+        # Parse sections from markdown
+        sections = {}
+        curr_sec = "intro"
+        curr_text = []
+
+        for line in doc_content.splitlines():
+            if line.startswith("## "):
+                if curr_text:
+                    sections[curr_sec] = "\n".join(curr_text).strip()
+                    curr_text = []
+                curr_sec = line.replace("## ", "").strip()
+            else:
+                curr_text.append(line)
+        if curr_text:
+            sections[curr_sec] = "\n".join(curr_text).strip()
+
+        # Render sections in docx
+        for sec_name, sec_body in sections.items():
+            if sec_name == "intro":
+                continue
+
+            h = doc.add_heading(sec_name, level=1)
+            for r in h.runs:
+                r.font.name = "Arial"
+                r.font.size = Pt(14)
+                r.font.bold = True
+                r.font.color.rgb = RGBColor(30, 41, 59)
+
+            for paragraph_block in sec_body.split("\n\n"):
+                p_block = paragraph_block.strip()
+                if not p_block:
+                    continue
+
+                if p_block.startswith("### "):
+                    h3_lines = p_block.splitlines()
+                    h3_title = h3_lines[0].replace("### ", "").strip()
+                    h3 = doc.add_heading(h3_title, level=2)
+                    for r in h3.runs:
+                        r.font.name = "Arial"
+                        r.font.size = Pt(11.5)
+                        r.font.bold = True
+                        r.font.color.rgb = RGBColor(67, 56, 202)
+                    if len(h3_lines) > 1:
+                        p = doc.add_paragraph("\n".join(h3_lines[1:]))
+                        p.paragraph_format.line_spacing = 1.2
+                        for r in p.runs:
+                            r.font.name = "Arial"
+                            r.font.size = Pt(10.5)
+                elif p_block.startswith("- "):
+                    for bullet in p_block.splitlines():
+                        if bullet.strip().startswith("- "):
+                            bp = doc.add_paragraph(bullet.strip()[2:], style="List Bullet")
+                            for r in bp.runs:
+                                r.font.name = "Arial"
+                                r.font.size = Pt(10.5)
+                else:
+                    p = doc.add_paragraph(p_block)
+                    p.paragraph_format.line_spacing = 1.25
+                    for r in p.runs:
+                        r.font.name = "Arial"
+                        r.font.size = Pt(10.5)
+                        r.font.color.rgb = RGBColor(51, 65, 85)
+
+            doc.add_paragraph() # Spacing between sections
+
+        file_stream = io.BytesIO()
+        doc.save(file_stream)
+        file_stream.seek(0)
+        return file_stream.getvalue()
 
     def search_transcript(self, video_id: int, query: str, limit: int = 20) -> List[Dict[str, Any]]:
         """

@@ -245,26 +245,28 @@ class LLMService:
         video_duration: float = 0.0,
     ) -> Optional[Dict[str, Any]]:
         """
-        Interprets transcript with timestamps and generates structured summary and semantic chapters via LLM.
+        Interprets transcript with timestamps and generates executive summary, conceptual chapters, and key takeaways.
+        Enforces conceptual topic naming (NOT verbatim spoken dialogue) and comprehensive synthesis.
         """
         system_prompt = (
-            "Bạn là trợ lý AI chuyên gia phân tích nội dung video đa phương tiện. "
-            "Nhiệm vụ của bạn là đọc lời thoại có gắn mốc thời gian của video, nhận diện các bước chuyển chủ đề ngữ nghĩa (semantic topic shifts) "
-            "và tạo bản tóm tắt điều hành cùng danh sách phân đoạn (Chapters) hoàn toàn bám sát nội dung thực tế.\n"
-            "QUY TẮC BẮT BUỘC:\n"
-            "1. KHÔNG chia đoạn rập khuôn, không dùng mẫu chung chung như 'Intro', 'Body', 'Conclusion' trừ khi nội dung video thực sự là như vậy.\n"
-            "2. Tiêu đề mỗi Chapter phải ngắn gọn, súc tích (dưới 60 ký tự), phản ánh chính xác nội dung thảo luận trong đoạn.\n"
-            "3. Mốc thời gian start_time và end_time tính bằng giây (float hoặc integer), phải nằm trong khoảng thời gian của lời thoại.\n"
-            "4. Định dạng phản hồi DUY NHẤT bằng cú pháp JSON hợp lệ theo schema sau (không thêm văn bản ngoài JSON):\n"
+            "Bạn là một chuyên gia phân tích nghiệp vụ và tóm tắt điều hành cao cấp (Senior Executive Business Analyst).\n"
+            "Nhiệm vụ của bạn là đọc lời thoại có gắn mốc thời gian của video để tạo BẢN BÁO CÁO TÓM TẮT ĐIỀU HÀNH & PHÂN ĐOẠN CHUYÊN NGHIỆP.\n"
+            "QUY TẮC CỐT LÕI BẮT BUỘC:\n"
+            "1. TIÊU ĐỀ CHAPTER: TUYỆT ĐỐI KHÔNG sao chép nguyên văn câu nói/lời thoại của người nói. BẮT BUỘC phải tư duy trừu tượng hóa, đặt tiêu đề chủ đề ngắn gọn (dưới 8 từ) khái quát bản chất nội dung được trình bày (ví dụ: 'Bản chất của AI Workflow', 'Quy trình Tự động hóa No-Code', 'Chiến dịch Đa tầng 90% AI', 'Mở rộng và Vận hành').\n"
+            "2. TÓM TẮT PHÂN ĐOẠN: Viết một đoạn văn hoàn chỉnh (full paragraph) giải thích súc tích logic, công cụ và cách thức triển khai được trình bày trong phân đoạn, KHÔNG trích dẫn thô.\n"
+            "3. EXECUTIVE SUMMARY: Viết 2-3 đoạn văn hoàn chỉnh (full paragraphs) đúc kết bức tranh toàn cảnh, phương pháp luận và giá trị thực tế của video.\n"
+            "4. KEY TAKEAWAYS: 3-5 ý chính quan trọng, công cụ hoặc bài học hành động.\n"
+            "5. Mốc thời gian start_time và end_time tính bằng giây (float hoặc integer), nằm trong khoảng thời lượng video.\n"
+            "6. Định dạng phản hồi DUY NHẤT bằng cú pháp JSON hợp lệ theo schema sau (không thêm lời dẫn bên ngoài JSON):\n"
             "{\n"
-            '  "executive_summary": "Tóm tắt tổng quan nội dung video...",\n'
+            '  "executive_summary": "Đoạn 1...\\n\\nĐoạn 2...",\n'
             '  "key_takeaways": ["Ý chính 1", "Ý chính 2", "Ý chính 3"],\n'
             '  "chapters": [\n'
             '    {\n'
             '      "start_time": 0.0,\n'
             '      "end_time": 45.0,\n'
-            '      "title": "Tên chương ngữ nghĩa",\n'
-            '      "summary": "Tóm tắt ngắn 1-2 câu về nội dung đoạn này"\n'
+            '      "title": "Tiêu đề chủ đề ngắn gọn",\n'
+            '      "summary": "Đoạn văn tóm tắt chi tiết nội dung phân đoạn..."\n'
             '    }\n'
             '  ]\n'
             "}"

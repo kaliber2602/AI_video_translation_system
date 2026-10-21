@@ -318,6 +318,13 @@ export const videoService = {
     return response.data;
   },
 
+  async downloadSummaryDocx(videoId: number): Promise<Blob> {
+    const response = await api.get<Blob>(`/api/videos/${videoId}/documents/export/docx`, {
+      responseType: "blob",
+    });
+    return response.data;
+  },
+
   async searchVideoTranscript(videoId: number, query: string, limit: number = 20) {
     const response = await api.get(`/api/videos/${videoId}/search`, {
       params: { q: query, limit },
