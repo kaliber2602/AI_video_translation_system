@@ -107,10 +107,10 @@ def prefetch_ollama_models(models=None):
     import urllib.request
     import json
 
-    # 1. Tìm endpoint Ollama đang sống
+    # 1. Tìm endpoint Ollama đang sống (thử tối đa 15 lần vì Ollama có thể mất 5-10s khởi động ban đầu)
     alive_url = None
-    for base_url in ollama_urls:
-        for _ in range(3):
+    for attempt in range(1, 16):
+        for base_url in ollama_urls:
             try:
                 req = urllib.request.Request(f"{base_url}/api/tags", headers={"User-Agent": "VidNova-Prefetch"})
                 with urllib.request.urlopen(req, timeout=3) as resp:
@@ -118,9 +118,11 @@ def prefetch_ollama_models(models=None):
                         alive_url = base_url
                         break
             except Exception:
-                time.sleep(1)
+                pass
         if alive_url:
             break
+        print(f"[prefetch] Đang đợi Ollama server sẵn sàng (lần {attempt}/15)...", flush=True)
+        time.sleep(2)
 
     if not alive_url:
         print("[prefetch] CẢNH BÁO: Không kết nối được đến Ollama server để prefetch LLM models.", flush=True)

@@ -89,6 +89,8 @@ services:
         condition: service_started
       minio:
         condition: service_started
+      ollama:
+        condition: service_started
 
   frontend:
     build:
