@@ -1,0 +1,23 @@
+# ============================================================================
+# VIDNOVA PLATFORM - WORKER NODE DOCKER COMPOSE (docker-compose.worker.yml)
+# Hosts Dedicated Celery AI Worker (STT, Demucs Vocal Separation, NLLB, TTS)
+# ============================================================================
+
+services:
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: celery -A app.tasks.celery_app worker --loglevel=info -Q queue_media,queue_pipeline,queue_stt,queue_translate,queue_tts --concurrency=1 -Ofair
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      ENVIRONMENT: "production"
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/outputs:/app/outputs
+      - ./model-cache:/opt/model-cache

@@ -2,7 +2,9 @@ import axios from "axios";
 import type { AxiosRequestConfig } from "axios";
 import { getAccessToken, getRefreshToken, setAccessToken, setRefreshToken, clearTokens } from "./token";
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const baseURL = import.meta.env.PROD
+  ? (import.meta.env.VITE_API_BASE_URL && !import.meta.env.VITE_API_BASE_URL.includes("localhost") && !import.meta.env.VITE_API_BASE_URL.includes("127.0.0.1") ? import.meta.env.VITE_API_BASE_URL : "")
+  : (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000");
 
 const api = axios.create({
   baseURL,
