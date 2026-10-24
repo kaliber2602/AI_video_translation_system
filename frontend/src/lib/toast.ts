@@ -1,31 +1,49 @@
 import { sileo } from "sileo";
 
+function formatMessage(value: unknown, fallback: string): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, any>;
+    if (typeof obj.message === "string") return obj.message;
+    if (typeof obj.detail === "string") return obj.detail;
+    if (typeof obj.error === "string") return obj.error;
+    try {
+      return JSON.stringify(obj);
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+}
+
 export const toast = {
-  success: (title: string, description?: string) => {
+  success: (title: unknown, description?: unknown) => {
     return sileo.success({
-      title,
-      description,
+      title: formatMessage(title, "Success"),
+      description: description ? formatMessage(description, "") : undefined,
     });
   },
 
-  error: (title: string, description?: string) => {
+  error: (title: unknown, description?: unknown) => {
     return sileo.error({
-      title,
-      description,
+      title: formatMessage(title, "Error"),
+      description: description ? formatMessage(description, "") : undefined,
     });
   },
 
-  warning: (title: string, description?: string) => {
+  warning: (title: unknown, description?: unknown) => {
     return sileo.warning({
-      title,
-      description,
+      title: formatMessage(title, "Warning"),
+      description: description ? formatMessage(description, "") : undefined,
     });
   },
 
-  info: (title: string, description?: string) => {
+  info: (title: unknown, description?: unknown) => {
     return sileo.info({
-      title,
-      description,
+      title: formatMessage(title, "Info"),
+      description: description ? formatMessage(description, "") : undefined,
     });
   },
 };

@@ -231,8 +231,15 @@ export default function BatchProcessModal({
       onBatchStarted(batch);
       onClose();
     } catch (err: any) {
-      const msg = err.response?.data?.detail || err.message || "Lỗi khởi tạo xử lý hàng loạt";
-      toast.error(msg);
+      const detail = err.response?.data?.detail;
+      const isUpgradeReq = err.response?.status === 403 || detail?.error_code === "MODEL_UPGRADE_REQUIRED";
+      if (isUpgradeReq) {
+        const errorMsg = typeof detail === "object" ? detail.message : detail;
+        toast.error(errorMsg || "Mô hình đã chọn yêu cầu nâng cấp gói Pro. Vui lòng chọn preset khác hoặc nâng cấp tài khoản.");
+      } else {
+        const msg = (typeof detail === "string" ? detail : detail?.message) || err.message || "Lỗi khởi tạo xử lý hàng loạt";
+        toast.error(msg);
+      }
     } finally {
       setIsSubmitting(false);
     }

@@ -1,3 +1,15 @@
+export const AUTH_CHANGE_EVENT = "vidnova:auth-change";
+
+export function dispatchAuthChange(isAuthenticated: boolean) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent(AUTH_CHANGE_EVENT, {
+        detail: { isAuthenticated },
+      })
+    );
+  }
+}
+
 const ACCESS_TOKEN_KEY = "access_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
 const REMEMBERED_EMAIL_KEY = "vidnova_remembered_email";
@@ -24,10 +36,12 @@ export function setTokens(
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   sessionStorage.removeItem(ACCESS_TOKEN_KEY);
   sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+  dispatchAuthChange(false);
 
   const storage = rememberMe ? localStorage : sessionStorage;
   storage.setItem(ACCESS_TOKEN_KEY, accessToken);
   storage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  dispatchAuthChange(true);
 }
 
 export function getAccessToken(): string | null {

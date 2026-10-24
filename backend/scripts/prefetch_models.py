@@ -95,7 +95,7 @@ def prefetch_ollama_models(models=None):
     Đảm bảo 100% các model trên frontend khả dụng, không để người dùng chờ khi gọi.
     """
     if models is None:
-        models = ["qwen2.5:3b"]
+        models = ["qwen2.5:3b", "llama3.2:3b"]
 
     ollama_urls = [
         os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434").rstrip("/"),
@@ -167,8 +167,16 @@ def prefetch_ollama_models(models=None):
         _with_retries(f"Ollama Model ({clean_name})", _pull_model)
 
 
+FLAG_FILE = os.path.join(os.environ.get("MODEL_CACHE_DIR", "/opt/model-cache"), ".models_prefetched")
+
 if __name__ == "__main__":
     target = sys.argv[1] if len(sys.argv) > 1 else "all"
+    force_run = "--force" in sys.argv or os.environ.get("FORCE_PREFETCH", "0") == "1"
+
+    if not force_run and os.path.exists(FLAG_FILE):
+        print(f"[PREFETCH] File co '{FLAG_FILE}' da ton tai. Toan bo AI models da duoc cache tu truoc. Bo qua prefetch.")
+        sys.exit(0)
+
     print(f"============================================================")
     print(f"[PREFETCH] BAT DAU TIEN TRINH PREFETCH AI MODELS (Target: {target})")
     print(f"HF_HOME: {CACHE_DIR} | TORCH_HOME: {TORCH_HOME}")
@@ -190,3 +198,10 @@ if __name__ == "__main__":
     print("============================================================")
     print("[PREFETCH] TOAN BO CAC AI MODELS DA DUOC TAI VA LUU VAO CACHE THANH CONG!")
     print("============================================================")
+    try:
+        os.makedirs(os.path.dirname(FLAG_FILE), exist_ok=True)
+        with open(FLAG_FILE, "w", encoding="utf-8") as f:
+            f.write(f"Prefetched target '{target}' at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        print(f"[PREFETCH] Da ghi file co: {FLAG_FILE}")
+    except Exception as e:
+        print(f"[PREFETCH] Canh bao ghi file co: {e}")

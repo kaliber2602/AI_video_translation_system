@@ -379,7 +379,7 @@ export default function PresetStudioModal({
         </div>
       }
       description={t("pipeline:presetStudio.description", "Thiết lập tham số toàn diện cho chu trình xử lý video: Tách âm, STT Whisper, Dịch thuật đa ngữ, Lồng tiếng AI, Phụ đề ASS và Xuất video phần cứng NVENC.")}
-      maxWidth="2xl"
+      maxWidth="4xl"
     >
       <div className="flex flex-col gap-5 pt-2">
         {/* Top Preset Bar with Glassmorphic styling */}
@@ -470,7 +470,7 @@ export default function PresetStudioModal({
         )}
 
         {/* 6 Tabs Navigation */}
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-1 text-xs font-semibold">
+        <div className="flex sm:grid sm:grid-cols-6 gap-1 overflow-x-auto scrollbar-none rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-1 text-xs font-semibold">
           <button
             type="button"
             onClick={() => setActiveTab("separation")}

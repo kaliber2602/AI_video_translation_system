@@ -68,16 +68,17 @@ export default function FloatingChatWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [activeVideoId, setActiveVideoId] = useState<number | null>(null);
+  const [contextTitle, setContextTitle] = useState<string>("");
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Unified storage key per user across all routes (workspace, project, video)
+  // Unified storage key per user - strictly isolated per authenticated user ID
   const getStorageKey = (): string => {
-    const userId = getUserIdFromToken() || "anonymous";
-    return `vidnova_chat_sessions_u${userId}_all`;
+    const userId = getUserIdFromToken();
+    return userId ? `vidnova_chat_v2_u${userId}_sessions` : "vidnova_chat_guest_sessions";
   };
 
-  // Load sessions from unified localStorage and migrate legacy scoped keys if empty
+  // Load sessions strictly for current user
   const loadStoredSessions = (): ChatSession[] => {
     try {
       const key = getStorageKey();
@@ -85,44 +86,6 @@ export default function FloatingChatWidget() {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-
-      // Backward compatibility / migration: look for older scoped keys
-      const userId = getUserIdFromToken() || "anonymous";
-      const legacyKeys: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith(`vidnova_chat_sessions_u${userId}_`) && k !== key) {
-          legacyKeys.push(k);
-        }
-      }
-
-      let migratedSessions: ChatSession[] = [];
-      for (const lk of legacyKeys) {
-        try {
-          const lkRaw = localStorage.getItem(lk);
-          if (lkRaw) {
-            const lkParsed = JSON.parse(lkRaw);
-            if (Array.isArray(lkParsed)) {
-              migratedSessions = [...migratedSessions, ...lkParsed];
-            }
-          }
-        } catch {}
-      }
-
-      if (migratedSessions.length > 0) {
-        // Deduplicate by session id
-        const sessionMap = new Map<string, ChatSession>();
-        migratedSessions.forEach((s) => {
-          if (s.id && !sessionMap.has(s.id)) {
-            sessionMap.set(s.id, s);
-          }
-        });
-        const combined = Array.from(sessionMap.values()).sort(
-          (a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
-        );
-        localStorage.setItem(key, JSON.stringify(combined));
-        return combined;
       }
     } catch (e) {
       console.warn("Failed to load chat sessions from localStorage:", e);
@@ -156,11 +119,49 @@ export default function FloatingChatWidget() {
     }
   }, [location.pathname]);
 
-  // Restore sessions when chat widget is opened for the first time
+  // Load friendly human-readable title for project or video to avoid showing raw IDs like 'Dự án #1'
+  useEffect(() => {
+    let ignore = false;
+    async function loadFriendlyTitle() {
+      if (activeVideoId) {
+        try {
+          const { videoService } = await import("../../services/video.service");
+          const v = await videoService.getVideo(activeVideoId);
+          if (!ignore && v?.title) {
+            setContextTitle(v.title);
+            return;
+          }
+        } catch {}
+        if (!ignore) setContextTitle("Video hiện tại");
+      } else if (selectedProjectId) {
+        try {
+          const { getProject } = await import("../../services/project.service");
+          const p = await getProject(selectedProjectId);
+          if (!ignore && p?.name) {
+            setContextTitle(p.name);
+            return;
+          }
+        } catch {}
+        if (!ignore) setContextTitle("Dự án hiện tại");
+      } else {
+        if (!ignore) setContextTitle("Không gian làm việc");
+      }
+    }
+    loadFriendlyTitle();
+    return () => { ignore = true; };
+  }, [activeVideoId, selectedProjectId]);
+
+  // Track current user ID to clear chat state upon user switch or logout
+  const currentUserId = getUserIdFromToken();
+  useEffect(() => {
+    setSessions([]);
+    setActiveSessionId("");
+  }, [currentUserId]);
+
+  // Restore sessions when chat widget is opened
   useEffect(() => {
     if (!isOpen) return;
 
-    // If sessions already loaded in state, don't overwrite or reset
     if (sessions.length > 0) return;
 
     const stored = loadStoredSessions();
@@ -170,17 +171,16 @@ export default function FloatingChatWidget() {
         setActiveSessionId(stored[0].id);
       }
     } else {
-      // Create initial session
       createNewSession(activeVideoId, selectedProjectId);
     }
-  }, [isOpen]);
+  }, [isOpen, currentUserId]);
 
   const createNewSession = (vidId: number | null = activeVideoId, projId: number | null = selectedProjectId) => {
     const newId = `session_${Date.now()}`;
     const initialGreeting: ChatMessage = {
       role: "assistant",
       message: vidId
-        ? `Xin chào! Tôi đã sẵn sàng hỗ trợ bạn phân tích video #${vidId}. Bạn có thể đặt câu hỏi về nội dung, nhân vật hoặc tìm kiếm câu nói cụ thể.`
+        ? "Xin chào! Tôi đã sẵn sàng hỗ trợ bạn phân tích video này. Bạn có thể đặt câu hỏi về nội dung, nhân vật hoặc tìm kiếm câu thoại cụ thể."
         : "Xin chào! Tôi là trợ lý AI VidNova. Bạn có thể hỏi tôi về nội dung, phụ đề, ý chính hoặc tìm kiếm câu nói trong các video của bạn!",
       created_at: new Date().toISOString(),
     };
@@ -532,14 +532,8 @@ export default function FloatingChatWidget() {
                     RAG Live
                   </span>
                 </div>
-                <p className="text-[10px] text-[var(--color-text-muted)] truncate max-w-[210px]">
-                  {activeVideoId
-                    ? `Đang xem: Video #${activeVideoId}`
-                    : selectedProjectId
-                    ? `Dự án #${selectedProjectId}`
-                    : currentSession?.videoId
-                    ? `Hội thoại Video #${currentSession.videoId}`
-                    : "Toàn bộ Workspace"}
+                <p className="text-[10px] text-[var(--color-text-muted)] truncate max-w-[210px]" title={contextTitle}>
+                  {contextTitle || (activeVideoId ? "Video hiện tại" : selectedProjectId ? "Dự án hiện tại" : "Không gian làm việc")}
                 </p>
               </div>
             </div>
@@ -649,7 +643,7 @@ export default function FloatingChatWidget() {
                                 isActive ? "text-white/80" : "text-[var(--color-text-muted)]"
                               }`}
                             >
-                              Video #{s.videoId}
+                              Đoạn hội thoại
                             </span>
                           )}
                         </div>
@@ -801,7 +795,8 @@ export default function FloatingChatWidget() {
                           className="bg-transparent text-[10px] font-medium text-[var(--color-text-secondary)] outline-none cursor-pointer pr-1"
                           title="Chọn mô hình AI xử lý"
                         >
-                          <option value="qwen2.5:3b">Qwen 2.5 3B</option>
+                          <option value="qwen2.5:3b">Qwen 2.5 3B (Tiếng Việt & Chung)</option>
+                          <option value="llama3.2:3b">Llama 3.2 3B (Meta)</option>
                         </select>
                       </div>
                     </div>

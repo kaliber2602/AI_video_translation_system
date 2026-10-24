@@ -11,7 +11,10 @@ import {
   THEME_STORAGE_KEY,
   type Theme,
 } from "../../config/theme";
-import { hasTokens } from "../../services/api/token";
+import {
+  AUTH_CHANGE_EVENT,
+  hasTokens,
+} from "../../services/api/token";
 import {
   getUserSettings,
   patchUserSettings,
@@ -53,24 +56,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     "/verify-otp",
   ];
 
-  // Apply theme to HTML attribute with strict isolation for public/auth pages
-  useEffect(() => {
-    const updateThemeForRoute = () => {
-      const root = document.documentElement;
-      const pathname = window.location.pathname;
-      const isPublicAuthPage = PUBLIC_AUTH_PATHS.some(
-        (path) => pathname === path || (path !== "/" && pathname.startsWith(`${path}/`))
-      );
-      const effectiveTheme = isPublicAuthPage ? DEFAULT_THEME : theme;
-      root.setAttribute("data-theme", effectiveTheme);
-    };
-
-    updateThemeForRoute();
-    window.addEventListener("popstate", updateThemeForRoute);
-    return () => window.removeEventListener("popstate", updateThemeForRoute);
+  // Helper to apply theme to DOM based on active route
+  const updateThemeForRoute = useCallback((targetTheme: Theme = theme) => {
+    const root = document.documentElement;
+    const pathname = window.location.pathname;
+    const isPublicAuthPage = PUBLIC_AUTH_PATHS.some(
+      (path) => pathname === path || (path !== "/" && pathname.startsWith(`${path}/`))
+    );
+    const effectiveTheme = isPublicAuthPage ? DEFAULT_THEME : targetTheme;
+    root.setAttribute("data-theme", effectiveTheme);
   }, [theme]);
 
-  // Sync theme from backend on startup or when tokens exist
+  // Synchronize theme with backend preferences
   const refreshTheme = useCallback(async () => {
     if (!hasTokens()) {
       return;
@@ -82,48 +79,63 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
       if (settings?.theme && VALID_THEMES.includes(settings.theme as Theme)) {
         const backendTheme = settings.theme as Theme;
-        setThemeState((current) => {
-          if (current !== backendTheme) {
-            localStorage.setItem(THEME_STORAGE_KEY, backendTheme);
-            return backendTheme;
-          }
-          return current;
-        });
+        setThemeState(backendTheme);
+        localStorage.setItem(THEME_STORAGE_KEY, backendTheme);
+        updateThemeForRoute(backendTheme);
       }
     } catch (error) {
       console.warn("[THEME] Could not sync theme from backend:", error);
     } finally {
       setIsSyncing(false);
     }
-  }, []);
+  }, [updateThemeForRoute]);
 
+  // Apply theme to HTML attribute whenever state changes or route changes
   useEffect(() => {
-    let ignore = false;
+    updateThemeForRoute(theme);
 
-    if (hasTokens()) {
-      getUserSettings()
-        .then((settings) => {
-          if (ignore) return;
-          if (settings?.theme && VALID_THEMES.includes(settings.theme as Theme)) {
-            const backendTheme = settings.theme as Theme;
-            setThemeState((current) => {
-              if (current !== backendTheme) {
-                localStorage.setItem(THEME_STORAGE_KEY, backendTheme);
-                return backendTheme;
-              }
-              return current;
-            });
-          }
-        })
-        .catch((err) => {
-          console.warn("[THEME] Initial sync failed:", err);
-        });
-    }
+    const handleRouteChange = () => {
+      updateThemeForRoute(theme);
+    };
+
+    window.addEventListener("popstate", handleRouteChange);
+
+    // Observer for DOM/URL changes triggered by SPA client-side routing
+    const intervalId = window.setInterval(handleRouteChange, 300);
 
     return () => {
-      ignore = true;
+      window.removeEventListener("popstate", handleRouteChange);
+      window.clearInterval(intervalId);
     };
-  }, []);
+  }, [theme, updateThemeForRoute]);
+
+  // Initial sync on mount if tokens exist
+  useEffect(() => {
+    if (hasTokens()) {
+      refreshTheme();
+    }
+  }, [refreshTheme]);
+
+  // Listen for login/logout auth state changes
+  useEffect(() => {
+    const handleAuthChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ isAuthenticated: boolean }>;
+      if (customEvent.detail?.isAuthenticated) {
+        // User logged in: immediately fetch their saved preferences from DB
+        refreshTheme();
+      } else {
+        // User logged out: restore default theme
+        setThemeState(DEFAULT_THEME);
+        localStorage.setItem(THEME_STORAGE_KEY, DEFAULT_THEME);
+        updateThemeForRoute(DEFAULT_THEME);
+      }
+    };
+
+    window.addEventListener(AUTH_CHANGE_EVENT, handleAuthChange);
+    return () => {
+      window.removeEventListener(AUTH_CHANGE_EVENT, handleAuthChange);
+    };
+  }, [refreshTheme, updateThemeForRoute]);
 
   // Set theme & persist locally and to backend
   const setTheme = useCallback(
@@ -131,6 +143,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       // 1. Immediate optimistic UI update & localStorage
       setThemeState(newTheme);
       localStorage.setItem(THEME_STORAGE_KEY, newTheme);
+      updateThemeForRoute(newTheme);
 
       // 2. Sync with backend if authenticated
       if (hasTokens()) {
@@ -145,7 +158,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    []
+    [updateThemeForRoute]
   );
 
   const value = useMemo(

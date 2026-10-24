@@ -88,15 +88,26 @@ class OllamaLocalProvider(BaseLLMProvider):
 
 class LLMService:
     """
-    Strategy Orchestrator:
-    Tập trung vào Ollama Local GPU Engine (mặc định model Qwen 2.5 3B).
-    Hỗ trợ song ngữ (tiếng Việt, tiếng Anh và ngôn ngữ video) toàn diện.
+    Singleton Strategy Orchestrator:
+    Tập trung vào Ollama Local GPU Engine (Qwen 2.5 3B & Llama 3.2 3B).
+    Không fallback sang template cứng, đảm bảo phản hồi tự nhiên như người thật.
     """
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super(LLMService, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
     def __init__(self):
+        if getattr(self, "_initialized", False):
+            return
         self.ollama = OllamaLocalProvider()
         self.providers: List[BaseLLMProvider] = [
             self.ollama,
         ]
+        self._initialized = True
 
     def _detect_language(self, text: str) -> str:
         """
@@ -167,13 +178,15 @@ class LLMService:
             answer_prefix = f"Answer in {detected_lang}:"
 
         system_prompt = (
-            "You are VidNova AI, an intelligent video analysis and translation assistant.\n"
+            "You are VidNova AI, an intelligent video analysis companion.\n"
             f"{lang_instruction}\n"
-            "Rules:\n"
-            "1. TUYỆT ĐỐI KHÔNG sử dụng icon, emoji, sticker hay các ký hiệu trang trí (như 🎬, 📁, ✨, 👉, etc.).\n"
-            "2. Tránh lặp lại tên file video ở từng dòng. Nhóm các thông tin một cách mạch lạc.\n"
-            "3. BẮT BUỘC giữ lại các mốc thời gian dạng [mm:ss] tương ứng từ context để người dùng có thể nhấp vào xem video.\n"
-            "4. Analyze both the original speech and translated subtitles to formulate the most accurate answer."
+            "Guidelines:\n"
+            "- Speak in a natural, friendly, human conversational tone. Avoid robotic phrasing, stiff templates, or repetitive bullet-point patterns.\n"
+            "- Answer directly and engagingly as a knowledgeable assistant talking with the user.\n"
+            "- TUYỆT ĐỐI KHÔNG sử dụng icon, emoji hay sticker trang trí.\n"
+            "- TUYỆT ĐỐI KHÔNG xưng hô hay nhắc đến ID kỹ thuật như video #1, video #2. Hãy xưng hô tự nhiên như 'trong video này', 'ở phần chia sẻ này'.\n"
+            "- Khi trích dẫn nội dung cụ thể từ video, hãy đính kèm mốc thời gian [mm:ss] tự nhiên trong câu văn để người dùng dễ theo dõi.\n"
+            "- Tổng hợp thông tin từ lời thoại gốc và phụ đề để đưa ra câu trả lời đầy đủ, chính xác nhất."
             f"{tone_instruction}"
         )
 
@@ -184,11 +197,13 @@ class LLMService:
             f"{answer_prefix}"
         )
 
-        # Standardize target model name (e.g. qwen2.5:3b)
+        # Standardize target model name (e.g. qwen2.5:3b, llama3.2:3b)
         actual_model = "qwen2.5:3b"
         if model_name:
             m_lower = model_name.lower().strip()
-            if "qwen" in m_lower or "3b" in m_lower:
+            if "llama" in m_lower:
+                actual_model = "llama3.2:3b"
+            elif "qwen" in m_lower:
                 actual_model = "qwen2.5:3b"
             else:
                 actual_model = model_name.strip()
@@ -199,16 +214,15 @@ class LLMService:
             if ans and len(ans.strip()) > 10:
                 return ans.strip()
 
-        # Fallback: present retrieved evidence cleanly without hardcoded heuristics
-        snippets = []
-        for c in citations[:4]:
-            ts = c.get("timestamp_formatted", "00:00")
-            txt = (c.get("translated_text") or c.get("text") or "").strip()
-            if txt:
-                snippets.append(f"- Mốc [{ts}]: {txt}")
-        if snippets:
-            return "Dựa trên nội dung trong video:\n\n" + "\n".join(snippets)
-        return "Không tìm thấy nội dung liên quan trong video để trả lời câu hỏi này."
+        # Direct LLM synthesis: Always prioritize AI model response without robotic template fallbacks
+        available_models = ["llama3.2:3b", "qwen2.5:3b"]
+        for fallback_m in available_models:
+            if fallback_m != actual_model and self.ollama.is_available(fallback_m):
+                ans = self.ollama.generate_response(prompt=user_prompt, system_prompt=system_prompt, model_name=fallback_m)
+                if ans and len(ans.strip()) > 10:
+                    return ans.strip()
+
+        return None
 
     def summarize_video_content(
         self,

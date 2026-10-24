@@ -7,7 +7,7 @@ export interface DialogProps {
   title?: ReactNode;
   description?: ReactNode;
   children: ReactNode;
-  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl";
+  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "5xl" | "6xl" | "full";
   showCloseButton?: boolean;
   closeOnBackdropClick?: boolean;
 }
@@ -18,6 +18,11 @@ const maxWidthMap = {
   lg: "max-w-xl",
   xl: "max-w-2xl",
   "2xl": "max-w-4xl",
+  "3xl": "max-w-5xl",
+  "4xl": "max-w-6xl",
+  "5xl": "max-w-7xl",
+  "6xl": "max-w-[90rem]",
+  full: "max-w-[96vw]",
 };
 
 export default function Dialog({

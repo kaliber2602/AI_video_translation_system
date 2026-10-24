@@ -7064,6 +7064,7 @@ def get_video_chat_history_endpoint(
     user_id: int = Depends(get_current_user_id),
 ):
     """Get conversation history of AI Q&A with video transcript (private to user)."""
+    get_video_with_access(video_id, user_id, db)
     service = VideoUnderstandingService(db=db)
     return service.get_chat_history(video_id=video_id, user_id=user_id, limit=limit)
 
@@ -7075,6 +7076,7 @@ def clear_video_chat_history_endpoint(
     user_id: int = Depends(get_current_user_id),
 ):
     """Clear conversation history of AI Q&A for this video (private to user)."""
+    get_video_with_access(video_id, user_id, db)
     service = VideoUnderstandingService(db=db)
     cleared = service.clear_chat_history(video_id=video_id, user_id=user_id)
     return {"success": cleared, "video_id": video_id}
@@ -7091,6 +7093,7 @@ def chat_with_video_endpoint(
     RAG & LLM Q&A Chatbot for video:
     Retrieves context-augmented transcript citations and responds with interactive timestamps.
     """
+    get_video_with_access(video_id, user_id, db)
     service = VideoUnderstandingService(db=db)
     try:
         return service.chat_with_video(

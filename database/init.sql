@@ -25,7 +25,7 @@ CREATE TABLE users (
 CREATE TABLE user_settings (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL UNIQUE,
-    preferences JSONB DEFAULT '{"theme": "dark", "language": "vi"}'::jsonb,
+    preferences JSONB DEFAULT '{"theme": "default_theme", "language": "vi"}'::jsonb,
     
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -45,7 +45,7 @@ BEGIN
     )
     VALUES (
         NEW.id,
-        '{"theme": "dark", "language": "vi"}'::jsonb
+        '{"theme": "default_theme", "language": "vi"}'::jsonb
     )
     ON CONFLICT (user_id) DO NOTHING;
 
@@ -1223,14 +1223,14 @@ VALUES
 (
     1, NULL, 'Tiêu chuẩn YouTube (Lồng tiếng + Phụ đề)',
     'Cấu hình chuẩn tối ưu: Whisper Large-v3 + NLLB-1.3B + Coqui XTTS-v2 Voice Cloning + Burn Hardsub 1080p.',
-    TRUE, TRUE, 'vi', 'auto', 'whisper-medium', TRUE,
+    TRUE, FALSE, 'vi', 'auto', 'whisper-medium', TRUE,
     'nllb_200_1.3b', 'coqui_xtts_v2', '1', 1.0, 'ass', TRUE, '1080p', 'mp4',
     '{"version": "2.0", "subtitles": {"style": {"bold": true, "italic": false, "margin_v": 35, "alignment": 2, "font_name": "Montserrat", "font_size": 24, "back_color": "#000000", "shadow_depth": 1.0, "outline_color": "#000000", "outline_width": 2.5, "primary_color": "#FFFFFF", "secondary_color": "#0000FF"}, "format": "ass", "burn_mode": "hardsub", "max_lines": 2, "max_chars_per_line": 42}, "translation": {"engine": "nllb_local", "batch_size": 32, "model_name": "facebook/nllb-200-1.3B", "tone_style": "natural", "apply_glossary": true, "target_language": "vi", "system_instruction": "Dịch tự nhiên, đúng văn phong tiếng Việt và giữ nguyên thuật ngữ chuyên ngành."}, "tts_dubbing": {"engine": "coqui_xtts_v2", "speed_rate": 1.0, "pitch_shift": 0, "time_stretching": {"method": "atempo", "enabled": true, "max_stretch_factor": 1.25}, "default_voice_id": "vi_female_loan", "speaker_voice_mapping": {"SPEAKER_00": {"speed": 1.0, "engine": "coqui_xtts_v2", "voice_id": "vi_female_loan"}, "SPEAKER_01": {"speed": 1.0, "engine": "coqui_xtts_v2", "voice_id": "vi_male_nam"}}}, "export_muxing": {"tune": "hq", "preset": "p4", "encoder": "h264_nvenc", "resolution": "1080p", "audio_codec": "aac", "audio_bitrate": "192k", "video_bitrate": "6000k", "container_format": "mp4"}, "transcription": {"beam_size": 5, "model_size": "large-v3", "stt_engine": "faster_whisper", "diarization": {"engine": "pyannote_3.1", "enabled": true, "max_speakers": 5, "min_speakers": 1, "fallback_single_speaker": true}, "temperature": 0.0, "compute_type": "int8_float16", "filter_fillers": true, "initial_prompt": ""}, "audio_separation": {"model": "htdemucs_v4", "ducking": {"enabled": true, "attack_ms": 100, "release_ms": 500, "threshold_db": -24.0, "attenuation_db": -12.0}, "enabled": true, "bgm_volume": 0.7, "dubbing_mode": "full_dubbing", "noise_reduction": {"enabled": true, "strength": 0.5}, "audio_normalization": true, "original_vocal_volume": 0.0}}'::jsonb
 ),
 (
     2, NULL, 'Tốc độ cao (Edge-TTS + Phụ đề)',
     'Cấu hình nhanh tiết kiệm thời gian: Whisper Medium + NLLB-1.3B + Edge-TTS Neural + Voiceover nhẹ 15% vocal gốc.',
-    TRUE, FALSE, 'vi', 'auto', 'whisper-medium', TRUE,
+    TRUE, TRUE, 'vi', 'auto', 'whisper-medium', TRUE,
     'nllb_200_1.3b', 'edge_tts', '1', 1.05, 'ass', TRUE, '1080p', 'mp4',
     '{"version": "2.0", "subtitles": {"style": {"bold": true, "italic": false, "margin_v": 30, "alignment": 2, "font_name": "Roboto", "font_size": 22, "back_color": "#000000", "shadow_depth": 1.0, "outline_color": "#000000", "outline_width": 2.0, "primary_color": "#FFE600", "secondary_color": "#0000FF"}, "format": "ass", "burn_mode": "hardsub", "max_lines": 2, "max_chars_per_line": 40}, "translation": {"engine": "nllb_local", "batch_size": 32, "model_name": "facebook/nllb-200-1.3B", "tone_style": "casual", "apply_glossary": true, "target_language": "vi", "system_instruction": "Dịch trôi chảy, hiện đại, thích hợp mạng xã hội."}, "tts_dubbing": {"engine": "edge_tts", "speed_rate": 1.05, "pitch_shift": 0, "time_stretching": {"method": "atempo", "enabled": true, "max_stretch_factor": 1.2}, "default_voice_id": "vi-VN-HoaiMyNeural", "speaker_voice_mapping": {"SPEAKER_00": {"speed": 1.05, "engine": "edge_tts", "voice_id": "vi-VN-HoaiMyNeural"}, "SPEAKER_01": {"speed": 1.05, "engine": "edge_tts", "voice_id": "vi-VN-NamMinhNeural"}}}, "export_muxing": {"tune": "hq", "preset": "p4", "encoder": "h264_nvenc", "resolution": "1080p", "audio_codec": "aac", "audio_bitrate": "192k", "video_bitrate": "5000k", "container_format": "mp4"}, "transcription": {"beam_size": 3, "model_size": "medium", "stt_engine": "faster_whisper", "diarization": {"engine": "pyannote_3.1", "enabled": true, "max_speakers": 3, "min_speakers": 1, "fallback_single_speaker": true}, "temperature": 0.0, "compute_type": "int8_float16", "filter_fillers": true, "initial_prompt": ""}, "audio_separation": {"model": "htdemucs_v4", "ducking": {"enabled": true, "attack_ms": 120, "release_ms": 400, "threshold_db": -20.0, "attenuation_db": -10.0}, "enabled": true, "bgm_volume": 0.8, "dubbing_mode": "voiceover", "noise_reduction": {"enabled": false, "strength": 0.0}, "audio_normalization": true, "original_vocal_volume": 0.15}}'::jsonb
 ),

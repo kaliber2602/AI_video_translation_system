@@ -52,6 +52,16 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
     />
+      <script>
+      (function() {
+        try {
+          var stored = localStorage.getItem('vidnova-theme');
+          var valid = ['default_theme', 'violet_light', 'indigo_pink', 'dark_rose', 'dark_lime', 'system', 'light', 'dark'];
+          var theme = (stored && valid.indexOf(stored) !== -1) ? stored : 'default_theme';
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

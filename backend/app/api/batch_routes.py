@@ -61,6 +61,8 @@ def create_project_batch(
         )
         return batch
 
+    except HTTPException:
+        raise
     except ValueError as val_err:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
