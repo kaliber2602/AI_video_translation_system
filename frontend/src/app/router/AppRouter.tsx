@@ -32,6 +32,7 @@ const AdminFinancePage = lazy(() => import("../../pages/admin/AdminFinancePage")
 const AdminLogsPage = lazy(() => import("../../pages/admin/AdminLogsPage"));
 const AdminContactsPage = lazy(() => import("../../pages/admin/AdminContactsPage"));
 const AdminToolsPage = lazy(() => import("../../pages/admin/AdminToolsPage"));
+const AdminBenchmarkPage = lazy(() => import("../../pages/admin/AdminBenchmarkPage"));
 
 function VideoEditorRedirect() {
   const { projectId, videoId } = useParams<{ projectId?: string; videoId?: string }>();
@@ -43,6 +44,7 @@ function VideoEditorRedirect() {
 
 import ProtectedRoute from "./ProtectedRoute";
 import AdminRoute from "./AdminRoute";
+import { RouteErrorBoundary } from "../../components/common/RouteErrorBoundary";
 
 const FloatingChatWidget = lazy(() => import("../../components/chat/FloatingChatWidget"));
 
@@ -63,7 +65,8 @@ export default function AppRouter() {
       <Suspense fallback={null}>
         <FloatingChatWidget />
       </Suspense>
-      <Suspense fallback={<PageLoadingFallback />}>
+      <RouteErrorBoundary>
+        <Suspense fallback={<PageLoadingFallback />}>
         <Routes>
 
         {/* ================================================== */}
@@ -199,6 +202,7 @@ export default function AppRouter() {
             <Route path="logs" element={<AdminLogsPage />} />
             <Route path="contacts" element={<AdminContactsPage />} />
             <Route path="tools" element={<AdminToolsPage />} />
+            <Route path="benchmark" element={<AdminBenchmarkPage />} />
           </Route>
         </Route>
 
@@ -218,6 +222,7 @@ export default function AppRouter() {
 
       </Routes>
     </Suspense>
+    </RouteErrorBoundary>
   </BrowserRouter>
 );
 }

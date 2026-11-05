@@ -8,6 +8,23 @@ import { ThemeProvider } from "./app/providers/ThemeProvider";
 import { initVeloxi } from "./lib/veloxi";
 import "./index.css";
 
+// Handle Vite dynamic import / lazy chunk fetch errors (e.g., after deployment or rebuild)
+window.addEventListener("vite:preloadError", (event) => {
+  console.warn("[Vite] Dynamic import preload error, reloading for fresh assets...", event);
+  window.location.reload();
+});
+
+window.addEventListener("error", (e) => {
+  if (
+    e.message?.includes("Failed to fetch dynamically imported module") ||
+    e.message?.includes("Importing a module script failed") ||
+    e.message?.includes("error loading dynamically imported module")
+  ) {
+    console.warn("[Vite] Dynamic module load error, reloading page for fresh assets...");
+    window.location.reload();
+  }
+});
+
 initVeloxi();
 
 // Initialize saved system typography

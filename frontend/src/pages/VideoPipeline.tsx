@@ -858,10 +858,6 @@ function VideoPipelineContent() {
                   </button>
                 </div>
               )}
-
-              <span className="rounded-full bg-[#FFF2D8] px-3 py-0.5 text-xs font-bold text-[#C68A1C] dark:bg-amber-950/50 dark:text-amber-300">
-                {t("pipeline:header.inProgress")}
-              </span>
             </div>
 
             <p className="mt-0.5 truncate text-xs text-[var(--color-text-muted)]">

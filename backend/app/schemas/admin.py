@@ -299,3 +299,105 @@ class AdminDiagnosticsResponse(BaseModel):
     overall_status: str
     execution_time_ms: float
     checks: List[DiagnosticCheckResult]
+
+
+# =========================================================
+# Benchmark & Performance Metrics (Kế hoạch 3)
+# =========================================================
+
+class HardwareMetrics(BaseModel):
+    cpu_percent: float
+    cpu_count: int
+    ram_used_gb: float
+    ram_total_gb: float
+    ram_percent: float
+    gpu_available: bool
+    gpu_name: Optional[str] = None
+    vram_used_mb: Optional[float] = None
+    vram_total_mb: Optional[float] = None
+    vram_percent: Optional[float] = None
+    vram_free_mb: Optional[float] = None
+
+
+class ThroughputMetrics(BaseModel):
+    stt_rtf: float
+    stt_speed_multiplier: float
+    stt_seconds_per_sec: float
+    translation_words_per_sec: float
+    tts_chars_per_sec: float
+    avg_pipeline_duration_sec: float
+    total_completed_jobs: int
+
+
+class CapacityLimitMetrics(BaseModel):
+    vram_total_mb: float
+    vram_used_mb: float
+    vram_free_mb: float
+    vram_per_concurrent_job_mb: float
+    max_safe_concurrent_tasks: int
+    current_running_tasks: int
+    cuda_oom_risk_level: str
+    recommendation: str
+
+
+class ConcurrentScenario(BaseModel):
+    scenario_name: str
+    concurrent_videos: int
+    cpu_percent: float
+    ram_used_gb: float
+    vram_used_mb: float
+    vram_percent: float
+    stt_rtf: float
+    trans_words_per_sec: float
+    avg_latency_sec: float
+    oom_risk: str
+    status: str
+
+
+class PipelineStageResource(BaseModel):
+    stage_key: str
+    stage_name: str
+    cpu_percent: float
+    ram_gb: float
+    vram_gb: float
+    avg_duration_sec: float
+    description: str
+
+
+class LatencyVsUsersPoint(BaseModel):
+    concurrent_users: int
+    p50_latency_sec: float
+    p95_latency_sec: float
+    max_latency_sec: float
+    throughput_req_min: float
+    error_rate_pct: float
+
+
+class TelemetryHistoryPoint(BaseModel):
+    timestamp: str
+    cpu_percent: float
+    ram_percent: float
+    ram_used_gb: float
+    vram_percent: Optional[float] = None
+    vram_used_mb: Optional[float] = None
+
+
+class BenchmarkDashboardResponse(BaseModel):
+    hardware: HardwareMetrics
+    throughput: ThroughputMetrics
+    capacity: CapacityLimitMetrics
+    concurrency_matrix: List[ConcurrentScenario]
+    pipeline_stages: List[PipelineStageResource]
+    latency_curve: List[LatencyVsUsersPoint]
+    telemetry_history: List[TelemetryHistoryPoint] = []
+    timestamp: datetime
+
+
+class RunBenchmarkProbeRequest(BaseModel):
+    target_concurrency: int = Field(1, ge=1, le=10)
+
+
+class RunBenchmarkProbeResponse(BaseModel):
+    success: bool
+    message: str
+    sampled_metrics: BenchmarkDashboardResponse

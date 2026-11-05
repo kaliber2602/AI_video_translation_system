@@ -565,7 +565,7 @@ export default function WorkspaceSidebar({
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1 font-semibold text-[var(--color-text-secondary)]">
               <HardDrive size={13} className="text-[var(--color-primary)]" />
-              <span>{t("workspace:quota.storage", "Cloud Storage")}</span>
+              <span>{t("workspace:quota.storage", "Storage")}</span>
             </span>
             <span className="font-bold text-[var(--color-text-primary)] text-xs">
               {usedGb} / {totalGb} GB
@@ -591,7 +591,7 @@ export default function WorkspaceSidebar({
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1 font-semibold text-[var(--color-text-secondary)]">
               <Sparkles size={13} className="text-amber-500" />
-              <span>{t("workspace:quota.words", "Quota từ AI")}</span>
+              <span>{t("workspace:quota.words", "Quota")}</span>
             </span>
             <span className="font-bold text-[var(--color-text-primary)] text-xs">
               {remainingWords.toLocaleString()} / {totalWords.toLocaleString()} từ

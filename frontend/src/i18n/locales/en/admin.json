@@ -10,7 +10,8 @@
     "tools": "Maintenance Tools",
     "backToWorkspace": "Back to Workspace",
     "adminCenter": "VidNova Admin Center",
-    "portal": "Admin Portal"
+    "portal": "Admin Portal",
+    "benchmark": "Benchmark & Metrics"
   },
   "health": {
     "allOperational": "All systems operational",

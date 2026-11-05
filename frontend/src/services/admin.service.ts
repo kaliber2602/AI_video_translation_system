@@ -18,6 +18,8 @@ import type {
   PaginatedResult,
   SystemHealthResponse,
   SystemMetricsResponse,
+  BenchmarkDashboardResponse,
+  RunBenchmarkProbeResponse,
 } from "../types/admin";
 
 // =========================================================
@@ -223,5 +225,22 @@ export const getAdminDatabaseStats = async (): Promise<AdminDatabaseStatsRespons
 
 export const runAdminDiagnostics = async (): Promise<AdminDiagnosticsResponse> => {
   const res = await api.post<AdminDiagnosticsResponse>("/api/admin/tools/diagnostics");
+  return res.data;
+};
+
+
+// =========================================================
+// 9. Benchmark & Performance Telemetry (Kế hoạch 3)
+// =========================================================
+
+export const getAdminBenchmarkMetrics = async (): Promise<BenchmarkDashboardResponse> => {
+  const res = await api.get<BenchmarkDashboardResponse>("/api/admin/benchmark/metrics");
+  return res.data;
+};
+
+export const runAdminBenchmarkProbe = async (concurrency = 1): Promise<RunBenchmarkProbeResponse> => {
+  const res = await api.post<RunBenchmarkProbeResponse>("/api/admin/benchmark/run-probe", {
+    target_concurrency: concurrency,
+  });
   return res.data;
 };

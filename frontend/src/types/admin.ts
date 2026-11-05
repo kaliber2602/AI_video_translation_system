@@ -252,3 +252,102 @@ export interface PaginatedResult<T> {
   limit: number;
   offset: number;
 }
+
+
+// =========================================================
+// Benchmark & Performance Metrics (Kế hoạch 3)
+// =========================================================
+
+export interface HardwareMetrics {
+  cpu_percent: number;
+  cpu_count: number;
+  ram_used_gb: number;
+  ram_total_gb: number;
+  ram_percent: number;
+  gpu_available: boolean;
+  gpu_name?: string | null;
+  vram_used_mb?: number | null;
+  vram_total_mb?: number | null;
+  vram_percent?: number | null;
+  vram_free_mb?: number | null;
+}
+
+export interface ThroughputMetrics {
+  stt_rtf: number;
+  stt_speed_multiplier: number;
+  stt_seconds_per_sec: number;
+  translation_words_per_sec: number;
+  tts_chars_per_sec: number;
+  avg_pipeline_duration_sec: number;
+  total_completed_jobs: number;
+}
+
+export interface CapacityLimitMetrics {
+  vram_total_mb: number;
+  vram_used_mb: number;
+  vram_free_mb: number;
+  vram_per_concurrent_job_mb: number;
+  max_safe_concurrent_tasks: number;
+  current_running_tasks: number;
+  cuda_oom_risk_level: 'SAFE' | 'MODERATE' | 'HIGH' | 'CRITICAL' | string;
+  recommendation: string;
+}
+
+export interface ConcurrentScenario {
+  scenario_name: string;
+  concurrent_videos: number;
+  cpu_percent: number;
+  ram_used_gb: number;
+  vram_used_mb: number;
+  vram_percent: number;
+  stt_rtf: number;
+  trans_words_per_sec: number;
+  avg_latency_sec: number;
+  oom_risk: string;
+  status: 'optimal' | 'warning' | 'danger' | string;
+}
+
+export interface PipelineStageResource {
+  stage_key: string;
+  stage_name: string;
+  cpu_percent: number;
+  ram_gb: number;
+  vram_gb: number;
+  avg_duration_sec: number;
+  description: string;
+}
+
+export interface LatencyVsUsersPoint {
+  concurrent_users: number;
+  p50_latency_sec: number;
+  p95_latency_sec: number;
+  max_latency_sec: number;
+  throughput_req_min: number;
+  error_rate_pct: number;
+}
+
+export interface TelemetryHistoryPoint {
+  timestamp: string;
+  cpu_percent: number;
+  ram_percent: number;
+  ram_used_gb: number;
+  vram_percent?: number | null;
+  vram_used_mb?: number | null;
+}
+
+export interface BenchmarkDashboardResponse {
+  hardware: HardwareMetrics;
+  throughput: ThroughputMetrics;
+  capacity: CapacityLimitMetrics;
+  concurrency_matrix: ConcurrentScenario[];
+  pipeline_stages: PipelineStageResource[];
+  latency_curve: LatencyVsUsersPoint[];
+  telemetry_history?: TelemetryHistoryPoint[];
+  timestamp: string;
+}
+
+export interface RunBenchmarkProbeResponse {
+  success: boolean;
+  message: string;
+  sampled_metrics: BenchmarkDashboardResponse;
+}

@@ -90,6 +90,11 @@ export default function AdminLayout() {
       icon: Cpu,
     },
     {
+      path: "/admin/benchmark",
+      label: t("admin:nav.benchmark", "Đo lường & Benchmark"),
+      icon: Activity,
+    },
+    {
       path: "/admin/models",
       label: t("admin:nav.models"),
       icon: Layers,
