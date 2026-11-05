@@ -27,6 +27,9 @@ from app.schemas.admin import (
     JobActionResponse,
     SystemHealthResponse,
     SystemMetricsResponse,
+    BenchmarkDashboardResponse,
+    RunBenchmarkProbeRequest,
+    RunBenchmarkProbeResponse,
 )
 from app.services.admin_service import (
     adjust_user_credits,
@@ -51,6 +54,8 @@ from app.services.admin_service import (
     update_ai_model,
     update_contact_message_status,
     update_user,
+    get_benchmark_metrics,
+    run_benchmark_probe,
 )
 
 logger = logging.getLogger("app.api.admin_routes")
@@ -341,3 +346,24 @@ def get_db_stats():
 def run_diagnostics():
     """Run comprehensive round-trip latency & health checks across all components."""
     return run_system_diagnostics()
+
+
+# =========================================================
+# 9. Benchmark & Performance Telemetry (Kế hoạch 3)
+# =========================================================
+
+@router.get("/benchmark/metrics", response_model=BenchmarkDashboardResponse)
+def get_benchmark_dashboard():
+    """
+    Kế hoạch 3: Lấy báo cáo hiệu năng phần cứng (% CPU, RAM, VRAM GPU),
+    thông lượng (Throughput/RTF), ngưỡng bão hòa VRAM và biểu đồ tải phục vụ Luận văn.
+    """
+    return get_benchmark_metrics()
+
+
+@router.post("/benchmark/run-probe", response_model=RunBenchmarkProbeResponse)
+def run_benchmark_probe_endpoint(payload: RunBenchmarkProbeRequest):
+    """
+    Thực hiện đo lường tài nguyên thực tế tức thời với số lượng tác vụ đồng thời giả lập.
+    """
+    return run_benchmark_probe(target_concurrency=payload.target_concurrency)

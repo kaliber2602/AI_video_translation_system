@@ -185,7 +185,6 @@ export default function ProjectAssetExplorer({
     { id: "audio", label: "Audio Stems", countKey: "audio" },
     { id: "subtitles", label: "Subtitles & Transcripts" },
     { id: "document", label: "AI Documents", countKey: "document" },
-    { id: "speaker_voice", label: "Speaker Profiles", countKey: "speaker_voice" },
   ];
 
   const formatBytes = (bytes: number): string => {
@@ -234,7 +233,7 @@ export default function ProjectAssetExplorer({
   return (
     <div className="space-y-6">
       {/* Overview & Storage Statistics Bar */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {/* Total Storage Card */}
         <div className="flex items-center gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-xs">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
@@ -249,24 +248,6 @@ export default function ProjectAssetExplorer({
             </h3>
             <p className="text-xs text-[var(--color-text-secondary)]">
               {data?.total_files ?? 0} tracked files
-            </p>
-          </div>
-        </div>
-
-        {/* Cloud / S3 Storage Card */}
-        <div className="flex items-center gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-xs">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
-            <Cloud size={24} />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-              S3 / MinIO Storage
-            </p>
-            <h3 className="text-xl font-bold text-[var(--color-text-primary)]">
-              {data?.assets.filter((a) => getStorageType(a) === "s3").length ?? 0} objects
-            </h3>
-            <p className="text-xs text-[var(--color-text-secondary)]">
-              Cloud bucket synced
             </p>
           </div>
         </div>

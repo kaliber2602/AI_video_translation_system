@@ -2004,7 +2004,7 @@ async def start_processing(
     }
     db.commit()
     
-    logger.info(f" Processing started for video {video_id} (Celery Task: {task.id}, Credits: {credits_needed})")
+    logger.info(f" Processing started for video {video_id} (Celery Task: {task.id}, Words: {words_needed})")
     
     return StartProcessingResponse(
         job_id=str(job.id),
