@@ -31,7 +31,6 @@ const AdminUsersPage = lazy(() => import("../../pages/admin/AdminUsersPage"));
 const AdminFinancePage = lazy(() => import("../../pages/admin/AdminFinancePage"));
 const AdminLogsPage = lazy(() => import("../../pages/admin/AdminLogsPage"));
 const AdminContactsPage = lazy(() => import("../../pages/admin/AdminContactsPage"));
-const AdminToolsPage = lazy(() => import("../../pages/admin/AdminToolsPage"));
 
 function VideoEditorRedirect() {
   const { projectId, videoId } = useParams<{ projectId?: string; videoId?: string }>();
@@ -198,7 +197,6 @@ export default function AppRouter() {
             <Route path="finance" element={<AdminFinancePage />} />
             <Route path="logs" element={<AdminLogsPage />} />
             <Route path="contacts" element={<AdminContactsPage />} />
-            <Route path="tools" element={<AdminToolsPage />} />
           </Route>
         </Route>
 

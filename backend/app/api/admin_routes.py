@@ -27,6 +27,9 @@ from app.schemas.admin import (
     JobActionResponse,
     SystemHealthResponse,
     SystemMetricsResponse,
+    CeleryInterventionOverview,
+    GpuStatusInfo,
+    ChatbotStatusInfo,
 )
 from app.services.admin_service import (
     adjust_user_credits,
@@ -51,6 +54,10 @@ from app.services.admin_service import (
     update_ai_model,
     update_contact_message_status,
     update_user,
+    get_gpu_hardware_status,
+    get_chatbot_runtime_status,
+    get_queue_orchestration_overview,
+    purge_queue_or_cancel_stuck_jobs,
 )
 
 logger = logging.getLogger("app.api.admin_routes")
@@ -122,6 +129,31 @@ def cancel_job(job_id: str):
     """Cancel an active or queued processing job."""
     cancel_pipeline_job(job_id)
     return JobActionResponse(success=True, message=f"Job {job_id} cancelled.")
+
+
+# UC-04.5 Orchestrate Heavy Job Queues & Interventions
+@router.get("/orchestration/queues", response_model=CeleryInterventionOverview)
+def get_queue_orchestration():
+    """UC-04.5: Monitor Celery worker queue depths, connected workers, and stuck jobs count."""
+    return get_queue_orchestration_overview()
+
+
+@router.post("/orchestration/cancel-stuck-jobs")
+def cancel_all_stuck_jobs():
+    """UC-04.5: System admin bulk intervention to purge/cancel jobs stuck > 30 mins."""
+    return purge_queue_or_cancel_stuck_jobs()
+
+
+@router.get("/telemetry/gpu", response_model=GpuStatusInfo)
+def get_gpu_telemetry():
+    """Real-time NVIDIA GPU VRAM, temperature, power, and utilization telemetry."""
+    return get_gpu_hardware_status()
+
+
+@router.get("/telemetry/chatbot", response_model=ChatbotStatusInfo)
+def get_chatbot_telemetry():
+    """Inspect Ollama LLM runtime engine and FAISS vector index status."""
+    return get_chatbot_runtime_status()
 
 
 # =========================================================
@@ -310,34 +342,3 @@ def update_contact_status(contact_id: int, payload: AdminContactUpdateStatusRequ
     """Update contact message resolution status (pending, read, resolved)."""
     update_contact_message_status(contact_id, payload.status)
     return {"success": True, "message": f"Contact message status updated to {payload.status}"}
-
-
-# =========================================================
-# 8. Maintenance & Operations Tools
-# =========================================================
-
-@router.get("/tools/storage", response_model=AdminStorageStatsResponse)
-def get_storage():
-    """Detailed storage and cache consumption breakdown."""
-    return get_storage_stats()
-
-
-@router.post("/tools/cleanup", response_model=AdminCleanupResultResponse)
-def run_cleanup(payload: AdminCleanupRequest):
-    """Trigger cleanup of expired or orphaned temporary files."""
-    return cleanup_temporary_files(
-        target=payload.target,
-        older_than_days=payload.older_than_days,
-    )
-
-
-@router.get("/tools/database", response_model=AdminDatabaseStatsResponse)
-def get_db_stats():
-    """PostgreSQL database size and table row counts."""
-    return get_database_stats()
-
-
-@router.post("/tools/diagnostics", response_model=AdminDiagnosticsResponse)
-def run_diagnostics():
-    """Run comprehensive round-trip latency & health checks across all components."""
-    return run_system_diagnostics()

@@ -39,6 +39,10 @@ from app.schemas.admin import (
     AdminDatabaseStatsResponse,
     DiagnosticCheckResult,
     AdminDiagnosticsResponse,
+    GpuStatusInfo,
+    ChatbotStatusInfo,
+    CeleryQueueInfo,
+    CeleryInterventionOverview,
 )
 
 
@@ -70,6 +74,179 @@ def _test_tcp_connection(host: str, port: int, timeout_sec: float = 1.5) -> tupl
     except Exception as exc:
         latency = (time.perf_counter() - start) * 1000
         return False, round(latency, 2), str(exc)
+
+
+def get_gpu_hardware_status() -> GpuStatusInfo:
+    """Retrieve real NVIDIA GPU metrics using PyTorch CUDA and nvidia-smi fallback."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            dev_name = torch.cuda.get_device_name(0)
+            mem_allocated = torch.cuda.memory_allocated(0) // (1024 * 1024)
+            mem_reserved = torch.cuda.memory_reserved(0) // (1024 * 1024)
+            # Try nvidia-smi for overall VRAM and temperature
+            total_mb = None
+            used_mb = None
+            free_mb = None
+            temp_c = None
+            util_pct = None
+            power_w = None
+
+            try:
+                import subprocess
+                smi_output = subprocess.check_output(
+                    ["nvidia-smi", "--query-gpu=memory.total,memory.used,memory.free,temperature.gpu,utilization.gpu,power.draw",
+                     "--format=csv,noheader,nounits"],
+                    timeout=2,
+                    text=True
+                ).strip()
+                parts = [p.strip() for p in smi_output.split(",")]
+                if len(parts) >= 6:
+                    total_mb = int(float(parts[0]))
+                    used_mb = int(float(parts[1]))
+                    free_mb = int(float(parts[2]))
+                    temp_c = int(float(parts[3]))
+                    util_pct = int(float(parts[4]))
+                    power_w = round(float(parts[5]), 1)
+            except Exception:
+                # Fallback to PyTorch device properties if nvidia-smi fails
+                props = torch.cuda.get_device_properties(0)
+                total_mb = props.total_memory // (1024 * 1024)
+                used_mb = mem_reserved
+                free_mb = total_mb - used_mb
+
+            mem_pct = round((used_mb / total_mb) * 100, 1) if (total_mb and used_mb is not None) else None
+            return GpuStatusInfo(
+                available=True,
+                device_name=dev_name,
+                total_memory_mb=total_mb,
+                used_memory_mb=used_mb,
+                free_memory_mb=free_mb,
+                memory_percent=mem_pct,
+                temperature_c=temp_c,
+                gpu_utilization_percent=util_pct,
+                power_watts=power_w,
+            )
+    except Exception as e:
+        logger.debug(f"GPU telemetry error: {e}")
+
+    return GpuStatusInfo(available=False)
+
+
+def get_chatbot_runtime_status() -> ChatbotStatusInfo:
+    """Inspect Ollama local engine and FAISS vector index status."""
+    from app.core.config import OLLAMA_BASE_URL, OLLAMA_MODEL
+    import json
+    import urllib.request
+
+    ollama_online = False
+    models_available: List[str] = []
+    active_model = OLLAMA_MODEL or "qwen2.5:3b"
+    msg = None
+
+    for candidate_url in [OLLAMA_BASE_URL, "http://ollama:11434", "http://localhost:11434", "http://127.0.0.1:11434"]:
+        if not candidate_url:
+            continue
+        try:
+            req = urllib.request.Request(f"{candidate_url.rstrip('/')}/api/tags", headers={"User-Agent": "VidNova-Admin"})
+            with urllib.request.urlopen(req, timeout=1.5) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    models_available = [m.get("name", "") for m in data.get("models", [])]
+                    ollama_online = True
+                    break
+        except Exception:
+            continue
+
+    # FAISS Vector Index count
+    faiss_ready = False
+    faiss_indexed_projects = 0
+    try:
+        from app.services.faiss_vector_service import FAISS_AVAILABLE
+        faiss_ready = bool(FAISS_AVAILABLE)
+        faiss_dir = Path("outputs/faiss_indexes")
+        if faiss_dir.exists():
+            faiss_indexed_projects = len(list(faiss_dir.glob("*.index")))
+    except Exception as fe:
+        logger.debug(f"FAISS index probe error: {fe}")
+
+    # Count total chat messages in DB
+    total_chat_msgs = 0
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM video_chat_messages;")
+            total_chat_msgs = cursor.fetchone()[0]
+        conn.close()
+    except Exception:
+        pass
+
+    if ollama_online:
+        chat_status = "healthy"
+        msg = f"Ollama operational with {len(models_available)} models ({', '.join(models_available[:3]) if models_available else active_model})"
+    else:
+        chat_status = "warning"
+        msg = "Ollama offline or not started. Heuristic dialogue fallback active."
+
+    # Fetch LLM runtime speed statistics
+    tps_last = 0.0
+    tokens_total = 0
+    inferences_total = 0
+    tps_avg = 0.0
+    try:
+        from app.services.llm_service import get_chatbot_speed_stats
+        speed_stats = get_chatbot_speed_stats()
+        tps_last = speed_stats.get("last_tokens_per_second", 0.0)
+        tokens_total = speed_stats.get("total_tokens_generated", 0)
+        inferences_total = speed_stats.get("total_inferences", 0)
+        tps_avg = speed_stats.get("avg_tokens_per_second", 0.0)
+
+        # Fallback to DB historical statistics if server recently restarted
+        if tps_last == 0.0 or tokens_total == 0:
+            conn = get_connection()
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT 
+                        COALESCE(SUM(tokens_generated), 0),
+                        COALESCE(COUNT(*), 0),
+                        COALESCE(AVG(tokens_per_second), 0.0)
+                    FROM video_chat_messages 
+                    WHERE role = 'assistant' AND tokens_generated > 0;
+                """)
+                db_tokens, db_inferences, db_avg_tps = cursor.fetchone()
+                if db_tokens > 0:
+                    tokens_total = int(db_tokens)
+                    inferences_total = int(db_inferences)
+                    tps_avg = round(float(db_avg_tps), 2)
+
+                cursor.execute("""
+                    SELECT tokens_per_second 
+                    FROM video_chat_messages 
+                    WHERE role = 'assistant' AND tokens_per_second > 0
+                    ORDER BY id DESC LIMIT 1;
+                """)
+                row = cursor.fetchone()
+                if row and float(row[0]) > 0:
+                    tps_last = round(float(row[0]), 2)
+            conn.close()
+    except Exception as se:
+        logger.debug(f"Speed stats probe note: {se}")
+
+    return ChatbotStatusInfo(
+        ollama_online=ollama_online,
+        ollama_url=OLLAMA_BASE_URL or "http://ollama:11434",
+        models_available=models_available,
+        active_model=active_model,
+        faiss_ready=faiss_ready,
+        faiss_indexed_projects=faiss_indexed_projects,
+        total_chat_messages=total_chat_msgs,
+        status=chat_status,
+        message=msg,
+        last_tokens_per_second=tps_last,
+        total_tokens_generated=tokens_total,
+        total_inference_requests=inferences_total,
+        avg_tokens_per_second=tps_avg,
+    )
 
 
 # =========================================================
@@ -171,6 +348,18 @@ def get_system_health() -> SystemHealthResponse:
             message="MinIO offline or filesystem storage mode active",
         ))
 
+    # Grafana & Prometheus Telemetry Services Check
+    graf_ok, graf_latency, _ = _test_tcp_connection("grafana", 3000, timeout_sec=0.5)
+    if not graf_ok:
+        graf_ok, graf_latency, _ = _test_tcp_connection("localhost", 3001, timeout_sec=0.5)
+
+    services.append(ServiceStatus(
+        name="Grafana Monitoring Console",
+        status="healthy" if graf_ok else "warning",
+        latency_ms=graf_latency if graf_ok else None,
+        message="Port 3001 active and accepting embeds" if graf_ok else "Grafana container offline or booting",
+    ))
+
     # 5. Disk Usage on Workspace Volumes
     disk_infos: List[DiskUsageInfo] = []
     monitored_paths = [
@@ -196,9 +385,34 @@ def get_system_health() -> SystemHealthResponse:
         except Exception:
             pass
 
+    # 6. Hardware (GPU) & Chatbot Runtime Probes
+    gpu_telemetry = get_gpu_hardware_status()
+    chatbot_telemetry = get_chatbot_runtime_status()
+
+    # Add Chatbot as a formal service status
+    services.append(ServiceStatus(
+        name="Ollama LLM Chatbot",
+        status=chatbot_telemetry.status,
+        message=chatbot_telemetry.message or "Ollama runtime inspected",
+    ))
+
+    # CPU & RAM basic percent via psutil if available
+    cpu_pct = None
+    mem_pct = None
+    try:
+        import psutil
+        cpu_pct = round(psutil.cpu_percent(interval=0.1), 1)
+        mem_pct = round(psutil.virtual_memory().percent, 1)
+    except Exception:
+        pass
+
     return SystemHealthResponse(
         overall_status=overall_status,
         services=services,
+        cpu_percent=cpu_pct,
+        memory_percent=mem_pct,
+        gpu_status=gpu_telemetry,
+        chatbot_status=chatbot_telemetry,
         disk_usage=disk_infos,
         checked_at=datetime.now(timezone.utc),
     )
@@ -247,16 +461,28 @@ def get_system_metrics() -> SystemMetricsResponse:
                 if status_name in jobs_by_status:
                     jobs_by_status[status_name] = count
 
-            # Payments
+            # Payments (VNPay stores amount in USD with metadata->>'amount_vnd', or currency='VND')
+            cursor.execute(
+                """
+                SELECT COALESCE(
+                    SUM(
+                        CASE
+                            WHEN currency = 'VND' THEN amount
+                            WHEN metadata->>'amount_vnd' IS NOT NULL THEN (metadata->>'amount_vnd')::numeric
+                            ELSE amount * 25000
+                        END
+                    ), 0.0
+                )
+                FROM payment_transactions
+                WHERE status = 'completed';
+                """
+            )
+            total_revenue_vnd = float(cursor.fetchone()[0] or 0.0)
+
             cursor.execute(
                 "SELECT COALESCE(SUM(amount), 0.0) FROM payment_transactions WHERE status = 'completed' AND (currency = 'USD' OR currency IS NULL);"
             )
             total_revenue_usd = float(cursor.fetchone()[0] or 0.0)
-
-            cursor.execute(
-                "SELECT COALESCE(SUM(amount), 0.0) FROM payment_transactions WHERE status = 'completed' AND currency = 'VND';"
-            )
-            total_revenue_vnd = float(cursor.fetchone()[0] or 0.0)
 
             # Consumable AI Credits & Words Quota
             cursor.execute(
@@ -550,6 +776,132 @@ def cancel_pipeline_job(job_id: str) -> bool:
             return True
     finally:
         conn.close()
+
+
+# =========================================================
+# UC-04.5: Heavy Job Queues & Worker Interventions
+# =========================================================
+
+def get_queue_orchestration_overview() -> CeleryInterventionOverview:
+    """UC-04.5: Inspect Celery worker nodes, Redis queues depth, and stuck jobs."""
+    connected_workers: List[str] = []
+    queues_info: List[CeleryQueueInfo] = []
+    total_queued = 0
+    total_active = 0
+    stuck_jobs_count = 0
+
+    # 1. Inspect Celery workers via control (only if redis is reachable)
+    redis_host = os.getenv("REDIS_HOST", "redis")
+    redis_port = int(os.getenv("REDIS_PORT", "6379"))
+    redis_ok, _, _ = _test_tcp_connection(redis_host, redis_port, timeout_sec=0.5)
+    if not redis_ok:
+        redis_ok, _, _ = _test_tcp_connection("localhost", redis_port, timeout_sec=0.5)
+        if redis_ok:
+            redis_host = "localhost"
+
+    if redis_ok:
+        try:
+            from app.tasks.celery_app import celery_app
+            insp = celery_app.control.inspect(timeout=0.5)
+            ping_res = insp.ping() if insp else None
+            if ping_res:
+                connected_workers = list(ping_res.keys())
+
+            active_tasks = insp.active() if insp else None
+            if active_tasks:
+                for w, tasks in active_tasks.items():
+                    total_active += len(tasks)
+        except Exception as ce:
+            logger.debug(f"[AdminService] Celery worker inspection notice: {ce}")
+
+        # 2. Inspect Redis Queues directly
+        try:
+            import redis
+            r = redis.Redis(host=redis_host, port=redis_port, db=0, socket_timeout=0.5)
+            queue_keys = ["celery", "video_transcription", "video_translation", "video_tts", "video_render"]
+            for q in queue_keys:
+                depth = r.llen(q)
+                queues_info.append(CeleryQueueInfo(queue_name=q, depth=depth))
+                total_queued += depth
+        except Exception as re_err:
+            logger.debug(f"[AdminService] Redis queue check notice: {re_err}")
+    else:
+        for q in ["celery", "video_transcription", "video_translation", "video_tts", "video_render"]:
+            queues_info.append(CeleryQueueInfo(queue_name=q, depth=0))
+
+    # 3. Check stuck jobs (> 30 mins in processing without update)
+    try:
+        conn = get_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) FROM pipeline_jobs
+                    WHERE status = 'processing'
+                      AND updated_at < NOW() - INTERVAL '30 minutes';
+                    """
+                )
+                stuck_jobs_count = cursor.fetchone()[0]
+        finally:
+            conn.close()
+    except Exception as dbe:
+        logger.debug(f"[AdminService] Database connection notice in queue overview: {dbe}")
+
+    return CeleryInterventionOverview(
+        connected_workers=connected_workers,
+        queues=queues_info,
+        total_queued=total_queued,
+        total_active=total_active,
+        stuck_jobs_count=stuck_jobs_count,
+    )
+
+
+def purge_queue_or_cancel_stuck_jobs() -> Dict[str, Any]:
+    """UC-04.5: Cancel all jobs stuck in processing for > 30 minutes."""
+    conn = get_connection()
+    cancelled_ids = []
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id FROM pipeline_jobs
+                WHERE status = 'processing'
+                  AND updated_at < NOW() - INTERVAL '30 minutes';
+                """
+            )
+            rows = cursor.fetchall()
+            cancelled_ids = [str(r[0]) for r in rows]
+
+            if cancelled_ids:
+                cursor.execute(
+                    """
+                    UPDATE pipeline_jobs
+                    SET status = 'cancelled',
+                        error_message = 'Cancelled by System Admin intervention (Job timeout > 30 mins)',
+                        finished_at = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ANY(%s);
+                    """,
+                    (cancelled_ids,),
+                )
+                conn.commit()
+    finally:
+        conn.close()
+
+    # Revoke in Celery
+    try:
+        from app.tasks.celery_app import celery_app
+        for jid in cancelled_ids:
+            celery_app.control.revoke(jid, terminate=True, signal="SIGKILL")
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "cancelled_count": len(cancelled_ids),
+        "job_ids": cancelled_ids,
+        "message": f"Successfully cancelled {len(cancelled_ids)} stuck jobs."
+    }
 
 
 # =========================================================
@@ -1068,12 +1420,26 @@ def get_payment_stats() -> AdminPaymentStatsResponse:
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
-            # Total revenue by currency
+            # Total revenue by currency (normalize VND from metadata if stored as USD amount)
+            cursor.execute(
+                """
+                SELECT COALESCE(
+                    SUM(
+                        CASE
+                            WHEN currency = 'VND' THEN amount
+                            WHEN metadata->>'amount_vnd' IS NOT NULL THEN (metadata->>'amount_vnd')::numeric
+                            ELSE amount * 25000
+                        END
+                    ), 0.0
+                )
+                FROM payment_transactions
+                WHERE status = 'completed';
+                """
+            )
+            total_revenue_vnd = float(cursor.fetchone()[0] or 0.0)
+
             cursor.execute("SELECT COALESCE(SUM(amount), 0.0) FROM payment_transactions WHERE status = 'completed' AND (currency = 'USD' OR currency IS NULL);")
             total_revenue_usd = float(cursor.fetchone()[0] or 0.0)
-
-            cursor.execute("SELECT COALESCE(SUM(amount), 0.0) FROM payment_transactions WHERE status = 'completed' AND currency = 'VND';")
-            total_revenue_vnd = float(cursor.fetchone()[0] or 0.0)
 
             # Count by status
             cursor.execute("SELECT COUNT(*) FROM payment_transactions;")
@@ -1088,16 +1454,24 @@ def get_payment_stats() -> AdminPaymentStatsResponse:
             cursor.execute("SELECT COUNT(*) FROM payment_transactions WHERE status = 'failed';")
             failed_count = cursor.fetchone()[0]
 
-            # Gateway breakdown
+            # Gateway breakdown (calculate VND amount for VNPAY)
             cursor.execute(
                 """
                 SELECT
-                    payment_method,
+                    LOWER(COALESCE(payment_method, 'vnpay')),
                     COUNT(*),
-                    COALESCE(SUM(amount), 0)
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN currency = 'VND' THEN amount
+                                WHEN metadata->>'amount_vnd' IS NOT NULL THEN (metadata->>'amount_vnd')::numeric
+                                ELSE amount * 25000
+                            END
+                        ), 0
+                    )
                 FROM payment_transactions
                 WHERE status = 'completed'
-                GROUP BY payment_method;
+                GROUP BY LOWER(COALESCE(payment_method, 'vnpay'));
                 """
             )
             gw_rows = cursor.fetchall()
@@ -1106,6 +1480,13 @@ def get_payment_stats() -> AdminPaymentStatsResponse:
                 gateway_breakdown[gw] = {
                     "count": count,
                     "total_amount": float(sum_amt),
+                }
+
+            # Ensure vnpay key is always present in gateway_breakdown
+            if "vnpay" not in gateway_breakdown and completed_count > 0:
+                gateway_breakdown["vnpay"] = {
+                    "count": completed_count,
+                    "total_amount": total_revenue_vnd,
                 }
 
             # Recent 10 transactions

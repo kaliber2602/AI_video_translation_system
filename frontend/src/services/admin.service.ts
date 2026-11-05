@@ -18,10 +18,13 @@ import type {
   PaginatedResult,
   SystemHealthResponse,
   SystemMetricsResponse,
+  GpuStatusInfo,
+  ChatbotStatusInfo,
+  CeleryInterventionOverview,
 } from "../types/admin";
 
 // =========================================================
-// 1. Telemetry & Metrics
+// 1. Telemetry & Metrics & UC-04.5 Interventions
 // =========================================================
 
 export const getSystemHealth = async (): Promise<SystemHealthResponse> => {
@@ -31,6 +34,31 @@ export const getSystemHealth = async (): Promise<SystemHealthResponse> => {
 
 export const getSystemMetrics = async (): Promise<SystemMetricsResponse> => {
   const res = await api.get<SystemMetricsResponse>("/api/admin/metrics");
+  return res.data;
+};
+
+export const getGpuTelemetry = async (): Promise<GpuStatusInfo> => {
+  const res = await api.get<GpuStatusInfo>("/api/admin/telemetry/gpu");
+  return res.data;
+};
+
+export const getChatbotTelemetry = async (): Promise<ChatbotStatusInfo> => {
+  const res = await api.get<ChatbotStatusInfo>("/api/admin/telemetry/chatbot");
+  return res.data;
+};
+
+export const getQueueOrchestration = async (): Promise<CeleryInterventionOverview> => {
+  const res = await api.get<CeleryInterventionOverview>("/api/admin/orchestration/queues");
+  return res.data;
+};
+
+export const cancelAllStuckJobs = async (): Promise<{
+  success: boolean;
+  cancelled_count: number;
+  job_ids: string[];
+  message: string;
+}> => {
+  const res = await api.post("/api/admin/orchestration/cancel-stuck-jobs");
   return res.data;
 };
 

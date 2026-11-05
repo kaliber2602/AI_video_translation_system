@@ -21,6 +21,26 @@ from app.core.config import (
 logger = logging.getLogger("app.services.llm_service")
 
 
+# In-memory tracking for chatbot telemetry & token speed
+_CHATBOT_TELEMETRY = {
+    "total_inferences": 0,
+    "total_tokens_generated": 0,
+    "last_tokens_per_second": 0.0,
+    "last_eval_count": 0,
+    "last_eval_duration_ms": 0.0,
+    "last_prompt_tokens": 0,
+    "total_eval_duration_sec": 0.0,
+}
+
+def get_chatbot_speed_stats() -> Dict[str, Any]:
+    stats = dict(_CHATBOT_TELEMETRY)
+    if stats["total_eval_duration_sec"] > 0:
+        stats["avg_tokens_per_second"] = round(stats["total_tokens_generated"] / stats["total_eval_duration_sec"], 2)
+    else:
+        stats["avg_tokens_per_second"] = 0.0
+    return stats
+
+
 class BaseLLMProvider(ABC):
     @abstractmethod
     def generate_response(self, prompt: str, system_prompt: Optional[str] = None) -> Optional[str]:
@@ -80,6 +100,28 @@ class OllamaLocalProvider(BaseLLMProvider):
             # 180s timeout to allow local GPU/CPU to thoroughly synthesize full executive paragraphs without premature cutoff
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 result = json.loads(resp.read().decode("utf-8"))
+                
+                # Extract evaluation metrics (tokens, duration, speed)
+                eval_count = result.get("eval_count", 0)
+                eval_duration_ns = result.get("eval_duration", 0)
+                prompt_eval_count = result.get("prompt_eval_count", 0)
+
+                if eval_count and eval_duration_ns > 0:
+                    duration_sec = eval_duration_ns / 1e9
+                    tps = round(eval_count / duration_sec, 2)
+                    _CHATBOT_TELEMETRY["total_inferences"] += 1
+                    _CHATBOT_TELEMETRY["total_tokens_generated"] += eval_count
+                    _CHATBOT_TELEMETRY["last_tokens_per_second"] = tps
+                    _CHATBOT_TELEMETRY["last_eval_count"] = eval_count
+                    _CHATBOT_TELEMETRY["last_eval_duration_ms"] = round(eval_duration_ns / 1e6, 2)
+                    _CHATBOT_TELEMETRY["last_prompt_tokens"] = prompt_eval_count
+                    _CHATBOT_TELEMETRY["total_eval_duration_sec"] += duration_sec
+                    logger.info(
+                        f"[Ollama Inference] Model={target_model} | "
+                        f"Generated={eval_count} tokens in {round(duration_sec, 2)}s | "
+                        f"Speed={tps} tokens/s | Prompt={prompt_eval_count} tokens"
+                    )
+
                 return result.get("response", "").strip()
         except Exception as e:
             logger.warning(f"[OllamaProvider] Inference error with model {target_model}: {e}")

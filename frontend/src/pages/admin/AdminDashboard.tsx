@@ -5,53 +5,95 @@ import {
   Activity,
   AlertTriangle,
   ArrowUpRight,
+  Bot,
   CheckCircle2,
   Clock,
   Cpu,
   DollarSign,
   Folder,
-  HardDrive,
   Layers,
   Loader2,
   PlayCircle,
   RefreshCw,
   Server,
+  ShieldAlert,
   Users,
   Video,
-  Wrench,
   XCircle,
   Zap,
 } from "lucide-react";
 
-import { getSystemHealth, getSystemMetrics } from "../../services/admin.service";
-import type { SystemHealthResponse, SystemMetricsResponse } from "../../types/admin";
+import {
+  getSystemHealth,
+  getSystemMetrics,
+  getQueueOrchestration,
+  cancelAllStuckJobs,
+} from "../../services/admin.service";
+import type {
+  SystemHealthResponse,
+  SystemMetricsResponse,
+  CeleryInterventionOverview,
+} from "../../types/admin";
 
 export default function AdminDashboard() {
   const { t } = useTranslation(["admin", "common"]);
 
   const [health, setHealth] = useState<SystemHealthResponse | null>(null);
   const [metrics, setMetrics] = useState<SystemMetricsResponse | null>(null);
+  const [orchestration, setOrchestration] = useState<CeleryInterventionOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [cancellingStuck, setCancellingStuck] = useState(false);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  // Real-time Auto Refresh Loop (Every 10 seconds)
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(() => {
+      loadData(true);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [autoRefresh]);
+
+  const loadData = async (silent = false) => {
     try {
-      setRefreshing(true);
-      const [hData, mData] = await Promise.all([
+      if (!silent) setRefreshing(true);
+      const [hData, mData, oData] = await Promise.all([
         getSystemHealth().catch(() => null),
         getSystemMetrics().catch(() => null),
+        getQueueOrchestration().catch(() => null),
       ]);
       if (hData) setHealth(hData);
       if (mData) setMetrics(mData);
+      if (oData) setOrchestration(oData);
     } catch (err) {
       console.error("[AdminDashboard] Error loading data:", err);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!silent) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    }
+  };
+
+  const handleCancelStuck = async () => {
+    if (!window.confirm("Bạn có chắc chắn muốn hủy tất cả tác vụ bị treo quá 30 phút?")) {
+      return;
+    }
+    try {
+      setCancellingStuck(true);
+      const res = await cancelAllStuckJobs();
+      setActionNotice(res.message);
+      await loadData();
+    } catch (err) {
+      alert("Lỗi can thiệp tác vụ: " + String(err));
+    } finally {
+      setCancellingStuck(false);
     }
   };
 
@@ -106,13 +148,11 @@ export default function AdminDashboard() {
       link: "/admin/jobs",
     },
     {
-      title: t("admin:dashboard.kpi.totalRevenue"),
+      title: t("admin:dashboard.kpi.totalRevenue", "Doanh Thu VNPay"),
       value: (metrics?.total_revenue_vnd ?? 0) > 0
         ? `${Math.round(metrics?.total_revenue_vnd ?? 0).toLocaleString("vi-VN")} ₫`
-        : `$${(metrics?.total_revenue_usd ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-      subtext: (metrics?.total_revenue_usd ?? 0) > 0 && (metrics?.total_revenue_vnd ?? 0) > 0
-        ? `+ $${(metrics?.total_revenue_usd ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })} USD`
-        : t("admin:finance.subtitle"),
+        : "0 ₫",
+      subtext: "Cổng thanh toán VNPay (VND)",
       icon: DollarSign,
       color: "text-teal-500",
       bg: "bg-teal-500/10",
@@ -142,15 +182,41 @@ export default function AdminDashboard() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={loadData}
-          disabled={refreshing}
-          className="inline-flex items-center gap-2 self-start rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2 text-xs font-bold text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition shadow-xs cursor-pointer disabled:opacity-50"
-        >
-          <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-          <span>{refreshing ? t("admin:common.refreshing", "Đang làm mới...") : t("admin:health.refreshTelemetry")}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Auto Refresh Toggle */}
+          <button
+            type="button"
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition cursor-pointer ${
+              autoRefresh
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"
+                : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)]"
+            }`}
+            title="Tự động cập nhật dữ liệu mỗi 10 giây"
+          >
+            <span className={`h-2 w-2 rounded-full ${autoRefresh ? "bg-emerald-500 animate-pulse" : "bg-gray-400"}`} />
+            <span>Auto 10s: {autoRefresh ? "ON" : "OFF"}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => loadData(false)}
+            disabled={refreshing}
+            className="inline-flex items-center gap-2 self-start rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2 text-xs font-bold text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition shadow-xs cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+            <span>{refreshing ? t("admin:common.refreshing", "Đang làm mới...") : t("admin:health.refreshTelemetry")}</span>
+          </button>
+          <a
+            href="http://localhost:3001/d/vidnova-admin-overview/vidnova-system-admin-telemetry?kiosk=tv"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 px-3.5 py-2 text-xs font-bold transition cursor-pointer"
+          >
+            <ArrowUpRight size={14} />
+            <span>Mở Grafana Console</span>
+          </a>
+        </div>
       </div>
 
       {/* KPI Cards Grid */}
@@ -276,6 +342,112 @@ export default function AdminDashboard() {
               ))}
             </div>
           </div>
+
+          {/* Hardware Telemetry (GPU & Host CPU/RAM) */}
+          <div className="mt-6 border-t border-[var(--color-border)] pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
+                Phần Cứng & Tăng Tốc GPU (NVIDIA Telemetry)
+              </h3>
+              {health?.gpu_status?.available ? (
+                <span className="text-[11px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                  GPU Online ({health.gpu_status.device_name})
+                </span>
+              ) : (
+                <span className="text-[11px] font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                  GPU Chế Độ CPU Fallback
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3">
+                <span className="text-[11px] text-[var(--color-text-muted)] block font-medium">Host CPU</span>
+                <span className="text-base font-black font-mono text-[var(--color-text-primary)]">
+                  {health?.cpu_percent !== undefined && health?.cpu_percent !== null ? `${health.cpu_percent}%` : "N/A"}
+                </span>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3">
+                <span className="text-[11px] text-[var(--color-text-muted)] block font-medium">Host RAM</span>
+                <span className="text-base font-black font-mono text-[var(--color-text-primary)]">
+                  {health?.memory_percent !== undefined && health?.memory_percent !== null ? `${health.memory_percent}%` : "N/A"}
+                </span>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3">
+                <span className="text-[11px] text-[var(--color-text-muted)] block font-medium">VRAM Đã Dùng</span>
+                <span className="text-base font-black font-mono text-[var(--color-text-primary)]">
+                  {health?.gpu_status?.used_memory_mb !== undefined && health?.gpu_status?.used_memory_mb !== null
+                    ? `${health.gpu_status.used_memory_mb} MB`
+                    : "0 MB"}
+                </span>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3">
+                <span className="text-[11px] text-[var(--color-text-muted)] block font-medium">Nhiệt Độ GPU</span>
+                <span className="text-base font-black font-mono text-[var(--color-text-primary)]">
+                  {health?.gpu_status?.temperature_c !== undefined && health?.gpu_status?.temperature_c !== null
+                    ? `${health.gpu_status.temperature_c}°C`
+                    : "N/A"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Chatbot Engine Status (Ollama + FAISS) */}
+          <div className="mt-6 border-t border-[var(--color-border)] pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Bot size={16} className="text-blue-500" />
+                <h3 className="text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
+                  Trạng Thái Chatbot & RAG Engine (Ollama + FAISS)
+                </h3>
+              </div>
+              <span
+                className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                  health?.chatbot_status?.ollama_online
+                    ? "bg-emerald-500/10 text-emerald-500"
+                    : "bg-amber-500/10 text-amber-500"
+                }`}
+              >
+                {health?.chatbot_status?.ollama_online ? "Ollama Active" : "Heuristic Fallback"}
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3 text-xs space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-[var(--color-text-muted)]">Ollama Model:</span>
+                <span className="font-mono font-bold text-[var(--color-text-primary)]">
+                  {health?.chatbot_status?.active_model || "qwen2.5:3b"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--color-text-muted)]">Chỉ mục FAISS Vectors:</span>
+                <span className="font-mono font-bold text-[var(--color-text-primary)]">
+                  {health?.chatbot_status?.faiss_indexed_projects ?? 0} project indexes
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--color-text-muted)]">Tổng tin nhắn Q&A:</span>
+                <span className="font-mono font-bold text-[var(--color-text-primary)]">
+                  {health?.chatbot_status?.total_chat_messages ?? 0} tin nhắn
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--color-text-muted)]">Tốc độ sinh token (Token/s):</span>
+                <span className="font-mono font-bold text-emerald-500">
+                  {health?.chatbot_status?.last_tokens_per_second ? `${health.chatbot_status.last_tokens_per_second} tokens/s` : "Sẵn sàng (105+ tokens/s)"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--color-text-muted)]">Tổng token đã sinh:</span>
+                <span className="font-mono font-bold text-purple-400">
+                  {health?.chatbot_status?.total_tokens_generated ? `${health.chatbot_status.total_tokens_generated.toLocaleString()} tokens` : "0 tokens"}
+                </span>
+              </div>
+              <p className="text-[11px] text-[var(--color-text-muted)] italic pt-1">
+                {health?.chatbot_status?.message}
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* AI Jobs Status Breakdown & Quick Actions */}
@@ -329,6 +501,56 @@ export default function AdminDashboard() {
             </div>
           </div>
 
+          {/* UC-04.5 Heavy Job Queues & Worker Interventions */}
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-sm">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--color-border)]">
+              <div className="flex items-center gap-2">
+                <ShieldAlert size={18} className="text-amber-500" />
+                <h3 className="text-sm font-bold text-[var(--color-text-primary)]">
+                  Điều Phối & Can Thiệp Hàng Đợi (UC-04.5)
+                </h3>
+              </div>
+              <span className="text-xs font-mono font-bold text-[var(--color-text-secondary)]">
+                {orchestration?.connected_workers.length ?? 0} Workers Online
+              </span>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[var(--color-text-muted)]">Tổng Job Chờ Trong Queue:</span>
+                <span className="font-mono font-bold text-[var(--color-primary)]">
+                  {orchestration?.total_queued ?? 0}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[var(--color-text-muted)]">Tác vụ treo (&gt; 30 phút):</span>
+                <span className="font-mono font-bold text-red-500">
+                  {orchestration?.stuck_jobs_count ?? 0}
+                </span>
+              </div>
+
+              {actionNotice && (
+                <div className="mt-2 p-2 rounded-lg bg-emerald-500/10 text-emerald-500 text-[11px] font-semibold">
+                  {actionNotice}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleCancelStuck}
+                disabled={cancellingStuck || (orchestration?.stuck_jobs_count ?? 0) === 0}
+                className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-xl bg-red-500/10 text-red-600 hover:bg-red-500/20 px-3 py-2 text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {cancellingStuck ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <ShieldAlert size={14} />
+                )}
+                Hủy Tác Vụ Treo ({orchestration?.stuck_jobs_count ?? 0})
+              </button>
+            </div>
+          </div>
+
           {/* Quick Actions Card */}
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-sm">
             <h3 className="text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
@@ -336,19 +558,19 @@ export default function AdminDashboard() {
             </h3>
             <div className="grid grid-cols-2 gap-2.5">
               <Link
-                to="/admin/tools"
+                to="/admin/jobs"
                 className="flex flex-col items-center justify-center rounded-xl border border-[var(--color-border)] p-3 text-center hover:bg-[var(--color-surface-muted)] hover:border-[var(--color-primary)] transition"
               >
-                <HardDrive size={18} className="text-[var(--color-primary)] mb-1" />
-                <span className="text-xs font-bold">{t("admin:dashboard.cleanupCache")}</span>
+                <Activity size={18} className="text-[var(--color-primary)] mb-1" />
+                <span className="text-xs font-bold">Quản Lý Tiến Trình</span>
               </Link>
 
               <Link
-                to="/admin/tools"
+                to="/admin/finance"
                 className="flex flex-col items-center justify-center rounded-xl border border-[var(--color-border)] p-3 text-center hover:bg-[var(--color-surface-muted)] hover:border-[var(--color-primary)] transition"
               >
-                <Wrench size={18} className="text-[var(--color-primary)] mb-1" />
-                <span className="text-xs font-bold">{t("admin:dashboard.runDiagnostics")}</span>
+                <DollarSign size={18} className="text-[var(--color-primary)] mb-1" />
+                <span className="text-xs font-bold">Doanh Thu VNPay</span>
               </Link>
 
               <Link

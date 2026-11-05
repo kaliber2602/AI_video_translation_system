@@ -93,7 +93,43 @@ services:
     volumes:
       - minio_prod_data:/data
 
+  # ============================================================================
+  # OBSERVABILITY & DASHBOARD MONITORING (GRAFANA & PROMETHEUS)
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: vidnova-master-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_prod_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: vidnova-master-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_AUTH_DISABLE_LOGIN_FORM=false
+    volumes:
+      - grafana_prod_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
 volumes:
   postgres_prod_data:
   redis_prod_data:
   minio_prod_data:
+  prometheus_prod_data:
+  grafana_prod_data:
