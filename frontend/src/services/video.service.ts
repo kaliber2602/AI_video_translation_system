@@ -54,6 +54,7 @@ export const videoService = {
     const response = await api.post(`/api/videos/upload?${params.toString()}`, formData, {
       headers: { "Content-Type": "multipart/form-data" },
       signal,
+      timeout: 0, // No timeout for large video uploads
       onUploadProgress: (progressEvent) => {
         if (progressEvent.total && onProgress) {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);

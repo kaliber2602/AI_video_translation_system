@@ -123,9 +123,6 @@ class PipelineSteps:
         self.tts_aligner = TTSAlignerService()
         self.diarization_service = DiarizationService()
 
-    def _get_glossary(self, project_id: Optional[int]) -> Dict[str, str]:
-        return {}
-
     def step_extract_audio(self, job_id: uuid.UUID, video_id: int, video_path: str, temp_dir: str) -> Dict[str, Any]:
         self.job_service.update_job_status(job_id, JobStatus.PROCESSING, progress=10, current_step=JobStep.AUDIO_EXTRACT)
         self.job_service.log_task(job_id, "audio_extract", "running", "Extracting audio from video...")
@@ -240,11 +237,7 @@ class PipelineSteps:
             config = (self.db.query(VideoPipelineConfig)
                      .filter(VideoPipelineConfig.video_id == video_id)
                      .first())
-            
-            glossary = {}
-            if config and getattr(config, "project_id", None):
-                glossary = self._get_glossary(config.project_id)
-            
+
             def on_trans_prog(pct: int, curr: int, tot: int):
                 # Scale translation (0 - 100%) to full pipeline step 50% -> 60%
                 scaled_prog = 50 + int((pct / 100.0) * 10)
@@ -256,7 +249,7 @@ class PipelineSteps:
             trans_model = config.translation_model if config and config.translation_model else "nllb_200_1.3b"
             translation_svc = TranslationService(model_name=trans_model) if trans_model else self.translation_service
             translated_segments = translation_svc.translate_document(
-                segments=segments, glossary=glossary, src_lang=nllb_src, tgt_lang=nllb_tgt, model=trans_model,
+                segments=segments, src_lang=nllb_src, tgt_lang=nllb_tgt, model=trans_model,
                 progress_callback=on_trans_prog
             )
             

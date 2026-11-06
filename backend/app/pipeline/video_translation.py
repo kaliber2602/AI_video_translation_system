@@ -39,7 +39,7 @@ def get_tts_aligner():
         tts_aligner = TTSAlignerService(tts_api_url=tts_url)
     return tts_aligner
 
-def _video_translation(video_input_path: str, final_output_path: str, target_language: str, glossary: dict = None, stt_model: str = None, translation_model: str = None, tts_model: str = None, voice_id: str = None, demucs_model: str = "htdemucs"):
+def _video_translation(video_input_path: str, final_output_path: str, target_language: str, stt_model: str = None, translation_model: str = None, tts_model: str = None, voice_id: str = None, demucs_model: str = "htdemucs"):
     """
     Process video translation with auto device detection
     
@@ -47,14 +47,10 @@ def _video_translation(video_input_path: str, final_output_path: str, target_lan
         video_input_path: Path to input video
         final_output_path: Path to output video
         target_language: Target language code (e.g., 'vi', 'en', 'fr')
-        glossary: Optional glossary for custom translations
     
     Returns:
         tuple: (output_path, detected_source_language, translated_segments)
     """
-    if glossary is None:
-        glossary = {}
-        
     # Auto-detect and log device
     cuda_available = torch.cuda.is_available()
     device_info = "GPU" if cuda_available else "CPU"
@@ -105,7 +101,6 @@ def _video_translation(video_input_path: str, final_output_path: str, target_lan
         try:
             translated_segments = translation_service.translate_document(
                 segments=segments,
-                glossary=glossary,
                 src_lang=nllb_src_lang,
                 tgt_lang=nllb_tgt_lang,
                 model=translation_model or "nllb_200_1.3b"
@@ -153,6 +148,6 @@ def _video_translation(video_input_path: str, final_output_path: str, target_lan
 
 
 # ✅ For backward compatibility - maintain the same function name
-def process_video_translation(video_input_path: str, final_output_path: str, target_language: str, glossary: dict = None, stt_model: str = None, translation_model: str = None, tts_model: str = None, voice_id: str = None):
+def process_video_translation(video_input_path: str, final_output_path: str, target_language: str, stt_model: str = None, translation_model: str = None, tts_model: str = None, voice_id: str = None):
     """Wrapper function for backward compatibility"""
-    return _video_translation(video_input_path, final_output_path, target_language, glossary, stt_model=stt_model, translation_model=translation_model, tts_model=tts_model, voice_id=voice_id)
+    return _video_translation(video_input_path, final_output_path, target_language, stt_model=stt_model, translation_model=translation_model, tts_model=tts_model, voice_id=voice_id)

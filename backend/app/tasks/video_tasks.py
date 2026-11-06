@@ -1477,7 +1477,6 @@ def task_translate_step(
         translation_service = TranslationService(model_name=trans_model)
         translated_segments = translation_service.translate_document(
             segments=segments,
-            glossary={},
             src_lang=nllb_src,
             tgt_lang=nllb_tgt,
             model=trans_model,

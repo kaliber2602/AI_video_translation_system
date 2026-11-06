@@ -751,8 +751,8 @@
       "note": "AI speech recognition automatically transcribes dialogue accurately segment by segment."
     },
     "tier3": {
-      "title": "Tier 3: Multilingual Translation (NLLB-200) & Glossary",
-      "desc": "Coherent, natural translation preserving context and terminology.",
+      "title": "Tier 3: Multilingual Translation (NLLB-200)",
+      "desc": "Natural and coherent translation, preserving exact context across segments.",
       "targetLangLabel": "Default target language",
       "modelLabel": "Translation model"
     },

@@ -41,7 +41,6 @@ const DEFAULT_CONFIG: PresetConfigData = {
     model_name: "nllb_200_1.3b",
     source_language: "auto",
     target_language: "vi",
-    apply_glossary: true,
   },
   tts_dubbing: {
     engine: "edge_tts",
@@ -640,16 +639,16 @@ export default function PresetStudioModal({
             </div>
           )}
 
-          {/* TAB 3: TRANSLATION & GLOSSARY */}
+          {/* TAB 3: TRANSLATION */}
           {activeTab === "translation" && (
             <div className="space-y-4 animate-fade-in">
               <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
                 <div>
                   <h4 className="text-sm font-bold text-[var(--color-text-primary)]">
-                    {t("pipeline:presetStudio.tier3.title", "Tầng 3: Dịch Thuật Đa Ngữ (NLLB-200) & Từ Điển Thuật Ngữ (Glossary)")}
+                    {t("pipeline:presetStudio.tier3.title", "Tầng 3: Dịch Thuật Đa Ngữ (NLLB-200)")}
                   </h4>
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    {t("pipeline:presetStudio.tier3.desc", "Bản dịch mạch lạc tự nhiên, bảo toàn ngữ cảnh và dịch chính xác thuật ngữ chuyên ngành.")}
+                    {t("pipeline:presetStudio.tier3.desc", "Bản dịch mạch lạc tự nhiên, bảo toàn ngữ cảnh chính xác theo từng phân đoạn.")}
                   </p>
                 </div>
                 <span className="rounded bg-indigo-500/10 px-2 py-0.5 text-[11px] font-semibold text-indigo-400">
