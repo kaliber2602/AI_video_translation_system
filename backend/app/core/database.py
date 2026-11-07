@@ -166,7 +166,6 @@ def ensure_db_schema():
             cur.execute("DROP TABLE IF EXISTS user_integrations CASCADE;")
             cur.execute("DROP TABLE IF EXISTS project_members CASCADE;")
             cur.execute("DROP TABLE IF EXISTS project_share_links CASCADE;")
-            cur.execute("DROP TABLE IF EXISTS project_glossary CASCADE;")
 
             # 6. videos language and snapshot columns
             cur.execute("ALTER TABLE videos ADD COLUMN IF NOT EXISTS target_language VARCHAR(20);")

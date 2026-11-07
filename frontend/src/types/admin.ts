@@ -13,11 +13,54 @@ export interface DiskUsageInfo {
   percent_used: number;
 }
 
+export interface GpuStatusInfo {
+  available: boolean;
+  device_name?: string;
+  total_memory_mb?: number;
+  used_memory_mb?: number;
+  free_memory_mb?: number;
+  memory_percent?: number;
+  temperature_c?: number;
+  gpu_utilization_percent?: number;
+  power_watts?: number;
+}
+
+export interface ChatbotStatusInfo {
+  ollama_online: boolean;
+  ollama_url: string;
+  models_available: string[];
+  active_model: string;
+  faiss_ready: boolean;
+  faiss_indexed_projects: number;
+  total_chat_messages: number;
+  status: "healthy" | "warning" | "offline";
+  message?: string;
+  last_tokens_per_second?: number;
+  total_tokens_generated?: number;
+  total_inference_requests?: number;
+  avg_tokens_per_second?: number;
+}
+
+export interface CeleryQueueInfo {
+  queue_name: string;
+  depth: number;
+}
+
+export interface CeleryInterventionOverview {
+  connected_workers: string[];
+  queues: CeleryQueueInfo[];
+  total_queued: number;
+  total_active: number;
+  stuck_jobs_count: number;
+}
+
 export interface SystemHealthResponse {
   overall_status: "healthy" | "warning" | "critical";
   services: ServiceStatus[];
   cpu_percent?: number;
   memory_percent?: number;
+  gpu_status?: GpuStatusInfo;
+  chatbot_status?: ChatbotStatusInfo;
   disk_usage: DiskUsageInfo[];
   checked_at: string;
 }

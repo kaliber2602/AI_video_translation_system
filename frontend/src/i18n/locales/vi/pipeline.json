@@ -751,8 +751,8 @@
       "note": "Mô hình nhận dạng giọng nói tự động trích xuất lời thoại chính xác theo từng đoạn video."
     },
     "tier3": {
-      "title": "Tầng 3: Dịch Thuật Đa Ngữ (NLLB-200) & Từ Điển Thuật Ngữ (Glossary)",
-      "desc": "Bản dịch mạch lạc tự nhiên, bảo toàn ngữ cảnh và dịch chính xác thuật ngữ chuyên ngành.",
+      "title": "Tầng 3: Dịch Thuật Đa Ngữ (NLLB-200)",
+      "desc": "Bản dịch mạch lạc tự nhiên, bảo toàn ngữ cảnh chính xác theo từng phân đoạn.",
       "targetLangLabel": "Ngôn ngữ đích mặc định",
       "modelLabel": "Mô hình dịch thuật"
     },

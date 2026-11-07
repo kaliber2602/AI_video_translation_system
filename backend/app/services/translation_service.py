@@ -1,6 +1,7 @@
 import os
 import re
 import threading
+from typing import Optional, List, Dict, Any
 import torch
 import transformers.utils.import_utils as _tf_iu
 import transformers.modeling_utils as _tf_mu
@@ -142,27 +143,6 @@ class TranslationService:
                 torch.cuda.empty_cache()
             print("[Translate] Đã giải phóng bộ nhớ NLLB khỏi VRAM.", flush=True)
 
-    def mask_keywords(self, text: str, glossary: dict):
-        """Bảo vệ các từ khóa (Tên riêng, Thuật ngữ) không bị AI dịch sai."""
-        if not glossary:
-            return text, {}
-        mapping = {}
-        for idx, (term, translation) in enumerate(glossary.items()):
-            placeholder = f"__GLOSSARY_{idx}__"
-            if re.search(r'[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u30ff\uac00-\ud7af]', term):
-                pattern = re.escape(term)
-            else:
-                pattern = rf'\b{re.escape(term)}\b'
-            text = re.sub(pattern, placeholder, text, flags=re.IGNORECASE)
-            mapping[placeholder] = translation
-        return text, mapping
-
-    def unmask_keywords(self, text: str, mapping: dict):
-        """Khôi phục các từ khóa đã bảo vệ sang định dạng bản dịch mong muốn."""
-        for placeholder, translation in mapping.items():
-            text = text.replace(placeholder, translation)
-        return text
-
     def _smart_merge_segments(self, segments: list, max_duration: float = 6.0, max_chars: int = 150, max_gap: float = 1.0) -> list:
         """Gộp các phân đoạn nhỏ ngắt câu lửng thành các câu hoàn chỉnh ngữ nghĩa."""
         if not segments:
@@ -207,7 +187,16 @@ class TranslationService:
         merged_segments.append(current_merge)
         return merged_segments
 
-    def translate_document(self, segments: list, glossary: dict, src_lang: str, tgt_lang: str, model: str = None, progress_callback=None, smart_merge: bool = False):
+    def translate_document(
+        self,
+        segments: list,
+        src_lang: str,
+        tgt_lang: str,
+        model: str = None,
+        progress_callback=None,
+        smart_merge: bool = False,
+        **kwargs
+    ):
         if not segments:
             return []
             
@@ -242,16 +231,10 @@ class TranslationService:
         
         for i in range(0, total_items, batch_size):
             batch = target_segments[i:i + batch_size]
-            
-            masked_texts = []
-            mappings = []
-            for seg in batch:
-                m_text, mapping = self.mask_keywords(seg["text"], glossary)
-                masked_texts.append(m_text)
-                mappings.append(mapping)
+            batch_texts = [seg["text"] for seg in batch]
                 
             inputs = self.tokenizer(
-                masked_texts,
+                batch_texts,
                 return_tensors="pt",
                 padding=True,
                 truncation=True,
@@ -267,8 +250,7 @@ class TranslationService:
             decoded_batch = self.tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)
             
             for j, seg in enumerate(batch):
-                final_text = self.unmask_keywords(decoded_batch[j], mappings[j])
-                seg["translated_text"] = final_text
+                seg["translated_text"] = decoded_batch[j]
                 
             processed_count += len(batch)
             if progress_callback and total_items > 0:

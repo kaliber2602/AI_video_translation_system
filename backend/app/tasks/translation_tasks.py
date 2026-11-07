@@ -18,12 +18,11 @@ def transcribe_audio(audio_path: str, model: Optional[str] = None):
 
 
 @celery_app.task(name="translate_segments")
-def translate_segments(segments: list, source_lang: str, target_lang: str, glossary: dict = None, model: Optional[str] = None):
+def translate_segments(segments: list, source_lang: str, target_lang: str, model: Optional[str] = None, **kwargs):
     """Translate transcript segments"""
     trans_svc = TranslationService(model_name=model) if model else TranslationService()
     translated_segments = trans_svc.translate_document(
         segments=segments,
-        glossary=glossary or {},
         src_lang=source_lang,
         tgt_lang=target_lang,
         model=model or "nllb_200_1.3b"

@@ -46,7 +46,6 @@ class TranslationConfig(BaseModel):
     engine: Optional[str] = "nllb_local"  # "nllb_local" or "cloud_llm"
     source_language: Optional[str] = "auto"
     target_language: Optional[str] = "vi"
-    apply_glossary: Optional[bool] = True
     preserve_tone: Optional[str] = "natural"
     tone_style: Optional[str] = "natural"
     system_instruction: Optional[str] = ""

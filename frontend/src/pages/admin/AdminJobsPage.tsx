@@ -19,11 +19,14 @@ import {
   getAdminJobDetail,
   retryAdminJob,
   cancelAdminJob,
+  getQueueOrchestration,
+  cancelAllStuckJobs,
 } from "../../services/admin.service";
 import { toast } from "../../lib/toast";
 import type {
   AdminJobResponse,
   AdminJobDetailResponse,
+  CeleryInterventionOverview,
 } from "../../types/admin";
 import ConfirmationDialog from "../../components/common/ConfirmationDialog";
 
@@ -31,6 +34,8 @@ export default function AdminJobsPage() {
   const { t } = useTranslation(["admin", "common"]);
 
   const [jobs, setJobs] = useState<AdminJobResponse[]>([]);
+  const [orchestration, setOrchestration] = useState<CeleryInterventionOverview | null>(null);
+  const [cancellingStuck, setCancellingStuck] = useState(false);
   const [total, setTotal] = useState(0);
   const [limit] = useState(15);
   const [offset, setOffset] = useState(0);
@@ -51,19 +56,37 @@ export default function AdminJobsPage() {
   const loadJobs = async () => {
     try {
       setLoading(true);
-      const res = await getAdminJobs({
-        limit,
-        offset,
-        status: statusFilter !== "all" ? statusFilter : undefined,
-        search: search.trim() ? search.trim() : undefined,
-      });
+      const [res, orch] = await Promise.all([
+        getAdminJobs({
+          limit,
+          offset,
+          status: statusFilter !== "all" ? statusFilter : undefined,
+          search: search.trim() ? search.trim() : undefined,
+        }),
+        getQueueOrchestration().catch(() => null),
+      ]);
       setJobs(res.items);
       setTotal(res.total);
+      if (orch) setOrchestration(orch);
     } catch (err) {
       console.error("[AdminJobsPage] Error fetching jobs:", err);
       toast.error("Không thể tải danh sách tiến trình.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancelStuck = async () => {
+    if (!window.confirm("Hủy toàn bộ tác vụ bị treo quá 30 phút?")) return;
+    try {
+      setCancellingStuck(true);
+      const res = await cancelAllStuckJobs();
+      toast.success(res.message);
+      loadJobs();
+    } catch (err) {
+      toast.error("Lỗi can thiệp tác vụ treo: " + String(err));
+    } finally {
+      setCancellingStuck(false);
     }
   };
 
@@ -181,6 +204,51 @@ export default function AdminJobsPage() {
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           <span>{t("admin:common.refresh", "Làm mới")}</span>
         </button>
+      </div>
+
+      {/* UC-04.5 Orchestrate Heavy Job Queues & Interventions Header Banner */}
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <h2 className="text-sm font-bold text-[var(--color-text-primary)]">
+                UC-04.5: Trình Điều Phối Heavy Job Queues & Can Thiệp Khẩn Cấp
+              </h2>
+            </div>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Đang kết nối: {orchestration?.connected_workers.length ?? 0} Workers • Tổng chờ: {orchestration?.total_queued ?? 0} tasks • Đang chạy: {orchestration?.total_active ?? 0} tasks
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCancelStuck}
+              disabled={cancellingStuck || (orchestration?.stuck_jobs_count ?? 0) === 0}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-red-500/10 text-red-600 hover:bg-red-500/20 px-3.5 py-2 text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <StopCircle size={14} className={cancellingStuck ? "animate-spin" : ""} />
+              <span>Hủy Tác Vụ Treo ({orchestration?.stuck_jobs_count ?? 0})</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Queues breakdown */}
+        {orchestration?.queues && orchestration.queues.length > 0 && (
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-2 border-t border-[var(--color-border)] pt-3">
+            {orchestration.queues.map((q) => (
+              <div key={q.queue_name} className="rounded-lg bg-[var(--color-surface-muted)] p-2 text-center">
+                <span className="block text-[10px] uppercase font-bold text-[var(--color-text-muted)] truncate">
+                  {q.queue_name}
+                </span>
+                <span className="font-mono text-xs font-black text-[var(--color-primary)]">
+                  {q.depth} queued
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Filter & Search Bar */}

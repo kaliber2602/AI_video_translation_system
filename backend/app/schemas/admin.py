@@ -22,11 +22,54 @@ class DiskUsageInfo(BaseModel):
     percent_used: float
 
 
+class GpuStatusInfo(BaseModel):
+    available: bool = False
+    device_name: Optional[str] = None
+    total_memory_mb: Optional[int] = None
+    used_memory_mb: Optional[int] = None
+    free_memory_mb: Optional[int] = None
+    memory_percent: Optional[float] = None
+    temperature_c: Optional[int] = None
+    gpu_utilization_percent: Optional[int] = None
+    power_watts: Optional[float] = None
+
+
+class ChatbotStatusInfo(BaseModel):
+    ollama_online: bool = False
+    ollama_url: str = ""
+    models_available: List[str] = []
+    active_model: str = ""
+    faiss_ready: bool = False
+    faiss_indexed_projects: int = 0
+    total_chat_messages: int = 0
+    status: str = "offline"  # "healthy", "warning", "offline"
+    message: Optional[str] = None
+    last_tokens_per_second: float = 0.0
+    total_tokens_generated: int = 0
+    total_inference_requests: int = 0
+    avg_tokens_per_second: float = 0.0
+
+
+class CeleryQueueInfo(BaseModel):
+    queue_name: str
+    depth: int = 0
+
+
+class CeleryInterventionOverview(BaseModel):
+    connected_workers: List[str] = []
+    queues: List[CeleryQueueInfo] = []
+    total_queued: int = 0
+    total_active: int = 0
+    stuck_jobs_count: int = 0
+
+
 class SystemHealthResponse(BaseModel):
     overall_status: str  # "healthy", "warning", "critical"
     services: List[ServiceStatus]
     cpu_percent: Optional[float] = None
     memory_percent: Optional[float] = None
+    gpu_status: Optional[GpuStatusInfo] = None
+    chatbot_status: Optional[ChatbotStatusInfo] = None
     disk_usage: List[DiskUsageInfo]
     checked_at: datetime
 

@@ -25,7 +25,6 @@ export interface TranslationConfig {
   model_name?: string;
   source_language?: string;
   target_language?: string;
-  apply_glossary?: boolean;
   preserve_tone?: string;
 }
 

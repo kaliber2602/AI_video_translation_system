@@ -84,7 +84,6 @@ async def upload_video_legacy(
             video_input_path=str(input_video_path),
             final_output_path=str(output_video_path),
             target_language=target_language,
-            glossary={},
         )
 
         transcript_text = "\n".join(

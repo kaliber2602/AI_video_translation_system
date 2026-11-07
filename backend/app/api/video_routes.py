@@ -978,8 +978,6 @@ async def get_video_pipeline_config(
                 "tone": translation.get("tone") or translation.get("tone_style", "natural"),
                 "system_instruction": translation.get("system_instruction") or translation.get("system_prompt", ""),
                 "system_prompt": translation.get("system_prompt") or translation.get("system_instruction", ""),
-                "apply_glossary": translation.get("apply_glossary", True),
-                "glossary": translation.get("glossary", {}),
             },
             "tts_dubbing": {
                 "engine": tts_dubbing.get("engine", "coqui_xtts_v2"),
@@ -3383,7 +3381,6 @@ def start_translation(
         
         translated_segments = translation_service.translate_document(
             segments=segments,
-            glossary={},
             src_lang=nllb_src,
             tgt_lang=nllb_tgt,
             model=trans_model,

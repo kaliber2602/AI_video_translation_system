@@ -19,7 +19,6 @@ import {
   ShieldCheck,
   Sun,
   Users,
-  Wrench,
   X,
 } from "lucide-react";
 
@@ -118,11 +117,6 @@ export default function AdminLayout() {
       path: "/admin/contacts",
       label: t("admin:nav.contacts"),
       icon: Mail,
-    },
-    {
-      path: "/admin/tools",
-      label: t("admin:nav.tools"),
-      icon: Wrench,
     },
   ];
 

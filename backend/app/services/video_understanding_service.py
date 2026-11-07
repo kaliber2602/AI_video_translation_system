@@ -875,12 +875,30 @@ class VideoUnderstandingService:
         self.db.add(user_record)
         self.db.commit()
 
+        # Capture telemetry metrics from last inference
+        tokens_gen = 0
+        eval_ms = 0.0
+        tps = 0.0
+        model_used = model_name or "qwen2.5:3b"
+        try:
+            from app.services.llm_service import get_chatbot_speed_stats
+            c_stats = get_chatbot_speed_stats()
+            tokens_gen = c_stats.get("last_eval_count", 0)
+            eval_ms = c_stats.get("last_eval_duration_ms", 0.0)
+            tps = c_stats.get("last_tokens_per_second", 0.0)
+        except Exception:
+            pass
+
         asst_record = VideoChatMessage(
             video_id=video_id,
             user_id=user_id,
             role="assistant",
             message=reply,
             citations=citations,
+            tokens_generated=tokens_gen,
+            eval_duration_ms=eval_ms,
+            tokens_per_second=tps,
+            model_name=model_used,
             created_at=now,
         )
         self.db.add(asst_record)
@@ -894,6 +912,10 @@ class VideoUnderstandingService:
             "message": reply,
             "reply": reply,
             "citations": citations,
+            "tokens_generated": tokens_gen,
+            "eval_duration_ms": eval_ms,
+            "tokens_per_second": tps,
+            "model_name": model_used,
             "created_at": now.isoformat(),
         }
 
