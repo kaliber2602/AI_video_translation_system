@@ -48,9 +48,16 @@ docker compose -f docker-compose.master.yml up -d --build
 # 5. Database tuning
 echo ">>> [5/5] Aligning database configuration..."
 sleep 5
-docker exec vidnova-db-1 psql -U ai_video -d ai_video -c "UPDATE video_pipeline_configs SET stt_model = 'small'; UPDATE user_settings SET default_stt_model = 'small';" 2>/dev/null || true
-docker exec vidnova-redis-1 redis-cli --scan --pattern "lock:*" | xargs -r docker exec vidnova-redis-1 redis-cli del 2>/dev/null || true
+docker compose -f docker-compose.master.yml exec -T db psql -U ai_video -d ai_video -c "UPDATE video_pipeline_configs SET stt_model = 'small'; UPDATE user_settings SET default_stt_model = 'small';" 2>/dev/null || docker exec vidnova-master-db psql -U ai_video -d ai_video -c "UPDATE video_pipeline_configs SET stt_model = 'small'; UPDATE user_settings SET default_stt_model = 'small';" 2>/dev/null || true
+docker compose -f docker-compose.master.yml exec -T redis redis-cli --scan --pattern "lock:*" | xargs -r docker compose -f docker-compose.master.yml exec -T redis redis-cli del 2>/dev/null || true
 
 echo "=========================================="
 echo ">>> Master Node Deployment Complete! Web live at https://$DOMAIN"
+if command -v tailscale &> /dev/null; then
+    TS_IP=$(tailscale ip -4 2>/dev/null || true)
+    if [ -n "$TS_IP" ]; then
+        echo ">>> Master Tailscale Private IP: $TS_IP"
+        echo ">>> (Use this IP to connect your Vast.ai Worker: ./scripts/deploy_vastai_worker.sh $TS_IP)"
+    fi
+fi
 echo "=========================================="

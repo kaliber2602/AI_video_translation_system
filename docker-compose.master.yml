@@ -5,6 +5,7 @@
 
 services:
   backend:
+    container_name: vidnova-master-backend
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -31,6 +32,7 @@ services:
       - ./model-cache:/opt/model-cache
 
   frontend:
+    container_name: vidnova-master-frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -46,6 +48,7 @@ services:
       - backend
 
   db:
+    container_name: vidnova-master-db
     image: postgres:16-alpine
     restart: unless-stopped
     env_file:
@@ -67,6 +70,7 @@ services:
       retries: 5
 
   redis:
+    container_name: vidnova-master-redis
     image: redis:7-alpine
     restart: unless-stopped
     command: redis-server --appendonly yes --protected-mode no
@@ -81,6 +85,7 @@ services:
       retries: 5
 
   minio:
+    container_name: vidnova-master-minio
     image: ghcr.io/coollabsio/minio:latest
     restart: unless-stopped
     command: server /data --console-address ":9001"

@@ -7,16 +7,28 @@ services:
   celery-worker:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.gpu
     restart: unless-stopped
-    command: celery -A app.tasks.celery_app worker --loglevel=info -Q queue_media,queue_pipeline,queue_stt,queue_translate,queue_tts --concurrency=1 -Ofair
+    command: celery -A app.tasks.celery_app worker --loglevel=info -Q queue_media,queue_pipeline,queue_stt,queue_translate,queue_tts -P solo -Ofair
     env_file:
       - .env
     environment:
       PYTHONUNBUFFERED: "1"
       ENVIRONMENT: "production"
       WHISPER_MODEL: ${WHISPER_MODEL:-small}
-      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cuda}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8_float16}
+      TRANSLATION_BACKEND: ${TRANSLATION_BACKEND:-nllb}
+      TRANSLATION_DEVICE: ${TRANSLATION_DEVICE:-cuda}
+      HF_HOME: /opt/model-cache/hf
+      COQUI_TOS_AGREED: "1"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     volumes:
       - ./backend/uploads:/app/uploads
       - ./backend/outputs:/app/outputs
