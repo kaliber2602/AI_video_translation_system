@@ -1,99 +1,159 @@
 #!/bin/bash
 # ============================================================================
 # VIDNOVA PLATFORM - 1-Click Vast.ai GPU Worker Bootstrap Script
-# Usage: ./scripts/deploy_vastai_worker.sh <MASTER_TAILSCALE_IP> [TAILSCALE_AUTHKEY]
-# Example: ./scripts/deploy_vastai_worker.sh 100.80.25.10 tskey-auth-k1234567890-abcdef
+# Tự động hóa 100% triển khai GPU Worker trên Vast.ai (Userspace Tailscale + Socat)
+# Usage: ./scripts/deploy_vastai_worker.sh <MASTER_TAILSCALE_IP> <TAILSCALE_AUTHKEY>
+# Example: ./scripts/deploy_vastai_worker.sh 100.90.113.102 tskey-auth-kxvmwuhN7J11CNTRL-xxxxxx
 # ============================================================================
 set -e
 
 MASTER_IP="${1}"
 AUTH_KEY="${2}"
 
-if [ -z "$MASTER_IP" ]; then
+if [ -z "$MASTER_IP" ] || [ -z "$AUTH_KEY" ]; then
     echo "========================================================================"
-    echo "ERROR: Missing Master Tailscale IP."
-    echo "Usage: ./scripts/deploy_vastai_worker.sh <MASTER_TAILSCALE_IP> [TAILSCALE_AUTHKEY]"
-    echo "Example: ./scripts/deploy_vastai_worker.sh 100.80.25.10 tskey-auth-k123456"
+    echo "❌ LỖI: Thiếu tham số kết nối."
+    echo "Cú pháp: ./scripts/deploy_vastai_worker.sh <MASTER_TAILSCALE_IP> <TAILSCALE_AUTHKEY>"
+    echo "Ví dụ:   ./scripts/deploy_vastai_worker.sh 100.90.113.102 tskey-auth-kxvmwuhN7J11CNTRL-xxx"
     echo "========================================================================"
     exit 1
 fi
 
 echo "========================================================================"
-echo " Starting Vast.ai GPU Worker Deployment (Targeting Master at $MASTER_IP)"
+echo "🚀 BẮT ĐẦU CẤU HÌNH VAST.AI GPU WORKER (MASTER IP: $MASTER_IP)"
 echo "========================================================================"
 
-# Step 1: Ensure Tailscale is installed and connected
-echo ">>> [1/5] Checking Tailscale VPN..."
+# Bước 1: Cài đặt công cụ nền tảng (socat, curl, tailscale)
+echo ">>> [1/7] Cài đặt công cụ mạng và Tailscale..."
+apt-get update -qq >/dev/null 2>&1 || true
+apt-get install -y -qq socat curl netcat-openbsd psmisc procps >/dev/null 2>&1 || true
+
 if ! command -v tailscale &> /dev/null; then
-    echo "Installing Tailscale..."
+    echo "Đang tải và cài đặt Tailscale..."
     curl -fsSL https://tailscale.com/install.sh | sh
 fi
-sudo systemctl enable --now tailscaled 2>/dev/null || service tailscale start 2>/dev/null || true
 
-CURRENT_TS_IP=$(tailscale ip -4 2>/dev/null || true)
-if [ -z "$CURRENT_TS_IP" ]; then
-    if [ -n "$AUTH_KEY" ]; then
-        echo "Connecting Tailscale via Auth Key..."
-        tailscale up --authkey="$AUTH_KEY" --accept-routes
+# Bước 2: Thiết lập Tailscaled ở chế độ Userspace Networking (phù hợp với Docker unprivileged của Vast.ai)
+echo ">>> [2/7] Khởi động Tailscaled (Userspace Mode)..."
+mkdir -p /var/run/tailscale /var/lib/tailscale /tmp/tailscale-log
+killall tailscaled 2>/dev/null || true
+sleep 1
+
+nohup tailscaled \
+    --tun=userspace-networking \
+    --statedir=/var/lib/tailscale \
+    --socket=/var/run/tailscale/tailscaled.sock \
+    > /tmp/tailscaled.log 2>&1 &
+
+sleep 3
+
+# Kết nối Tailscale với Auth Key
+echo ">>> [3/7] Xác thực và gia nhập mạng Tailscale..."
+tailscale --socket=/var/run/tailscale/tailscaled.sock up \
+    --authkey="$AUTH_KEY" \
+    --hostname="vastai-worker-$(hostname)" \
+    --reset
+
+CURRENT_TS_IP=$(tailscale --socket=/var/run/tailscale/tailscaled.sock ip -4 2>/dev/null || true)
+echo "✅ Worker Tailscale IP: $CURRENT_TS_IP"
+
+# Bước 3: Cấu hình ánh xạ /etc/hosts và Socat Port-Forwarding
+echo ">>> [4/7] Thiết lập kênh chuyển tiếp cổng (Socat) tới Master ($MASTER_IP)..."
+if ! grep -q "redis" /etc/hosts; then
+    echo "127.0.0.1 redis db minio" >> /etc/hosts
+fi
+
+killall socat 2>/dev/null || true
+sleep 1
+
+# Forward Redis (6379)
+nohup socat TCP-LISTEN:6379,fork,reuseaddr,bind=127.0.0.1 EXEC:"tailscale --socket=/var/run/tailscale/tailscaled.sock nc $MASTER_IP 6379" >/tmp/socat_redis.log 2>&1 &
+# Forward PostgreSQL (5432)
+nohup socat TCP-LISTEN:5432,fork,reuseaddr,bind=127.0.0.1 EXEC:"tailscale --socket=/var/run/tailscale/tailscaled.sock nc $MASTER_IP 5432" >/tmp/socat_db.log 2>&1 &
+# Forward MinIO/S3 (9000)
+nohup socat TCP-LISTEN:9000,fork,reuseaddr,bind=127.0.0.1 EXEC:"tailscale --socket=/var/run/tailscale/tailscaled.sock nc $MASTER_IP 9000" >/tmp/socat_minio.log 2>&1 &
+
+sleep 2
+
+# Kiểm tra kết nối Redis
+echo "Kiểm tra kết nối tới Redis Master qua kênh bảo mật..."
+if nc -z 127.0.0.1 6379 2>/dev/null; then
+    echo "✅ Kết nối Redis thành công!"
+else
+    echo "⚠️ Chú ý: Chưa thấy Redis phản hồi tức thì, tiến trình nền vẫn đang duy trì kết nối."
+fi
+
+# Bước 4: Cấu hình tệp môi trường .env cho Worker
+echo ">>> [5/7] Khởi tạo và đồng bộ file .env cho GPU Worker..."
+if [ ! -f .env ]; then
+    if [ -f .env.example ]; then
+        cp .env.example .env
     else
-        echo "Connecting Tailscale (interactive)..."
-        tailscale up --accept-routes
+        touch .env
     fi
 fi
 
-# Verify ping to Master
-echo "Testing connection to Master ($MASTER_IP)..."
-if ping -c 2 -W 3 "$MASTER_IP" > /dev/null 2>&1; then
-    echo ">>> Connection to Master ($MASTER_IP) confirmed via Tailscale!"
+# Đảm bảo các cấu hình kết nối chuẩn
+grep -q "^DATABASE_URL=" .env && sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgresql://ai_video:ai_video@127.0.0.1:5432/ai_video|g" .env || echo "DATABASE_URL=postgresql://ai_video:ai_video@127.0.0.1:5432/ai_video" >> .env
+grep -q "^REDIS_URL=" .env && sed -i "s|^REDIS_URL=.*|REDIS_URL=redis://127.0.0.1:6379/0|g" .env || echo "REDIS_URL=redis://127.0.0.1:6379/0" >> .env
+grep -q "^CELERY_BROKER_URL=" .env && sed -i "s|^CELERY_BROKER_URL=.*|CELERY_BROKER_URL=redis://127.0.0.1:6379/0|g" .env || echo "CELERY_BROKER_URL=redis://127.0.0.1:6379/0" >> .env
+grep -q "^CELERY_RESULT_BACKEND=" .env && sed -i "s|^CELERY_RESULT_BACKEND=.*|CELERY_RESULT_BACKEND=redis://127.0.0.1:6379/0|g" .env || echo "CELERY_RESULT_BACKEND=redis://127.0.0.1:6379/0" >> .env
+
+grep -q "^JWT_SECRET_KEY=" .env || echo "JWT_SECRET_KEY=Kimchidoao_change_this_to_a_secure_random_key_in_production" >> .env
+grep -q "^JWT_ALGORITHM=" .env || echo "JWT_ALGORITHM=HS256" >> .env
+
+# Kích hoạt chế độ tăng tốc GPU
+grep -q "^WHISPER_DEVICE=" .env && sed -i "s|^WHISPER_DEVICE=.*|WHISPER_DEVICE=cuda|g" .env || echo "WHISPER_DEVICE=cuda" >> .env
+grep -q "^TRANSLATION_DEVICE=" .env && sed -i "s|^TRANSLATION_DEVICE=.*|TRANSLATION_DEVICE=cuda|g" .env || echo "TRANSLATION_DEVICE=cuda" >> .env
+grep -q "^WHISPER_COMPUTE_TYPE=" .env && sed -i "s|^WHISPER_COMPUTE_TYPE=.*|WHISPER_COMPUTE_TYPE=int8_float16|g" .env || echo "WHISPER_COMPUTE_TYPE=int8_float16" >> .env
+
+# Cấu hình cache HuggingFace & Torch sang thư mục rộng hơn nếu cần
+export HF_HOME="${HF_HOME:-/workspace/.hf_home}"
+mkdir -p "$HF_HOME"
+
+# Bước 5: Cài đặt thư viện bổ trợ CUDA 12 cho CTranslate2/Faster-Whisper
+echo ">>> [6/7] Kiểm tra và cài đặt thư viện NVIDIA cuBLAS / cuDNN..."
+pip install --no-cache-dir nvidia-cublas-cu12 nvidia-cudnn-cu12 >/dev/null 2>&1 || true
+
+# Tự động dò đường dẫn thư viện cuBLAS cu12
+SITE_PACKAGES=$(python3 -c "import site; print(site.getsitepackages()[0])" 2>/dev/null || echo "/venv/main/lib/python3.12/site-packages")
+CUBLAS_LIB="$SITE_PACKAGES/nvidia/cublas/lib"
+CUDNN_LIB="$SITE_PACKAGES/nvidia/cudnn/lib"
+
+export LD_LIBRARY_PATH="$CUBLAS_LIB:$CUDNN_LIB:$LD_LIBRARY_PATH"
+
+# Bước 6: Khởi chạy Celery Worker
+echo ">>> [7/7] Khởi chạy Celery GPU Worker..."
+killall celery 2>/dev/null || true
+sleep 1
+
+# Export toàn bộ biến môi trường từ .env
+set -a
+[ -f .env ] && source .env
+set +a
+
+# Chạy worker bằng python từ môi trường hiện tại
+nohup env LD_LIBRARY_PATH="$LD_LIBRARY_PATH" celery -A backend.app.tasks.celery_app worker \
+    --loglevel=info \
+    -Q queue_media,queue_pipeline,queue_stt,queue_translate,queue_tts \
+    -P solo \
+    -Ofair \
+    > celery_worker.log 2>&1 &
+
+WORKER_PID=$!
+sleep 3
+
+if ps -p $WORKER_PID > /dev/null; then
+    echo "========================================================================"
+    echo "🎉 CELERY GPU WORKER ĐÃ KHỞI CHẠY THÀNH CÔNG! (PID: $WORKER_PID)"
+    echo "========================================================================"
+    echo "👉 Để xem nhật ký hoạt động thời gian thực:"
+    echo "   tail -f celery_worker.log"
+    echo "👉 Trạng thái GPU hiện tại:"
+    nvidia-smi --query-gpu=name,memory.total,memory.free,driver_version --format=csv,noheader
+    echo "========================================================================"
 else
-    echo ">>> WARNING: Ping to Master ($MASTER_IP) failed. Please check if Tailscale is running on Master."
-fi
-
-# Step 2: Configure NFS storage mounts
-echo ">>> [2/5] Mounting shared NFS storage from Master..."
-chmod +x scripts/*.sh || true
-./scripts/setup_worker_nfs.sh "$MASTER_IP"
-
-# Step 3: Update .env configuration
-echo ">>> [3/5] Updating worker environment configuration..."
-./scripts/setup_worker_env.sh "$MASTER_IP"
-
-# Step 4: Verify GPU
-echo ">>> [4/5] Checking NVIDIA GPU status..."
-if command -v nvidia-smi &> /dev/null; then
-    nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
-else
-    echo ">>> WARNING: nvidia-smi not found. Ensure this instance has an NVIDIA GPU attached."
-fi
-
-# Step 5: Launch Celery Worker
-echo ">>> [5/5] Launching Celery Worker Stack..."
-if command -v docker &> /dev/null && docker info &> /dev/null; then
-    echo "Starting Celery Worker inside Docker GPU container..."
-    docker compose -f docker-compose.worker.yml up -d --build
-    echo "========================================================================"
-    echo ">>> Celery Worker started in Docker container! Logs:"
-    echo "    docker compose -f docker-compose.worker.yml logs -f"
-    echo "========================================================================"
-else
-    echo "Docker not running in this container environment. Launching native Celery worker..."
-    echo "Ensuring Python dependencies..."
-    pip install --no-cache-dir -r backend/requirements-gpu.txt 2>/dev/null || true
-    
-    # Export env vars
-    set -a
-    source .env
-    set +a
-    
-    echo "Starting Celery worker process (GPU mode)..."
-    nohup celery -A backend.app.tasks.celery_app worker \
-        --loglevel=info \
-        -Q queue_media,queue_pipeline,queue_stt,queue_translate,queue_tts \
-        -P solo \
-        -Ofair > celery_worker.log 2>&1 &
-    
-    echo "========================================================================"
-    echo ">>> Celery Worker is running in background (PID: $!)"
-    echo ">>> View logs with: tail -f celery_worker.log"
-    echo "========================================================================"
+    echo "❌ Lỗi: Celery Worker không thể duy trì. Xem chi tiết tại celery_worker.log:"
+    cat celery_worker.log | tail -n 25
+    exit 1
 fi

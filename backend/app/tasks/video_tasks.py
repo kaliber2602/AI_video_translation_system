@@ -2,6 +2,8 @@
 import os
 import logging
 import uuid
+from pathlib import Path
+from app.core.config import OUTPUT_DIR, UPLOAD_DIR
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 import torch
@@ -28,6 +30,34 @@ if cuda_available:
                 torch.cuda.get_device_properties(0).total_memory / 1e9)
 else:
     logger.info("Celery Worker: CUDA not detected - using CPU")
+
+
+def resolve_video_input_path(video, upload_dir) -> Optional[str]:
+    """Resolve video path on local disk, or auto-download from Object Storage (MinIO/S3)."""
+    if video.original_path and os.path.exists(video.original_path):
+        return video.original_path
+    for file in sorted(upload_dir.glob(f"{video.id}_*"), key=lambda f: f.stat().st_size, reverse=True):
+        if file.suffix.lower() in [".mp4", ".mov", ".avi", ".mkv", ".webm"] and file.stat().st_size > 1024:
+            return str(file)
+    # Download from Object Storage fallback (multi-node architecture)
+    try:
+        from app.services.s3_service import storage_manager
+        ext = Path(video.original_filename or "video.mp4").suffix or ".mp4"
+        candidates = [
+            f"videos/{video.id}/original{ext}",
+            f"videos/{video.id}/original.mp4",
+            f"uploads/{video.id}_{video.original_filename or 'video.mp4'}",
+            f"{video.id}_{video.original_filename or 'video.mp4'}",
+        ]
+        target_path = upload_dir / f"{video.id}_{video.original_filename or 'video.mp4'}"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        for s3_key in candidates:
+            if storage_manager.download_file(s3_key, str(target_path)):
+                logger.info(f"Successfully downloaded video #{video.id} from Object Storage ({s3_key}) -> {target_path}")
+                return str(target_path)
+    except Exception as e:
+        logger.warning(f"Could not download video #{video.id} from storage: {e}")
+    return None
 
 
 class PipelineTask(Task):
@@ -897,14 +927,7 @@ def task_extract_audio_step(self, video_id: int, user_id: int, job_id: Optional[
         if not video:
             raise ValueError(f"Video #{video_id} not found")
 
-        video_path = None
-        if video.original_path and os.path.exists(video.original_path):
-            video_path = video.original_path
-        else:
-            for file in sorted(UPLOAD_DIR.glob(f"{video_id}_*"), key=lambda f: f.stat().st_size, reverse=True):
-                if file.suffix.lower() in [".mp4", ".mov", ".avi", ".mkv", ".webm"] and file.stat().st_size > 1024:
-                    video_path = str(file)
-                    break
+        video_path = resolve_video_input_path(video, UPLOAD_DIR)
         if not video_path:
             raise ValueError(f"Original video file not found for video #{video_id}")
 
@@ -998,6 +1021,7 @@ def task_transcribe_step(self, video_id: int, user_id: int, enable_diarization: 
     """Execute Whisper STT and Pyannote diarization as a decoupled, asynchronous step."""
     db = self.db
     job_service = JobService(db)
+    from app.core.config import OUTPUT_DIR, UPLOAD_DIR
     
     try:
         cuda_avail = torch.cuda.is_available()
@@ -1067,12 +1091,7 @@ def task_transcribe_step(self, video_id: int, user_id: int, enable_diarization: 
                 video.extracted_vocal_path = vocal_path
                 db.commit()
             else:
-                video_path = video.original_path
-                if not video_path or not os.path.exists(video_path):
-                    for f in UPLOAD_DIR.glob(f"{video_id}_*"):
-                        if f.exists() and f.suffix.lower() in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
-                            video_path = str(f)
-                            break
+                video_path = resolve_video_input_path(video, UPLOAD_DIR)
                 if video_path and os.path.exists(video_path):
                     from app.services import AudioService
                     audio_svc = AudioService()
@@ -1092,7 +1111,6 @@ def task_transcribe_step(self, video_id: int, user_id: int, enable_diarization: 
 
         # --- Milestone 1: Whisper STT ---
         from app.services.stt_service import STTService
-        from app.core.config import OUTPUT_DIR
         import json
         from datetime import datetime
         from app.models import TranscriptSegment, SpeakerProfile
@@ -2040,14 +2058,7 @@ def task_dub_mux_step(
         from app.services import AudioService
 
         # Find original video file
-        video_path = None
-        if video.original_path and os.path.exists(video.original_path):
-            video_path = video.original_path
-        else:
-            for file in sorted(UPLOAD_DIR.glob(f"{video_id}_*"), key=lambda f: f.stat().st_size, reverse=True):
-                if file.suffix.lower() in [".mp4", ".mov", ".avi", ".mkv", ".webm"] and file.stat().st_size > 1024:
-                    video_path = str(file)
-                    break
+        video_path = resolve_video_input_path(video, UPLOAD_DIR)
         if not video_path:
             raise ValueError(f"Original video file not found for video #{video_id}")
 
